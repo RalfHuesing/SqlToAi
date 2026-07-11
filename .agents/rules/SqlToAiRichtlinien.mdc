@@ -50,7 +50,7 @@ dotnet run            # Starten (als MCP Server)
 
 ## 4. Updates & Tests
 
-- **xUnit v3 Tests:** Pflicht für alle funktionalen Änderungen und Sicherheitsüberprüfungen (Safety-Check, Anonymisierung, Read-Only Guard).
+- **xUnit v3 Tests:** Pflicht für alle funktionalen Änderungen, Sicherheitsüberprüfungen (Safety-Check, Anonymisierung, Read-Only Guard) sowie für jede nicht-triviale Funktion.
 - **Dokumentations-Synchronisation:** Bei Änderungen an Features/Optionen müssen `README.md` und `docs/mcp-specification.md` synchron gehalten werden (ohne Aufforderung).
 - **Commits:** Jeder Commit-Vorschlag schließt mit `### Commit-Vorschlag` (Conventional Commit, Deutsch, imperativ).
 
