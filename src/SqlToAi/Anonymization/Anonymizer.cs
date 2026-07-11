@@ -18,7 +18,7 @@ public sealed class Anonymizer : IAnonymizer
     /// <summary>
     /// Initializes a new instance of the <see cref="Anonymizer"/> class.
     /// </summary>
-    /// <param name="options">Options containing the anonymization rules and exclusion patterns.</param>
+    /// <param name="options">Options containing the default anonymization mode and excluded columns.</param>
     public Anonymizer(IOptions<SqlToAiOptions> options)
     {
         _options = options.Value;
@@ -26,6 +26,8 @@ public sealed class Anonymizer : IAnonymizer
 
     /// <summary>
     /// Anonymizes a string value if anonymization is enabled and the column is not excluded.
+    /// Default behavior: every string column is anonymized, except those that match a pattern
+    /// in <see cref="AnonymizerOptions.ExcludedColumns"/>.
     /// </summary>
     /// <param name="columnName">The column name containing the value.</param>
     /// <param name="originalValue">The original string value.</param>
@@ -46,12 +48,11 @@ public sealed class Anonymizer : IAnonymizer
             }
         }
 
-        // 2. Pauschale Anonymisierung: all other columns are anonymized
-        string selectedMode = !string.IsNullOrWhiteSpace(_options.Anonymizer.DefaultMode)
-            ? _options.Anonymizer.DefaultMode
-            : _options.Anonymizer.Mode;
-
-        return RunAnonymization(originalValue, selectedMode);
+        // 2. Pauschale Anonymisierung: every non-excluded string column is anonymized with the
+        //    configured default mode. Per-database opt-out is handled at the AccessLevel layer
+        //    (ReadOnlyAnonymized vs ReadData) — the Anonymizer is only ever invoked when the
+        //    access level already decided "yes, anonymize".
+        return RunAnonymization(originalValue, _options.Anonymizer.DefaultMode);
     }
 
     private static string RunAnonymization(string value, string mode)

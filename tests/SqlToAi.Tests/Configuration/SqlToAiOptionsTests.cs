@@ -33,7 +33,6 @@ public sealed class SqlToAiOptionsTests
         Assert.True(options.Anonymizer.Enabled);
         Assert.True(options.MetadataProvider.Enabled);
         Assert.Equal("ScramblePattern", options.Anonymizer.DefaultMode);
-        Assert.Equal("ScramblePattern", options.Anonymizer.Mode);
     }
 
     [Fact]
@@ -54,9 +53,8 @@ public sealed class SqlToAiOptionsTests
           },
           "Anonymizer": {
             "Enabled": true,
-            "Rules": [
-              { "Pattern": "*name*", "Mode": "ScramblePattern" }
-            ]
+            "DefaultMode": "Hash",
+            "ExcludedColumns": ["*Code", "Status"]
           }
         }
         """;
@@ -80,8 +78,9 @@ public sealed class SqlToAiOptionsTests
         Assert.Equal(100, options.Databases.CacheTtlSeconds);
 
         Assert.True(options.Anonymizer.Enabled);
-        var rule = Assert.Single(options.Anonymizer.Rules);
-        Assert.Equal("*name*", rule.Pattern);
-        Assert.Equal("ScramblePattern", rule.Mode);
+        Assert.Equal("Hash", options.Anonymizer.DefaultMode);
+        Assert.Equal(2, options.Anonymizer.ExcludedColumns.Count);
+        Assert.Contains("*Code", options.Anonymizer.ExcludedColumns);
+        Assert.Contains("Status", options.Anonymizer.ExcludedColumns);
     }
 }

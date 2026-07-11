@@ -45,23 +45,26 @@ public sealed class DatabasesOptions
 
 /// <summary>
 /// Options for string value anonymization to protect PII (Personally Identifiable Information).
+/// <para>
+/// Default behavior: every string column is anonymized with <see cref="DefaultMode"/> unless its
+/// name matches one of the <see cref="ExcludedColumns"/> glob patterns. Per-database
+/// opt-out is configured via the dynamic <c>AccessCheckSql</c> returning
+/// <c>ReadData</c> (raw) versus <c>ReadDataAnonymized</c>.
+/// </para>
 /// </summary>
 public sealed class AnonymizerOptions
 {
+    /// <summary>Master switch. When false, <see cref="Anonymizer.Anonymize"/> returns the input unchanged.</summary>
     public bool Enabled { get; set; } = true;
-    public string DefaultMode { get; set; } = "ScramblePattern";
-    public string Mode { get; set; } = "ScramblePattern"; // Legacy/Fallback alias
-    public List<AnonymizerRule> Rules { get; set; } = [];
-    public List<string> ExcludedColumns { get; set; } = [];
-}
 
-/// <summary>
-/// Represents a rule mapping a column pattern to an anonymization mode.
-/// </summary>
-public sealed class AnonymizerRule
-{
-    public string Pattern { get; set; } = string.Empty;
-    public string Mode { get; set; } = string.Empty;
+    /// <summary>Algorithm used for anonymization. One of <c>ScramblePattern</c> (default) or <c>Hash</c>.</summary>
+    public string DefaultMode { get; set; } = "ScramblePattern";
+
+    /// <summary>
+    /// Glob patterns for column names that must NOT be anonymized (e.g. <c>*Id</c>, <c>*Code</c>,
+    /// <c>Status</c>). Use sparingly — anything not listed here is anonymized by default.
+    /// </summary>
+    public List<string> ExcludedColumns { get; set; } = [];
 }
 
 /// <summary>

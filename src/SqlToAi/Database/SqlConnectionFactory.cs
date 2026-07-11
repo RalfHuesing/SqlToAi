@@ -48,9 +48,10 @@ public sealed class SqlConnectionFactory : IDatabaseConnectionFactory
             builder = new SqlConnectionStringBuilder
             {
                 DataSource = _options.SqlDatabase.Server,
-                InitialCatalog = !string.IsNullOrWhiteSpace(_options.SqlDatabase.DefaultDatabase) 
-                    ? _options.SqlDatabase.DefaultDatabase 
+                InitialCatalog = !string.IsNullOrWhiteSpace(_options.SqlDatabase.DefaultDatabase)
+                    ? _options.SqlDatabase.DefaultDatabase
                     : _options.Databases.Default,
+                ApplicationName = "SqlToAi",
                 TrustServerCertificate = true, // Facilitate developer local connections
                 ConnectTimeout = _options.SqlDatabase.CommandTimeoutSeconds
             };

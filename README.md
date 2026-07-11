@@ -11,7 +11,8 @@ Designed specifically for developers analyzing ERP systems and complex database 
 * 🚀 **Stdio-based MCP Host:** Fast, local execution using standard input/output (no HTTP/network setup required).
 * 🛡️ **PII Shield (On-the-Fly Anonymization):** Automatically scrambles or hashes all string values in query results (default: ON) to protect customer data while preserving data structure, casing, length, and join logical consistency.
 * 🔒 **Schreibschutz (Read-Only Guard):** Configurable read-only transaction execution and regex command checking to prevent the AI from executing modifying queries (`INSERT`, `UPDATE`, `DROP`, etc.).
-* 🚦 **Safety/Demo Probe Check:** Run a configurable SQL validation query (e.g. `SELECT 1 WHERE DB_NAME() LIKE '%demo%'`) before accessing any database, blocking access to production databases.
+* 🚦 **Safety/Demo Probe Check:** Run a configurable SQL validation query (e.g. `SELECT 1 WHERE DB_NAME() LIKE '%demo%'`) before accessing any database, blocking access to production databases. The probe also controls per-database anonymization (return `ReadData` for clear-text, `ReadDataAnonymized` for protected access).
+* 🛡️ **Default Anonymization:** Every string column is automatically scrambled with the configured default algorithm unless its name matches an `ExcludedColumns` pattern — no per-column rule maintenance required.
 * 📖 **Schema Enrichment (Custom Metadata):** Inject custom business logic or table/column documentation from another database/table via configurable SQL queries directly into the schema results returned to the AI.
 * 📋 **Progressive Disclosure Schema Tools:** Exposes optimized tools for schema discovery, triggers, constraints, indexes, routine parameters, and referencing entities (`sys.dm_sql_referencing_entities`), formatted in clean Markdown for the AI.
 * 📂 **File-Based Logging + MCP Trail:** Serilog writes rolling app and error logs next to the executable; every MCP request and response is recorded verbatim as JSONL under `log/mcp/YYYY-MM-DD/`, with the same anonymization the LLM saw.
@@ -40,7 +41,7 @@ output. The root section is `SqlToAi`, which contains the following sub-sections
 | :--- | :--- |
 | `Databases` | Static whitelist (`Allowed`/`Blocked`), default database, `AccessCheckSql` for the dynamic permission probe, and `CacheTtlSeconds`. |
 | `SqlDatabase` | Connection parameters (`Server`, `DefaultDatabase`, `CommandTimeoutSeconds`, `ReadOnly`). Credentials are intentionally not loaded from here — see below. |
-| `Anonymizer` | Enables PII string scrambling, defines per-pattern rules and excluded columns. |
+| `Anonymizer` | Master switch (`Enabled`), the algorithm (`DefaultMode`: `ScramblePattern` or `Hash`), and the list of column-name patterns that must NOT be anonymized (`ExcludedColumns`). |
 | `MetadataProvider` | Optional custom queries for table/column documentation enrichment. |
 | `QueryExecution` | `DefaultRowLimit` and `MaxRowLimit` for `sql_execute_query`. |
 | `Logging` | File-based logging root directory, app/error rolling sinks, and the MCP-trail settings. See [Logging](#logging) below. |
@@ -93,10 +94,6 @@ dotnet run --project src/SqlToAi
     "Anonymizer": {
       "Enabled": true,
       "DefaultMode": "ScramblePattern",
-      "Rules": [
-        { "Pattern": "*name*", "Mode": "ScramblePattern" },
-        { "Pattern": "*mail*", "Mode": "ScramblePattern" }
-      ],
       "ExcludedColumns": ["*Id", "Id", "*Code", "*Type", "Status"]
     },
     "MetadataProvider": {
