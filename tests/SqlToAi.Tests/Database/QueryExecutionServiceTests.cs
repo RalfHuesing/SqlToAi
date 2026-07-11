@@ -125,6 +125,79 @@ public sealed class QueryExecutionServiceTests
     }
 
     // -------------------------------------------------------------------------
+    // Tests: ReadWrite access level unlocks mutating statements (and commits them)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldAllowMutatingQuery_AndCommit_WhenReadWriteAndGlobalOverrideOff()
+    {
+        var options = new SqlToAiOptions();
+        options.SqlDatabase.ReadOnly = false;
+        var factory = new MockQueryConnectionFactory();
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadWrite),
+            new FakeReadOnlyGuard(safe: false), // guard would reject it — must be bypassed
+            new Anonymizer(Options.Create(options)),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync("DemoDb", "UPDATE Customers SET Name = 'X'", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, factory.LastConnection?.LastTransaction?.CommitCount);
+        Assert.Equal(0, factory.LastConnection?.LastTransaction?.RollbackCount);
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldStillBlockMutatingQuery_WhenReadWrite_ButGlobalOverrideOn()
+    {
+        var options = new SqlToAiOptions();
+        options.SqlDatabase.ReadOnly = true; // global override wins even at ReadWrite
+        var service = new QueryExecutionService(
+            new MockQueryConnectionFactory(), new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadWrite),
+            new FakeReadOnlyGuard(safe: false), new Anonymizer(Options.Create(options)),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync("DemoDb", "UPDATE Customers SET Name = 'X'", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldStillRollBack_WhenReadWrite_ButQueryIsPlainRead()
+    {
+        var options = new SqlToAiOptions();
+        options.SqlDatabase.ReadOnly = false;
+        var factory = new MockQueryConnectionFactory();
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly), // not ReadWrite
+            new FakeReadOnlyGuard(safe: true), new Anonymizer(Options.Create(options)),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync("DemoDb", "SELECT 1", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
+        Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldStillForbidMultipleStatements_WhenWriteAllowed()
+    {
+        var options = new SqlToAiOptions();
+        options.SqlDatabase.ReadOnly = false;
+        var service = new QueryExecutionService(
+            new MockQueryConnectionFactory(), new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadWrite),
+            new FakeReadOnlyGuard(safe: true), new Anonymizer(Options.Create(options)),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync("DemoDb", "UPDATE Foo SET X=1; UPDATE Bar SET Y=2", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, result.Error.Code);
+    }
+
+    // -------------------------------------------------------------------------
     // Tests: row limit enforcement
     // -------------------------------------------------------------------------
 
@@ -233,8 +306,14 @@ public sealed class QueryExecutionServiceTests
             _rowCount = rowCount;
         }
 
+        /// <summary>The most recently created connection — lets tests inspect its transaction.</summary>
+        public MockQueryConnection? LastConnection { get; private set; }
+
         public DbConnection CreateConnection(string? databaseName)
-            => new MockQueryConnection(_stringValue, _rowCount);
+        {
+            LastConnection = new MockQueryConnection(_stringValue, _rowCount);
+            return LastConnection;
+        }
 
         public DbConnection CreateConnection() => CreateConnection((string?)null);
     }
@@ -250,11 +329,17 @@ public sealed class QueryExecutionServiceTests
         public override string ServerVersion => "16.0";
         public override ConnectionState State => _state;
 
+        /// <summary>The most recently started transaction — lets tests inspect commit/rollback calls.</summary>
+        public MockQueryTransaction? LastTransaction { get; private set; }
+
         public override void Open() => _state = ConnectionState.Open;
         public override Task OpenAsync(CancellationToken cancellationToken) { _state = ConnectionState.Open; return Task.CompletedTask; }
 
         protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
-            => new MockQueryTransaction(this);
+        {
+            LastTransaction = new MockQueryTransaction(this);
+            return LastTransaction;
+        }
 
         protected override DbCommand CreateDbCommand()
             => new MockQueryCommand(this, stringValue, rowCount);
@@ -265,10 +350,13 @@ public sealed class QueryExecutionServiceTests
 
     private sealed class MockQueryTransaction(DbConnection connection) : DbTransaction
     {
+        public int CommitCount { get; private set; }
+        public int RollbackCount { get; private set; }
+
         protected override DbConnection DbConnection => connection;
         public override IsolationLevel IsolationLevel => IsolationLevel.ReadCommitted;
-        public override void Commit() { }
-        public override void Rollback() { }
+        public override void Commit() => CommitCount++;
+        public override void Rollback() => RollbackCount++;
     }
 
     private sealed class MockQueryCommand(DbConnection connection, string? stringValue, int rowCount) : DbCommand
