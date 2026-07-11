@@ -28,6 +28,10 @@ public sealed class ReadOnlyGuardTests
     [InlineData("SELECT * FROM dbo.Customers /* inline comment */ WHERE Id = 1")]
     [InlineData("SELECT * FROM dbo.Customers -- delete")]
     [InlineData("SELECT * FROM dbo.Customers /* update */")]
+    [InlineData("SELECT 'DELETE' AS Status")]
+    [InlineData("SELECT * FROM Customers WHERE Status = 'UPDATE'")]
+    [InlineData("SELECT HAS_PERMS_BY_NAME('T', 'OBJECT', 'EXECUTE') AS CanExec")]
+    [InlineData("SELECT 'it''s a delete-like value' AS Note")]
     public void IsQuerySafe_ShouldReturnTrue_ForSafeQueries(string query)
     {
         // Arrange

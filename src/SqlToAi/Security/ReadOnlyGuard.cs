@@ -1,5 +1,6 @@
 #nullable enable
 
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace SqlToAi.Security;
@@ -15,7 +16,8 @@ public sealed class ReadOnlyGuard : IReadOnlyGuard
         TimeSpan.FromMilliseconds(200));
 
     /// <summary>
-    /// Checks if a query is safe for read-only execution by stripping comments and verifying against mutating keywords.
+    /// Checks if a query is safe for read-only execution by stripping comments and string
+    /// literals, then verifying the remainder against mutating keywords.
     /// </summary>
     /// <param name="query">The SQL query string to evaluate.</param>
     /// <returns>True if the query is safe (read-only); otherwise, false.</returns>
@@ -28,7 +30,7 @@ public sealed class ReadOnlyGuard : IReadOnlyGuard
 
         try
         {
-            string cleanQuery = StripSqlComments(query);
+            string cleanQuery = StripCommentsAndStringLiterals(query);
             return !MutatingKeywordsRegex.IsMatch(cleanQuery);
         }
         catch (RegexMatchTimeoutException)
@@ -38,22 +40,51 @@ public sealed class ReadOnlyGuard : IReadOnlyGuard
         }
     }
 
-    private static string StripSqlComments(string sql)
+    /// <summary>
+    /// Blanks out SQL comments (<c>--</c>, <c>/* */</c>) and single-quoted string literal
+    /// contents in a single pass, so a value like <c>WHERE Status = 'DELETE'</c> is not
+    /// mistaken for the mutating keyword DELETE. Quotes are replaced with a single space
+    /// (not removed) so tokens on either side never merge into an unrelated word.
+    /// </summary>
+    private static string StripCommentsAndStringLiterals(string sql)
     {
-        // Remove multi-line comments /* ... */
-        string noMultiLine = Regex.Replace(
-            sql, 
-            @"/\*.*?\*/", 
-            string.Empty, 
-            RegexOptions.Singleline, 
-            TimeSpan.FromMilliseconds(200));
+        var sb = new StringBuilder(sql.Length);
+        bool inSingleQuote = false;
+        bool inLineComment = false;
+        bool inBlockComment = false;
 
-        // Remove single-line comments -- ...
-        return Regex.Replace(
-            noMultiLine, 
-            @"--.*$", 
-            string.Empty, 
-            RegexOptions.Multiline, 
-            TimeSpan.FromMilliseconds(200));
+        ReadOnlySpan<char> span = sql.AsSpan();
+        for (int i = 0; i < span.Length; i++)
+        {
+            char c = span[i];
+            char next = i + 1 < span.Length ? span[i + 1] : '\0';
+
+            if (inLineComment)
+            {
+                if (c == '\n') { inLineComment = false; sb.Append(c); }
+                continue;
+            }
+
+            if (inBlockComment)
+            {
+                if (c == '*' && next == '/') { inBlockComment = false; i++; }
+                continue;
+            }
+
+            if (inSingleQuote)
+            {
+                if (c == '\'' && next == '\'') { i++; continue; } // escaped '' inside literal
+                if (c == '\'') { inSingleQuote = false; sb.Append(' '); }
+                continue;
+            }
+
+            if (c == '-' && next == '-') { inLineComment = true; i++; continue; }
+            if (c == '/' && next == '*') { inBlockComment = true; i++; continue; }
+            if (c == '\'') { inSingleQuote = true; sb.Append(' '); continue; }
+
+            sb.Append(c);
+        }
+
+        return sb.ToString();
     }
 }

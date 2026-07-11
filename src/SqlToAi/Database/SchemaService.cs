@@ -19,6 +19,14 @@ namespace SqlToAi.Database;
 /// </summary>
 public sealed class SchemaService : ISchemaService
 {
+    /// <summary>
+    /// <c>sys.sql_modules.definition</c> returns NULL both for genuinely encrypted modules and
+    /// for callers lacking <c>VIEW DEFINITION</c> on the object — SQL Server does not
+    /// distinguish the two cases in this DMV, so the message names both possible causes.
+    /// </summary>
+    private const string DdlUnavailableNote =
+        "*Definition not available — either the object is encrypted, or the configured login lacks VIEW DEFINITION permission on it.*";
+
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly ISecurityGuard _securityGuard;
     private readonly IAccessLevelProvider _accessLevelProvider;
@@ -178,14 +186,17 @@ public sealed class SchemaService : ISchemaService
             }
 
             // 2. Query schema depending on type code
-            if (typeCode == "U" || typeCode == "V")
+            if (typeCode == "U")
             {
                 return await GetTableSchemaMarkdownAsync(connection, databaseName, objectName, cancellationToken);
             }
-            else
+            if (typeCode == "V")
             {
-                return await GetRoutineSchemaMarkdownAsync(connection, objectName, cancellationToken);
+                string tableMarkdown = await GetTableSchemaMarkdownAsync(connection, databaseName, objectName, cancellationToken);
+                string definitionMarkdown = await GetViewDefinitionMarkdownAsync(connection, objectName, cancellationToken);
+                return tableMarkdown + definitionMarkdown;
             }
+            return await GetRoutineSchemaMarkdownAsync(connection, objectName, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -303,6 +314,32 @@ public sealed class SchemaService : ISchemaService
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Fetches the underlying <c>CREATE VIEW ... AS SELECT ...</c> definition for a view.
+    /// Views only ever surface their column list via <see cref="GetTableSchemaMarkdownAsync"/>
+    /// (identical treatment to tables); the SQL body is queried separately here so a caller
+    /// can see the joins/computed columns behind the view, same as for procedures/functions.
+    /// </summary>
+    private static async Task<string> GetViewDefinitionMarkdownAsync(DbConnection connection, string viewName, CancellationToken cancellationToken)
+    {
+        string? ddl = await connection.QueryFirstOrDefaultAsync<string>(
+            new CommandDefinition("SELECT definition FROM sys.sql_modules WHERE object_id = OBJECT_ID(@ViewName)", new { ViewName = viewName }, cancellationToken: cancellationToken));
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## View Definition");
+        if (!string.IsNullOrWhiteSpace(ddl))
+        {
+            sb.AppendLine("```sql");
+            sb.AppendLine(ddl.Trim());
+            sb.AppendLine("```");
+        }
+        else
+        {
+            sb.AppendLine(DdlUnavailableNote);
+        }
+        return sb.ToString();
+    }
+
     private static async Task<string> GetRoutineSchemaMarkdownAsync(DbConnection connection, string routineName, CancellationToken cancellationToken)
     {
         // Query DDL Definition
@@ -328,7 +365,7 @@ public sealed class SchemaService : ISchemaService
         }
         else
         {
-            sb.AppendLine("*DDL definition not available or encrypted.*");
+            sb.AppendLine(DdlUnavailableNote);
         }
 
         return sb.ToString();
@@ -559,7 +596,7 @@ public sealed class SchemaService : ISchemaService
 
             if (string.IsNullOrWhiteSpace(definition))
             {
-                return $"*Definition for trigger '{triggerName}' is not available or encrypted.*";
+                return $"*Definition for trigger '{triggerName}' not available.* {DdlUnavailableNote}";
             }
 
             return $"# Trigger Definition: `{triggerName}` (on table `{tableName}`)\n\n```sql\n{definition.Trim()}\n```";

@@ -138,6 +138,31 @@ public sealed class SchemaServiceTests
     }
 
     [Fact]
+    public async Task GetSchemaAsync_ShouldIncludeViewDefinition_WhenObjectIsView()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.Databases.Allowed = ["*"];
+
+        var mockFactory = new DummyConnectionFactory();
+        var securityGuard = new SecurityGuard(Options.Create(options));
+        var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
+        var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+
+        // Act
+        var result = await service.GetSchemaAsync("DemoDb", "dbo.CustomersView", TestContext.Current.CancellationToken);
+
+        // Assert — views get both the column list (like tables) and their SQL body (like routines).
+        Assert.True(result.IsSuccess);
+        Assert.Contains("# Schema for Table/View: `dbo.CustomersView`", result.Value);
+        Assert.Contains("CustomerId", result.Value);
+        Assert.Contains("## View Definition", result.Value);
+        Assert.Contains("CREATE PROCEDURE GetCustomers", result.Value);
+    }
+
+    [Fact]
     public async Task GetSchemaForeignKeysAsync_ShouldReturnKeys()
     {
         // Arrange
@@ -424,15 +449,14 @@ public sealed class SchemaServiceTests
                 
                 // Inspect parameters to determine object type dynamically
                 bool isProc = false;
+                bool isView = false;
                 foreach (DbParameter p in _parameters)
                 {
-                    if (p.Value?.ToString()?.Contains("Proc", StringComparison.OrdinalIgnoreCase) == true)
-                    {
-                        isProc = true;
-                        break;
-                    }
+                    string? val = p.Value?.ToString();
+                    if (val?.Contains("Proc", StringComparison.OrdinalIgnoreCase) == true) isProc = true;
+                    if (val?.Contains("View", StringComparison.OrdinalIgnoreCase) == true) isView = true;
                 }
-                string typeCode = isProc ? "P" : "U";
+                string typeCode = isProc ? "P" : isView ? "V" : "U";
                 return new MockDataTableReader(["type"], [[typeCode]]);
             }
 
