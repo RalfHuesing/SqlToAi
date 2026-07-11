@@ -41,16 +41,16 @@ This document outlines the development roadmap, epics, and steps for the **SqlTo
 ---
 
 ## Epic 3: MCP Protocol & Transport
-- [ ] **Step 8: JSON-RPC Message Models**
+- [x] **Step 8: JSON-RPC Message Models**
   - Implement strongly typed C# models matching the MCP specification (Request, Response, Notification, ToolDefinition, etc.).
-- [ ] **Step 9: Stdio Transport Host**
+- [x] **Step 9: Stdio Transport Host**
   - Create Stdio Server Host listening on standard input and writing to standard output.
   - Create a Tool Registry to route incoming tool requests to their respective handlers.
 
 ---
 
 ## Epic 4: MCP Tools Implementation
-- [ ] **Step 10: Metadata and Discovery Tools**
+- [x] **Step 10: Metadata and Discovery Tools**
   - Implement handlers for:
     - `sql_list_databases`
     - `sql_search_databases`
@@ -62,14 +62,14 @@ This document outlines the development roadmap, epics, and steps for the **SqlTo
     - `sql_get_trigger_definition`
     - `sql_get_object_references`
     - `sql_get_routine_parameters`
-- [ ] **Step 11: Validation and Execution Tools**
+- [x] **Step 11: Validation and Execution Tools**
   - Implement handler for `sql_validate_query` (syntax checking via T-SQL `PARSEONLY`).
   - Implement handler for `sql_execute_query` (wrapping Safe Query Execution Service).
 
 ---
 
 ## Epic 5: Integration & Packaging
-- [ ] **Step 12: Bootstrapping & Configuration**
+- [x] **Step 12: Bootstrapping & Configuration**
   - Wire up dependency injection in `Program.cs`.
   - Bind `appsettings.json` and environmental overrides.
   - Run Stdio host loop.
