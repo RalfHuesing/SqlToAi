@@ -8,8 +8,9 @@ namespace SqlToAi.Mcp;
 
 /// <summary>
 /// Stdio-based MCP server host. Reads newline-delimited JSON-RPC 2.0 messages from
-/// <see cref="Console.In"/>, dispatches them through <see cref="IToolDispatcher"/>,
-/// and writes responses to <see cref="Console.Out"/>.
+/// a caller-supplied <see cref="TextReader"/>, dispatches them through
+/// <see cref="IToolDispatcher"/>, and writes responses to a caller-supplied
+/// <see cref="TextWriter"/>.
 /// </summary>
 public sealed class McpHost : IMcpHost
 {
@@ -51,24 +52,20 @@ public sealed class McpHost : IMcpHost
     }
 
     /// <inheritdoc/>
-    public async Task RunAsync(CancellationToken cancellationToken = default)
+    public async Task RunAsync(TextReader input, TextWriter output, CancellationToken cancellationToken = default)
     {
-        // Ensure stdout uses UTF-8 without BOM for cross-platform JSON compatibility
-        Console.OutputEncoding = System.Text.Encoding.UTF8;
-        Console.InputEncoding  = System.Text.Encoding.UTF8;
-
         LogServerStarted(_logger, null);
 
         try
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                string? line = await Console.In.ReadLineAsync(cancellationToken);
+                string? line = await input.ReadLineAsync(cancellationToken);
                 if (line is null) break; // stdin closed — client disconnected
 
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
-                await HandleMessageAsync(line, cancellationToken);
+                await HandleMessageAsync(line, input, output, cancellationToken);
             }
         }
         catch (OperationCanceledException)
@@ -85,7 +82,7 @@ public sealed class McpHost : IMcpHost
     // Message handling
     // -------------------------------------------------------------------------
 
-    private async Task HandleMessageAsync(string rawJson, CancellationToken cancellationToken)
+    private async Task HandleMessageAsync(string rawJson, TextReader input, TextWriter output, CancellationToken cancellationToken)
     {
         JsonRpcRequest? request;
         try
@@ -95,13 +92,13 @@ public sealed class McpHost : IMcpHost
         catch (JsonException ex)
         {
             LogParseError(_logger, ex);
-            WriteError(null, JsonRpcError.ParseError, "Parse error: invalid JSON.");
+            WriteError(output, null, JsonRpcError.ParseError, "Parse error: invalid JSON.");
             return;
         }
 
         if (request is null || string.IsNullOrWhiteSpace(request.Method))
         {
-            WriteError(null, JsonRpcError.InvalidRequest, "Invalid request: missing method.");
+            WriteError(output, null, JsonRpcError.InvalidRequest, "Invalid request: missing method.");
             return;
         }
 
@@ -110,7 +107,7 @@ public sealed class McpHost : IMcpHost
         switch (request.Method)
         {
             case McpConstants.MethodInitialize:
-                HandleInitialize(request);
+                HandleInitialize(output, request);
                 break;
 
             case McpConstants.MethodInitialized:
@@ -118,36 +115,36 @@ public sealed class McpHost : IMcpHost
                 break;
 
             case McpConstants.MethodPing:
-                WriteResult(request.Id, new { });
+                WriteResult(output, request.Id, new { });
                 break;
 
             case McpConstants.MethodToolsList:
-                HandleToolsList(request);
+                HandleToolsList(output, request);
                 break;
 
             case McpConstants.MethodToolsCall:
-                await HandleToolsCallAsync(request, cancellationToken);
+                await HandleToolsCallAsync(output, request, cancellationToken);
                 break;
 
             default:
-                WriteError(request.Id, JsonRpcError.MethodNotFound, $"Method not found: {request.Method}");
+                WriteError(output, request.Id, JsonRpcError.MethodNotFound, $"Method not found: {request.Method}");
                 break;
         }
     }
 
-    private static void HandleInitialize(JsonRpcRequest request)
+    private static void HandleInitialize(TextWriter output, JsonRpcRequest request)
     {
         var result = new InitializeResult();
-        WriteResult(request.Id, result);
+        WriteResult(output, request.Id, result);
     }
 
-    private void HandleToolsList(JsonRpcRequest request)
+    private void HandleToolsList(TextWriter output, JsonRpcRequest request)
     {
         var result = new ToolListResult { Tools = _toolRegistry.GetAll() };
-        WriteResult(request.Id, result);
+        WriteResult(output, request.Id, result);
     }
 
-    private async Task HandleToolsCallAsync(JsonRpcRequest request, CancellationToken cancellationToken)
+    private async Task HandleToolsCallAsync(TextWriter output, JsonRpcRequest request, CancellationToken cancellationToken)
     {
         ToolCallParams? callParams;
         try
@@ -158,39 +155,39 @@ public sealed class McpHost : IMcpHost
         }
         catch (JsonException)
         {
-            WriteError(request.Id, JsonRpcError.InvalidParams, "Invalid tool call parameters.");
+            WriteError(output, request.Id, JsonRpcError.InvalidParams, "Invalid tool call parameters.");
             return;
         }
 
         if (callParams is null || string.IsNullOrWhiteSpace(callParams.Name))
         {
-            WriteError(request.Id, JsonRpcError.InvalidParams, "Missing tool name in call parameters.");
+            WriteError(output, request.Id, JsonRpcError.InvalidParams, "Missing tool name in call parameters.");
             return;
         }
 
         ToolCallResult toolResult = await _dispatcher.DispatchAsync(callParams, cancellationToken);
-        WriteResult(request.Id, toolResult);
+        WriteResult(output, request.Id, toolResult);
     }
 
     // -------------------------------------------------------------------------
     // Response writers
     // -------------------------------------------------------------------------
 
-    private static void WriteResult(System.Text.Json.JsonElement? id, object result)
+    private static void WriteResult(TextWriter output, System.Text.Json.JsonElement? id, object result)
     {
         var response = new JsonRpcResponse { Id = id, Result = result };
-        Console.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
-        Console.Out.Flush();
+        output.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
+        output.Flush();
     }
 
-    private static void WriteError(System.Text.Json.JsonElement? id, int code, string message)
+    private static void WriteError(TextWriter output, System.Text.Json.JsonElement? id, int code, string message)
     {
         var response = new JsonRpcErrorResponse
         {
             Id = id,
             Error = new JsonRpcError { Code = code, Message = message }
         };
-        Console.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
-        Console.Out.Flush();
+        output.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
+        output.Flush();
     }
 }

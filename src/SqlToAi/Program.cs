@@ -73,7 +73,12 @@ internal static class Program
         };
 
         var host = serviceProvider.GetRequiredService<IMcpHost>();
-        await host.RunAsync(cts.Token);
+
+        // Ensure stdio uses UTF-8 without BOM for cross-platform JSON compatibility
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
+        Console.InputEncoding  = System.Text.Encoding.UTF8;
+
+        await host.RunAsync(Console.In, Console.Out, cts.Token);
 
         return 0;
     }

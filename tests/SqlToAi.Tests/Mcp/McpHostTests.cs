@@ -26,20 +26,8 @@ public sealed class McpHostTests
         var outputBuilder = new System.Text.StringBuilder();
         using var outputWriter = new StringWriter(outputBuilder);
 
-        var originalIn  = Console.In;
-        var originalOut = Console.Out;
-        Console.SetIn(inputReader);
-        Console.SetOut(outputWriter);
-        try
-        {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            await host.RunAsync(cts.Token);
-        }
-        finally
-        {
-            Console.SetIn(originalIn);
-            Console.SetOut(originalOut);
-        }
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await host.RunAsync(inputReader, outputWriter, cts.Token);
 
         return outputBuilder.ToString().Trim();
     }
