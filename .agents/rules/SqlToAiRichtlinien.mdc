@@ -55,10 +55,13 @@ dotnet test           # Tests ausführen
 dotnet run            # Starten (als MCP Server)
 ```
 
-## 4. Updates & Tests
+## 4. Updates, Dokumentation & Sprachen (Updates, Documentation & Languages)
 
 - **xUnit v3 Tests:** Pflicht für alle funktionalen Änderungen, Sicherheitsüberprüfungen (Safety-Check, Anonymisierung, Read-Only Guard) sowie für jede nicht-triviale Funktion.
-- **Dokumentations-Synchronisation:** Bei Änderungen an Features/Optionen müssen `README.md` und `docs/mcp-specification.md` synchron gehalten werden (ohne Aufforderung).
+- **Dokumentations-Synchronisation (Pflicht):** Bei jeder Entwicklung und Änderung an Features/Optionen müssen die Dokumentationen in [mcp-specification.md](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/docs/mcp-specification.md) und [README.md](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/README.md) zwingend aktuell gehalten und synchronisiert werden (ohne Aufforderung).
+- **Sprachvorgaben (Language Rules):**
+  - **Dokumentation & Code:** Alle Dokumentationen (einschließlich Markdown-Dateien in `docs/` und `README.md`) sowie der gesamte Quellcode (Klassennamen, Methoden, Variablen, XML-Kommentare etc.) müssen in **englischer Sprache** verfasst sein.
+  - **Kommunikation:** Die Kommunikationssprache zwischen dem KI-Agenten und dem Benutzer ist **Deutsch**.
 - **Commits:** Jeder Commit-Vorschlag schließt mit `### Commit-Vorschlag` (Conventional Commit, Deutsch, imperativ).
 
 ## 5. Qualitätsdrift-Prävention (AiNetLinter)
