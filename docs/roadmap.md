@@ -28,14 +28,15 @@ This document outlines the development roadmap, epics, and steps for the **SqlTo
 ---
 
 ## Epic 2: Database Schema & Query Engines
-- [ ] **Step 6: Schema Exploration Service**
+- [x] **Step 6: Schema Exploration Service**
   - Create services to query tables, views, column types, primary keys, foreign keys, indexes, triggers, and parameters using SQL Server catalog views (`sys.objects`, `sys.columns`, etc.).
   - Render schemas to clean Markdown.
   - Integrate metadata descriptions from `IMetadataProvider`.
-- [ ] **Step 7: Safe Query Execution Service**
+- [x] **Step 7: Safe Query Execution Service**
   - Execute queries inside an explicit database transaction.
   - Enforce transaction rollback at completion to guarantee no data modifications.
   - Fetch results, apply PII anonymization to string columns, and format output as JSON lines.
+  - Row limits (`DefaultRowLimit`/`MaxRowLimit`) configurable via `appsettings.json`.
 
 ---
 
