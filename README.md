@@ -24,38 +24,74 @@ Designed specifically for developers analyzing ERP systems and complex database 
 * **ORM:** Dapper
 * **Provider:** Microsoft.Data.SqlClient
 * **JSON:** System.Text.Json (performance optimized)
-* **Logging:** Serilog
+* **DI / Logging:** Microsoft.Extensions.DependencyInjection + Microsoft.Extensions.Logging (Console)
 * **Testing:** xUnit v3
 
 ---
 
 ## Configuration (`appsettings.json`)
 
-The server is configured using a standard JSON file. Below is an example:
+The server is configured using a standard JSON file. A complete template is provided at
+[`src/SqlToAi/appsettings.json`](src/SqlToAi/appsettings.json) and is automatically copied to the build
+output. The root section is `SqlToAi`, which contains the following sub-sections:
+
+| Section | Purpose |
+| :--- | :--- |
+| `Databases` | Static whitelist (`Allowed`/`Blocked`), default database, `AccessCheckSql` for the dynamic permission probe, and `CacheTtlSeconds`. |
+| `SqlDatabase` | Connection parameters (`Server`, `DefaultDatabase`, `CommandTimeoutSeconds`, `ReadOnly`). Credentials are intentionally not loaded from here — see below. |
+| `Anonymizer` | Enables PII string scrambling, defines per-pattern rules and excluded columns. |
+| `MetadataProvider` | Optional custom queries for table/column documentation enrichment. |
+| `QueryExecution` | `DefaultRowLimit` and `MaxRowLimit` for `sql_execute_query`. |
+
+### Credentials
+
+**Never put credentials into `appsettings.json` or commit them to source control.** Pass the full
+SQL Server connection string via the `SQLTOAI_CONNECTION_STRING` environment variable. When the
+variable is set, it takes precedence over everything in `SqlDatabase`:
+
+```powershell
+$env:SQLTOAI_CONNECTION_STRING = "Data Source=localhost\MSSQLSERVER;Initial Catalog=MyDemoDatabase;User ID=DbUser;Password=...;TrustServerCertificate=True;Encrypt=False"
+dotnet run --project src/SqlToAi
+```
+
+If the env var is not set, the server falls back to `SqlDatabase.Server` (or refuses to start if
+that is also empty). `UserId`/`Password` fields are also accepted in `SqlDatabase` for local
+development, but the env var is the recommended path for any shared or production use.
+
+### Example `appsettings.json`
 
 ```json
 {
-  "SqlDatabase": {
-    "Server": "localhost\\MSSQLSERVER",
-    "UserId": "DbUser",
-    "Password": "SecretPassword",
-    "DefaultDatabase": "MyDemoDatabase",
-    "ExcludedDatabases": ["master", "tempdb", "model", "msdb"],
-    "CommandTimeoutSeconds": 30,
-    "EnforceSafetyCheck": true,
-    "SafetyCheckSql": "SELECT 1 WHERE DB_NAME() LIKE '%demo%' OR DB_NAME() LIKE '%test%'",
-    "ReadOnly": true
-  },
-  "Anonymizer": {
-    "Enabled": true,
-    "Mode": "ScramblePattern",
-    "ExcludedColumns": ["Id", "Code", "Type"]
-  },
-  "MetadataProvider": {
-    "Enabled": true,
-    "ConnectionString": "",
-    "TableMetadataQuery": "SELECT Description FROM dbo.TableDocs WHERE TableName = @TableName",
-    "ColumnMetadataQuery": "SELECT ColumnName, Description FROM dbo.ColumnDocs WHERE TableName = @TableName"
+  "SqlToAi": {
+    "Databases": {
+      "Default": "MyDemoDatabase",
+      "Allowed": ["Demo_*", "TestDb", "Reporting_ReadOnly"],
+      "Blocked": ["master", "msdb", "tempdb", "model"],
+      "AccessCheckSql": "SELECT CASE WHEN SYSTEM_USER = 'readonly_ai' THEN 'ReadData' ELSE 'None' END AS AccessLevel"
+    },
+    "SqlDatabase": {
+      "Server": "localhost\\MSSQLSERVER",
+      "DefaultDatabase": "MyDemoDatabase",
+      "ReadOnly": true
+    },
+    "Anonymizer": {
+      "Enabled": true,
+      "DefaultMode": "ScramblePattern",
+      "Rules": [
+        { "Pattern": "*name*", "Mode": "ScramblePattern" },
+        { "Pattern": "*mail*", "Mode": "ScramblePattern" }
+      ],
+      "ExcludedColumns": ["*Id", "Id", "*Code", "*Type", "Status"]
+    },
+    "MetadataProvider": {
+      "Enabled": true,
+      "TableMetadataQuery": "SELECT Description FROM dbo.TableDocs WHERE TableName = @TableName",
+      "ColumnMetadataQuery": "SELECT ColumnName, Description FROM dbo.ColumnDocs WHERE TableName = @TableName"
+    },
+    "QueryExecution": {
+      "DefaultRowLimit": 100,
+      "MaxRowLimit": 1000
+    }
   }
 }
 ```
@@ -66,21 +102,23 @@ The server is configured using a standard JSON file. Below is an example:
 
 ### 1. Build the Project
 Clone the repository and build using the dotnet CLI:
-```bash
+```powershell
 dotnet restore "SqlToAi.slnx"
 dotnet build "SqlToAi.slnx" -c Release
 ```
 
 ### 2. Configure in your AI Client
-Add the following entry to your `mcpControllers` or `mcp.json` configuration in Cursor or Claude Desktop:
+Add the following entry to your `mcp.json` configuration in Cursor, Claude Desktop, Windsurf, or any other MCP-compatible client:
 
 ```json
 {
   "mcpServers": {
     "sql-to-ai": {
-      "command": "C:\\Path\\To\\SqlToAi\\bin\\Release\\net10.0\\SqlToAi.exe",
+      "command": "C:\\Path\\To\\SqlToAi\\src\\SqlToAi\\bin\\Release\\net10.0\\SqlToAi.exe",
       "args": [],
-      "env": {}
+      "env": {
+        "SQLTOAI_CONNECTION_STRING": "Data Source=localhost\\MSSQLSERVER;Initial Catalog=MyDemoDatabase;User ID=DbUser;Password=...;TrustServerCertificate=True;Encrypt=False"
+      }
     }
   }
 }

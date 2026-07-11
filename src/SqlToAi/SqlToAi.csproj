@@ -20,4 +20,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="SqlToAi.Tests" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
