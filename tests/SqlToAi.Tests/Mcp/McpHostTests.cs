@@ -17,6 +17,7 @@ public sealed class McpHostTests
         => new(
             dispatcher ?? new FakeMcpDispatcher(),
             new ToolRegistry(),
+            new NoopMcpTrailWriter(),
             NullLogger<McpHost>.Instance);
 
     /// <summary>Sends a single JSON-RPC line to the host and returns the single response line.</summary>
@@ -144,5 +145,10 @@ public sealed class McpHostTests
             DispatchCalled = true;
             return Task.FromResult(ToolCallResult.Success("[\"DemoDb\"]"));
         }
+    }
+
+    private sealed class NoopMcpTrailWriter : IMcpTrailWriter
+    {
+        public void Record(McpCallRecord record) { /* intentionally empty */ }
     }
 }

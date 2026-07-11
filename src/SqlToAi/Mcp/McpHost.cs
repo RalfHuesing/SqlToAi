@@ -1,5 +1,6 @@
 #nullable enable
 
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
@@ -36,18 +37,25 @@ public sealed class McpHost : IMcpHost
         LoggerMessage.Define(LogLevel.Information, new EventId(4, "ServerStopped"),
             "SqlToAi MCP server stopped.");
 
+    private static readonly Action<ILogger, string, Exception?> LogUnhandledError =
+        LoggerMessage.Define<string>(LogLevel.Error, new EventId(5, "UnhandledError"),
+            "Unhandled error while processing MCP method {Method}.");
+
     private readonly IToolDispatcher _dispatcher;
     private readonly ToolRegistry _toolRegistry;
+    private readonly IMcpTrailWriter _trail;
     private readonly ILogger<McpHost> _logger;
 
     /// <summary>Initializes a new instance of <see cref="McpHost"/>.</summary>
     public McpHost(
         IToolDispatcher dispatcher,
         ToolRegistry toolRegistry,
+        IMcpTrailWriter trail,
         ILogger<McpHost> logger)
     {
         _dispatcher = dispatcher;
         _toolRegistry = toolRegistry;
+        _trail = trail;
         _logger = logger;
     }
 
@@ -65,7 +73,7 @@ public sealed class McpHost : IMcpHost
 
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
-                await HandleMessageAsync(line, input, output, cancellationToken);
+                await HandleMessageAsync(line, output, cancellationToken);
             }
         }
         catch (OperationCanceledException)
@@ -82,8 +90,16 @@ public sealed class McpHost : IMcpHost
     // Message handling
     // -------------------------------------------------------------------------
 
-    private async Task HandleMessageAsync(string rawJson, TextReader input, TextWriter output, CancellationToken cancellationToken)
+    private async Task HandleMessageAsync(string rawJson, TextWriter output, CancellationToken cancellationToken)
     {
+        var sw = Stopwatch.StartNew();
+        string? toolName = null;
+        string? argsJson = null;
+        string correlationId = Guid.NewGuid().ToString("N");
+        bool success = false;
+        string? responseJson = null;
+
+        // 1) Parse request
         JsonRpcRequest? request;
         try
         {
@@ -92,59 +108,87 @@ public sealed class McpHost : IMcpHost
         catch (JsonException ex)
         {
             LogParseError(_logger, ex);
-            WriteError(output, null, JsonRpcError.ParseError, "Parse error: invalid JSON.");
+            responseJson = WriteErrorAndCapture(output, null, JsonRpcError.ParseError, "Parse error: invalid JSON.");
+            _trail.Record(new McpCallRecord(correlationId, "<unparseable>", null, rawJson, responseJson, sw.ElapsedMilliseconds, false));
             return;
         }
 
         if (request is null || string.IsNullOrWhiteSpace(request.Method))
         {
-            WriteError(output, null, JsonRpcError.InvalidRequest, "Invalid request: missing method.");
+            responseJson = WriteErrorAndCapture(output, null, JsonRpcError.InvalidRequest, "Invalid request: missing method.");
+            _trail.Record(new McpCallRecord(correlationId, "<invalid>", null, rawJson, responseJson, sw.ElapsedMilliseconds, false));
             return;
         }
 
+        correlationId = ResolveCorrelationId(request.Id);
         LogMethodReceived(_logger, request.Method, null);
 
-        switch (request.Method)
+        // 2) Dispatch
+        try
         {
-            case McpConstants.MethodInitialize:
-                HandleInitialize(output, request);
-                break;
+            switch (request.Method)
+            {
+                case McpConstants.MethodInitialize:
+                    responseJson = HandleInitialize(output, request);
+                    success = true;
+                    break;
 
-            case McpConstants.MethodInitialized:
-                // Notification — no response required
-                break;
+                case McpConstants.MethodInitialized:
+                    // Notification — no response required
+                    success = true;
+                    break;
 
-            case McpConstants.MethodPing:
-                WriteResult(output, request.Id, new { });
-                break;
+                case McpConstants.MethodPing:
+                    responseJson = WriteResultAndCapture(output, request.Id, new { });
+                    success = true;
+                    break;
 
-            case McpConstants.MethodToolsList:
-                HandleToolsList(output, request);
-                break;
+                case McpConstants.MethodToolsList:
+                    responseJson = HandleToolsList(output, request);
+                    success = true;
+                    break;
 
-            case McpConstants.MethodToolsCall:
-                await HandleToolsCallAsync(output, request, cancellationToken);
-                break;
+                case McpConstants.MethodToolsCall:
+                    (toolName, argsJson) = ExtractToolCallMetadata(request);
+                    responseJson = await HandleToolsCallAsync(output, request, cancellationToken);
+                    success = true;
+                    break;
 
-            default:
-                WriteError(output, request.Id, JsonRpcError.MethodNotFound, $"Method not found: {request.Method}");
-                break;
+                default:
+                    responseJson = WriteErrorAndCapture(output, request.Id, JsonRpcError.MethodNotFound, $"Method not found: {request.Method}");
+                    break;
+            }
         }
+        catch (Exception ex)
+        {
+            LogUnhandledError(_logger, request.Method, ex);
+            responseJson = WriteErrorAndCapture(output, request.Id, JsonRpcError.InternalError, $"Internal error: {ex.Message}");
+        }
+
+        // 3) Trail (fire-and-forget)
+        _trail.Record(new McpCallRecord(
+            correlationId,
+            request.Method,
+            toolName,
+            argsJson,
+            responseJson,
+            sw.ElapsedMilliseconds,
+            success));
     }
 
-    private static void HandleInitialize(TextWriter output, JsonRpcRequest request)
+    private static string HandleInitialize(TextWriter output, JsonRpcRequest request)
     {
         var result = new InitializeResult();
-        WriteResult(output, request.Id, result);
+        return WriteResultAndCapture(output, request.Id, result);
     }
 
-    private void HandleToolsList(TextWriter output, JsonRpcRequest request)
+    private string HandleToolsList(TextWriter output, JsonRpcRequest request)
     {
         var result = new ToolListResult { Tools = _toolRegistry.GetAll() };
-        WriteResult(output, request.Id, result);
+        return WriteResultAndCapture(output, request.Id, result);
     }
 
-    private async Task HandleToolsCallAsync(TextWriter output, JsonRpcRequest request, CancellationToken cancellationToken)
+    private async Task<string> HandleToolsCallAsync(TextWriter output, JsonRpcRequest request, CancellationToken cancellationToken)
     {
         ToolCallParams? callParams;
         try
@@ -155,39 +199,80 @@ public sealed class McpHost : IMcpHost
         }
         catch (JsonException)
         {
-            WriteError(output, request.Id, JsonRpcError.InvalidParams, "Invalid tool call parameters.");
-            return;
+            return WriteErrorAndCapture(output, request.Id, JsonRpcError.InvalidParams, "Invalid tool call parameters.");
         }
 
         if (callParams is null || string.IsNullOrWhiteSpace(callParams.Name))
         {
-            WriteError(output, request.Id, JsonRpcError.InvalidParams, "Missing tool name in call parameters.");
-            return;
+            return WriteErrorAndCapture(output, request.Id, JsonRpcError.InvalidParams, "Missing tool name in call parameters.");
         }
 
         ToolCallResult toolResult = await _dispatcher.DispatchAsync(callParams, cancellationToken);
-        WriteResult(output, request.Id, toolResult);
+        return WriteResultAndCapture(output, request.Id, toolResult);
     }
 
     // -------------------------------------------------------------------------
-    // Response writers
+    // Response writers (tee: serialize once, write to stdio and trail)
     // -------------------------------------------------------------------------
 
-    private static void WriteResult(TextWriter output, System.Text.Json.JsonElement? id, object result)
+    private static string WriteResultAndCapture(TextWriter output, System.Text.Json.JsonElement? id, object result)
     {
         var response = new JsonRpcResponse { Id = id, Result = result };
-        output.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
+        string json = JsonSerializer.Serialize(response, JsonOptions);
+        output.WriteLine(json);
         output.Flush();
+        return json;
     }
 
-    private static void WriteError(TextWriter output, System.Text.Json.JsonElement? id, int code, string message)
+    private static string WriteErrorAndCapture(TextWriter output, System.Text.Json.JsonElement? id, int code, string message)
     {
         var response = new JsonRpcErrorResponse
         {
             Id = id,
             Error = new JsonRpcError { Code = code, Message = message }
         };
-        output.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
+        string json = JsonSerializer.Serialize(response, JsonOptions);
+        output.WriteLine(json);
         output.Flush();
+        return json;
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    private static string ResolveCorrelationId(System.Text.Json.JsonElement? id)
+    {
+        if (!id.HasValue) return Guid.NewGuid().ToString("N");
+        var element = id.Value;
+        if (element.ValueKind == JsonValueKind.String)
+        {
+            string? s = element.GetString();
+            if (!string.IsNullOrWhiteSpace(s)) return s;
+        }
+        return element.GetRawText();
+    }
+
+    private static (string? toolName, string? argsJson) ExtractToolCallMetadata(JsonRpcRequest request)
+    {
+        if (!request.Params.HasValue) return (null, null);
+        try
+        {
+            // Pass the raw JSON params through verbatim — it is 1:1 what the LLM sent.
+            string raw = request.Params.Value.GetRawText();
+            // Best-effort pull of the tool name for nicer filtering.
+            using var doc = JsonDocument.Parse(raw);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("name", out var nameEl)
+                && nameEl.ValueKind == JsonValueKind.String)
+            {
+                return (nameEl.GetString(), raw);
+            }
+            return (null, raw);
+        }
+        catch
+        {
+            return (null, null);
+        }
     }
 }

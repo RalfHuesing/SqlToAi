@@ -12,6 +12,7 @@ public sealed class SqlToAiOptions
     public AnonymizerOptions Anonymizer { get; set; } = new();
     public MetadataProviderOptions MetadataProvider { get; set; } = new();
     public QueryExecutionOptions QueryExecution { get; set; } = new();
+    public LoggingOptions Logging { get; set; } = new();
 }
 
 /// <summary>

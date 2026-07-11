@@ -1,0 +1,149 @@
+#nullable enable
+
+using System.IO;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using SqlToAi.Configuration;
+using SqlToAi.Mcp;
+
+namespace SqlToAi.Tests.Mcp;
+
+/// <summary>
+/// Unit tests for <see cref="McpTrailWriter"/>. Each test uses a fresh, isolated log
+/// root directory under <c>%TEMP%</c> so the tests do not touch any real log files.
+/// </summary>
+public sealed class McpTrailWriterTests : IDisposable
+{
+    private readonly string _logRoot;
+
+    public McpTrailWriterTests()
+    {
+        _logRoot = Path.Combine(Path.GetTempPath(), "SqlToAiMcpTrailTests_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_logRoot);
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_logRoot, recursive: true); } catch { /* best effort */ }
+    }
+
+    [Fact]
+    public void Record_ShouldCreatePerDayDirectory_AndWriteJsonlFile()
+    {
+        var writer = CreateWriter(enabled: true);
+        var record = new McpCallRecord(
+            CorrelationId: "abc123",
+            Method: "tools/call",
+            Tool: "sql_get_schema",
+            ArgumentsJson: "{\"object_name\":\"dbo.Foo\"}",
+            ResponseJson: "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}",
+            DurationMs: 42,
+            Success: true);
+
+        writer.Record(record);
+
+        string expectedDay = DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        string dayDir = Path.Combine(_logRoot, "mcp", expectedDay);
+        Assert.True(Directory.Exists(dayDir), $"Expected day directory {dayDir} to exist.");
+
+        var files = Directory.GetFiles(dayDir, "*-call.jsonl");
+        Assert.Single(files);
+        var content = File.ReadAllText(files[0]);
+        Assert.Contains("\"method\":\"tools/call\"", content);
+        Assert.Contains("\"tool\":\"sql_get_schema\"", content);
+        Assert.Contains("\"success\":true", content);
+        Assert.Contains("\"duration_ms\":42", content);
+    }
+
+    [Fact]
+    public void Record_ShouldIncludeRawArgsAndResponse_Verbatim()
+    {
+        var writer = CreateWriter(enabled: true);
+        string longQuery = "SELECT TOP 1 * FROM Customers WHERE Name = 'O''Brien' AND City LIKE '%München%'";
+        string longResponse = "{\"data\":\"" + new string('x', 5_000) + "\"}";
+
+        var record = new McpCallRecord(
+            CorrelationId: "x1",
+            Method: "tools/call",
+            Tool: "sql_execute_query",
+            ArgumentsJson: "{\"query\":\"" + longQuery + "\"}",
+            ResponseJson: longResponse,
+            DurationMs: 1,
+            Success: true);
+
+        writer.Record(record);
+
+        string file = Directory.GetFiles(Path.Combine(_logRoot, "mcp", DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)), "*-call.jsonl").Single();
+        string content = File.ReadAllText(file);
+
+        // The response and args are stored verbatim — no truncation. The whole line is
+        // JSON-encoded, so we check for the JSON-escaped form of the long content.
+        Assert.Contains("\\\"data\\\":\\\"" + new string('x', 5_000) + "\\\"}", content);
+        Assert.Contains("\\\"query\\\":\\\"" + longQuery + "\\\"}", content);
+    }
+
+    [Fact]
+    public void Record_ShouldDoNothing_WhenMcpTrailDisabled()
+    {
+        var writer = CreateWriter(enabled: false);
+        writer.Record(new McpCallRecord("c1", "tools/list", null, null, null, 1, true));
+
+        Assert.False(Directory.Exists(Path.Combine(_logRoot, "mcp")));
+    }
+
+    [Fact]
+    public void Record_ShouldNeverThrow_EvenIfTargetDirIsLocked()
+    {
+        // Point the writer at a path under a read-only location to force a write failure.
+        var badRoot = Path.Combine(_logRoot, "this-path-cannot-be-created");
+        Directory.CreateDirectory(badRoot);
+        // Create a file with the same name as the would-be mcp subdir to block creation.
+        File.WriteAllText(Path.Combine(badRoot, "mcp"), "blocker");
+
+        var options = new SqlToAiOptions
+        {
+            Logging = new LoggingOptions { Directory = badRoot, McpTrail = new McpTrailOptions { Enabled = true, Directory = "mcp" } }
+        };
+        var writer = new McpTrailWriter(Microsoft.Extensions.Options.Options.Create(options), NullLogger<McpTrailWriter>.Instance);
+
+        // Must not throw — fire-and-forget contract.
+        var ex = Record.Exception(() => writer.Record(new McpCallRecord("c1", "tools/list", null, null, null, 1, true)));
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void Record_ShouldBeThreadSafe_AcrossParallelCalls()
+    {
+        var writer = CreateWriter(enabled: true);
+        Parallel.For(0, 50, i =>
+        {
+            writer.Record(new McpCallRecord(
+                CorrelationId: $"id-{i}",
+                Method: "tools/call",
+                Tool: "sql_list_databases",
+                ArgumentsJson: null,
+                ResponseJson: $"{{\"id\":{i}}}",
+                DurationMs: i,
+                Success: true));
+        });
+
+        string dayDir = Path.Combine(_logRoot, "mcp", DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        var files = Directory.GetFiles(dayDir, "*-call.jsonl");
+        Assert.Equal(50, files.Length);
+    }
+
+    private McpTrailWriter CreateWriter(bool enabled)
+    {
+        var options = new SqlToAiOptions
+        {
+            Logging = new LoggingOptions
+            {
+                Directory = _logRoot,
+                McpTrail = new McpTrailOptions { Enabled = enabled, Directory = "mcp", RetainedDays = 14 }
+            }
+        };
+        return new McpTrailWriter(
+            Microsoft.Extensions.Options.Options.Create(options),
+            NullLogger<McpTrailWriter>.Instance);
+    }
+}
