@@ -1,0 +1,61 @@
+---
+description: AI coding guidelines, constraints, and architecture rules for the SqlToAi project.
+globs: *
+alwaysApply: true
+---
+# SqlToAi Architektur- & Workflow-Richtlinien
+
+Strikte Leitplanken für die Code-Erstellung, Sicherheitsprüfungen, Architektur, Testen und Deployment im `SqlToAi`-Projekt (.NET 10 / C# 14).
+
+## 1. Design-Philosophie (Design Philosophy)
+
+- **Sicherheit an erster Stelle (Safety-by-Design):** Da das Tool mit sensiblen Datenbanken und ERP-Systemen interagiert, stehen Sicherheits-Guardrails an oberster Stelle.
+- **Lokaler Fokus (Developer-First):** Die Kommunikation erfolgt über **Stdio (Standard Input/Output)** als MCP-Server. Keine Web-APIs oder Netzwerkports für den Client-Zugriff.
+- **Monolithisch & Performant:** C# 14, .NET 10, optimierte JSON-Serialisierung (`System.Text.Json`), direkte Datenzugriffe über **Dapper** und `Microsoft.Data.SqlClient`.
+- **Progressive Offenlegung (Progressive Disclosure):** Tools teilen spärliche Daten mit. Teure Sichten (Fremdschlüssel, Indizes, Constraints) werden in separaten Schritten aufgerufen (`sql_get_schema_foreign_keys`, `sql_get_schema_indexes`, etc.), um den Kontext des LLMs nicht zu überlasten.
+
+## 2. Architektur- & Guardrail-Konzepte (Constraints)
+
+- **Dynamischer Safety-Check:** Bevor eine Verbindung hergestellt oder eine Abfrage ausgeführt wird, muss der konfigurierte `SafetyCheckSql` ausgeführt und verifiziert werden.
+- **Mehrstufiger Schreibschutz (Read-Only Guard):**
+  - ConnectionString enthält `ApplicationIntent=ReadOnly`.
+  - Abfragen in einer Transaction mit anschließendem `Rollback`.
+  - Parser-Ebene (Regex-Schreibschutz-Check): blockiere mutierende SQL-Schlüsselwörter (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE` etc.) mit Fehler `SQL-AI-0107`.
+- **On-the-Fly String-Anonymisierung:**
+  - Standardmodus: `ScramblePattern` (Mustererhalt für E-Mails, PLZ etc. - z.B. `Max.Mustermann@mail.de` -> `Xxx.Xxxxxxxxxx@xxxx.xx`).
+  - Consistency-Hashing für logische Join-Konsistenz über Tabellen hinweg.
+  - Ignorieren von technischen Spalten (z. B. `Id`, `Code`, `Type`).
+- **Schema-Enrichment:**
+  - Parallel-Ausführung von fachlichen Beschreibungs-Queries (`TableMetadataQuery`, `ColumnMetadataQuery`).
+  - Direkte Injektion in die generierten Markdown-Rückgaben.
+- **Standardisierte Fehlerbehandlung (Error-Catalog):**
+  - Alle Fehler müssen einem Code aus dem Katalog (`SQL-AI-0001` bis `SQL-AI-0109`) entsprechen.
+
+## 3. Windows-Umgebung & Tool-Regeln
+
+Diese Entwicklungsumgebung läuft **ausschließlich unter Windows**. Alle Shell-Befehle und Tool-Aufrufe müssen Windows-kompatibel sein.
+
+### Shell & Befehle
+- **Shell:** PowerShell 7 (`pwsh`) — kein Bash, kein `sh`, kein WSL.
+- Pfad-Trenner: Backslash `\` (oder forward slash `/` in .NET/git-Kontexten).
+- Keine Linux-Befehle wie `ls`, `cat`, `touch`, `find`, `grep` (als eigenständige Befehle), `rm -rf` etc.
+- Git muss **immer** mit `--no-pager` aufgerufen werden, z. B. `git --no-pager diff`.
+
+### Build & Test
+```powershell
+dotnet build          # Kompilieren
+dotnet test           # Tests ausführen
+dotnet run            # Starten (als MCP Server)
+```
+
+## 4. Updates & Tests
+
+- **xUnit v3 Tests:** Pflicht für alle funktionalen Änderungen und Sicherheitsüberprüfungen (Safety-Check, Anonymisierung, Read-Only Guard).
+- **Dokumentations-Synchronisation:** Bei Änderungen an Features/Optionen müssen `README.md` und `docs/mcp-specification.md` synchron gehalten werden (ohne Aufforderung).
+- **Commits:** Jeder Commit-Vorschlag schließt mit `### Commit-Vorschlag` (Conventional Commit, Deutsch, imperativ).
+
+## 5. Qualitätsdrift-Prävention (AiNetLinter)
+
+- **Zero-Warning-Direktive:** Das Projekt nutzt `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`. Neuer Code darf keine Compiler-Warnungen einführen.
+- **Linter-Konformität:** Der Code muss den Linter-Richtlinien in [.agents/rules/AiNetLinter.mdc](AiNetLinter.mdc) (wie `sealed` Klassen, Methoden-Längen, etc.) entsprechen.
+- **Result-Pattern:** Bevorzuge `Result<T>` für die Fehlerbehandlung, besonders an den Schnittstellen der MCP-Tools (Error-Catalog).
