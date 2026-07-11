@@ -14,6 +14,7 @@ Designed specifically for developers analyzing ERP systems and complex database 
 * 🚦 **Safety/Demo Probe Check:** Run a configurable SQL validation query (e.g. `SELECT 1 WHERE DB_NAME() LIKE '%demo%'`) before accessing any database, blocking access to production databases.
 * 📖 **Schema Enrichment (Custom Metadata):** Inject custom business logic or table/column documentation from another database/table via configurable SQL queries directly into the schema results returned to the AI.
 * 📋 **Progressive Disclosure Schema Tools:** Exposes optimized tools for schema discovery, triggers, constraints, indexes, routine parameters, and referencing entities (`sys.dm_sql_referencing_entities`), formatted in clean Markdown for the AI.
+* 📂 **File-Based Logging + MCP Trail:** Serilog writes rolling app and error logs next to the executable; every MCP request and response is recorded verbatim as JSONL under `log/mcp/YYYY-MM-DD/`, with the same anonymization the LLM saw.
 
 ---
 
@@ -42,6 +43,7 @@ output. The root section is `SqlToAi`, which contains the following sub-sections
 | `Anonymizer` | Enables PII string scrambling, defines per-pattern rules and excluded columns. |
 | `MetadataProvider` | Optional custom queries for table/column documentation enrichment. |
 | `QueryExecution` | `DefaultRowLimit` and `MaxRowLimit` for `sql_execute_query`. |
+| `Logging` | File-based logging root directory, app/error rolling sinks, and the MCP-trail settings. See [Logging](#logging) below. |
 
 ### Credentials
 
@@ -136,6 +138,66 @@ Add the following entry to your `mcp.json` configuration in Cursor, Claude Deskt
     }
   }
 }
+```
+
+---
+
+## Logging
+
+All log files live next to the executable, under `{exe-dir}/log/`. The layout is:
+
+```
+log/
+├── app/
+│   ├── app-2026-07-12.log            # rolling daily, Information+, 30 days retention
+│   └── app-2026-07-11.log
+├── error/
+│   └── error-2026-07-12.log          # rolling daily, Warning+, 90 days retention
+└── mcp/
+    └── 2026-07-12/                   # one directory per UTC day
+        ├── 14-23-45-1-call.jsonl      # one JSONL file per MCP call
+        ├── 14-23-46-2-call.jsonl
+        └── ...
+```
+
+The MCP trail records every method that crosses the host boundary — `initialize`, `tools/list`,
+`tools/call` (and the corresponding responses), plus notifications like `notifications/initialized`.
+Each line contains the JSON-RPC `id` (or a generated UUID when the request had none), the method,
+the tool name (for `tools/call`), the raw arguments as sent by the LLM, the exact response that was
+sent back, the wall-clock duration, and a success flag. **The recorded response is byte-for-byte
+what the LLM saw**, including any on-the-fly anonymization — so the trail is a faithful reproduction
+of the conversation, not a summary.
+
+Tune the sinks in `appsettings.json` under `SqlToAi:Logging`:
+
+```json
+{
+  "SqlToAi": {
+    "Logging": {
+      "Directory": "log",
+      "AppLog":   { "Enabled": true, "Level": "Information", "RollingInterval": "Day", "RetainedFileCount": 30 },
+      "ErrorLog": { "Enabled": true, "Level": "Warning",    "RollingInterval": "Day", "RetainedFileCount": 90 },
+      "McpTrail": { "Enabled": true, "Directory": "mcp", "RetainedDays": 14 }
+    }
+  }
+}
+```
+
+The MCP trail retention is enforced at server startup: day directories older than
+`McpTrail.RetainedDays` are deleted in full. The app and error logs use Serilog's built-in
+`retainedFileCountLimit`, so they are pruned continuously as new files roll in.
+
+To inspect the trail quickly:
+
+```powershell
+# Latest 5 calls
+Get-ChildItem log\mcp\ -Recurse -File | Sort-Object LastWriteTime -Desc | Select-Object -First 5 | Get-Content
+
+# All calls for a specific tool
+Select-String -Path log\mcp\**\*.jsonl -Pattern '"tool":"sql_execute_query"'
+
+# Failed calls only
+Select-String -Path log\mcp\**\*.jsonl -Pattern '"success":false'
 ```
 
 ---

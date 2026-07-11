@@ -195,3 +195,16 @@ Tritt bei der Ausführung eines Tools ein Fehler auf, wird das Tool-Ergebnis als
 | **SQL-AI-0107** | Schreiboperation blockiert | Ein mutierendes Statement wurde im Read-Only-Modus abgewiesen oder der Zugriff auf Datenabfragen wurde durch das Access-Level `SchemaOnly` blockiert. |
 | **SQL-AI-0108** | Ungültiger Typ für Referenzen | Objektreferenzen können nur für Tabellen (`TABLE`) und Sichten (`VIEW`) abgefragt werden. |
 | **SQL-AI-0109** | Ungültiger Typ für Parameter | Routine-Parameter können nur für Prozeduren (`PROCEDURE`) und Funktionen (`FUNCTION`) gelesen werden. |
+
+---
+
+## 6. Audit-Trail (MCP Call Log)
+
+Neben dem JSON-RPC-Stream über `stdio` schreibt der Server für jede eingehende MCP-Methode
+einen strukturierten Eintrag in `log/mcp/YYYY-MM-DD/HH-MM-SS-{id}-call.jsonl`. Jeder Eintrag
+enthält Zeitstempel, Korrelations-ID (JSON-RPC-`id` oder generierte UUID für Notifications),
+Methode, Tool-Name (bei `tools/call`), Roh-Args und die **exakte Response, die an das LLM
+ging** — inklusive der ggf. angewendeten Anonymisierung. Damit ist der Trail eine 1:1-
+Reproduktion des LLM-Datenflusses, nicht eine Zusammenfassung.
+
+Aufbewahrung und Pfad konfigurierbar unter `SqlToAi:Logging:McpTrail` in `appsettings.json`.
