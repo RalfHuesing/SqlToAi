@@ -47,13 +47,14 @@ Nach dem statischen Namensabgleich führt der Server einen dynamischen Check dir
   ```
 * **Rückgabewerte (Access Levels):**
   Die SQL-Query muss eine Spalte namens `AccessLevel` zurückgeben (oder einen Skalarwert liefern). Der Wert wird wie folgt interpretiert:
-  
+
   | Wert (Int) | Wert (String) | Bedeutung / Berechtigung |
   | :--- | :--- | :--- |
   | `0` | `None` | **Gesamter Zugriff gesperrt.** Alle Tools für diese Datenbank schlagen mit `SQL-AI-0104` fehl. |
   | `1` | `SchemaOnly` | **Nur Metadaten.** Alle Schema- und Suchtools sind erlaubt. Abfragen über `sql_execute_query` werden mit `SQL-AI-0107` blockiert. |
-  | `2` | `ReadOnly` / `ReadData` | **Lesezugriff.** Schema-Tools und Leseoperationen (SELECT) über `sql_execute_query` sind erlaubt. |
-  | `3` | `ReadWrite` | **Vollzugriff.** Alle Aktionen (inklusive Schreiboperationen) sind erlaubt (sofern nicht global eingeschränkt). |
+  | `2` | `ReadOnlyAnonymized` / `ReadDataAnonymized` | **Lesezugriff, anonymisiert.** Schema-Tools und Leseoperationen über `sql_execute_query` sind erlaubt; String-Spalten werden vor der Rückgabe per Anonymizer maskiert (siehe Abschnitt D). |
+  | `3` | `ReadOnly` / `ReadData` / `ReadOnlyClear` | **Lesezugriff, Klartext.** Schema-Tools und Leseoperationen sind erlaubt, ohne Anonymisierung. |
+  | `4` | `ReadWrite` | **Vollzugriff.** Alle Aktionen (inklusive Schreiboperationen) sind erlaubt (sofern nicht global eingeschränkt). |
 
 * **Fehlerbehandlung:** Wenn die Ausführung von `AccessCheckSql` einen SQL-Fehler wirft oder kein Ergebnis liefert, wird das Level restriktiv auf `0` (`None`) gesetzt.
 * **Session- & TTL-Caching:**
@@ -71,27 +72,19 @@ Wenn das ermittelte Access Level `ReadOnly` / `ReadData` entspricht oder die glo
 
 ---
 
-### D. Musterbasierte String-Anonymisierung
-Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server String-Werte im Arbeitsspeicher, bevor sie an den KI-Agenten übertragen werden. Da eine vollständige Anonymisierung aller Strings auch Status- und Typcodes unbrauchbar machen würde, arbeitet der Anonymizer mit präzisen Filtern.
+### D. Per-DB String-Anonymisierung (AccessLevel-gesteuert)
+Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server String-Werte im Arbeitsspeicher, bevor sie an den KI-Agenten übertragen werden. Die Entscheidung *ob* anonymisiert wird, fällt pro Datenbank am `AccessLevel` (siehe Abschnitt B): Liefert `AccessCheckSql` `ReadDataAnonymized`/`2`, wird jede zurückgegebene String-Spalte anonymisiert; bei `ReadData`/`3` (Klartext) nicht. Ein separater Muster-Block zur Pauschal-Aktivierung existiert nicht mehr — pauschal wird *jede* nicht ausgeschlossene String-Spalte anonymisiert, sobald das AccessLevel es verlangt.
 
 * **Konfiguration:**
   ```json
   "Anonymizer": {
     "Enabled": true,
     "DefaultMode": "ScramblePattern",
-    "Rules": [
-      { "Pattern": "*name*", "Mode": "ScramblePattern" },
-      { "Pattern": "*mail*", "Mode": "ScramblePattern" },
-      { "Pattern": "*phone*", "Mode": "ScramblePattern" },
-      { "Pattern": "*mobil*", "Mode": "ScramblePattern" },
-      { "Pattern": "*str*", "Mode": "ScramblePattern" },
-      { "Pattern": "*addr*", "Mode": "ScramblePattern" }
-    ],
     "ExcludedColumns": ["*Id", "Id", "*Code", "*Type", "Status", "State", "Category"]
   }
   ```
 * **Verhalten:**
-  Spalten, die auf eines der Muster in `Rules` passen, werden anonymisiert. Spalten, die in `ExcludedColumns` aufgeführt sind, werden *nie* anonymisiert.
+  Spalten, die auf eines der Muster in `ExcludedColumns` passen, werden *nie* anonymisiert. Alle anderen String-Spalten werden anonymisiert, sofern `Enabled: true` ist und das AccessLevel der Zieldatenbank `ReadOnlyAnonymized`/`ReadDataAnonymized` ergibt.
 * **Algorithmen:**
   * **ScramblePattern:** Erhält das strukturelle Muster des Strings. Großbuchstaben werden durch ein zufälliges `'X'`, Kleinbuchstaben durch `'x'` und Ziffern durch `'9'` ersetzt (z. B. `Max.Mustermann@mail.de` $\rightarrow$ `Xxx.Xxxxxxxxxx@xxxx.xx`). E-Mail-Adressen, Postleitzahlen und Telefonnummern bleiben für die KI strukturell erkennbar, enthalten aber keinerlei PII mehr.
   * **Hash (Consistency-Hashing):** Generiert einen eindeutigen, reproduzierbaren SHA-256-Hash-Wert pro Text. Dadurch bleiben Relationen und Gruppen (z. B. gleiche Kundennamen in verschiedenen Tabellen) für das LLM logisch verknüpfbar.

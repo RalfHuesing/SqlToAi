@@ -78,8 +78,12 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
             string dateDir = Path.Combine(_options.GetAbsoluteRoot(), _options.McpTrail.Directory, DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
             Directory.CreateDirectory(dateDir);
 
-            // Filename: HH-MM-SS-{uuid}-call.jsonl
-            string fileName = $"{DateTime.UtcNow:HH-mm-ss}-{record.CorrelationId}-call.jsonl";
+            // Filename: HH-MM-SS-{uuid}-call.jsonl. The correlation id originates from the
+            // client-supplied JSON-RPC "id" field, so it must be sanitized before it can be
+            // used as a path segment — otherwise a crafted id (e.g. containing "..", "/", or
+            // "\") could write the trail file outside dateDir (path traversal).
+            string safeCorrelationId = SanitizeForFileName(record.CorrelationId);
+            string fileName = $"{DateTime.UtcNow:HH-mm-ss}-{safeCorrelationId}-call.jsonl";
             string filePath = Path.Combine(dateDir, fileName);
 
             string line = JsonSerializer.Serialize(ToJsonShape(record), JsonOptions);
@@ -101,6 +105,25 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
 
     /// <summary>Disposes nothing — the writer holds no unmanaged resources.</summary>
     public void Dispose() { }
+
+    /// <summary>
+    /// Restricts a value to characters safe for use as a single path segment: ASCII letters,
+    /// digits, hyphen, and underscore. Everything else (including <c>..</c>, <c>/</c>, and
+    /// <c>\</c>) is replaced with an underscore, and the result is capped in length.
+    /// </summary>
+    private static string SanitizeForFileName(string value)
+    {
+        const int maxLength = 80;
+        Span<char> buffer = value.Length <= maxLength ? stackalloc char[value.Length] : stackalloc char[maxLength];
+
+        for (int i = 0; i < buffer.Length; i++)
+        {
+            char c = value[i];
+            buffer[i] = char.IsAsciiLetterOrDigit(c) || c is '-' or '_' ? c : '_';
+        }
+
+        return buffer.IsEmpty ? "unknown" : new string(buffer);
+    }
 
     // -------------------------------------------------------------------------
     // JSON shape (snake_case-ish, compact, human-readable)

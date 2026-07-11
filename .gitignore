@@ -71,3 +71,6 @@ thumbs.db
 ehthumbs.db
 Desktop.ini
 .DS_Store
+
+# Local MCP client registration (machine-specific absolute exe path)
+.mcp.json

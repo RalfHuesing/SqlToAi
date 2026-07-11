@@ -201,7 +201,6 @@ public sealed class QueryExecutionService : IQueryExecutionService
         bool inBracket = false;
         bool inLineComment = false;
         bool inBlockComment = false;
-        bool foundFirstStatement = false;
 
         ReadOnlySpan<char> span = query.AsSpan();
 
@@ -257,12 +256,8 @@ public sealed class QueryExecutionService : IQueryExecutionService
                     return true; // text after semicolon → second statement
                 }
             }
-            else if (!char.IsWhiteSpace(c))
-            {
-                foundFirstStatement = true;
-            }
         }
 
-        return false && !foundFirstStatement; // suppress unused-variable warning
+        return false;
     }
 }

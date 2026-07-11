@@ -111,6 +111,26 @@ public sealed class McpTrailWriterTests : IDisposable
         Assert.Null(ex);
     }
 
+    [Theory]
+    [InlineData("../../../../evil")]
+    [InlineData("..\\..\\..\\evil")]
+    [InlineData("/etc/passwd")]
+    [InlineData("a/../../b")]
+    public void Record_ShouldSanitizeCorrelationId_AndStayInsideDayDirectory(string maliciousId)
+    {
+        var writer = CreateWriter(enabled: true);
+        var record = new McpCallRecord(maliciousId, "tools/call", "sql_get_schema", null, "{}", 1, true);
+
+        writer.Record(record);
+
+        string dayDir = Path.Combine(_logRoot, "mcp", DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        var files = Directory.GetFiles(dayDir, "*-call.jsonl");
+        Assert.Single(files);
+
+        // The written file must be a direct child of dayDir — no path traversal outside it.
+        Assert.Equal(dayDir, Path.GetDirectoryName(files[0]));
+    }
+
     [Fact]
     public void Record_ShouldBeThreadSafe_AcrossParallelCalls()
     {
