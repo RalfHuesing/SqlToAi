@@ -24,6 +24,7 @@ Designed specifically for developers analyzing ERP systems and complex database 
 * **ORM:** Dapper
 * **Provider:** Microsoft.Data.SqlClient
 * **JSON:** System.Text.Json (performance optimized)
+* **Logging:** Serilog
 * **Testing:** xUnit v3
 
 ---
