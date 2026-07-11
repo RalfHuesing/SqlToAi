@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "files": {
+    "src/SqlToAi/Program.cs": "a447058b50ddbb8ec317ea5fe7437df17a9273e24514d348d2367b20d7828e98",
+    "tests/SqlToAi.Tests/GlobalUsings.cs": "f9b6b271ae1d593752228aa5903788922cdcb15b8ac069f6526f5f9b5cea5db9"
+  }
+}
