@@ -1,69 +1,111 @@
 # SqlToAi MCP Server: Technische Spezifikation & Konzept
 
-Dieses Dokument definiert das vollständige Konzept, die Sicherheitsmechanismen und das Transport-Mapping des **SqlToAi MCP-Servers** (Model Context Protocol). Der Server fungiert als sicheres Bindeglied zwischen KI-Agenten (z. B. in Cursor, Claude Desktop, Windsurf) und Microsoft SQL Server Datenbanken.
+Dieses Dokument definiert das vollständige Konzept, die Sicherheitsmechanismen und das Transport-Mapping des **SqlToAi MCP-Servers** (Model Context Protocol). Der Server fungiert als sicheres, konfigurierbares Bindeglied zwischen KI-Agenten (z. B. in Cursor, Claude Desktop, Windsurf) und Microsoft SQL Server Datenbanken.
 
 ---
 
 ## 1. Design-Prinzipien
 
-1. **Lokaler Fokus (Developer-First):** Der Server kommuniziert primär über **Stdio (Standard Input/Output)** mit dem AI-Client. Dies ist extrem performant, benötigt keine Internetverbindung oder separate Ports und läuft direkt im Kontext des Entwicklers.
-2. **Sicherheit durch Isolation (Safety-by-Design):** Der Server schützt sensible Datenbanken aktiv vor unautorisierten Schreibzugriffen und verhindert den Datenabfluss von personenbezogenen Daten (PII).
-3. **Plattform-Agnostik:** Keine Abhängigkeiten zu speziellen Plattform-Boilerplates oder geschlossenen Systemen. Alle Konzepte sind verallgemeinert und über Standard-SQL-Queries konfigurierbar.
+1. **Lokaler Fokus (Developer-First):** Der Server kommuniziert primär über **Stdio (Standard Input/Output)** mit dem AI-Client. Dies ist extrem performant, benötigt keine Internetverbindung oder separate offene Ports und läuft direkt im Kontext des Entwicklers.
+2. **Sicherheit durch Isolation (Safety-by-Design):** Der Server schützt sensible Datenbanken aktiv vor unautorisierten Schreibzugriffen und verhindert den Abfluss von personenbezogenen Daten (PII) durch konfigurierbare Anonymisierungs-Pipelines.
+3. **Sicherheits-Grundhaltung (Secure-by-Default):** Ohne explizite Freischaltung ist jeglicher Zugriff auf Datenbanken gesperrt. Alle Verbindungsaufbauten und Datenabfragen müssen durch statische und dynamische Filter freigegeben werden.
 4. **Markdown für Agenten, JSON für Strukturen:** Metadaten und Schemainformationen werden als lesbares Markdown an das LLM übergeben. Datenabfragen liefern strukturierte JSON-Zeilen.
 
 ---
 
 ## 2. Sicherheits- & Guardrail-Konzepte
 
-### A. Dynamischer Safety- & Demo-Check
-Um zu verhindern, dass die KI auf echten Produktionsdatenbanken arbeitet (z. B. bei einer Fehlkonfiguration), prüft der Server jede Zieldatenbank vor dem ersten Zugriff.
+### A. Multi-Datenbank-Sicherheit (Static Whitelisting)
+Ein SQL Server besitzt typischerweise viele System- und Benutzerdatenbanken. Standardmäßig verweigert der MCP-Server jeglichen Zugriff. Der Administrator muss explizite Freigabemuster definieren.
 
 * **Konfiguration:**
   ```json
-  "SqlDatabase": {
-    "EnforceSafetyCheck": true,
-    "SafetyCheckSql": "SELECT 1 WHERE DB_NAME() LIKE '%demo%' OR DB_NAME() LIKE '%test%'"
-  }
+  "Databases": {
+    "Default": "DemoDb",
+    "Allowed": ["Demo_*", "TestDb", "Reporting_ReadOnly"],
+    "Blocked": ["master", "msdb", "tempdb", "model", "HR_Payroll"],
+    "CacheTtlSeconds": 300
   }
   ```
-* **Mechanismus:** Vor Ausführung eines Tools auf einer Datenbank wird die `SafetyCheckSql`-Query ausgeführt. Wenn die Abfrage kein Ergebnis liefert oder einen Fehler wirft, wird der gesamte Zugriff blockiert und der Fehler `SQL-AI-0104` zurückgegeben.
+* **Mechanismus:**
+  1. Jede Anfrage an ein Tool enthält einen optionalen Parameter `database`. Fehlt dieser, wird `Default` verwendet.
+  2. Der Name der Zieldatenbank wird gegen die Listen `Allowed` und `Blocked` geprüft (Unterstützung von einfachen Wildcards wie `*`).
+  3. Passt der Name nicht auf ein Muster in `Allowed` oder passt er auf ein Muster in `Blocked`, wird die Anfrage sofort blockiert (`SQL-AI-0104`).
+* **Credentials-Sicherheit:**
+  Der Connection String kann in der JSON-Konfiguration hinterlegt werden, es wird jedoch dringend empfohlen, ihn über die Umgebungsvariable `SQLTOAI_CONNECTION_STRING` an den MCP-Server zu übergeben, um Zugangsdaten nicht in Konfigurationsdateien einzuchecken.
 
-### B. Konfigurierbarer Schreibschutz (Read-Only Mode)
-Der Schreibschutz schützt die Datenbank vor destruktiven oder verändernden Befehlen der KI. Er kann global oder granular pro Datenbank aktiviert werden.
+---
+
+### B. Dynamischer Access- & Permission-Check (Access Levels)
+Nach dem statischen Namensabgleich führt der Server einen dynamischen Check direkt in der Zieldatenbank aus. Dieser bestimmt das maximale Zugriffslevel für die aktuelle Verbindung.
 
 * **Konfiguration:**
   ```json
-  "SqlDatabase": {
-    "ReadOnly": true
+  "Databases": {
+    "AccessCheckSql": "SELECT AccessLevel = CASE WHEN DB_NAME() LIKE '%demo%' THEN 'ReadData' WHEN SYSTEM_USER = 'readonly_ai' THEN 'SchemaOnly' ELSE 'None' END"
   }
   ```
-* **Sicherheitsstufen:**
-  1. **Verbindungs-Ebene:** Der ConnectionString wird um `ApplicationIntent=ReadOnly` ergänzt.
-  2. **Transaktions-Ebene:** Abfragen werden in einer schreibgeschützten Transaktion ausgeführt, die am Ende verworfen (`Rollback`) wird.
-  3. **Parser-Ebene:** Einfache Validierung (Regex), die mutierende SQL-Schlüsselwörter (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE` etc.) blockiert. Versucht die KI ein solches Statement auszuführen, bricht der Server mit `SQL-AI-0107` ab.
+* **Rückgabewerte (Access Levels):**
+  Die SQL-Query muss eine Spalte namens `AccessLevel` zurückgeben (oder einen Skalarwert liefern). Der Wert wird wie folgt interpretiert:
+  
+  | Wert (Int) | Wert (String) | Bedeutung / Berechtigung |
+  | :--- | :--- | :--- |
+  | `0` | `None` | **Gesamter Zugriff gesperrt.** Alle Tools für diese Datenbank schlagen mit `SQL-AI-0104` fehl. |
+  | `1` | `SchemaOnly` | **Nur Metadaten.** Alle Schema- und Suchtools sind erlaubt. Abfragen über `sql_execute_query` werden mit `SQL-AI-0107` blockiert. |
+  | `2` | `ReadOnly` / `ReadData` | **Lesezugriff.** Schema-Tools und Leseoperationen (SELECT) über `sql_execute_query` sind erlaubt. |
+  | `3` | `ReadWrite` | **Vollzugriff.** Alle Aktionen (inklusive Schreiboperationen) sind erlaubt (sofern nicht global eingeschränkt). |
 
-### C. On-the-Fly String-Anonymisierung
-Um Kunden- und Personendaten zu schützen, anonymisiert der Server alle String-Werte in den Abfrageergebnissen von `sql_execute_query` im Arbeitsspeicher, bevor sie an die KI gesendet werden.
+* **Fehlerbehandlung:** Wenn die Ausführung von `AccessCheckSql` einen SQL-Fehler wirft oder kein Ergebnis liefert, wird das Level restriktiv auf `0` (`None`) gesetzt.
+* **Session- & TTL-Caching:**
+  Um die Latenz zu minimieren, wird das ermittelte Access-Level für die Dauer der MCP-Sitzung gecacht. Über `CacheTtlSeconds` kann optional eine maximale Gültigkeitsdauer (in Sekunden) konfiguriert werden, nach der das Level erneut per SQL-Abfrage validiert wird (z. B. bei Berechtigungsänderungen im laufenden Betrieb).
+
+---
+
+### C. Konfigurierbarer Schreibschutz (Read-Only Guard)
+Wenn das ermittelte Access Level `ReadOnly` / `ReadData` entspricht oder die globale Einstellung `"ReadOnly": true` gesetzt ist, wird ein mehrstufiger Schreibschutz erzwungen:
+
+1. **Verbindungs-Ebene:** Der ConnectionString wird dynamisch um `ApplicationIntent=ReadOnly` ergänzt (sofern vom SQL Server unterstützt).
+2. **Transaktions-Ebene:** Alle Abfragen werden innerhalb einer expliziten Transaktion ausgeführt. Am Ende der Ausführung wird *immer* ein `ROLLBACK` ausgeführt, sodass versehentliche oder böswillige Datenänderungen verworfen werden.
+3. **Parser-Ebene:** Der Server validiert Statements vor der Ausführung per AST-Analyse oder robusten Regulären Ausdrücken. Mutierende SQL-Befehle (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `EXEC` von schreibenden Prozeduren etc.) werden abgewiesen und brechen mit `SQL-AI-0107` ab.
+4. **Least-Privilege-Empfehlung:** Der Schreibschutz des Servers dient als "Defense-in-Depth". Die primäre Absicherung muss stets über einen SQL-Login mit minimalen Rechten (z. B. nur Mitgliedschaft in der Rolle `db_datareader`) realisiert werden.
+
+---
+
+### D. Musterbasierte String-Anonymisierung
+Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server String-Werte im Arbeitsspeicher, bevor sie an den KI-Agenten übertragen werden. Da eine vollständige Anonymisierung aller Strings auch Status- und Typcodes unbrauchbar machen würde, arbeitet der Anonymizer mit präzisen Filtern.
 
 * **Konfiguration:**
   ```json
   "Anonymizer": {
     "Enabled": true,
-    "Mode": "ScramblePattern", // Optionen: ScramblePattern, Hash, Mask
-    "ExcludedColumns": ["Id", "Code", "Type"] // Technische Spalten nicht anonymisieren
+    "DefaultMode": "ScramblePattern",
+    "Rules": [
+      { "Pattern": "*name*", "Mode": "ScramblePattern" },
+      { "Pattern": "*mail*", "Mode": "ScramblePattern" },
+      { "Pattern": "*phone*", "Mode": "ScramblePattern" },
+      { "Pattern": "*mobil*", "Mode": "ScramblePattern" },
+      { "Pattern": "*str*", "Mode": "ScramblePattern" },
+      { "Pattern": "*addr*", "Mode": "ScramblePattern" }
+    ],
+    "ExcludedColumns": ["*Id", "Id", "*Code", "*Type", "Status", "State", "Category"]
   }
   ```
+* **Verhalten:**
+  Spalten, die auf eines der Muster in `Rules` passen, werden anonymisiert. Spalten, die in `ExcludedColumns` aufgeführt sind, werden *nie* anonymisiert.
 * **Algorithmen:**
-  * **ScramblePattern (Standard):** Erhält das strukturelle Muster des Strings. Großbuchstaben werden durch ein zufälliges `'X'`, Kleinbuchstaben durch `'x'` und Ziffern durch `'9'` ersetzt. E-Mail-Adressen, Postleitzahlen und Telefonnummern bleiben für die KI strukturell erkennbar (z. B. `Max.Mustermann@mail.de` $\rightarrow$ `Xxx.Xxxxxxxxxx@xxxx.xx`), enthalten aber keinerlei PII mehr.
-  * **Hash (Consistency-Hashing):** Generiert einen eindeutigen, reproduzierbaren Hash-Wert pro Text. Dadurch bleiben Relationen und Gruppen (z. B. gleiche Kundennamen in verschiedenen Tabellen) für das LLM logisch verknüpfbar.
+  * **ScramblePattern:** Erhält das strukturelle Muster des Strings. Großbuchstaben werden durch ein zufälliges `'X'`, Kleinbuchstaben durch `'x'` und Ziffern durch `'9'` ersetzt (z. B. `Max.Mustermann@mail.de` $\rightarrow$ `Xxx.Xxxxxxxxxx@xxxx.xx`). E-Mail-Adressen, Postleitzahlen und Telefonnummern bleiben für die KI strukturell erkennbar, enthalten aber keinerlei PII mehr.
+  * **Hash (Consistency-Hashing):** Generiert einen eindeutigen, reproduzierbaren SHA-256-Hash-Wert pro Text. Dadurch bleiben Relationen und Gruppen (z. B. gleiche Kundennamen in verschiedenen Tabellen) für das LLM logisch verknüpfbar.
 
 ---
 
 ## 3. Schema-Enrichment (Dokumentations-Kopplung)
 
-Oft sind technische Datenbankstrukturen kryptisch. Der Server kann Schemaabfragen automatisch um fachliche Beschreibungen anreichern, die in einer separaten Tabelle (oder derselben DB) gepflegt werden.
+Um kryptische Tabellen- und Spaltennamen für das LLM verständlicher zu machen, reichert der Server Schemaabfragen automatisch mit fachlichen Beschreibungen an.
 
-* **Konfiguration:**
+* **Integrierter Default-Provider:**
+  Wenn kein Custom-Provider konfiguriert ist, liest der Server automatisch die in SQL Server integrierten Beschreibungen aus den Extended Properties (`MS_Description`) aus.
+* **Custom-Metadata-Provider (Optional):**
+  Falls Dokumentationen in separaten Tabellen gepflegt werden, können diese über SQL-Queries abgefragt werden:
   ```json
   "MetadataProvider": {
     "Enabled": true,
@@ -72,37 +114,34 @@ Oft sind technische Datenbankstrukturen kryptisch. Der Server kann Schemaabfrage
     "ColumnMetadataQuery": "SELECT ColumnName, Description FROM dbo.ColumnDocs WHERE TableName = @TableName"
   }
   ```
-* **Funktionsweise:** Bei einem Aufruf von `sql_get_schema` führt der Server parallel die konfigurierten Queries aus und fügt die gefundenen Texte nahtlos in das erzeugte Markdown-Dokument ein.
+* **Funktionsweise:** Bei Aufruf von `sql_get_schema` führt der Server parallel die Beschreibungsabfragen aus und fügt die gefundenen Beschreibungen nahtlos in das erzeugte Markdown-Dokument ein.
 
 ---
 
 ## 4. MCP Tool-Spezifikationen
 
-Der Server stellt der KI folgende Tools zur Verfügung. Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und einem Fehlercode zurück. Bei Erfolg wird ein Markdown-Text oder eine JSON-Payload geliefert.
+Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und einem Fehlercode zurück. Bei Erfolg wird ein Markdown-Text oder eine JSON-Payload geliefert.
 
 ### 1. `sql_list_databases`
-* **Zweck:** Listet alle sichtbaren Datenbanken auf dem SQL-Server auf.
-* **Filterung:** Nur Datenbanken, auf die der SQL-Login Zugriff hat (`HAS_DBACCESS = 1`), abzüglich explizit ausgeschlossener System-DBs (`master`, `tempdb` etc.) und konfigurierter Ausschlüsse (`ExcludedDatabases`).
+* **Zweck:** Listet alle freigegebenen Datenbanken auf dem SQL-Server auf.
+* **Filterung:** Der Server ermittelt alle sichtbaren Datenbanken auf dem Server, filtert sie anhand der Konfiguration (`Allowed` / `Blocked` Muster) und gibt nur die erlaubten zurück.
 * **Rückgabe:** JSON-Array von Datenbanknamen.
 
 ### 2. `sql_search_databases`
 * **Argumente:** `search_term` (String, Pflicht)
-* **Zweck:** Filtert die Liste der sichtbaren Datenbanken nach einem Teilstring.
-* **Besonderheit:** Ein leerer Suchbegriff liefert eine leere Liste mit `IsSuccess=true` (kein Fehler).
+* **Zweck:** Filtert die Liste der freigegebenen Datenbanken nach einem Teilstring.
 
 ### 3. `sql_validate_query`
 * **Argumente:** `query` (String, Pflicht), `database` (String, optional)
-* **Zweck:** Prüft eine SQL-Abfrage fachlich und technisch (Syntax-Check über `PARSEONLY`), ohne sie auszuführen.
-* **Rückgabe:** `IsValid` (Boolean), `Reason` (String, falls ungültig).
+* **Zweck:** Prüft eine SQL-Abfrage fachlich und technisch (Syntax-Check über `PARSEONLY` im Kontext der Zieldatenbank), ohne sie auszuführen.
 
 ### 4. `sql_search_objects`
 * **Argumente:** `search_term` (String, Pflicht), `max_results` (Int, optional), `database` (String, optional)
-* **Zweck:** Sucht nach Objektnamen (Tabellen, Sichten, Prozeduren, Trigger) in `sys.objects` per `LIKE %search_term%`.
-* **Rückgabe:** Liste von Objekten mit Name und Typ-Kürzel.
+* **Zweck:** Sucht nach Objektnamen (Tabellen, Sichten, Prozeduren, Trigger) in `sys.objects` der Zieldatenbank per `LIKE %search_term%`.
 
 ### 5. `sql_get_schema`
 * **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
-* **Zweck:** Liefert das primäre Schema eines Objekts als Markdown-Dokument.
+* **Zweck:** Liefert das primäre Schema eines Objekts als Markdown-Dokument, angereichert mit Extended Properties / Metadaten.
 * **Inhalt:**
   * **TABLE/VIEW:** Spalten-Tabelle (Typ, Nullable, PK, Identity, Custom-Beschreibung) + Trigger-Übersicht (Name, Events, Disabled-Status) + **Discovery-Index** (Zähler für Fremdschlüssel, Indizes, Constraints).
   * **PROCEDURE/FUNCTION:** DDL-Definitionstext aus `sys.sql_modules` + **Routine-Parameter-Discovery**.
@@ -134,15 +173,15 @@ Der Server stellt der KI folgende Tools zur Verfügung. Jedes Tool gibt bei Fehl
 ### 12. `sql_execute_query`
 * **Argumente:** `query` (String, Pflicht), `requested_row_limit` (Int, optional), `database` (String, optional)
 * **Zweck:** Führt ein einzelnes SQL-SELECT-Statement aus.
-* **Einschränkung:** Nur ein einzelnes Statement erlaubt (Semikolon-Trennung mehrerer Queries führt zu Fehler).
-* **Datenverarbeitung:** Anwendbare Limits greifen (Default: 100 Zeilen). String-Spalten werden anonymisiert, falls aktiviert.
-* **Rückgabe:** Strukturierte JSON-Zeilen + Zeilenanzahl.
+* **Einschränkung:** Nur ein einzelnes Statement erlaubt (Semikolon-Trennung mehrerer Queries führt zu Fehler `SQL-AI-0101`).
+* **Datenverarbeitung:** Anwendbare Limits greifen (Default: 100 Zeilen). String-Spalten werden anonymisiert, falls aktiviert und passend zu den Regeln.
+* **Berechtigungsprüfung:** Schlägt fehl mit `SQL-AI-0107`, falls das Access-Level der Datenbank nur `SchemaOnly` oder `None` is.
 
 ---
 
 ## 5. Fehlercodes (Error-Catalog)
 
-Tritt bei der Ausführung eines Tools ein Fehler auf, wird das Tool-Ergebnis als fehlgeschlagen markiert und einer der folgenden standardisierten Fehlercodes zurückgegeben:
+Tritt bei der Ausführung eines Tools ein Fehler auf, wird das Tool-Ergebnis als fehlgeschlagen markiert (`IsSuccess = false`) und einer der folgenden standardisierten Fehlercodes zurückgegeben:
 
 | Fehlercode | Bezeichnung | Bedeutung / Ursache |
 | :--- | :--- | :--- |
@@ -150,9 +189,9 @@ Tritt bei der Ausführung eines Tools ein Fehler auf, wird das Tool-Ergebnis als
 | **SQL-AI-0101** | Mehrfach-Statements verboten | Die Ausführung von mehreren SQL-Statements (z. B. getrennt durch `;`) ist nicht erlaubt. |
 | **SQL-AI-0102** | Abfragefehler | Der SQL-Server hat einen Fehler bei der Syntax oder Ausführung der Query gemeldet. |
 | **SQL-AI-0103** | Objekt nicht gefunden | Das angeforderte Datenbankobjekt (Tabelle, Prozedur etc.) existiert nicht. |
-| **SQL-AI-0104** | Safety-Check fehlgeschlagen | Die Datenbank wurde durch den konfigurierten `SafetyCheckSql` als unsicher eingestuft. |
+| **SQL-AI-0104** | Safety-Check fehlgeschlagen | Die Zieldatenbank wurde durch die statische Whitelist blockiert oder der dynamische `AccessCheckSql` lieferte das Level `None`/`0`. |
 | **SQL-AI-0105** | Infrastrukturfehler | Verbindung zum SQL-Server konnte nicht aufgebaut werden oder brach ab. |
 | **SQL-AI-0106** | Timeout | Die Ausführung der SQL-Abfrage hat das konfigurierte Zeitlimit überschritten. |
-| **SQL-AI-0107** | Schreiboperation blockiert | Ein mutierendes Statement (`INSERT`/`UPDATE` etc.) wurde im Read-Only-Modus abgewiesen. |
+| **SQL-AI-0107** | Schreiboperation blockiert | Ein mutierendes Statement wurde im Read-Only-Modus abgewiesen oder der Zugriff auf Datenabfragen wurde durch das Access-Level `SchemaOnly` blockiert. |
 | **SQL-AI-0108** | Ungültiger Typ für Referenzen | Objektreferenzen können nur für Tabellen (`TABLE`) und Sichten (`VIEW`) abgefragt werden. |
 | **SQL-AI-0109** | Ungültiger Typ für Parameter | Routine-Parameter können nur für Prozeduren (`PROCEDURE`) und Funktionen (`FUNCTION`) gelesen werden. |

@@ -16,18 +16,25 @@ Strikte Leitplanken für die Code-Erstellung, Sicherheitsprüfungen, Architektur
 
 ## 2. Architektur- & Guardrail-Konzepte (Constraints)
 
-- **Dynamischer Safety-Check:** Bevor eine Verbindung hergestellt oder eine Abfrage ausgeführt wird, muss der konfigurierte `SafetyCheckSql` ausgeführt und verifiziert werden.
+- **Datenbank-Zugriffssteuerung & Whitelisting:**
+  - Standardmäßig sind alle Datenbanken gesperrt.
+  - Statischer Abgleich gegen Freigabemuster (`Allowed`) und Ausschlussmuster (`Blocked`) vor Verbindungsaufbau.
+  - Empfohlene Übergabe des Connection Strings über Umgebungsvariable `SQLTOAI_CONNECTION_STRING`.
+- **Dynamischer Access- & Permission-Check:**
+  - Jede Zieldatenbank wird beim ersten Zugriff (und Ablauf der TTL) per `AccessCheckSql` geprüft, um das `AccessLevel` (`None`/`0`, `SchemaOnly`/`1`, `ReadOnly`/`ReadData`/`2`, `ReadWrite`/`3`) zu bestimmen.
+  - Fehlerhafte Checks setzen das Level restriktiv auf `None`.
+  - Caching des Levels im Arbeitsspeicher des Servers für die Dauer der MCP-Sitzung.
 - **Mehrstufiger Schreibschutz (Read-Only Guard):**
-  - ConnectionString enthält `ApplicationIntent=ReadOnly`.
-  - Abfragen in einer Transaction mit anschließendem `Rollback`.
-  - Parser-Ebene (Regex-Schreibschutz-Check): blockiere mutierende SQL-Schlüsselwörter (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE` etc.) mit Fehler `SQL-AI-0107`.
-- **On-the-Fly String-Anonymisierung:**
-  - Standardmodus: `ScramblePattern` (Mustererhalt für E-Mails, PLZ etc. - z.B. `Max.Mustermann@mail.de` -> `Xxx.Xxxxxxxxxx@xxxx.xx`).
-  - Consistency-Hashing für logische Join-Konsistenz über Tabellen hinweg.
-  - Ignorieren von technischen Spalten (z. B. `Id`, `Code`, `Type`).
+  - Wird erzwungen bei Level `ReadOnly`/`ReadData` oder globalem Schreibschutz.
+  - ConnectionString Intent, Transaction Rollback bei jeder Abfrage, AST/Regex-Parser zur Blockierung mutierender Befehle.
+  - Sicherheitsempfehlung: Login mit minimalen Rechten (Least Privilege).
+- **Musterbasierte String-Anonymisierung:**
+  - Anonymisierung nur bei Spalten, die auf definierte Glob-Patterns passen (Standard: PII-Muster wie `*name*`, `*mail*` etc.).
+  - Technische Spalten und Status/Typ-Spalten (`*Id`, `*Code`, `*Type`, `Status` etc.) werden explizit ausgeschlossen, um LLM-Nutzen zu wahren.
+  - Modi: `ScramblePattern` (strukturtreues Scrambling) und `Hash` (Consistency-Hashing für Joins).
 - **Schema-Enrichment:**
-  - Parallel-Ausführung von fachlichen Beschreibungs-Queries (`TableMetadataQuery`, `ColumnMetadataQuery`).
-  - Direkte Injektion in die generierten Markdown-Rückgaben.
+  - Automatisches Auslesen der native `MS_Description` Extended Properties aus SQL Server (Default-Provider).
+  - Optionaler Custom-Provider mit parallelen Queries (`TableMetadataQuery`, `ColumnMetadataQuery`).
 - **Standardisierte Fehlerbehandlung (Error-Catalog):**
   - Alle Fehler müssen einem Code aus dem Katalog (`SQL-AI-0001` bis `SQL-AI-0109`) entsprechen.
 
