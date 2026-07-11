@@ -7,6 +7,10 @@ using Microsoft.Extensions.Options;
 namespace SqlToAi.Tests.Database;
 
 // @covers SqlToAi.Database.SqlConnectionFactory
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class SqlConnectionFactoryCollectionFixture { public const string Name = "SqlConnectionFactory"; }
+
+[Collection("SqlConnectionFactory")]
 public sealed class SqlConnectionFactoryTests
 {
     private static readonly Type TargetType = typeof(SqlConnectionFactory);

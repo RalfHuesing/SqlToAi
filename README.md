@@ -45,18 +45,32 @@ output. The root section is `SqlToAi`, which contains the following sub-sections
 
 ### Credentials
 
-**Never put credentials into `appsettings.json` or commit them to source control.** Pass the full
-SQL Server connection string via the `SQLTOAI_CONNECTION_STRING` environment variable. When the
-variable is set, it takes precedence over everything in `SqlDatabase`:
+The server picks credentials in this order (first match wins):
+
+1. **`SQLTOAI_CONNECTION_STRING` environment variable** — full ADO.NET connection string. **Use this
+   for shared and production setups** so credentials never end up in source control or in a committed
+   config file.
+2. **`SqlDatabase.Server` + `SqlDatabase.UserId` + `SqlDatabase.Password`** in `appsettings.json` —
+   convenient for local development against a developer SQL Server. The server still requires at
+   least `Server` to be set; if it is empty, startup fails with a clear error.
+3. **Windows Integrated Security** if `UserId`/`Password` are empty and the process runs as a
+   domain user with access to the SQL Server.
+
+**`SQLTOAI_CONNECTION_STRING` always wins when set** — that lets a developer override the file
+without editing it:
 
 ```powershell
-$env:SQLTOAI_CONNECTION_STRING = "Data Source=localhost\MSSQLSERVER;Initial Catalog=MyDemoDatabase;User ID=DbUser;Password=...;TrustServerCertificate=True;Encrypt=False"
+# Production / shared
+$env:SQLTOAI_CONNECTION_STRING = "Data Source=prod-sql;Initial Catalog=Reporting;User ID=svc_sqltoai;Password=...;TrustServerCertificate=False;Encrypt=True"
+
+# Local dev (uses the values from appsettings.json)
 dotnet run --project src/SqlToAi
 ```
 
-If the env var is not set, the server falls back to `SqlDatabase.Server` (or refuses to start if
-that is also empty). `UserId`/`Password` fields are also accepted in `SqlDatabase` for local
-development, but the env var is the recommended path for any shared or production use.
+> **Note for shared repos:** the template `appsettings.json` ships without credentials, so a fresh
+> clone won't leak anything. If you check in credentials for your local dev server (e.g. a
+> throwaway `Agent/Agent!` test login), make sure the repo is private and the credentials are
+> limited to read-only access on a non-production database.
 
 ### Example `appsettings.json`
 
