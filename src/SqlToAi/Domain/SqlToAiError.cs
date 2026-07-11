@@ -43,6 +43,9 @@ public sealed record SqlToAiError(string Code, string Message)
     public static SqlToAiError WriteOperationBlocked() =>
         new(WriteOperationBlockedCode, "Schreiboperation blockiert: Ein mutierendes Statement wurde im Read-Only-Modus abgewiesen oder der Zugriff auf Datenabfragen wurde durch das Access-Level SchemaOnly blockiert.");
 
+    public static SqlToAiError WriteOperationBlocked(string details) =>
+        new(WriteOperationBlockedCode, $"Schreiboperation blockiert: {details}");
+
     public static SqlToAiError InvalidReferenceType(string objectName) =>
         new(InvalidReferenceTypeCode, $"Ungültiger Typ für Referenzen: Objektreferenzen können nur für Tabellen und Sichten abgefragt werden. Objekt: {objectName}");
 

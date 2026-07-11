@@ -62,7 +62,8 @@ dotnet run            # Starten (als MCP Server)
 - **Sprachvorgaben (Language Rules):**
   - **Dokumentation & Code:** Alle Dokumentationen (einschließlich Markdown-Dateien in `docs/` und `README.md`) sowie der gesamte Quellcode (Klassennamen, Methoden, Variablen, XML-Kommentare etc.) müssen in **englischer Sprache** verfasst sein.
   - **Kommunikation:** Die Kommunikationssprache zwischen dem KI-Agenten und dem Benutzer ist **Deutsch**.
-- **Commits:** Jeder Commit-Vorschlag schließt mit `### Commit-Vorschlag` (Conventional Commit, Deutsch, imperativ).
+- **Commits (Pflicht):** Commits werden **autonom in sinnvollen Abständen** gemacht — nach jedem abgeschlossenen Feature, nach jedem behobenen Fehler, nach jedem grünen Test-Lauf. Kein Warten auf explizite Aufforderung. Jeder Commit-Vorschlag schließt mit `### Commit-Vorschlag` (Conventional Commit, Deutsch, imperativ).
+- **Keine hartkodierten Werte (No Magic Values):** Numerische Limits, Timeouts, Default-Werte und konfigurierbare Strings dürfen **niemals direkt in `.cs`-Dateien** eingetragen werden. Alle Konfigurationswerte kommen aus der `appsettings.json` (gebunden via `IOptions<T>`). Defaults werden als Property-Initializer in der jeweiligen `*Options`-Klasse gesetzt und sind dort dokumentiert — nie im aufrufenden Code.
 
 ## 5. Qualitätsdrift-Prävention (AiNetLinter)
 

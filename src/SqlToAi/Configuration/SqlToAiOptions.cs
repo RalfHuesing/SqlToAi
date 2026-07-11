@@ -11,6 +11,7 @@ public sealed class SqlToAiOptions
     public DatabasesOptions Databases { get; set; } = new();
     public AnonymizerOptions Anonymizer { get; set; } = new();
     public MetadataProviderOptions MetadataProvider { get; set; } = new();
+    public QueryExecutionOptions QueryExecution { get; set; } = new();
 }
 
 /// <summary>
@@ -71,4 +72,16 @@ public sealed class MetadataProviderOptions
     public string ConnectionString { get; set; } = string.Empty;
     public string TableMetadataQuery { get; set; } = string.Empty;
     public string ColumnMetadataQuery { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Options for safe query execution: row limits and statement validation.
+/// </summary>
+public sealed class QueryExecutionOptions
+{
+    /// <summary>Default number of rows returned when the caller does not specify a limit.</summary>
+    public int DefaultRowLimit { get; set; } = 100;
+
+    /// <summary>Hard ceiling on rows returned regardless of caller request.</summary>
+    public int MaxRowLimit { get; set; } = 1000;
 }
