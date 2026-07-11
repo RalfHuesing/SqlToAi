@@ -20,17 +20,32 @@ public enum AccessLevel
     SchemaOnly = 1,
 
     /// <summary>
-    /// Read-only access to schemas and data queries is allowed.
+    /// Read-only access to schemas and data queries is allowed, but string data is anonymized.
     /// </summary>
-    ReadOnly = 2,
+    ReadOnlyAnonymized = 2,
 
     /// <summary>
-    /// Alias for ReadOnly.
+    /// Alias for ReadOnlyAnonymized.
     /// </summary>
-    ReadData = 2,
+    ReadDataAnonymized = 2,
+
+    /// <summary>
+    /// Read-only access to schemas and clear-text data queries is allowed (no anonymization).
+    /// </summary>
+    ReadOnly = 3,
+
+    /// <summary>
+    /// Alias for ReadOnly (clear text).
+    /// </summary>
+    ReadData = 3,
+
+    /// <summary>
+    /// Alias for ReadOnly (clear text).
+    /// </summary>
+    ReadOnlyClear = 3,
 
     /// <summary>
     /// Full access is allowed (schema, read, and write operations).
     /// </summary>
-    ReadWrite = 3
+    ReadWrite = 4
 }

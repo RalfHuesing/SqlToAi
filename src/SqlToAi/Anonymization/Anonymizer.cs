@@ -25,11 +25,11 @@ public sealed class Anonymizer : IAnonymizer
     }
 
     /// <summary>
-    /// Anonymizes a string value if the column matches configured rules and is not excluded.
+    /// Anonymizes a string value if anonymization is enabled and the column is not excluded.
     /// </summary>
     /// <param name="columnName">The column name containing the value.</param>
     /// <param name="originalValue">The original string value.</param>
-    /// <returns>The anonymized value, or the original value if anonymization is disabled or not applicable.</returns>
+    /// <returns>The anonymized value, or the original value if anonymization is disabled or excluded.</returns>
     public string Anonymize(string columnName, string originalValue)
     {
         if (!_options.Anonymizer.Enabled || string.IsNullOrEmpty(originalValue))
@@ -46,30 +46,10 @@ public sealed class Anonymizer : IAnonymizer
             }
         }
 
-        // 2. Determine selected mode by matching rules
-        string? selectedMode = null;
-        foreach (var rule in _options.Anonymizer.Rules)
-        {
-            if (MatchesPattern(columnName, rule.Pattern))
-            {
-                selectedMode = rule.Mode;
-                break;
-            }
-        }
-
-        // If specific rules are configured and none match, skip anonymization
-        if (selectedMode is null)
-        {
-            if (_options.Anonymizer.Rules.Count > 0)
-            {
-                return originalValue;
-            }
-
-            // Secure by default fallback: if no rules are defined, anonymize all strings
-            selectedMode = !string.IsNullOrWhiteSpace(_options.Anonymizer.DefaultMode)
-                ? _options.Anonymizer.DefaultMode
-                : _options.Anonymizer.Mode;
-        }
+        // 2. Pauschale Anonymisierung: all other columns are anonymized
+        string selectedMode = !string.IsNullOrWhiteSpace(_options.Anonymizer.DefaultMode)
+            ? _options.Anonymizer.DefaultMode
+            : _options.Anonymizer.Mode;
 
         return RunAnonymization(originalValue, selectedMode);
     }
@@ -86,20 +66,23 @@ public sealed class Anonymizer : IAnonymizer
 
     private static string Scramble(string val)
     {
+        int seed = GetStableHashCode(val);
+        var rand = new Random(seed);
+
         var sb = new StringBuilder(val.Length);
         foreach (char c in val)
         {
             if (char.IsAsciiLetterUpper(c))
             {
-                sb.Append('X');
+                sb.Append((char)rand.Next('A', 'Z' + 1));
             }
             else if (char.IsAsciiLetterLower(c))
             {
-                sb.Append('x');
+                sb.Append((char)rand.Next('a', 'z' + 1));
             }
             else if (char.IsDigit(c))
             {
-                sb.Append('9');
+                sb.Append((char)rand.Next('0', '9' + 1));
             }
             else
             {
@@ -107,6 +90,17 @@ public sealed class Anonymizer : IAnonymizer
             }
         }
         return sb.ToString();
+    }
+
+    private static int GetStableHashCode(string val)
+    {
+        uint hash = 2166136261;
+        foreach (char c in val)
+        {
+            hash ^= c;
+            hash *= 16777619;
+        }
+        return (int)hash;
     }
 
     private static string HashValue(string val)

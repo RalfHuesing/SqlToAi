@@ -56,7 +56,7 @@ public sealed class AnonymizerTests
     }
 
     [Fact]
-    public void Scramble_ShouldPreserveStructureCasingAndSpecialChars()
+    public void Scramble_ShouldBeConsistentAndPreserveLengthCasingAndSpecialChars()
     {
         // Arrange
         var options = new SqlToAiOptions();
@@ -66,12 +66,32 @@ public sealed class AnonymizerTests
         var anonymizer = new Anonymizer(Options.Create(options));
 
         // Act
+        var result1 = anonymizer.Anonymize("Name", "Ralf");
+        var result2 = anonymizer.Anonymize("Name", "Ralf");
         var emailResult = anonymizer.Anonymize("Email", "Max.Mustermann@mail.de");
-        var phoneResult = anonymizer.Anonymize("Phone", "+49 (123) 456-789");
 
         // Assert
-        Assert.Equal("Xxx.Xxxxxxxxxx@xxxx.xx", emailResult);
-        Assert.Equal("+99 (999) 999-999", phoneResult);
+        // Consistency check
+        Assert.Equal(result1, result2);
+        
+        // Casing and length preservation
+        Assert.Equal(4, result1.Length);
+        Assert.True(char.IsUpper(result1[0]));
+        Assert.True(char.IsLower(result1[1]));
+        Assert.True(char.IsLower(result1[2]));
+        Assert.True(char.IsLower(result1[3]));
+        
+        // Not a simple static mask and not unchanged
+        Assert.NotEqual("Xxxx", result1);
+        Assert.NotEqual("Ralf", result1);
+
+        // Email structure preservation
+        Assert.Equal("Max.Mustermann@mail.de".Length, emailResult.Length);
+        Assert.Equal('.', emailResult[3]);
+        Assert.Equal('@', emailResult[14]);
+        Assert.Equal('.', emailResult[19]);
+        Assert.True(char.IsUpper(emailResult[0]));
+        Assert.True(char.IsUpper(emailResult[4]));
     }
 
     [Fact]
@@ -99,27 +119,22 @@ public sealed class AnonymizerTests
     }
 
     [Fact]
-    public void Anonymize_ShouldFollowMatchedRules()
+    public void Anonymize_ShouldAnonymizeAllColumnsByDefault_UnlessExcluded()
     {
         // Arrange
         var options = new SqlToAiOptions();
         options.Anonymizer.Enabled = true;
-        options.Anonymizer.Rules = new List<AnonymizerRule>
-        {
-            new() { Pattern = "*name*", Mode = "ScramblePattern" },
-            new() { Pattern = "*hash*", Mode = "Hash" }
-        };
+        options.Anonymizer.ExcludedColumns = new List<string> { "Id" };
         var anonymizer = new Anonymizer(Options.Create(options));
 
-        // Act & Assert
-        // Column matching rule 1 -> Scramble
-        Assert.Equal("Xxxx", anonymizer.Anonymize("FirstName", "Ralf"));
+        // Act
+        var val1 = anonymizer.Anonymize("FirstName", "Ralf");
+        var val2 = anonymizer.Anonymize("Description", "Nice project");
+        var valExcluded = anonymizer.Anonymize("Id", "123");
 
-        // Column matching rule 2 -> Hash
-        var hashed = anonymizer.Anonymize("UserSecureHash", "secret");
-        Assert.Matches("^[0-9a-f]{64}$", hashed);
-
-        // Column matching NO rules -> original value returned unchanged
-        Assert.Equal("test-description", anonymizer.Anonymize("Description", "test-description"));
+        // Assert
+        Assert.NotEqual("Ralf", val1);
+        Assert.NotEqual("Nice project", val2);
+        Assert.Equal("123", valExcluded);
     }
 }

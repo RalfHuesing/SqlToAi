@@ -76,7 +76,7 @@ public sealed class AccessLevelProvider : IAccessLevelProvider
         // If no dynamic access check query is configured, fall back to global options
         if (string.IsNullOrWhiteSpace(sql))
         {
-            return _options.SqlDatabase.ReadOnly ? AccessLevel.ReadOnly : AccessLevel.ReadWrite;
+            return _options.SqlDatabase.ReadOnly ? AccessLevel.ReadOnlyAnonymized : AccessLevel.ReadWrite;
         }
 
         try
@@ -145,22 +145,28 @@ public sealed class AccessLevelProvider : IAccessLevelProvider
             {
                 0 => AccessLevel.None,
                 1 => AccessLevel.SchemaOnly,
-                2 => AccessLevel.ReadOnly,
-                3 => AccessLevel.ReadWrite,
+                2 => AccessLevel.ReadOnlyAnonymized,
+                3 => AccessLevel.ReadOnly,
+                4 => AccessLevel.ReadWrite,
                 _ => AccessLevel.None
             };
         }
 
-        // 2. Try parsing as AccessLevel Enum string name
+        // 2. Try parsing as AccessLevel Enum string name (handles aliases automatically)
         if (Enum.TryParse<AccessLevel>(strVal, true, out var parsedEnum))
         {
             return parsedEnum;
         }
 
-        // 3. String value 'ReadData' is alias for ReadOnly
+        // 3. String value fallback aliases
         if (string.Equals(strVal, "ReadData", StringComparison.OrdinalIgnoreCase))
         {
             return AccessLevel.ReadOnly;
+        }
+
+        if (string.Equals(strVal, "ReadDataAnonymized", StringComparison.OrdinalIgnoreCase))
+        {
+            return AccessLevel.ReadOnlyAnonymized;
         }
 
         return AccessLevel.None;

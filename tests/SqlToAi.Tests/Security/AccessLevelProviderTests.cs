@@ -34,7 +34,7 @@ public sealed class AccessLevelProviderTests
         var level = await provider.GetAccessLevelAsync("DemoDb", TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(AccessLevel.ReadOnly, level);
+        Assert.Equal(AccessLevel.ReadOnlyAnonymized, level);
         Assert.Equal(0, mockFactory.ConnectionCreatedCount);
     }
 
