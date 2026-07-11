@@ -109,14 +109,14 @@ public sealed class McpHost : IMcpHost
         {
             LogParseError(_logger, ex);
             responseJson = WriteErrorAndCapture(output, null, JsonRpcError.ParseError, "Parse error: invalid JSON.");
-            _trail.Record(new McpCallRecord(correlationId, "<unparseable>", null, rawJson, responseJson, sw.ElapsedMilliseconds, false));
+            _trail.Record(new McpCallRecord(correlationId, "<unparseable>", null, rawJson, null, responseJson, sw.ElapsedMilliseconds, false));
             return;
         }
 
         if (request is null || string.IsNullOrWhiteSpace(request.Method))
         {
             responseJson = WriteErrorAndCapture(output, null, JsonRpcError.InvalidRequest, "Invalid request: missing method.");
-            _trail.Record(new McpCallRecord(correlationId, "<invalid>", null, rawJson, responseJson, sw.ElapsedMilliseconds, false));
+            _trail.Record(new McpCallRecord(correlationId, "<invalid>", null, rawJson, null, responseJson, sw.ElapsedMilliseconds, false));
             return;
         }
 
@@ -170,6 +170,7 @@ public sealed class McpHost : IMcpHost
             correlationId,
             request.Method,
             toolName,
+            rawJson,
             argsJson,
             responseJson,
             sw.ElapsedMilliseconds,

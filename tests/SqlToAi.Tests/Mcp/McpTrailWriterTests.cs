@@ -35,6 +35,7 @@ public sealed class McpTrailWriterTests : IDisposable
             CorrelationId: "abc123",
             Method: "tools/call",
             Tool: "sql_get_schema",
+            RawRequestJson: "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\"}",
             ArgumentsJson: "{\"object_name\":\"dbo.Foo\"}",
             ResponseJson: "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}",
             DurationMs: 42,
@@ -42,8 +43,7 @@ public sealed class McpTrailWriterTests : IDisposable
 
         writer.Record(record);
 
-        string expectedDay = DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-        string dayDir = Path.Combine(_logRoot, "mcp", expectedDay);
+        string dayDir = Path.Combine(_logRoot, "mcp", DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
         Assert.True(Directory.Exists(dayDir), $"Expected day directory {dayDir} to exist.");
 
         var files = Directory.GetFiles(dayDir, "*-call.jsonl");
@@ -53,6 +53,112 @@ public sealed class McpTrailWriterTests : IDisposable
         Assert.Contains("\"tool\":\"sql_get_schema\"", content);
         Assert.Contains("\"success\":true", content);
         Assert.Contains("\"duration_ms\":42", content);
+    }
+
+    [Fact]
+    public void Record_ShouldWriteCompanionRequestJsonAndResponseJson()
+    {
+        var writer = CreateWriter(enabled: true);
+        var record = new McpCallRecord(
+            CorrelationId: "id-with-companion",
+            Method: "tools/call",
+            Tool: "sql_get_schema",
+            RawRequestJson: "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"sql_get_schema\",\"arguments\":{\"object_name\":\"dbo.Foo\"}}}",
+            ArgumentsJson: "{\"name\":\"sql_get_schema\",\"arguments\":{\"object_name\":\"dbo.Foo\"}}",
+            ResponseJson: "{\"jsonrpc\":\"2.0\",\"id\":7,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"# Schema for Table/View: \\\"dbo.Foo\\\"\"}],\"isError\":false}}",
+            DurationMs: 5,
+            Success: true);
+
+        writer.Record(record);
+
+        string dayDir = Path.Combine(_logRoot, "mcp", DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+
+        string requestFile = Directory.GetFiles(dayDir, "*-request.json").Single();
+        string requestText = File.ReadAllText(requestFile);
+        // Pretty-printed (indented), with a top-level newline before the closing brace.
+        Assert.Contains("\"jsonrpc\": \"2.0\"", requestText);
+        Assert.Contains("\"id\": 7", requestText);
+        Assert.Contains("\"object_name\": \"dbo.Foo\"", requestText);
+
+        string responseFile = Directory.GetFiles(dayDir, "*-response.json").Single();
+        string responseText = File.ReadAllText(responseFile);
+        Assert.Contains("\"jsonrpc\": \"2.0\"", responseText);
+        Assert.Contains("\"isError\": false", responseText);
+    }
+
+    [Fact]
+    public void Record_ShouldWriteResponseMd_WhenResponseIsMarkdown()
+    {
+        var writer = CreateWriter(enabled: true);
+        string markdown = "# Schema for Table/View: `dbo.Customers`\n| Column | Type |\n| --- | --- |\n| Id | int |\n| Name | varchar |\n";
+        string responseJson = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"" + markdown.Replace("\n", "\\n").Replace("\"", "\\\"") + "\"}],\"isError\":false}}";
+
+        var record = new McpCallRecord(
+            CorrelationId: "md-1",
+            Method: "tools/call",
+            Tool: "sql_get_schema",
+            RawRequestJson: "{}",
+            ArgumentsJson: "{}",
+            ResponseJson: responseJson,
+            DurationMs: 1,
+            Success: true);
+
+        writer.Record(record);
+
+        string dayDir = Path.Combine(_logRoot, "mcp", DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        string mdFile = Directory.GetFiles(dayDir, "*-response.md").Single();
+        string content = File.ReadAllText(mdFile);
+
+        // The .md companion contains the Markdown text verbatim (no JSON escaping, no quotes).
+        Assert.Contains("# Schema for Table/View: `dbo.Customers`", content);
+        Assert.Contains("| Column | Type |", content);
+        Assert.Contains("| Id | int |", content);
+    }
+
+    [Fact]
+    public void Record_ShouldNotWriteResponseMd_WhenResponseIsJsonText()
+    {
+        var writer = CreateWriter(enabled: true);
+        // sql_execute_query returns JSON in the text block — that is NOT Markdown.
+        string jsonPayload = "{\"Mandant\":1,\"ProjektID\":42}";
+        string responseJson = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"" + jsonPayload + "\"}],\"isError\":false}}";
+
+        var record = new McpCallRecord(
+            CorrelationId: "json-1",
+            Method: "tools/call",
+            Tool: "sql_execute_query",
+            RawRequestJson: "{}",
+            ArgumentsJson: "{}",
+            ResponseJson: responseJson,
+            DurationMs: 1,
+            Success: true);
+
+        writer.Record(record);
+
+        string dayDir = Path.Combine(_logRoot, "mcp", DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Empty(Directory.GetFiles(dayDir, "*-response.md"));
+    }
+
+    [Fact]
+    public void Record_ShouldNotWriteRequestJson_WhenRawRequestIsNull()
+    {
+        var writer = CreateWriter(enabled: true);
+        var record = new McpCallRecord(
+            CorrelationId: "no-req",
+            Method: "tools/list",
+            Tool: null,
+            RawRequestJson: null,
+            ArgumentsJson: null,
+            ResponseJson: "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}",
+            DurationMs: 1,
+            Success: true);
+
+        writer.Record(record);
+
+        string dayDir = Path.Combine(_logRoot, "mcp", DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Empty(Directory.GetFiles(dayDir, "*-request.json"));
+        // response.json still gets written
+        Assert.Single(Directory.GetFiles(dayDir, "*-response.json"));
     }
 
     [Fact]
@@ -66,6 +172,7 @@ public sealed class McpTrailWriterTests : IDisposable
             CorrelationId: "x1",
             Method: "tools/call",
             Tool: "sql_execute_query",
+            RawRequestJson: "{}",
             ArgumentsJson: "{\"query\":\"" + longQuery + "\"}",
             ResponseJson: longResponse,
             DurationMs: 1,
@@ -86,7 +193,7 @@ public sealed class McpTrailWriterTests : IDisposable
     public void Record_ShouldDoNothing_WhenMcpTrailDisabled()
     {
         var writer = CreateWriter(enabled: false);
-        writer.Record(new McpCallRecord("c1", "tools/list", null, null, null, 1, true));
+        writer.Record(new McpCallRecord("c1", "tools/list", null, null, null, null, 1, true));
 
         Assert.False(Directory.Exists(Path.Combine(_logRoot, "mcp")));
     }
@@ -107,7 +214,7 @@ public sealed class McpTrailWriterTests : IDisposable
         var writer = new McpTrailWriter(Microsoft.Extensions.Options.Options.Create(options), NullLogger<McpTrailWriter>.Instance);
 
         // Must not throw — fire-and-forget contract.
-        var ex = Record.Exception(() => writer.Record(new McpCallRecord("c1", "tools/list", null, null, null, 1, true)));
+        var ex = Record.Exception(() => writer.Record(new McpCallRecord("c1", "tools/list", null, null, null, null, 1, true)));
         Assert.Null(ex);
     }
 
@@ -119,7 +226,7 @@ public sealed class McpTrailWriterTests : IDisposable
     public void Record_ShouldSanitizeCorrelationId_AndStayInsideDayDirectory(string maliciousId)
     {
         var writer = CreateWriter(enabled: true);
-        var record = new McpCallRecord(maliciousId, "tools/call", "sql_get_schema", null, "{}", 1, true);
+        var record = new McpCallRecord(maliciousId, "tools/call", "sql_get_schema", null, null, "{}", 1, true);
 
         writer.Record(record);
 
@@ -141,6 +248,7 @@ public sealed class McpTrailWriterTests : IDisposable
                 CorrelationId: $"id-{i}",
                 Method: "tools/call",
                 Tool: "sql_list_databases",
+                RawRequestJson: "{}",
                 ArgumentsJson: null,
                 ResponseJson: $"{{\"id\":{i}}}",
                 DurationMs: i,
