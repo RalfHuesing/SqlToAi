@@ -20,12 +20,12 @@ public sealed class AccessLevelProviderTests
     private static readonly Type TargetType = typeof(AccessLevelProvider);
 
     [Fact]
-    public async Task GetAccessLevelAsync_ShouldReturnDefault_WhenSqlIsEmptyAndReadOnlyIsTrue()
+    public async Task GetAccessLevelAsync_ShouldReturnReadOnlyAnonymized_WhenAccessCheckSqlIsEmpty()
     {
-        // Arrange
+        // Arrange — with no AccessCheckSql configured there is no per-database signal to
+        // trust, so the fail-safe default (read-only, anonymized) always applies.
         var options = new SqlToAiOptions();
         options.Databases.AccessCheckSql = "";
-        options.SqlDatabase.ReadOnly = true;
 
         var mockFactory = new DummyConnectionFactory();
         var provider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
@@ -36,24 +36,6 @@ public sealed class AccessLevelProviderTests
         // Assert
         Assert.Equal(AccessLevel.ReadOnlyAnonymized, level);
         Assert.Equal(0, mockFactory.ConnectionCreatedCount);
-    }
-
-    [Fact]
-    public async Task GetAccessLevelAsync_ShouldReturnDefault_WhenSqlIsEmptyAndReadOnlyIsFalse()
-    {
-        // Arrange
-        var options = new SqlToAiOptions();
-        options.Databases.AccessCheckSql = "";
-        options.SqlDatabase.ReadOnly = false;
-
-        var mockFactory = new DummyConnectionFactory();
-        var provider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
-
-        // Act
-        var level = await provider.GetAccessLevelAsync("DemoDb", TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(AccessLevel.ReadWrite, level);
     }
 
     [Fact]

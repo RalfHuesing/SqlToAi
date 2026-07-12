@@ -78,12 +78,6 @@ public sealed class SqlConnectionFactory : IDatabaseConnectionFactory
             builder.InitialCatalog = databaseName;
         }
 
-        // Force Read-Only routing if configured
-        if (_options.SqlDatabase.ReadOnly)
-        {
-            builder.ApplicationIntent = ApplicationIntent.ReadOnly;
-        }
-
         return new SqlConnection(builder.ConnectionString);
     }
 }

@@ -6,9 +6,9 @@ namespace SqlToAi.Database;
 
 /// <summary>
 /// Executes a single SQL statement. Runs inside an explicit rollback transaction and rejects
-/// mutating keywords unless the database is at <c>AccessLevel.ReadWrite</c> with the global
-/// read-only override off, in which case the transaction is committed instead.
-/// Applies row limits and optional PII anonymization based on the database access level.
+/// mutating keywords unless the database is at <c>AccessLevel.ReadWrite</c>, in which case the
+/// transaction is committed instead. Applies row limits and optional PII anonymization based on
+/// the database access level.
 /// </summary>
 public interface IQueryExecutionService
 {

@@ -28,7 +28,6 @@ public sealed class SqlToAiOptionsTests
         Assert.NotNull(options.Anonymizer);
         Assert.NotNull(options.MetadataProvider);
 
-        Assert.True(options.SqlDatabase.ReadOnly);
         Assert.True(options.SqlDatabase.EnforceSafetyCheck);
         Assert.True(options.Anonymizer.Enabled);
         Assert.True(options.MetadataProvider.Enabled);
@@ -43,8 +42,7 @@ public sealed class SqlToAiOptionsTests
         {
           "SqlDatabase": {
             "Server": "my-server",
-            "DefaultDatabase": "MyDb",
-            "ReadOnly": false
+            "DefaultDatabase": "MyDb"
           },
           "Databases": {
             "Default": "DemoDb",
@@ -70,7 +68,6 @@ public sealed class SqlToAiOptionsTests
         // Assert
         Assert.Equal("my-server", options.SqlDatabase.Server);
         Assert.Equal("MyDb", options.SqlDatabase.DefaultDatabase);
-        Assert.False(options.SqlDatabase.ReadOnly);
 
         Assert.Equal("DemoDb", options.Databases.Default);
         var allowed = Assert.Single(options.Databases.Allowed);

@@ -15,10 +15,9 @@ namespace SqlToAi.Database;
 
 /// <summary>
 /// Executes a single SQL statement. For every database except those at
-/// <see cref="AccessLevel.ReadWrite"/> (and only while the global <see cref="SqlDatabaseOptions.ReadOnly"/>
-/// switch is off), the statement runs inside an explicit rollback transaction and mutating
-/// keywords are rejected outright. Applies row limits and on-the-fly PII anonymization for
-/// <see cref="AccessLevel.ReadOnlyAnonymized"/> databases.
+/// <see cref="AccessLevel.ReadWrite"/>, the statement runs inside an explicit rollback
+/// transaction and mutating keywords are rejected outright. Applies row limits and on-the-fly
+/// PII anonymization for <see cref="AccessLevel.ReadOnlyAnonymized"/> databases.
 /// </summary>
 public sealed class QueryExecutionService : IQueryExecutionService
 {
@@ -33,7 +32,6 @@ public sealed class QueryExecutionService : IQueryExecutionService
     private readonly IReadOnlyGuard _readOnlyGuard;
     private readonly IAnonymizer _anonymizer;
     private readonly QueryExecutionOptions _options;
-    private readonly SqlDatabaseOptions _sqlDatabaseOptions;
     private readonly ILogger<QueryExecutionService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="QueryExecutionService"/>.</summary>
@@ -52,7 +50,6 @@ public sealed class QueryExecutionService : IQueryExecutionService
         _readOnlyGuard = readOnlyGuard;
         _anonymizer = anonymizer;
         _options = options.Value.QueryExecution;
-        _sqlDatabaseOptions = options.Value.SqlDatabase;
         _logger = logger;
     }
 
@@ -88,8 +85,8 @@ public sealed class QueryExecutionService : IQueryExecutionService
         }
 
         // 4. Read-only guard: reject mutating statements, unless this database is fully
-        //    unlocked (ReadWrite access level AND the global read-only override is off).
-        bool writeAllowed = accessLevel == AccessLevel.ReadWrite && !_sqlDatabaseOptions.ReadOnly;
+        //    unlocked via AccessCheckSql returning ReadWrite.
+        bool writeAllowed = accessLevel == AccessLevel.ReadWrite;
 
         if (!writeAllowed && !_readOnlyGuard.IsQuerySafe(query))
         {

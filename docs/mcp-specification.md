@@ -54,7 +54,7 @@ Nach dem statischen Namensabgleich führt der Server einen dynamischen Check dir
   | `1` | `SchemaOnly` | **Nur Metadaten.** Alle Schema- und Suchtools sind erlaubt. Abfragen über `sql_execute_query` werden mit `SQL-AI-0107` blockiert. |
   | `2` | `ReadOnlyAnonymized` / `ReadDataAnonymized` | **Lesezugriff, anonymisiert.** Schema-Tools und Leseoperationen über `sql_execute_query` sind erlaubt; String-Spalten werden vor der Rückgabe per Anonymizer maskiert (siehe Abschnitt D). |
   | `3` | `ReadOnly` / `ReadData` / `ReadOnlyClear` | **Lesezugriff, Klartext.** Schema-Tools und Leseoperationen sind erlaubt, ohne Anonymisierung. |
-  | `4` | `ReadWrite` | **Vollzugriff.** Alle Aktionen (inklusive Schreiboperationen) sind erlaubt (sofern nicht global eingeschränkt). |
+  | `4` | `ReadWrite` | **Vollzugriff.** Alle Aktionen (inklusive Schreiboperationen über `sql_execute_query`) sind erlaubt. Dies ist die einzige Stufe, die den Read-Only Guard (Abschnitt C) umgeht — es gibt keinen zusätzlichen globalen Schalter. |
 
 * **Fehlerbehandlung:** Wenn die Ausführung von `AccessCheckSql` einen SQL-Fehler wirft oder kein Ergebnis liefert, wird das Level restriktiv auf `0` (`None`) gesetzt.
 * **Session- & TTL-Caching:**
@@ -63,12 +63,13 @@ Nach dem statischen Namensabgleich führt der Server einen dynamischen Check dir
 ---
 
 ### C. Konfigurierbarer Schreibschutz (Read-Only Guard)
-Wenn das ermittelte Access Level `ReadOnly` / `ReadData` entspricht oder die globale Einstellung `"ReadOnly": true` gesetzt ist, wird ein mehrstufiger Schreibschutz erzwungen:
+Für jede Datenbank außer solchen mit Access Level `ReadWrite` (Abschnitt B) wird ein mehrstufiger Schreibschutz erzwungen:
 
-1. **Verbindungs-Ebene:** Der ConnectionString wird dynamisch um `ApplicationIntent=ReadOnly` ergänzt (sofern vom SQL Server unterstützt).
-2. **Transaktions-Ebene:** Alle Abfragen werden innerhalb einer expliziten Transaktion ausgeführt. Am Ende der Ausführung wird *immer* ein `ROLLBACK` ausgeführt, sodass versehentliche oder böswillige Datenänderungen verworfen werden.
-3. **Parser-Ebene:** Der Server validiert Statements vor der Ausführung per AST-Analyse oder robusten Regulären Ausdrücken. Mutierende SQL-Befehle (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `EXEC` von schreibenden Prozeduren etc.) werden abgewiesen und brechen mit `SQL-AI-0107` ab.
-4. **Least-Privilege-Empfehlung:** Der Schreibschutz des Servers dient als "Defense-in-Depth". Die primäre Absicherung muss stets über einen SQL-Login mit minimalen Rechten (z. B. nur Mitgliedschaft in der Rolle `db_datareader`) realisiert werden.
+1. **Parser-Ebene:** Der Server validiert Statements vor der Ausführung per robusten Regulären Ausdrücken (String-Literale und Kommentare werden dabei ausgeblendet, damit z. B. `SELECT 'DELETE' AS Status` nicht fälschlich blockiert wird). Mutierende SQL-Befehle (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `EXEC`/`EXECUTE` etc.) werden abgewiesen und brechen mit `SQL-AI-0107` ab.
+2. **Transaktions-Ebene:** Alle Abfragen werden innerhalb einer expliziten Transaktion ausgeführt. Am Ende der Ausführung wird ein `ROLLBACK` ausgeführt, sodass versehentliche oder böswillige Datenänderungen verworfen werden.
+3. **Least-Privilege-Empfehlung:** Der Schreibschutz des Servers dient als "Defense-in-Depth". Die primäre Absicherung muss stets über einen SQL-Login mit minimalen Rechten (z. B. nur Mitgliedschaft in der Rolle `db_datareader`) realisiert werden.
+
+**Ausnahme bei `ReadWrite`:** Ist das ermittelte Access Level `ReadWrite`, überspringt der Server Schritt 1 vollständig (auch `INSERT`/`UPDATE`/`DELETE`/`EXEC` sind erlaubt) und committet die Transaktion aus Schritt 2 statt sie zurückzurollen. Es gibt **keinen separaten globalen Schalter** dafür — die Freigabe erfolgt ausschließlich pro Datenbank über `AccessCheckSql` (Abschnitt B). Der Mehrfach-Statement-Schutz (`SQL-AI-0101`) bleibt davon unberührt und gilt immer.
 
 ---
 

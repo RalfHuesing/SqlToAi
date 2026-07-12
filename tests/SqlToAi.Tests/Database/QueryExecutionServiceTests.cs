@@ -129,10 +129,9 @@ public sealed class QueryExecutionServiceTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task ExecuteQueryAsync_ShouldAllowMutatingQuery_AndCommit_WhenReadWriteAndGlobalOverrideOff()
+    public async Task ExecuteQueryAsync_ShouldAllowMutatingQuery_AndCommit_WhenReadWrite()
     {
         var options = new SqlToAiOptions();
-        options.SqlDatabase.ReadOnly = false;
         var factory = new MockQueryConnectionFactory();
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadWrite),
@@ -148,26 +147,9 @@ public sealed class QueryExecutionServiceTests
     }
 
     [Fact]
-    public async Task ExecuteQueryAsync_ShouldStillBlockMutatingQuery_WhenReadWrite_ButGlobalOverrideOn()
+    public async Task ExecuteQueryAsync_ShouldStillRollBack_WhenAccessLevelIsNotReadWrite()
     {
         var options = new SqlToAiOptions();
-        options.SqlDatabase.ReadOnly = true; // global override wins even at ReadWrite
-        var service = new QueryExecutionService(
-            new MockQueryConnectionFactory(), new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadWrite),
-            new FakeReadOnlyGuard(safe: false), new Anonymizer(Options.Create(options)),
-            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
-
-        var result = await service.ExecuteQueryAsync("DemoDb", "UPDATE Customers SET Name = 'X'", null, TestContext.Current.CancellationToken);
-
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
-    }
-
-    [Fact]
-    public async Task ExecuteQueryAsync_ShouldStillRollBack_WhenReadWrite_ButQueryIsPlainRead()
-    {
-        var options = new SqlToAiOptions();
-        options.SqlDatabase.ReadOnly = false;
         var factory = new MockQueryConnectionFactory();
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly), // not ReadWrite
@@ -185,7 +167,6 @@ public sealed class QueryExecutionServiceTests
     public async Task ExecuteQueryAsync_ShouldStillForbidMultipleStatements_WhenWriteAllowed()
     {
         var options = new SqlToAiOptions();
-        options.SqlDatabase.ReadOnly = false;
         var service = new QueryExecutionService(
             new MockQueryConnectionFactory(), new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadWrite),
             new FakeReadOnlyGuard(safe: true), new Anonymizer(Options.Create(options)),

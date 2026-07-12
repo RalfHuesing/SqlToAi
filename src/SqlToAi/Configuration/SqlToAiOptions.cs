@@ -28,7 +28,6 @@ public sealed class SqlDatabaseOptions
     public int CommandTimeoutSeconds { get; set; } = 30;
     public bool EnforceSafetyCheck { get; set; } = true;
     public string SafetyCheckSql { get; set; } = string.Empty;
-    public bool ReadOnly { get; set; } = true;
 }
 
 /// <summary>

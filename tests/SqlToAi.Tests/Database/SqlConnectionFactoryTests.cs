@@ -38,7 +38,6 @@ public sealed class SqlConnectionFactoryTests
         options.SqlDatabase.DefaultDatabase = "MyDb";
         options.SqlDatabase.UserId = "test-user";
         options.SqlDatabase.Password = "secret";
-        options.SqlDatabase.ReadOnly = false;
         var factory = new SqlConnectionFactory(Options.Create(options));
 
         // Act
@@ -74,23 +73,6 @@ public sealed class SqlConnectionFactoryTests
         {
             Environment.SetEnvironmentVariable("SQLTOAI_CONNECTION_STRING", null);
         }
-    }
-
-    [Fact]
-    public void CreateConnection_ShouldAppendReadOnly_WhenConfigured()
-    {
-        // Arrange
-        Environment.SetEnvironmentVariable("SQLTOAI_CONNECTION_STRING", null);
-        var options = new SqlToAiOptions();
-        options.SqlDatabase.Server = "localhost";
-        options.SqlDatabase.ReadOnly = true;
-        var factory = new SqlConnectionFactory(Options.Create(options));
-
-        // Act
-        using var connection = factory.CreateConnection();
-
-        // Assert
-        Assert.Contains("Application Intent=ReadOnly", connection.ConnectionString);
     }
 
     [Fact]

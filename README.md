@@ -10,8 +10,8 @@ Designed specifically for developers analyzing ERP systems and complex database 
 
 * 🚀 **Stdio-based MCP Host:** Fast, local execution using standard input/output (no HTTP/network setup required).
 * 🛡️ **PII Shield (On-the-Fly Anonymization):** Automatically scrambles or hashes all string values in query results (default: ON) to protect customer data while preserving data structure, casing, length, and join logical consistency.
-* 🔒 **Schreibschutz (Read-Only Guard):** Configurable read-only transaction execution and regex command checking to prevent the AI from executing modifying queries (`INSERT`, `UPDATE`, `DROP`, etc.).
-* 🚦 **Safety/Demo Probe Check:** Run a configurable SQL validation query (e.g. `SELECT 1 WHERE DB_NAME() LIKE '%demo%'`) before accessing any database, blocking access to production databases. The probe also controls per-database anonymization (return `ReadData` for clear-text, `ReadDataAnonymized` for protected access).
+* 🔒 **Schreibschutz (Read-Only Guard):** Regex-based command checking rejects modifying queries (`INSERT`, `UPDATE`, `DROP`, `EXEC`, etc.) inside a rollback transaction. The guard only steps aside for a database whose `AccessCheckSql` explicitly returns `ReadWrite` — every other access level stays read-only, always.
+* 🚦 **Safety/Demo Probe Check:** Run a configurable SQL validation query (e.g. `SELECT 1 WHERE DB_NAME() LIKE '%demo%'`) before accessing any database, blocking access to production databases. The probe also controls per-database anonymization (return `ReadData` for clear-text, `ReadDataAnonymized` for protected access) and, if returned, full write access (`ReadWrite`).
 * 🛡️ **Default Anonymization:** Every string column is automatically scrambled with the configured default algorithm unless its name matches an `ExcludedColumns` pattern — no per-column rule maintenance required.
 * 📖 **Schema Enrichment (Custom Metadata):** Inject custom business logic or table/column documentation from another database/table via configurable SQL queries directly into the schema results returned to the AI.
 * 📋 **Progressive Disclosure Schema Tools:** Exposes optimized tools for schema discovery, triggers, constraints, indexes, routine parameters, and referencing entities (`sys.dm_sql_referencing_entities`), formatted in clean Markdown for the AI.
@@ -40,7 +40,7 @@ output. The root section is `SqlToAi`, which contains the following sub-sections
 | Section | Purpose |
 | :--- | :--- |
 | `Databases` | Static whitelist (`Allowed`/`Blocked`), default database, `AccessCheckSql` for the dynamic permission probe, and `CacheTtlSeconds`. |
-| `SqlDatabase` | Connection parameters (`Server`, `DefaultDatabase`, `CommandTimeoutSeconds`, `ReadOnly`). Credentials are intentionally not loaded from here — see below. |
+| `SqlDatabase` | Connection parameters (`Server`, `DefaultDatabase`, `CommandTimeoutSeconds`). Credentials are intentionally not loaded from here — see below. |
 | `Anonymizer` | Master switch (`Enabled`), the algorithm (`DefaultMode`: `ScramblePattern` or `Hash`), and the list of column-name patterns that must NOT be anonymized (`ExcludedColumns`). |
 | `MetadataProvider` | Optional custom queries for table/column documentation enrichment. |
 | `QueryExecution` | `DefaultRowLimit` and `MaxRowLimit` for `sql_execute_query`. |
@@ -88,8 +88,7 @@ dotnet run --project src/SqlToAi
     },
     "SqlDatabase": {
       "Server": "localhost\\MSSQLSERVER",
-      "DefaultDatabase": "MyDemoDatabase",
-      "ReadOnly": true
+      "DefaultDatabase": "MyDemoDatabase"
     },
     "Anonymizer": {
       "Enabled": true,

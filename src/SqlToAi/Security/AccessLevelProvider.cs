@@ -73,10 +73,11 @@ public sealed class AccessLevelProvider : IAccessLevelProvider
     {
         string sql = _options.Databases.AccessCheckSql;
 
-        // If no dynamic access check query is configured, fall back to global options
+        // If no dynamic access check query is configured, fail safe: read-only and anonymized.
+        // There is no per-database signal to trust otherwise, so ReadWrite is never assumed.
         if (string.IsNullOrWhiteSpace(sql))
         {
-            return _options.SqlDatabase.ReadOnly ? AccessLevel.ReadOnlyAnonymized : AccessLevel.ReadWrite;
+            return AccessLevel.ReadOnlyAnonymized;
         }
 
         try
