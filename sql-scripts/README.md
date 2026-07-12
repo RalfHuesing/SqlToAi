@@ -40,24 +40,25 @@ erDiagram
 ### Objects
 
 1. **`dbo.FakeProjects`**
-   - **Purpose:** Replaces `dbo.BCSPjmProjekte`. Contains project meta-information.
+   - **Purpose:** Contains project meta-information.
    - **Key Fields:** `ProjectId` (PK), `ProjectName`, `Mandant` (Client/Tenant), `Status`.
 
 2. **`dbo.vewFakeProjectList` (View)**
-   - **Purpose:** Replaces `dbo.vewBCSPjmProjektliste`. Exposes project overview columns.
+   - **Purpose:** Exposes project overview columns.
 
 3. **`dbo.FakeContacts`**
-   - **Purpose:** Replaces `dbo.BCSPjmAdressenKontakt` for anonymization checks (like checking PII scrambling).
+   - **Purpose:** Used for anonymization checks (like checking PII scrambling).
    - **Key Fields:** `Name`, `Email`, `Ausfuehrer` (Executor).
 
 4. **`dbo.FakeAddresses`**
-   - **Purpose:** Replaces `dbo.KHKAdressen`. Part of the composite key constraint test.
+   - **Purpose:** Part of the composite key constraint test.
    - **Key Fields:** `Adresse` (Address ID), `Mandant` (Client/Tenant) — Composite Primary Key.
 
 5. **`dbo.FakeAddressCommunications`**
-   - **Purpose:** Replaces `dbo.KHKAdressenBelegartenKommunikation`. Part of the composite key constraint test.
+   - **Purpose:** Part of the composite key constraint test.
    - **Key Fields:** `CommunicationId` (PK), `Adresse`, `Mandant` (Composite Foreign Key referencing `dbo.FakeAddresses`).
 
 6. **`dbo.spFakeSysTan` (Stored Procedure)**
-   - **Purpose:** Replaces `dbo.spSysTan` for validating routine parameter inspection.
+   - **Purpose:** Used for validating routine parameter inspection.
    - **Parameters:** `@TanType` (input), `@NextValue` (output).
+
