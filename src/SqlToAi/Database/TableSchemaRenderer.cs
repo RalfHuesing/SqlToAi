@@ -125,6 +125,16 @@ internal sealed class TableSchemaRenderer
         sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"- **Indexes:** {indexesCount} (run `sql_get_schema_indexes` to view details)");
         sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"- **Constraints:** {constraintsCount} (run `sql_get_schema_constraints` to view details)");
 
+        // Emit trigger names explicitly so the agent can call sql_get_trigger_definition
+        // directly without parsing the trigger summary table above.
+        var triggerList = triggers.ToList();
+        if (triggerList.Count > 0)
+        {
+            string names = string.Join(", ", triggerList.Select(t => $"`{t.TriggerName}`"));
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture,
+                $"- **Triggers:** {triggerList.Count} active — use `sql_get_trigger_definition` with: {names}");
+        }
+
         return sb.ToString();
     }
 
@@ -181,11 +191,16 @@ internal sealed class TableSchemaRenderer
 
     private static string FormatTypeString(string type, int length, int precision, int scale)
     {
-        if (type == "varchar" || type == "nvarchar" || type == "char" || type == "nchar")
+        if (type is "varchar" or "char")
         {
             return length == -1 ? $"{type}(max)" : $"{type}({length})";
         }
-        if (type == "decimal" || type == "numeric")
+        if (type is "nvarchar" or "nchar")
+        {
+            // sys.columns.max_length stores byte length; nvarchar/nchar use 2 bytes per character.
+            return length == -1 ? $"{type}(max)" : $"{type}({length / 2})";
+        }
+        if (type is "decimal" or "numeric")
         {
             return $"{type}({precision},{scale})";
         }

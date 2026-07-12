@@ -227,7 +227,7 @@ public sealed class ToolDispatcherTests
             return Task.FromResult(Result<IReadOnlyList<string>>.Success(["DemoDb"]));
         }
 
-        public Task<Result<string>> SearchObjectsAsync(string db, string searchTerm, int? maxResults = null, CancellationToken ct = default)
+        public Task<Result<string>> SearchObjectsAsync(string db, string searchTerm, int? maxResults = null, string? objectType = null, CancellationToken ct = default)
         { LastDatabase = db; return Task.FromResult(Result<string>.Success("# Results")); }
 
         public Task<Result<string>> GetSchemaAsync(string db, string objectName, CancellationToken ct = default)

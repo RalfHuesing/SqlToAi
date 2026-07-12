@@ -30,9 +30,10 @@ public interface ISchemaService
     /// <param name="databaseName">The database name.</param>
     /// <param name="searchTerm">The term to search for in object names.</param>
     /// <param name="maxResults">Optional maximum results limit.</param>
+    /// <param name="objectType">Optional filter on SQL Server type_desc (e.g. 'USER_TABLE', 'VIEW', 'SQL_STORED_PROCEDURE'). Supports LIKE wildcards.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A Markdown string listing the matched objects.</returns>
-    Task<Result<string>> SearchObjectsAsync(string databaseName, string searchTerm, int? maxResults = null, CancellationToken cancellationToken = default);
+    Task<Result<string>> SearchObjectsAsync(string databaseName, string searchTerm, int? maxResults = null, string? objectType = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves the primary schema for a table, view, stored procedure, or function.

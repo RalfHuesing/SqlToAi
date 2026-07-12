@@ -138,6 +138,25 @@ Add the following entry to your `mcp.json` configuration in Cursor, Claude Deskt
 
 ---
 
+## Development Workflow
+
+Use [`scripts/deploy.ps1`](scripts/deploy.ps1) to build a fresh release: it stops any running
+`SqlToAi.exe` instance (so the publish step isn't blocked by a file lock), runs the full test
+suite, and publishes a self-contained single-file executable to `publish/`.
+
+```powershell
+.\scripts\deploy.ps1
+```
+
+> **Reconnect after redeploying:** the MCP stdio transport is a long-lived process per client
+> session. If your AI client (Cursor, Antigravity IDE, Claude Desktop, etc.) already has a session
+> open against the previous executable, it keeps talking to the old (now-replaced) process handle
+> and new tool calls will fail with a "connection closed" error. This is a client-side limitation,
+> not a server bug — after every redeploy, reload the MCP server entry in your client, or restart
+> the client, to pick up the new executable.
+
+---
+
 ## Logging
 
 All log files live next to the executable, under `{exe-dir}/log/`. The layout is:

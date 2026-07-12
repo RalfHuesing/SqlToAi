@@ -107,7 +107,7 @@ public sealed class SchemaService : ISchemaService
         return filtered;
     }
 
-    public async Task<Result<string>> SearchObjectsAsync(string databaseName, string searchTerm, int? maxResults = null, CancellationToken cancellationToken = default)
+    public async Task<Result<string>> SearchObjectsAsync(string databaseName, string searchTerm, int? maxResults = null, string? objectType = null, CancellationToken cancellationToken = default)
     {
         var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
         if (accessCheck.IsFailure)
@@ -124,6 +124,7 @@ public sealed class SchemaService : ISchemaService
             FROM sys.objects
             WHERE is_ms_shipped = 0
               AND name LIKE @SearchPattern
+              AND (@TypeFilter IS NULL OR type_desc LIKE @TypeFilter)
             ORDER BY type_desc, schema_name(schema_id), name
             """;
 
@@ -133,7 +134,7 @@ public sealed class SchemaService : ISchemaService
             await connection.OpenAsync(cancellationToken);
 
             var rows = await connection.QueryAsync<ObjectRow>(
-                new CommandDefinition(sql, new { Limit = limit, SearchPattern = $"%{searchTerm}%" }, cancellationToken: cancellationToken));
+                new CommandDefinition(sql, new { Limit = limit, SearchPattern = $"%{searchTerm}%", TypeFilter = objectType }, cancellationToken: cancellationToken));
 
             var renderedRows = new List<string[]>();
             foreach (var r in rows)

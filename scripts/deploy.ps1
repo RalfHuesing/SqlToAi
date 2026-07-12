@@ -20,15 +20,29 @@ Write-Host "Output Dir  : $PublishDir"
 Write-Host ""
 
 # 1. Check prerequisites
-Write-Host "[1/4] Checking prerequisites..." -ForegroundColor Yellow
+Write-Host "[1/5] Checking prerequisites..." -ForegroundColor Yellow
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     Write-Error "dotnet SDK is not installed or not in PATH."
     exit 1
 }
 Write-Host "dotnet SDK found." -ForegroundColor Green
 
-# 2. Run Tests
-Write-Host "[2/4] Running all unit and integration tests..." -ForegroundColor Yellow
+# 2. Stop any running instance so the publish step can overwrite the executable.
+# A running MCP host holds SqlToAi.exe open for the lifetime of the stdio session,
+# which would otherwise make the publish step fail with a file-lock error.
+Write-Host "[2/5] Stopping any running SqlToAi.exe instance..." -ForegroundColor Yellow
+$runningProcesses = Get-Process -Name "SqlToAi" -ErrorAction SilentlyContinue
+if ($runningProcesses) {
+    $runningProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+    Write-Host "Stopped $($runningProcesses.Count) running instance(s)." -ForegroundColor Green
+}
+else {
+    Write-Host "No running instance found." -ForegroundColor Gray
+}
+
+# 3. Run Tests
+Write-Host "[3/5] Running all unit and integration tests..." -ForegroundColor Yellow
 Push-Location $ProjectRoot
 try {
     dotnet test -c Debug
@@ -41,8 +55,8 @@ catch {
 }
 Pop-Location
 
-# 3. Publish Self-Contained Single-File Release
-Write-Host "[3/4] Publishing Self-Contained Single-File Release for win-x64..." -ForegroundColor Yellow
+# 4. Publish Self-Contained Single-File Release
+Write-Host "[4/5] Publishing Self-Contained Single-File Release for win-x64..." -ForegroundColor Yellow
 if (Test-Path $PublishDir) {
     Write-Host "Cleaning existing publish directory..." -ForegroundColor Gray
     Remove-Item -Path $PublishDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -68,8 +82,8 @@ catch {
     exit 1
 }
 
-# 4. Verification and cleanup of build artifacts
-Write-Host "[4/4] Verifying build output..." -ForegroundColor Yellow
+# 5. Verification and cleanup of build artifacts
+Write-Host "[5/5] Verifying build output..." -ForegroundColor Yellow
 $ExePath = Join-Path $PublishDir "SqlToAi.exe"
 $ConfigPath = Join-Path $PublishDir "appsettings.json"
 
@@ -89,3 +103,7 @@ Write-Host ""
 Write-Host "Package contents:" -ForegroundColor Gray
 Get-ChildItem -Path $PublishDir | Format-Table Name, Length, LastWriteTime
 Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "NOTE: If your AI client (Cursor, Antigravity IDE, etc.) already had an MCP" -ForegroundColor Yellow
+Write-Host "session open against the old executable, its stdio channel is now stale." -ForegroundColor Yellow
+Write-Host "Reload/restart the MCP server entry in the client (or restart the client) to reconnect." -ForegroundColor Yellow

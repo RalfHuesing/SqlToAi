@@ -93,13 +93,31 @@ internal sealed class MockSchemaCommand : DbCommand
         ("sys.databases", _ => new MockDataTableReader(["name"], [["DemoDb"], ["SalesDb"]])),
         ("sys.dm_sql_referencing_entities", _ => new MockDataTableReader(["SchemaName", "EntityName", "ClassDescription"], [["dbo", "GetCustomers", "OBJECT_OR_COLUMN"]])),
         ("sys.foreign_keys", _ => new MockDataTableReader(["ForeignKeyName", "ParentTable", "ParentColumn", "ReferencedTable", "ReferencedColumn"], [["FK_Orders_Customers", "dbo.Orders", "CustomerId", "dbo.Customers", "CustomerId"]])),
+        // Matched on "is_identity" (the sys.columns field name), not "sys.columns" itself, and
+        // placed before the "sys.indexes" dispatch below: the real column-list query also joins
+        // sys.index_columns/sys.indexes for its primary-key lookup, which would otherwise collide
+        // with the dedicated "sys.indexes" dispatch. "is_identity" appears only in this query.
+        ("is_identity", cmd => {
+            bool isWideTable = false;
+            foreach (DbParameter p in cmd._parameters)
+            {
+                if (p.Value?.ToString()?.Contains("WideTable", StringComparison.OrdinalIgnoreCase) == true) isWideTable = true;
+            }
+            if (isWideTable)
+            {
+                var wideRows = Enumerable.Range(1, 250)
+                    .Select(i => new object[] { $"Column{i}", "int", 4, 10, 0, false, false, 0 })
+                    .ToList();
+                return new MockDataTableReader(["ColumnName", "DataType", "MaxLength", "Precision", "Scale", "IsNullable", "IsIdentity", "IsPrimaryKey"], wideRows);
+            }
+            return new MockDataTableReader(["ColumnName", "DataType", "MaxLength", "Precision", "Scale", "IsNullable", "IsIdentity", "IsPrimaryKey"], [["CustomerId", "int", 4, 10, 0, false, true, 1], ["Email", "varchar", 100, 0, 0, true, false, 0]]);
+        }),
         ("sys.indexes", _ => new MockDataTableReader(["IndexName", "IndexType", "IsUnique", "IsPrimaryKey", "ColumnName", "IsIncluded"], [["PK_Customers", "CLUSTERED", true, true, "CustomerId", false]])),
         ("sys.default_constraints", _ => new MockDataTableReader(["ConstraintName", "ColumnName", "Definition", "ConstraintType"], [["DF_Customers_Created", "CreatedDate", "(getdate())", "DEFAULT"]])),
         ("sys.check_constraints", _ => new MockDataTableReader(["ConstraintName", "ColumnName", "Definition", "ConstraintType"], [["DF_Customers_Created", "CreatedDate", "(getdate())", "DEFAULT"]])),
         ("sys.triggers", _ => new MockDataTableReader(["TriggerName", "IsDisabled", "IsUpdate", "IsDelete", "IsInsert"], [["trg_Audit", 0, 0, 0, 1]])),
         ("sys.parameters", _ => new MockDataTableReader(["ParameterName", "DataType", "MaxLength", "IsOutput"], [["@CustomerId", "int", 4, false]])),
         ("sys.sql_modules", _ => new MockDataTableReader(["definition"], [["CREATE PROCEDURE GetCustomers AS SELECT * FROM Customers"]])),
-        ("sys.columns", _ => new MockDataTableReader(["ColumnName", "DataType", "MaxLength", "Precision", "Scale", "IsNullable", "IsIdentity", "IsPrimaryKey"], [["CustomerId", "int", 4, 10, 0, false, true, 1], ["Email", "varchar", 100, 0, 0, true, false, 0]])),
         ("sys.objects", cmd => {
             if (cmd.CommandText.Contains("SELECT TOP"))
             {

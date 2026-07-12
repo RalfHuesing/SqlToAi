@@ -59,7 +59,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.SearchObjectsAsync("BlockedDb", "cust", null, TestContext.Current.CancellationToken);
+        var result = await service.SearchObjectsAsync("BlockedDb", "cust", null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsFailure);
@@ -81,7 +81,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.SearchObjectsAsync("DemoDb", "cust", null, TestContext.Current.CancellationToken);
+        var result = await service.SearchObjectsAsync("DemoDb", "cust", null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -297,6 +297,75 @@ public sealed class SchemaServiceTests
         Assert.True(result.IsSuccess);
         Assert.Contains("@CustomerId", result.Value);
         Assert.Contains("int", result.Value);
+    }
+
+    [Fact]
+    public async Task SearchObjectsAsync_WithNullObjectType_ShouldReturnAllMatchingObjects()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.Databases.Allowed = ["*"];
+
+        var mockFactory = new DummyConnectionFactory();
+        var securityGuard = new SecurityGuard(Options.Create(options));
+        var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
+        var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+
+        // Act — no objectType filter; all types should be returned
+        var result = await service.SearchObjectsAsync("DemoDb", "cust", null, null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Contains("Customers", result.Value);
+    }
+
+    [Fact]
+    public async Task SearchObjectsAsync_WithObjectTypeFilter_ShouldPassFilterToQuery()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.Databases.Allowed = ["*"];
+
+        var mockFactory = new DummyConnectionFactory();
+        var securityGuard = new SecurityGuard(Options.Create(options));
+        var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
+        var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+
+        // Act — pass "USER_TABLE" as objectType; mock DB returns Customers (USER_TABLE),
+        // so we verify the call succeeds (SQL filter correctness is tested by the mock SQL).
+        var result = await service.SearchObjectsAsync("DemoDb", "cust", null, "USER_TABLE", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Contains("Customers", result.Value);
+    }
+
+    [Fact]
+    public async Task GetSchemaAsync_WithMoreThan200Columns_ShouldRenderAllColumns()
+    {
+        // Arrange — verifies there is no hidden column-count limit anywhere in the
+        // rendering pipeline; sys.columns itself has no TOP/limit in its query.
+        var options = new SqlToAiOptions();
+        options.Databases.Allowed = ["*"];
+
+        var mockFactory = new DummyConnectionFactory();
+        var securityGuard = new SecurityGuard(Options.Create(options));
+        var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
+        var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+
+        // Act — the mock returns 250 columns for any table named "WideTable"
+        var result = await service.GetSchemaAsync("DemoDb", "dbo.WideTable", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Contains("Column1", result.Value);
+        Assert.Contains("Column250", result.Value);
     }
 
 }

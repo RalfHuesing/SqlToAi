@@ -41,7 +41,7 @@ public sealed class SchemaServiceIntegrationTests
     [Fact]
     public async Task SearchObjectsAsync_ShouldFindKnownTable()
     {
-        var result = await _fx.SchemaService.SearchObjectsAsync(_db, "BCSPjmProjekte", null, TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.SearchObjectsAsync(_db, "BCSPjmProjekte", null, null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value);
@@ -127,7 +127,7 @@ public sealed class SchemaServiceIntegrationTests
     [Fact]
     public async Task SearchObjectsAsync_ShouldRespectMaxResults()
     {
-        var result = await _fx.SchemaService.SearchObjectsAsync(_db, "BCS", 2, TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.SearchObjectsAsync(_db, "BCS", 2, null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         // The markdown has a header row plus N data rows. Subtract the header to get the

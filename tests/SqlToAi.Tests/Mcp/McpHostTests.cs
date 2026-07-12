@@ -49,6 +49,26 @@ public sealed class McpHostTests
         Assert.Equal(McpConstants.ServerName, result.GetProperty("serverInfo").GetProperty("name").GetString());
     }
 
+    [Fact]
+    public async Task Initialize_WithLeadingUtf8Bom_ShouldParseAndRespond()
+    {
+        // Arrange: a client (e.g. PowerShell) prepends a decoded UTF-8 BOM character (U+FEFF)
+        // to the first line it writes. McpHost.HandleMessageAsync must strip it explicitly —
+        // StreamReader's own byte-level BOM auto-detection is unreliable across a redirected
+        // pipe, so the host cannot depend on it alone.
+        var host = BuildHost();
+        const string json = "﻿{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}";
+
+        // Act
+        string raw = await SendAsync(host, json);
+
+        // Assert: response must be a valid initialize response, not a parse error
+        using var doc = JsonDocument.Parse(raw);
+        Assert.True(doc.RootElement.TryGetProperty("result", out var result),
+            "Expected a 'result' property — got an error response instead.");
+        Assert.Equal(McpConstants.ProtocolVersion, result.GetProperty("protocolVersion").GetString());
+    }
+
     // -------------------------------------------------------------------------
     // tools/list
     // -------------------------------------------------------------------------

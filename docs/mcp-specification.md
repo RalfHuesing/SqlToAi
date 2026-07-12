@@ -130,14 +130,15 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Zweck:** Prüft eine SQL-Abfrage fachlich und technisch (Syntax-Check über `PARSEONLY` im Kontext der Zieldatenbank), ohne sie auszuführen.
 
 ### 4. `sql_search_objects`
-* **Argumente:** `search_term` (String, Pflicht), `max_results` (Int, optional), `database` (String, optional)
+* **Argumente:** `search_term` (String, Pflicht), `max_results` (Int, optional), `object_type` (String, optional), `database` (String, optional)
 * **Zweck:** Sucht nach Objektnamen (Tabellen, Sichten, Prozeduren, Trigger) in `sys.objects` der Zieldatenbank per `LIKE %search_term%`.
+* **`object_type`:** Optionaler Filter auf `type_desc` (z. B. `USER_TABLE`, `VIEW`, `SQL_STORED_PROCEDURE`, `SQL_TRIGGER`, `SQL_SCALAR_FUNCTION`), unterstützt LIKE-Wildcards (z. B. `SQL_%`). Nützlich, um gezielt nach Tabellen statt einer Mischung aus Tabellen, Constraints und Triggern zu suchen.
 
 ### 5. `sql_get_schema`
 * **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
 * **Zweck:** Liefert das primäre Schema eines Objekts als Markdown-Dokument, angereichert mit Extended Properties / Metadaten.
 * **Inhalt:**
-  * **TABLE/VIEW:** Spalten-Tabelle (Typ, Nullable, PK, Identity, Custom-Beschreibung) + Trigger-Übersicht (Name, Events, Disabled-Status) + **Discovery-Index** (Zähler für Fremdschlüssel, Indizes, Constraints).
+  * **TABLE/VIEW:** Spalten-Tabelle (Typ, Nullable, PK, Identity, Custom-Beschreibung) + Trigger-Übersicht (Name, Events, Disabled-Status) + **Discovery-Index** (Zähler für Fremdschlüssel, Indizes, Constraints, sowie die Trigger-Namen selbst zur direkten Verwendung mit `sql_get_trigger_definition`).
   * **PROCEDURE/FUNCTION:** DDL-Definitionstext aus `sys.sql_modules` + **Routine-Parameter-Discovery**.
 
 ### 6. `sql_get_schema_foreign_keys`

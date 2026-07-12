@@ -77,6 +77,7 @@ public sealed class ToolDispatcher : IToolDispatcher
                     GetDb(paramsObj),
                     Require(paramsObj, McpConstants.ArgSearchTerm),
                     GetInt(paramsObj, McpConstants.ArgMaxResults),
+                    GetString(paramsObj, McpConstants.ArgObjectType),
                     ct)),
 
             [McpConstants.ToolGetSchema] = (paramsObj, ct) =>

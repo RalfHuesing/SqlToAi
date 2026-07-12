@@ -60,6 +60,7 @@ internal static class McpConstants
     internal const string ArgSearchTerm = "search_term";
     internal const string ArgMaxResults = "max_results";
     internal const string ArgObjectName = "object_name";
+    internal const string ArgObjectType = "object_type";
     internal const string ArgTriggerName = "trigger_name";
     internal const string ArgQuery = "query";
     internal const string ArgRequestedRowLimit = "requested_row_limit";

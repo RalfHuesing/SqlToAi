@@ -93,6 +93,16 @@ public sealed class McpHost : IMcpHost
 
     private async Task HandleMessageAsync(string rawJson, TextWriter output, CancellationToken cancellationToken)
     {
+        // Some clients (e.g. PowerShell's default stdin encoding) emit a UTF-8 BOM on the first
+        // write. StreamReader's own BOM auto-detection is unreliable across a redirected pipe
+        // (the first Read can return fewer bytes than the 3-byte preamble), so strip the decoded
+        // BOM character explicitly here rather than relying on the stream-level detection alone.
+        const char Utf8Bom = '\uFEFF';
+        if (rawJson.Length > 0 && rawJson[0] == Utf8Bom)
+        {
+            rawJson = rawJson[1..];
+        }
+
         var sw = Stopwatch.StartNew();
         string? toolName = null;
         string? argsJson = null;

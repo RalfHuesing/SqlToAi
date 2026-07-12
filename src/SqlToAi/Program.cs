@@ -102,11 +102,18 @@ internal static class Program
 
             var host = serviceProvider.GetRequiredService<IMcpHost>();
 
-            // Ensure stdio uses UTF-8 without BOM for cross-platform JSON compatibility
-            Console.OutputEncoding = System.Text.Encoding.UTF8;
-            Console.InputEncoding  = System.Text.Encoding.UTF8;
+            // Ensure stdout uses UTF-8 without BOM so the MCP JSON stream stays clean.
+            Console.OutputEncoding = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
-            await host.RunAsync(Console.In, Console.Out, cts.Token);
+            // Wrap stdin in a BOM-stripping StreamReader. Some clients (e.g. PowerShell)
+            // emit a UTF-8 BOM on the first write. detectEncodingFromByteOrderMarks:true
+            // transparently skips those bytes so the first JSON-RPC message is never lost.
+            using var stdinReader = new StreamReader(
+                Console.OpenStandardInput(),
+                new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+                detectEncodingFromByteOrderMarks: true);
+
+            await host.RunAsync(stdinReader, Console.Out, cts.Token);
 
             return 0;
         }

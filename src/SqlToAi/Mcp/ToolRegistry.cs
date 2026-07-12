@@ -87,6 +87,9 @@ public sealed class ToolRegistry
             {
                 [McpConstants.ArgSearchTerm] = StringParam("Partial object name to search for."),
                 [McpConstants.ArgMaxResults] = new() { Type = "integer", Description = "Maximum number of results to return. Optional." },
+                [McpConstants.ArgObjectType] = OptionalStringParam(
+                    "Optional filter on SQL Server type_desc. Common values: 'USER_TABLE', 'VIEW', " +
+                    "'SQL_STORED_PROCEDURE', 'SQL_TRIGGER', 'SQL_SCALAR_FUNCTION'. Supports LIKE wildcards (e.g. 'SQL_%')."),
                 [McpConstants.ArgDatabase]   = OptionalStringParam("Target database name.")
             },
             Required = [McpConstants.ArgSearchTerm]
