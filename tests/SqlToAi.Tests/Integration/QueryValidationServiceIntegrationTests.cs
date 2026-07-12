@@ -14,7 +14,7 @@ public sealed class QueryValidationServiceIntegrationTests
     public QueryValidationServiceIntegrationTests(SqlServerFixture fx)
     {
         _fx = fx;
-        _db = fx.Options.Databases.Default;
+        _db = "DemoDB";
     }
 
     [Fact]

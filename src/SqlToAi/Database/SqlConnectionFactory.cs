@@ -48,27 +48,23 @@ public sealed class SqlConnectionFactory : IDatabaseConnectionFactory
             builder = new SqlConnectionStringBuilder
             {
                 DataSource = _options.SqlServer.Server,
-                InitialCatalog = !string.IsNullOrWhiteSpace(_options.SqlServer.DefaultDatabase)
-                    ? _options.SqlServer.DefaultDatabase
-                    : _options.Databases.Default,
                 ApplicationName = "SqlToAi",
                 TrustServerCertificate = true, // Facilitate developer local connections
                 ConnectTimeout = _options.SqlServer.CommandTimeoutSeconds
             };
 
-            if (!string.IsNullOrEmpty(_options.SqlServer.UserId))
-            {
-                builder.UserID = _options.SqlServer.UserId;
-            }
-
-            if (!string.IsNullOrEmpty(_options.SqlServer.Password))
-            {
-                builder.Password = _options.SqlServer.Password;
-            }
-
-            if (string.IsNullOrWhiteSpace(builder.UserID))
+            if (_options.SqlServer.IntegratedSecurity)
             {
                 builder.IntegratedSecurity = true;
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(_options.SqlServer.UserId) || string.IsNullOrWhiteSpace(_options.SqlServer.Password))
+                {
+                    throw new InvalidOperationException("SQL Server authentication error: 'IntegratedSecurity' is false, but 'UserId' or 'Password' is not configured.");
+                }
+                builder.UserID = _options.SqlServer.UserId;
+                builder.Password = _options.SqlServer.Password;
             }
         }
 

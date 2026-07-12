@@ -88,7 +88,6 @@ public sealed class MetadataProviderTests
         options.MetadataProvider.Server = "custom-metadata-server";
         options.MetadataProvider.UserId = "meta-user";
         options.MetadataProvider.Password = "meta-pass";
-        options.MetadataProvider.DefaultDatabase = "MetaDb";
         options.MetadataProvider.CommandTimeoutSeconds = 45;
 
         var mockFactory = new DummyConnectionFactory();
@@ -106,6 +105,53 @@ public sealed class MetadataProviderTests
         Assert.Contains("User ID=meta-user", connection.ConnectionString);
         Assert.Contains("Password=meta-pass", connection.ConnectionString);
         Assert.Contains("Connect Timeout=45", connection.ConnectionString);
+    }
+
+    [Fact]
+    public void CreateConnection_ShouldUseIntegratedSecurity_WhenEnabledForMetadata()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.MetadataProvider.Enabled = true;
+        options.MetadataProvider.Server = "custom-metadata-server";
+        options.MetadataProvider.IntegratedSecurity = true;
+
+        var mockFactory = new DummyConnectionFactory();
+        var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+
+        // Act
+        var method = typeof(MetadataProvider).GetMethod("CreateConnection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(method);
+        using var connection = (DbConnection)method.Invoke(provider, new object[] { "TargetDb" })!;
+
+        // Assert
+        Assert.NotNull(connection);
+        Assert.Contains("Data Source=custom-metadata-server", connection.ConnectionString);
+        Assert.Contains("Initial Catalog=TargetDb", connection.ConnectionString);
+        Assert.Contains("Integrated Security=True", connection.ConnectionString);
+    }
+
+    [Fact]
+    public void CreateConnection_ShouldThrow_WhenMetadataServerSetButIntegratedSecurityFalseAndCredentialsMissing()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.MetadataProvider.Enabled = true;
+        options.MetadataProvider.Server = "custom-metadata-server";
+        options.MetadataProvider.IntegratedSecurity = false;
+        options.MetadataProvider.UserId = "";
+        options.MetadataProvider.Password = "";
+
+        var mockFactory = new DummyConnectionFactory();
+        var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+
+        // Act
+        var method = typeof(MetadataProvider).GetMethod("CreateConnection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(method);
+
+        // Assert
+        var ex = Assert.Throws<System.Reflection.TargetInvocationException>(() => method.Invoke(provider, new object[] { "TargetDb" }));
+        Assert.IsType<InvalidOperationException>(ex.InnerException);
     }
 
     // Helper classes for mocking ADO.NET connections

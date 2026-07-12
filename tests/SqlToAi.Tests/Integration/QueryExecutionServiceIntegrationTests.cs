@@ -18,7 +18,7 @@ public sealed class QueryExecutionServiceIntegrationTests
     public QueryExecutionServiceIntegrationTests(SqlServerFixture fx)
     {
         _fx = fx;
-        _db = fx.Options.Databases.Default;
+        _db = "DemoDB";
     }
 
     [Fact]

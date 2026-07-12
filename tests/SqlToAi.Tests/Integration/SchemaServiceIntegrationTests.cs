@@ -14,7 +14,7 @@ public sealed class SchemaServiceIntegrationTests
     public SchemaServiceIntegrationTests(SqlServerFixture fx)
     {
         _fx = fx;
-        _db = fx.Options.Databases.Default;
+        _db = "DemoDB";
     }
 
     [Fact]

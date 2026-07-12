@@ -71,9 +71,9 @@ public sealed class ToolRegistry
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
                 [McpConstants.ArgQuery]    = StringParam("The SQL query to validate."),
-                [McpConstants.ArgDatabase] = OptionalStringParam("Target database name. Defaults to the configured default database.")
+                [McpConstants.ArgDatabase] = StringParam("Target database name. Required.")
             },
-            Required = [McpConstants.ArgQuery]
+            Required = [McpConstants.ArgQuery, McpConstants.ArgDatabase]
         }
     };
 
@@ -90,9 +90,9 @@ public sealed class ToolRegistry
                 [McpConstants.ArgObjectType] = OptionalStringParam(
                     "Optional filter on SQL Server type_desc. Common values: 'USER_TABLE', 'VIEW', " +
                     "'SQL_STORED_PROCEDURE', 'SQL_TRIGGER', 'SQL_SCALAR_FUNCTION'. Supports LIKE wildcards (e.g. 'SQL_%')."),
-                [McpConstants.ArgDatabase]   = OptionalStringParam("Target database name.")
+                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
             },
-            Required = [McpConstants.ArgSearchTerm]
+            Required = [McpConstants.ArgSearchTerm, McpConstants.ArgDatabase]
         }
     };
 
@@ -105,9 +105,9 @@ public sealed class ToolRegistry
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
                 [McpConstants.ArgObjectName] = StringParam("The name of the database object (table, view, procedure, or function)."),
-                [McpConstants.ArgDatabase]   = OptionalStringParam("Target database name.")
+                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
             },
-            Required = [McpConstants.ArgObjectName]
+            Required = [McpConstants.ArgObjectName, McpConstants.ArgDatabase]
         }
     };
 
@@ -120,9 +120,9 @@ public sealed class ToolRegistry
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
                 [McpConstants.ArgObjectName] = StringParam("The name of the target table."),
-                [McpConstants.ArgDatabase]   = OptionalStringParam("Target database name.")
+                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
             },
-            Required = [McpConstants.ArgObjectName]
+            Required = [McpConstants.ArgObjectName, McpConstants.ArgDatabase]
         }
     };
 
@@ -135,9 +135,9 @@ public sealed class ToolRegistry
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
                 [McpConstants.ArgObjectName] = StringParam("The name of the target table."),
-                [McpConstants.ArgDatabase]   = OptionalStringParam("Target database name.")
+                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
             },
-            Required = [McpConstants.ArgObjectName]
+            Required = [McpConstants.ArgObjectName, McpConstants.ArgDatabase]
         }
     };
 
@@ -150,9 +150,9 @@ public sealed class ToolRegistry
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
                 [McpConstants.ArgObjectName] = StringParam("The name of the target table."),
-                [McpConstants.ArgDatabase]   = OptionalStringParam("Target database name.")
+                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
             },
-            Required = [McpConstants.ArgObjectName]
+            Required = [McpConstants.ArgObjectName, McpConstants.ArgDatabase]
         }
     };
 
@@ -166,9 +166,9 @@ public sealed class ToolRegistry
             {
                 [McpConstants.ArgObjectName]  = StringParam("The name of the parent table or view."),
                 [McpConstants.ArgTriggerName] = StringParam("The name of the trigger."),
-                [McpConstants.ArgDatabase]    = OptionalStringParam("Target database name.")
+                [McpConstants.ArgDatabase]    = StringParam("Target database name. Required.")
             },
-            Required = [McpConstants.ArgObjectName, McpConstants.ArgTriggerName]
+            Required = [McpConstants.ArgObjectName, McpConstants.ArgTriggerName, McpConstants.ArgDatabase]
         }
     };
 
@@ -181,9 +181,9 @@ public sealed class ToolRegistry
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
                 [McpConstants.ArgObjectName] = StringParam("The name of the target table or view."),
-                [McpConstants.ArgDatabase]   = OptionalStringParam("Target database name.")
+                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
             },
-            Required = [McpConstants.ArgObjectName]
+            Required = [McpConstants.ArgObjectName, McpConstants.ArgDatabase]
         }
     };
 
@@ -196,9 +196,9 @@ public sealed class ToolRegistry
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
                 [McpConstants.ArgObjectName] = StringParam("The name of the stored procedure or function."),
-                [McpConstants.ArgDatabase]   = OptionalStringParam("Target database name.")
+                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
             },
-            Required = [McpConstants.ArgObjectName]
+            Required = [McpConstants.ArgObjectName, McpConstants.ArgDatabase]
         }
     };
 
@@ -211,10 +211,10 @@ public sealed class ToolRegistry
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
                 [McpConstants.ArgQuery]             = StringParam("The SQL SELECT query to execute."),
-                [McpConstants.ArgDatabase]          = OptionalStringParam("Target database name."),
+                [McpConstants.ArgDatabase]          = StringParam("Target database name. Required."),
                 [McpConstants.ArgRequestedRowLimit] = new() { Type = "integer", Description = "Maximum rows to return. Capped by the server's configured maximum. Optional." }
             },
-            Required = [McpConstants.ArgQuery]
+            Required = [McpConstants.ArgQuery, McpConstants.ArgDatabase]
         }
     };
 

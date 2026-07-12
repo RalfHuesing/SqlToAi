@@ -130,7 +130,15 @@ public sealed class ToolDispatcher : IToolDispatcher
         return UnknownTool(callParams.Name);
     }
 
-    private string GetDb(ToolCallParams p) => GetString(p, McpConstants.ArgDatabase) ?? _dbOptions.Default;
+    private static string GetDb(ToolCallParams p)
+    {
+        string? db = GetString(p, McpConstants.ArgDatabase);
+        if (string.IsNullOrWhiteSpace(db))
+        {
+            throw new ArgumentException($"Database name must be explicitly specified (argument '{McpConstants.ArgDatabase}' is required).");
+        }
+        return db;
+    }
 
     // -------------------------------------------------------------------------
     // Private dispatch helpers

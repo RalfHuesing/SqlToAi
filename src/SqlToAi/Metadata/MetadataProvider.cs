@@ -170,27 +170,24 @@ public sealed class MetadataProvider : IMetadataProvider
                 DataSource = _options.MetadataProvider.Server,
                 InitialCatalog = !string.IsNullOrWhiteSpace(databaseName)
                     ? databaseName
-                    : (!string.IsNullOrWhiteSpace(_options.MetadataProvider.DefaultDatabase)
-                        ? _options.MetadataProvider.DefaultDatabase
-                        : _options.Databases.Default),
+                    : throw new InvalidOperationException("MetadataProvider SQL connection error: Database name must be explicitly specified."),
                 ApplicationName = "SqlToAi-Metadata",
                 TrustServerCertificate = true, // Facilitate developer local connections
                 ConnectTimeout = _options.MetadataProvider.CommandTimeoutSeconds
             };
 
-            if (!string.IsNullOrEmpty(_options.MetadataProvider.UserId))
-            {
-                builder.UserID = _options.MetadataProvider.UserId;
-            }
-
-            if (!string.IsNullOrEmpty(_options.MetadataProvider.Password))
-            {
-                builder.Password = _options.MetadataProvider.Password;
-            }
-
-            if (string.IsNullOrWhiteSpace(builder.UserID))
+            if (_options.MetadataProvider.IntegratedSecurity)
             {
                 builder.IntegratedSecurity = true;
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(_options.MetadataProvider.UserId) || string.IsNullOrWhiteSpace(_options.MetadataProvider.Password))
+                {
+                    throw new InvalidOperationException("MetadataProvider SQL authentication error: 'IntegratedSecurity' is false, but 'UserId' or 'Password' is not configured.");
+                }
+                builder.UserID = _options.MetadataProvider.UserId;
+                builder.Password = _options.MetadataProvider.Password;
             }
 
             return new SqlConnection(builder.ConnectionString);

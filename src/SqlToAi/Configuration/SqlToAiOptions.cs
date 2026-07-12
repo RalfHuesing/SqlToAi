@@ -23,7 +23,7 @@ public sealed class SqlServerOptions
     public string Server { get; set; } = string.Empty;
     public string? UserId { get; set; }
     public string? Password { get; set; }
-    public string DefaultDatabase { get; set; } = string.Empty;
+    public bool IntegratedSecurity { get; set; }
     public List<string> ExcludedDatabases { get; set; } = [];
     public int CommandTimeoutSeconds { get; set; } = 30;
     public bool EnforceSafetyCheck { get; set; } = true;
@@ -35,7 +35,6 @@ public sealed class SqlServerOptions
 /// </summary>
 public sealed class DatabasesOptions
 {
-    public string Default { get; set; } = string.Empty;
     public List<string> Allowed { get; set; } = [];
     public List<string> Blocked { get; set; } = [];
     public int CacheTtlSeconds { get; set; } = 300;
@@ -76,7 +75,7 @@ public sealed class MetadataProviderOptions
     public string Server { get; set; } = string.Empty;
     public string? UserId { get; set; }
     public string? Password { get; set; }
-    public string DefaultDatabase { get; set; } = string.Empty;
+    public bool IntegratedSecurity { get; set; }
     public int CommandTimeoutSeconds { get; set; } = 30;
     public string TableMetadataQuery { get; set; } = string.Empty;
     public string ColumnMetadataQuery { get; set; } = string.Empty;

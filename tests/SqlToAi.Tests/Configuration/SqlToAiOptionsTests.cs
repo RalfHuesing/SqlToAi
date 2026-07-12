@@ -29,6 +29,8 @@ public sealed class SqlToAiOptionsTests
         Assert.NotNull(options.MetadataProvider);
 
         Assert.True(options.SqlServer.EnforceSafetyCheck);
+        Assert.False(options.SqlServer.IntegratedSecurity);
+        Assert.False(options.MetadataProvider.IntegratedSecurity);
         Assert.True(options.Anonymizer.Enabled);
         Assert.True(options.MetadataProvider.Enabled);
         Assert.Equal("ScramblePattern", options.Anonymizer.DefaultMode);
@@ -42,10 +44,9 @@ public sealed class SqlToAiOptionsTests
         {
           "SqlServer": {
             "Server": "my-server",
-            "DefaultDatabase": "MyDb"
+            "IntegratedSecurity": true
           },
           "Databases": {
-            "Default": "DemoDb",
             "Allowed": ["Demo_*"],
             "CacheTtlSeconds": 100
           },
@@ -67,9 +68,8 @@ public sealed class SqlToAiOptionsTests
 
         // Assert
         Assert.Equal("my-server", options.SqlServer.Server);
-        Assert.Equal("MyDb", options.SqlServer.DefaultDatabase);
+        Assert.True(options.SqlServer.IntegratedSecurity);
 
-        Assert.Equal("DemoDb", options.Databases.Default);
         var allowed = Assert.Single(options.Databases.Allowed);
         Assert.Equal("Demo_*", allowed);
         Assert.Equal(100, options.Databases.CacheTtlSeconds);
@@ -157,7 +157,6 @@ public sealed class SqlToAiOptionsTests
         try
         {
             options.SqlServer.Server = "%TEST_ENV_VAR_SERVER%\\MSSQLSERVER";
-            options.SqlServer.DefaultDatabase = "%TEST_ENV_VAR_DB%";
             options.Databases.Allowed = new List<string> { "%TEST_ENV_VAR_DB%_Allowed" };
 
             // Act
@@ -165,7 +164,6 @@ public sealed class SqlToAiOptionsTests
 
             // Assert
             Assert.Equal("EnvServerName\\MSSQLSERVER", options.SqlServer.Server);
-            Assert.Equal("EnvDbName", options.SqlServer.DefaultDatabase);
             var allowed = Assert.Single(options.Databases.Allowed);
             Assert.Equal("EnvDbName_Allowed", allowed);
         }

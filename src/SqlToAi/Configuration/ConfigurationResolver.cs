@@ -34,13 +34,11 @@ public static class ConfigurationResolver
             options.SqlServer.Server = Expand(options.SqlServer.Server);
             options.SqlServer.UserId = Expand(options.SqlServer.UserId);
             options.SqlServer.Password = Expand(options.SqlServer.Password);
-            options.SqlServer.DefaultDatabase = Expand(options.SqlServer.DefaultDatabase);
             options.SqlServer.SafetyCheckSql = Expand(options.SqlServer.SafetyCheckSql);
         }
 
         if (options.Databases != null)
         {
-            options.Databases.Default = Expand(options.Databases.Default);
             options.Databases.AccessCheckSql = Expand(options.Databases.AccessCheckSql);
             ExpandListInPlace(options.Databases.Allowed);
             ExpandListInPlace(options.Databases.Blocked);
@@ -52,7 +50,6 @@ public static class ConfigurationResolver
             options.MetadataProvider.Server = Expand(options.MetadataProvider.Server);
             options.MetadataProvider.UserId = Expand(options.MetadataProvider.UserId);
             options.MetadataProvider.Password = Expand(options.MetadataProvider.Password);
-            options.MetadataProvider.DefaultDatabase = Expand(options.MetadataProvider.DefaultDatabase);
             options.MetadataProvider.TableMetadataQuery = Expand(options.MetadataProvider.TableMetadataQuery);
             options.MetadataProvider.ColumnMetadataQuery = Expand(options.MetadataProvider.ColumnMetadataQuery);
         }

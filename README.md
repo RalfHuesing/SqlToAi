@@ -39,10 +39,10 @@ output. The root section is `SqlToAi`, which contains the following sub-sections
 
 | Section | Purpose |
 | :--- | :--- |
-| `Databases` | Static whitelist (`Allowed`/`Blocked`), default database, `AccessCheckSql` for the dynamic permission probe, and `CacheTtlSeconds`. |
-| `SqlServer` | Connection parameters (`Server`, `DefaultDatabase`, `CommandTimeoutSeconds`, `UserId`, `Password`). Values support environment variable interpolation (e.g. `%COMPUTERNAME%`). |
+| `Databases` | Static whitelist (`Allowed`/`Blocked`), `AccessCheckSql` for the dynamic permission probe, and `CacheTtlSeconds`. |
+| `SqlServer` | Connection parameters (`Server`, `IntegratedSecurity`, `UserId`, `Password`, `CommandTimeoutSeconds`). Values support environment variable interpolation (e.g. `%COMPUTERNAME%`). |
 | `Anonymizer` | Master switch (`Enabled`), the algorithm (`DefaultMode`: `ScramblePattern` or `Hash`), and the list of column-name patterns that must NOT be anonymized (`ExcludedColumns`). |
-| `MetadataProvider` | Optional custom queries and separate database credentials (`Server`, `UserId`, `Password`, `DefaultDatabase`, `ConnectionString`, etc.) for table/column documentation enrichment. |
+| `MetadataProvider` | Optional custom queries and separate database credentials (`Server`, `UserId`, `Password`, `IntegratedSecurity`, `ConnectionString`, etc.) for table/column documentation enrichment. |
 | `QueryExecution` | `DefaultRowLimit` and `MaxRowLimit` for `sql_execute_query`. |
 | `Logging` | File-based logging root directory, app/error rolling sinks, and the MCP-trail settings. See [Logging](#logging) below. |
 
@@ -53,11 +53,9 @@ The server picks credentials in this order (first match wins):
 1. **`SQLTOAI_CONNECTION_STRING` environment variable** — full ADO.NET connection string. **Use this
    for shared and production setups** so credentials never end up in source control or in a committed
    config file.
-2. **`SqlServer.Server` + `SqlServer.UserId` + `SqlServer.Password`** in `appsettings.json` —
-   convenient for local development against a developer SQL Server. The server still requires at
-   least `Server` to be set; if it is empty, startup fails with a clear error. All values support environment variable expansion (e.g. `%COMPUTERNAME%\\MSSQLSERVER2022`).
-3. **Windows Integrated Security** if `UserId`/`Password` are empty and the process runs as a
-   domain user with access to the SQL Server.
+2. **`SqlServer.Server` + `SqlServer.UserId` + `SqlServer.Password`** in `appsettings.json` (when `IntegratedSecurity` is `false`) —
+   convenient for local development against a developer SQL Server. If `IntegratedSecurity` is false, `UserId` and `Password` must be explicitly configured, otherwise connection creation throws an exception.
+3. **Windows Integrated Security** when `SqlServer.IntegratedSecurity` is configured as `true`. All values support environment variable expansion (e.g. `%COMPUTERNAME%\\MSSQLSERVER2022`).
 
 **`SQLTOAI_CONNECTION_STRING` always wins when set** — that lets a developer override the file
 without editing it:
@@ -88,7 +86,7 @@ dotnet run --project src/SqlToAi
     },
     "SqlServer": {
       "Server": "%COMPUTERNAME%\\MSSQLSERVER",
-      "DefaultDatabase": "MyDemoDatabase"
+      "IntegratedSecurity": true
     },
     "Anonymizer": {
       "Enabled": true,
@@ -100,7 +98,7 @@ dotnet run --project src/SqlToAi
       "Server": "%COMPUTERNAME%\\MSSQLSERVER",
       "UserId": "Agent",
       "Password": "Agent!",
-      "DefaultDatabase": "DemoDB",
+      "IntegratedSecurity": false,
       "TableMetadataQuery": "SELECT Description FROM dbo.TableDocs WHERE TableName = @TableName",
       "ColumnMetadataQuery": "SELECT ColumnName, Description FROM dbo.ColumnDocs WHERE TableName = @TableName"
     },

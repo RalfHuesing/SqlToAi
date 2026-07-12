@@ -18,10 +18,9 @@ public sealed class ToolDispatcherTests
     private static ToolDispatcher BuildDispatcher(
         FakeSchemaService? schema = null,
         FakeQueryExecutionService? exec = null,
-        FakeQueryValidationService? validation = null,
-        string defaultDatabase = "DemoDb")
+        FakeQueryValidationService? validation = null)
     {
-        var options = new SqlToAiOptions { Databases = new DatabasesOptions { Default = defaultDatabase } };
+        var options = new SqlToAiOptions();
         return new ToolDispatcher(
             schema ?? new FakeSchemaService(),
             exec   ?? new FakeQueryExecutionService(),
@@ -67,7 +66,7 @@ public sealed class ToolDispatcherTests
         var dispatcher = BuildDispatcher(validation: validation);
 
         var result = await dispatcher.DispatchAsync(
-            Call(McpConstants.ToolValidateQuery, (McpConstants.ArgQuery, "SELECT 1")),
+            Call(McpConstants.ToolValidateQuery, (McpConstants.ArgQuery, "SELECT 1"), (McpConstants.ArgDatabase, "DemoDb")),
             TestContext.Current.CancellationToken);
 
         Assert.True(validation.ValidateCalled);
@@ -81,7 +80,7 @@ public sealed class ToolDispatcherTests
         var dispatcher = BuildDispatcher(exec: exec);
 
         var result = await dispatcher.DispatchAsync(
-            Call(McpConstants.ToolExecuteQuery, (McpConstants.ArgQuery, "SELECT 1")),
+            Call(McpConstants.ToolExecuteQuery, (McpConstants.ArgQuery, "SELECT 1"), (McpConstants.ArgDatabase, "DemoDb")),
             TestContext.Current.CancellationToken);
 
         Assert.True(exec.ExecuteCalled);
@@ -95,7 +94,7 @@ public sealed class ToolDispatcherTests
         var dispatcher = BuildDispatcher(schema);
 
         var result = await dispatcher.DispatchAsync(
-            Call(McpConstants.ToolGetSchema, (McpConstants.ArgObjectName, "Customers")),
+            Call(McpConstants.ToolGetSchema, (McpConstants.ArgObjectName, "Customers"), (McpConstants.ArgDatabase, "DemoDb")),
             TestContext.Current.CancellationToken);
 
         Assert.True(schema.GetSchemaCalled);
@@ -103,27 +102,28 @@ public sealed class ToolDispatcherTests
     }
 
     // -------------------------------------------------------------------------
-    // Default database fallback
+    // Database check
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task WhenDatabaseArgMissing_ShouldUseDefaultDatabase()
+    public async Task WhenDatabaseArgMissing_ShouldReturnError()
     {
         var schema = new FakeSchemaService();
-        var dispatcher = BuildDispatcher(schema, defaultDatabase: "FallbackDb");
+        var dispatcher = BuildDispatcher(schema);
 
-        await dispatcher.DispatchAsync(
+        var result = await dispatcher.DispatchAsync(
             Call(McpConstants.ToolGetSchema, (McpConstants.ArgObjectName, "Orders")),
             TestContext.Current.CancellationToken);
 
-        Assert.Equal("FallbackDb", schema.LastDatabase);
+        Assert.True(result.IsError);
+        Assert.Contains("Database name must be explicitly specified", result.Content[0].Text);
     }
 
     [Fact]
-    public async Task WhenDatabaseArgProvided_ShouldUseItOverDefault()
+    public async Task WhenDatabaseArgProvided_ShouldUseIt()
     {
         var schema = new FakeSchemaService();
-        var dispatcher = BuildDispatcher(schema, defaultDatabase: "FallbackDb");
+        var dispatcher = BuildDispatcher(schema);
 
         await dispatcher.DispatchAsync(
             Call(McpConstants.ToolGetSchema,
@@ -167,7 +167,7 @@ public sealed class ToolDispatcherTests
         var dispatcher = BuildDispatcher(exec: exec);
 
         var result = await dispatcher.DispatchAsync(
-            Call(McpConstants.ToolExecuteQuery, (McpConstants.ArgQuery, "SELECT 1")),
+            Call(McpConstants.ToolExecuteQuery, (McpConstants.ArgQuery, "SELECT 1"), (McpConstants.ArgDatabase, "DemoDb")),
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsError);
@@ -187,6 +187,7 @@ public sealed class ToolDispatcherTests
         await dispatcher.DispatchAsync(
             Call(McpConstants.ToolExecuteQuery,
                 (McpConstants.ArgQuery, "SELECT 1"),
+                (McpConstants.ArgDatabase, "DemoDb"),
                 (McpConstants.ArgRequestedRowLimit, (object)50)),
             TestContext.Current.CancellationToken);
 
