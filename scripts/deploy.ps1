@@ -1,5 +1,8 @@
 # SqlToAi Deployment Script
-# Compiles the application to a Native AOT single-file executable for Windows win-x64.
+# Compiles the application as a self-contained single-file executable for Windows win-x64.
+# Note: Native AOT is explicitly NOT used. Microsoft.Data.SqlClient and Dapper are
+# fundamentally AOT-incompatible (IL3053/IL2104 hard blockers), violating the
+# Zero-Warning directive. Self-contained single-file is the correct deployment strategy.
 
 $ErrorActionPreference = "Stop"
 
@@ -38,20 +41,23 @@ catch {
 }
 Pop-Location
 
-# 3. Publish Native AOT Release
-Write-Host "[3/4] Publishing Native AOT Release for win-x64..." -ForegroundColor Yellow
+# 3. Publish Self-Contained Single-File Release
+Write-Host "[3/4] Publishing Self-Contained Single-File Release for win-x64..." -ForegroundColor Yellow
 if (Test-Path $PublishDir) {
     Write-Host "Cleaning existing publish directory..." -ForegroundColor Gray
     Remove-Item -Path $PublishDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 try {
-    # Run publish with PublishAot=true and targeted runtime win-x64
+    # Self-contained single-file publish for win-x64.
+    # Native AOT is not used: Microsoft.Data.SqlClient and Dapper are fundamentally
+    # AOT-incompatible (IL3053/IL2104 hard blockers), which would cause runtime crashes.
     dotnet publish $ProjectFile `
         -c Release `
         -r win-x64 `
-        -p:PublishAot=true `
-        -p:TreatWarningsAsErrors=false `
+        -p:PublishSingleFile=true `
+        -p:IncludeNativeLibrariesForSelfExtract=true `
+        -p:DebugType=none `
         -o $PublishDir `
         --self-contained
 
