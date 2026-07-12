@@ -45,7 +45,7 @@ internal static class DetailSchemaRenderer
         }
 
         string sql = """
-            SELECT 
+            SELECT
                 fk.name AS ForeignKeyName,
                 schema_name(fk.schema_id) + '.' + object_name(fk.parent_object_id) AS ParentTable,
                 col.name AS ParentColumn,
@@ -57,20 +57,27 @@ internal static class DetailSchemaRenderer
             INNER JOIN sys.columns refcol ON fkc.referenced_object_id = refcol.object_id AND fkc.referenced_column_id = refcol.column_id
             WHERE fk.parent_object_id = OBJECT_ID(@TableName)
                OR fk.referenced_object_id = OBJECT_ID(@TableName)
-            ORDER BY ParentTable, ForeignKeyName
+            ORDER BY ParentTable, ForeignKeyName, fkc.constraint_column_id
             """;
 
         var rows = await connection.QueryAsync<ForeignKeyRow>(
             new CommandDefinition(sql, new { TableName = tableName }, cancellationToken: cancellationToken));
 
+        // Composite-key FKs produce one row per column pair, all sharing the same FK name. Group
+        // them back into a single table row so a 2-column FK reads as one entry instead of two,
+        // which otherwise makes the result look twice as large as the Discovery Index's FK count.
+        var fkGroups = rows.GroupBy(r => new { r.ForeignKeyName, r.ParentTable, r.ReferencedTable });
+
         var renderedRows = new List<string[]>();
-        foreach (var r in rows)
+        foreach (var g in fkGroups)
         {
+            var parentColumns = g.Select(r => r.ParentColumn).ToList();
+            var referencedColumns = g.Select(r => r.ReferencedColumn).ToList();
             renderedRows.Add([
-                r.ForeignKeyName,
-                r.ParentTable + "." + r.ParentColumn,
+                g.Key.ForeignKeyName,
+                FormatColumnReference(g.Key.ParentTable, parentColumns),
                 "→",
-                r.ReferencedTable + "." + r.ReferencedColumn
+                FormatColumnReference(g.Key.ReferencedTable, referencedColumns)
             ]);
         }
 
@@ -81,6 +88,14 @@ internal static class DetailSchemaRenderer
 
         return $"# Foreign Keys for `{tableName}`\n\n" + RenderMarkdownTable(["FK Name", "Source Column", "Dir", "Reference Column"], renderedRows);
     }
+
+    /// <summary>
+    /// Formats a table + column-list reference. A single column keeps the familiar
+    /// <c>table.column</c> form; a composite key is rendered as <c>table (col1, col2)</c>
+    /// so multi-column foreign keys stay readable as one entry.
+    /// </summary>
+    private static string FormatColumnReference(string table, List<string> columns) =>
+        columns.Count == 1 ? $"{table}.{columns[0]}" : $"{table} ({string.Join(", ", columns)})";
 
     public static async Task<Result<string>> GetSchemaIndexesAsync(DbConnection connection, string tableName, string databaseName, CancellationToken cancellationToken)
     {

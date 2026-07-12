@@ -146,6 +146,7 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
 * **Zweck:** Progressive Disclosure: Liefert alle ausgehenden und eingehenden Fremdschlüssel einer Tabelle als Markdown-Tabelle.
 * **Typ-Prüfung:** Nur für Tabellen und Sichten zulässig; bei anderen Objekttypen (z. B. Prozeduren) schlägt der Aufruf mit `SQL-AI-0110` fehl, statt fälschlich ein leeres Ergebnis zu liefern.
+* **Composite Keys:** Ein Fremdschlüssel über mehrere Spalten erscheint als **eine** Zeile (`Tabelle (Spalte1, Spalte2)`) statt einer Zeile pro Spalte, damit die Zeilenanzahl mit dem Discovery-Index-Zähler übereinstimmt.
 
 ### 7. `sql_get_schema_indexes`
 * **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)

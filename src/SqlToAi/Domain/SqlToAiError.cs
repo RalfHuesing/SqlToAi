@@ -21,38 +21,38 @@ public sealed record SqlToAiError(string Code, string Message)
     internal const string InvalidDetailQueryTypeCode = "SQL-AI-0110";
 
     public static SqlToAiError InvalidParameters(string details) =>
-        new(InvalidParametersCode, $"Ungültige Parameter: {details}");
+        new(InvalidParametersCode, $"Invalid parameters: {details}");
 
     public static SqlToAiError MultipleStatementsForbidden() =>
-        new(MultipleStatementsForbiddenCode, "Die Ausführung von mehreren SQL-Statements (z. B. getrennt durch ';') ist nicht erlaubt.");
+        new(MultipleStatementsForbiddenCode, "Execution of multiple SQL statements (e.g. separated by ';') is not allowed.");
 
     public static SqlToAiError QueryError(string message) =>
-        new(QueryErrorCode, $"Abfragefehler: {message}");
+        new(QueryErrorCode, $"Query error: {message}");
 
     public static SqlToAiError ObjectNotFound(string objectName) =>
-        new(ObjectNotFoundCode, $"Objekt nicht gefunden: Das angeforderte Datenbankobjekt '{objectName}' existiert nicht.");
+        new(ObjectNotFoundCode, $"Object not found: The requested database object '{objectName}' does not exist.");
 
     public static SqlToAiError SafetyCheckFailed(string details) =>
-        new(SafetyCheckFailedCode, $"Safety-Check fehlgeschlagen: {details}");
+        new(SafetyCheckFailedCode, $"Safety check failed: {details}");
 
     public static SqlToAiError InfrastructureError(string message) =>
-        new(InfrastructureErrorCode, $"Infrastrukturfehler: {message}");
+        new(InfrastructureErrorCode, $"Infrastructure error: {message}");
 
     public static SqlToAiError Timeout() =>
-        new(TimeoutCode, "Die Ausführung der SQL-Abfrage hat das konfigurierte Zeitlimit überschritten.");
+        new(TimeoutCode, "The SQL query execution exceeded the configured time limit.");
 
     public static SqlToAiError WriteOperationBlocked() =>
-        new(WriteOperationBlockedCode, "Schreiboperation blockiert: Ein mutierendes Statement wurde im Read-Only-Modus abgewiesen oder der Zugriff auf Datenabfragen wurde durch das Access-Level SchemaOnly blockiert.");
+        new(WriteOperationBlockedCode, "Write operation blocked: A mutating statement was rejected in read-only mode, or data query access was blocked by the SchemaOnly access level.");
 
     public static SqlToAiError WriteOperationBlocked(string details) =>
-        new(WriteOperationBlockedCode, $"Schreiboperation blockiert: {details}");
+        new(WriteOperationBlockedCode, $"Write operation blocked: {details}");
 
     public static SqlToAiError InvalidReferenceType(string objectName) =>
-        new(InvalidReferenceTypeCode, $"Ungültiger Typ für Referenzen: Objektreferenzen können nur für Tabellen und Sichten abgefragt werden. Objekt: {objectName}");
+        new(InvalidReferenceTypeCode, $"Invalid type for references: Object references can only be queried for tables and views. Object: {objectName}");
 
     public static SqlToAiError InvalidParameterType(string objectName) =>
-        new(InvalidParameterTypeCode, $"Ungültiger Typ für Parameter: Routine-Parameter können nur für Prozeduren und Funktionen gelesen werden. Objekt: {objectName}");
+        new(InvalidParameterTypeCode, $"Invalid type for parameters: Routine parameters can only be read for procedures and functions. Object: {objectName}");
 
     public static SqlToAiError InvalidDetailQueryType(string objectName) =>
-        new(InvalidDetailQueryTypeCode, $"Ungültiger Typ für Detailabfrage: Fremdschlüssel, Indizes und Constraints können nur für Tabellen und Sichten abgefragt werden. Objekt: {objectName}");
+        new(InvalidDetailQueryTypeCode, $"Invalid type for detail query: Foreign keys, indexes, and constraints can only be queried for tables and views. Object: {objectName}");
 }

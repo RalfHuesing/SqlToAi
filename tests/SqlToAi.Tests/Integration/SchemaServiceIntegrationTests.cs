@@ -80,6 +80,25 @@ public sealed class SchemaServiceIntegrationTests
     }
 
     [Fact]
+    public async Task GetSchemaForeignKeysAsync_ShouldMergeCompositeKeyColumns_IntoSingleRow()
+    {
+        // dbo.KHKAdressenBelegartenKommunikation has a known 2-column composite FK
+        // (Adresse, Mandant) back to dbo.KHKAdressen via KHKAdrekationKHKAdressen. Before the
+        // grouping fix this rendered as two separate rows sharing the same FK name.
+        var result = await _fx.SchemaService.GetSchemaForeignKeysAsync(_db, "dbo.KHKAdressenBelegartenKommunikation", TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
+
+        int occurrences = result.Value.Split("KHKAdrekationKHKAdressen", StringSplitOptions.None).Length - 1;
+        Assert.Equal(1, occurrences);
+
+        string? fkLine = result.Value.Split('\n').FirstOrDefault(l => l.Contains("KHKAdrekationKHKAdressen", StringComparison.Ordinal));
+        Assert.NotNull(fkLine);
+        Assert.Contains("Adresse", fkLine, StringComparison.Ordinal);
+        Assert.Contains("Mandant", fkLine, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GetSchemaIndexesAsync_ShouldReturnAtLeastOneIndex()
     {
         var result = await _fx.SchemaService.GetSchemaIndexesAsync(_db, "dbo.BCSPjmProjekte", TestContext.Current.CancellationToken);

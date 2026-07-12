@@ -17,7 +17,7 @@ public sealed class SqlToAiErrorTests
 
         // Assert
         Assert.Equal(SqlToAiError.InvalidParametersCode, error.Code);
-        Assert.Contains("Ungültige Parameter", error.Message);
+        Assert.Contains("Invalid parameters", error.Message);
         Assert.Contains("Missing database", error.Message);
     }
 
@@ -29,7 +29,7 @@ public sealed class SqlToAiErrorTests
 
         // Assert
         Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, error.Code);
-        Assert.Contains("nicht erlaubt", error.Message);
+        Assert.Contains("is not allowed", error.Message);
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class SqlToAiErrorTests
 
         // Assert
         Assert.Equal(SqlToAiError.TimeoutCode, error.Code);
-        Assert.Contains("Zeitlimit überschritten", error.Message);
+        Assert.Contains("exceeded the configured time limit", error.Message);
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class SqlToAiErrorTests
 
         // Assert
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, error.Code);
-        Assert.Contains("Schreiboperation blockiert", error.Message);
+        Assert.Contains("Write operation blocked", error.Message);
     }
 
     [Fact]
@@ -118,5 +118,16 @@ public sealed class SqlToAiErrorTests
         // Assert
         Assert.Equal(SqlToAiError.InvalidParameterTypeCode, error.Code);
         Assert.Contains("dbo.MyTable", error.Message);
+    }
+
+    [Fact]
+    public void InvalidDetailQueryType_ShouldHaveCorrectCodeAndMessage()
+    {
+        // Act
+        var error = SqlToAiError.InvalidDetailQueryType("dbo.MyProc");
+
+        // Assert
+        Assert.Equal(SqlToAiError.InvalidDetailQueryTypeCode, error.Code);
+        Assert.Contains("dbo.MyProc", error.Message);
     }
 }
