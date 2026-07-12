@@ -342,7 +342,7 @@ public sealed class QueryExecutionServiceTests
 
     private sealed class MockQueryCommand(DbConnection connection, string? stringValue, int rowCount) : DbCommand
     {
-        private readonly MockQueryParameterCollection _parameters = new();
+        private readonly MockQueryParameterCollectionAdapter _parameters = new();
 
         public override string CommandText { get; set; } = string.Empty;
         public override int CommandTimeout { get; set; }
@@ -407,7 +407,7 @@ public sealed class QueryExecutionServiceTests
         public override System.Collections.IEnumerator GetEnumerator() => throw new NotSupportedException();
     }
 
-    private sealed class MockQueryParameterCollection : DbParameterCollection
+    private sealed class MockQueryParameterCollectionAdapter : DbParameterCollection
     {
         private readonly List<DbParameter> _params = [];
         public override int Count => _params.Count;

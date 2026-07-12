@@ -107,6 +107,18 @@ public sealed class QueryExecutionService : IQueryExecutionService
 
         bool anonymize = accessLevel == AccessLevel.ReadOnlyAnonymized;
 
+        return await ExecuteQueryInTransactionAsync(
+            databaseName, query, effectiveLimit, anonymize, writeAllowed, cancellationToken);
+    }
+
+    private async Task<Result<string>> ExecuteQueryInTransactionAsync(
+        string databaseName,
+        string query,
+        int effectiveLimit,
+        bool anonymize,
+        bool writeAllowed,
+        CancellationToken cancellationToken)
+    {
         try
         {
             using var connection = _connectionFactory.CreateConnection(databaseName);
@@ -214,13 +226,18 @@ public sealed class QueryExecutionService : IQueryExecutionService
     /// Detects multiple SQL statements by scanning for semicolons outside
     /// string literals (<c>'...'</c>), bracket identifiers (<c>[...]</c>), and comments (<c>--</c>, <c>/* */</c>).
     /// </summary>
+    private enum SqlParserState
+    {
+        Normal,
+        LineComment,
+        BlockComment,
+        SingleQuote,
+        Bracket
+    }
+
     private static bool ContainsMultipleStatements(string query)
     {
-        bool inSingleQuote = false;
-        bool inBracket = false;
-        bool inLineComment = false;
-        bool inBlockComment = false;
-
+        var state = SqlParserState.Normal;
         ReadOnlySpan<char> span = query.AsSpan();
 
         for (int i = 0; i < span.Length; i++)
@@ -228,45 +245,9 @@ public sealed class QueryExecutionService : IQueryExecutionService
             char c = span[i];
             char next = i + 1 < span.Length ? span[i + 1] : '\0';
 
-            if (inLineComment)
-            {
-                if (c == '\n') inLineComment = false;
-                continue;
-            }
+            state = Transition(state, c, next, ref i);
 
-            if (inBlockComment)
-            {
-                if (c == '*' && next == '/')
-                {
-                    inBlockComment = false;
-                    i++; // skip '/'
-                }
-                continue;
-            }
-
-            if (inSingleQuote)
-            {
-                if (c == '\'' && next == '\'') { i++; } // escaped quote
-                else if (c == '\'') { inSingleQuote = false; }
-                continue;
-            }
-
-            if (inBracket)
-            {
-                if (c == ']') inBracket = false;
-                continue;
-            }
-
-            // Detect comment starts
-            if (c == '-' && next == '-') { inLineComment = true; i++; continue; }
-            if (c == '/' && next == '*') { inBlockComment = true; i++; continue; }
-
-            // Detect literal/identifier starts
-            if (c == '\'') { inSingleQuote = true; continue; }
-            if (c == '[') { inBracket = true; continue; }
-
-            // Semicolons outside literals/comments
-            if (c == ';')
+            if (state == SqlParserState.Normal && c == ';')
             {
                 // Allow trailing semicolon at end (after trimming whitespace)
                 string remaining = query[(i + 1)..].TrimEnd();
@@ -278,5 +259,51 @@ public sealed class QueryExecutionService : IQueryExecutionService
         }
 
         return false;
+    }
+
+    private static SqlParserState Transition(SqlParserState state, char c, char next, ref int i)
+    {
+        switch (state)
+        {
+            case SqlParserState.LineComment:
+                if (c == '\n') return SqlParserState.Normal;
+                return SqlParserState.LineComment;
+
+            case SqlParserState.BlockComment:
+                if (c == '*' && next == '/')
+                {
+                    i++; // skip '/'
+                    return SqlParserState.Normal;
+                }
+                return SqlParserState.BlockComment;
+
+            case SqlParserState.SingleQuote:
+                if (c == '\'' && next == '\'')
+                {
+                    i++; // escaped quote
+                    return SqlParserState.SingleQuote;
+                }
+                if (c == '\'') return SqlParserState.Normal;
+                return SqlParserState.SingleQuote;
+
+            case SqlParserState.Bracket:
+                if (c == ']') return SqlParserState.Normal;
+                return SqlParserState.Bracket;
+
+            default:
+                if (c == '-' && next == '-')
+                {
+                    i++;
+                    return SqlParserState.LineComment;
+                }
+                if (c == '/' && next == '*')
+                {
+                    i++;
+                    return SqlParserState.BlockComment;
+                }
+                if (c == '\'') return SqlParserState.SingleQuote;
+                if (c == '[') return SqlParserState.Bracket;
+                return SqlParserState.Normal;
+        }
     }
 }

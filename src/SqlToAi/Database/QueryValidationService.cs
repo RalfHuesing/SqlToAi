@@ -77,24 +77,7 @@ public sealed class QueryValidationService : IQueryValidationService
             using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
             try
             {
-                using var setParseonlyCmd = connection.CreateCommand();
-                setParseonlyCmd.CommandText = "SET PARSEONLY ON";
-                setParseonlyCmd.Transaction = transaction;
-                setParseonlyCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
-                await setParseonlyCmd.ExecuteNonQueryAsync(cancellationToken);
-
-                using var queryCmd = connection.CreateCommand();
-                queryCmd.CommandText = query;
-                queryCmd.Transaction = transaction;
-                queryCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
-                await queryCmd.ExecuteNonQueryAsync(cancellationToken);
-
-                using var resetCmd = connection.CreateCommand();
-                resetCmd.CommandText = "SET PARSEONLY OFF";
-                resetCmd.Transaction = transaction;
-                resetCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
-                await resetCmd.ExecuteNonQueryAsync(cancellationToken);
-
+                await ExecuteParseonlyValidationAsync(connection, transaction, query, cancellationToken);
                 return "Query syntax is valid.";
             }
             finally
@@ -111,5 +94,30 @@ public sealed class QueryValidationService : IQueryValidationService
             LogValidationFailed(_logger, databaseName, ex);
             return SqlToAiError.QueryError(ex.Message);
         }
+    }
+
+    private async Task ExecuteParseonlyValidationAsync(
+        DbConnection connection,
+        DbTransaction transaction,
+        string query,
+        CancellationToken cancellationToken)
+    {
+        using var setParseonlyCmd = connection.CreateCommand();
+        setParseonlyCmd.CommandText = "SET PARSEONLY ON";
+        setParseonlyCmd.Transaction = transaction;
+        setParseonlyCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
+        await setParseonlyCmd.ExecuteNonQueryAsync(cancellationToken);
+
+        using var queryCmd = connection.CreateCommand();
+        queryCmd.CommandText = query;
+        queryCmd.Transaction = transaction;
+        queryCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
+        await queryCmd.ExecuteNonQueryAsync(cancellationToken);
+
+        using var resetCmd = connection.CreateCommand();
+        resetCmd.CommandText = "SET PARSEONLY OFF";
+        resetCmd.Transaction = transaction;
+        resetCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
+        await resetCmd.ExecuteNonQueryAsync(cancellationToken);
     }
 }

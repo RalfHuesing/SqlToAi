@@ -40,6 +40,7 @@ public sealed class ToolDispatcher : IToolDispatcher
     private readonly IQueryValidationService _queryValidationService;
     private readonly DatabasesOptions _dbOptions;
     private readonly ILogger<ToolDispatcher> _logger;
+    private readonly Dictionary<string, Func<ToolCallParams, CancellationToken, Task<ToolCallResult>>> _handlers;
 
     /// <summary>Initializes a new instance of <see cref="ToolDispatcher"/>.</summary>
     public ToolDispatcher(
@@ -54,76 +55,80 @@ public sealed class ToolDispatcher : IToolDispatcher
         _queryValidationService = queryValidationService;
         _dbOptions = options.Value.Databases;
         _logger = logger;
+
+        _handlers = new(StringComparer.Ordinal)
+        {
+            [McpConstants.ToolListDatabases] = (paramsObj, ct) =>
+                CallAsync(() => _schemaService.ListDatabasesAsync(ct),
+                    list => JsonSerializer.Serialize(list, SerializerOptions)),
+
+            [McpConstants.ToolSearchDatabases] = (paramsObj, ct) =>
+                CallAsync(() => _schemaService.SearchDatabasesAsync(
+                    Require(paramsObj, McpConstants.ArgSearchTerm), ct),
+                    list => JsonSerializer.Serialize(list, SerializerOptions)),
+
+            [McpConstants.ToolValidateQuery] = (paramsObj, ct) =>
+                CallAsync(() => _queryValidationService.ValidateQueryAsync(
+                    GetDb(paramsObj), Require(paramsObj, McpConstants.ArgQuery), ct)),
+
+            [McpConstants.ToolSearchObjects] = (paramsObj, ct) =>
+                CallAsync(() => _schemaService.SearchObjectsAsync(
+                    GetDb(paramsObj),
+                    Require(paramsObj, McpConstants.ArgSearchTerm),
+                    GetInt(paramsObj, McpConstants.ArgMaxResults),
+                    ct)),
+
+            [McpConstants.ToolGetSchema] = (paramsObj, ct) =>
+                CallAsync(() => _schemaService.GetSchemaAsync(
+                    GetDb(paramsObj), Require(paramsObj, McpConstants.ArgObjectName), ct)),
+
+            [McpConstants.ToolGetSchemaForeignKeys] = (paramsObj, ct) =>
+                CallAsync(() => _schemaService.GetSchemaForeignKeysAsync(
+                    GetDb(paramsObj), Require(paramsObj, McpConstants.ArgObjectName), ct)),
+
+            [McpConstants.ToolGetSchemaIndexes] = (paramsObj, ct) =>
+                CallAsync(() => _schemaService.GetSchemaIndexesAsync(
+                    GetDb(paramsObj), Require(paramsObj, McpConstants.ArgObjectName), ct)),
+
+            [McpConstants.ToolGetSchemaConstraints] = (paramsObj, ct) =>
+                CallAsync(() => _schemaService.GetSchemaConstraintsAsync(
+                    GetDb(paramsObj), Require(paramsObj, McpConstants.ArgObjectName), ct)),
+
+            [McpConstants.ToolGetTriggerDefinition] = (paramsObj, ct) =>
+                CallAsync(() => _schemaService.GetTriggerDefinitionAsync(
+                    GetDb(paramsObj),
+                    Require(paramsObj, McpConstants.ArgObjectName),
+                    Require(paramsObj, McpConstants.ArgTriggerName),
+                    ct)),
+
+            [McpConstants.ToolGetObjectReferences] = (paramsObj, ct) =>
+                CallAsync(() => _schemaService.GetObjectReferencesAsync(
+                    GetDb(paramsObj), Require(paramsObj, McpConstants.ArgObjectName), ct)),
+
+            [McpConstants.ToolGetRoutineParameters] = (paramsObj, ct) =>
+                CallAsync(() => _schemaService.GetRoutineParametersAsync(
+                    GetDb(paramsObj), Require(paramsObj, McpConstants.ArgObjectName), ct)),
+
+            [McpConstants.ToolExecuteQuery] = (paramsObj, ct) =>
+                CallAsync(() => _queryExecutionService.ExecuteQueryAsync(
+                    GetDb(paramsObj),
+                    Require(paramsObj, McpConstants.ArgQuery),
+                    GetInt(paramsObj, McpConstants.ArgRequestedRowLimit),
+                    ct))
+        };
     }
 
     /// <inheritdoc/>
     public Task<ToolCallResult> DispatchAsync(ToolCallParams callParams, CancellationToken cancellationToken = default)
     {
-        string db = GetString(callParams, McpConstants.ArgDatabase) ?? _dbOptions.Default;
-
-        return callParams.Name switch
+        if (_handlers.TryGetValue(callParams.Name, out var handler))
         {
-            McpConstants.ToolListDatabases =>
-                CallAsync(() => _schemaService.ListDatabasesAsync(cancellationToken),
-                    list => JsonSerializer.Serialize(list, SerializerOptions)),
-
-            McpConstants.ToolSearchDatabases =>
-                CallAsync(() => _schemaService.SearchDatabasesAsync(
-                    Require(callParams, McpConstants.ArgSearchTerm), cancellationToken),
-                    list => JsonSerializer.Serialize(list, SerializerOptions)),
-
-            McpConstants.ToolValidateQuery =>
-                CallAsync(() => _queryValidationService.ValidateQueryAsync(
-                    db, Require(callParams, McpConstants.ArgQuery), cancellationToken)),
-
-            McpConstants.ToolSearchObjects =>
-                CallAsync(() => _schemaService.SearchObjectsAsync(
-                    db,
-                    Require(callParams, McpConstants.ArgSearchTerm),
-                    GetInt(callParams, McpConstants.ArgMaxResults),
-                    cancellationToken)),
-
-            McpConstants.ToolGetSchema =>
-                CallAsync(() => _schemaService.GetSchemaAsync(
-                    db, Require(callParams, McpConstants.ArgObjectName), cancellationToken)),
-
-            McpConstants.ToolGetSchemaForeignKeys =>
-                CallAsync(() => _schemaService.GetSchemaForeignKeysAsync(
-                    db, Require(callParams, McpConstants.ArgObjectName), cancellationToken)),
-
-            McpConstants.ToolGetSchemaIndexes =>
-                CallAsync(() => _schemaService.GetSchemaIndexesAsync(
-                    db, Require(callParams, McpConstants.ArgObjectName), cancellationToken)),
-
-            McpConstants.ToolGetSchemaConstraints =>
-                CallAsync(() => _schemaService.GetSchemaConstraintsAsync(
-                    db, Require(callParams, McpConstants.ArgObjectName), cancellationToken)),
-
-            McpConstants.ToolGetTriggerDefinition =>
-                CallAsync(() => _schemaService.GetTriggerDefinitionAsync(
-                    db,
-                    Require(callParams, McpConstants.ArgObjectName),
-                    Require(callParams, McpConstants.ArgTriggerName),
-                    cancellationToken)),
-
-            McpConstants.ToolGetObjectReferences =>
-                CallAsync(() => _schemaService.GetObjectReferencesAsync(
-                    db, Require(callParams, McpConstants.ArgObjectName), cancellationToken)),
-
-            McpConstants.ToolGetRoutineParameters =>
-                CallAsync(() => _schemaService.GetRoutineParametersAsync(
-                    db, Require(callParams, McpConstants.ArgObjectName), cancellationToken)),
-
-            McpConstants.ToolExecuteQuery =>
-                CallAsync(() => _queryExecutionService.ExecuteQueryAsync(
-                    db,
-                    Require(callParams, McpConstants.ArgQuery),
-                    GetInt(callParams, McpConstants.ArgRequestedRowLimit),
-                    cancellationToken)),
-
-            _ => UnknownTool(callParams.Name)
-        };
+            return handler(callParams, cancellationToken);
+        }
+        return UnknownTool(callParams.Name);
     }
+
+    private string GetDb(ToolCallParams p) => GetString(p, McpConstants.ArgDatabase) ?? _dbOptions.Default;
 
     // -------------------------------------------------------------------------
     // Private dispatch helpers

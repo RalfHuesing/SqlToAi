@@ -34,7 +34,7 @@ public sealed class AccessLevelProviderIntegrationTests
             using var connection = _fx.ConnectionFactory.CreateConnection(_db);
             await connection.OpenAsync(TestContext.Current.CancellationToken);
 
-            var queryResult = await connection.QueryFirstOrDefaultAsync<dynamic>(
+            var queryResult = await connection.QueryFirstOrDefaultAsync<object>(
                 new CommandDefinition(sql, cancellationToken: TestContext.Current.CancellationToken));
 
             if (queryResult != null)
@@ -52,7 +52,7 @@ public sealed class AccessLevelProviderIntegrationTests
         Assert.Equal(expectedLevel, level);
     }
 
-    private static AccessLevel ParseResult(dynamic result)
+    private static AccessLevel ParseResult(object result)
     {
         object? rawValue = null;
 

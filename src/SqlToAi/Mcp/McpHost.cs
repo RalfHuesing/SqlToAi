@@ -124,46 +124,7 @@ public sealed class McpHost : IMcpHost
         LogMethodReceived(_logger, request.Method, null);
 
         // 2) Dispatch
-        try
-        {
-            switch (request.Method)
-            {
-                case McpConstants.MethodInitialize:
-                    responseJson = HandleInitialize(output, request);
-                    success = true;
-                    break;
-
-                case McpConstants.MethodInitialized:
-                    // Notification — no response required
-                    success = true;
-                    break;
-
-                case McpConstants.MethodPing:
-                    responseJson = WriteResultAndCapture(output, request.Id, new { });
-                    success = true;
-                    break;
-
-                case McpConstants.MethodToolsList:
-                    responseJson = HandleToolsList(output, request);
-                    success = true;
-                    break;
-
-                case McpConstants.MethodToolsCall:
-                    (toolName, argsJson) = ExtractToolCallMetadata(request);
-                    responseJson = await HandleToolsCallAsync(output, request, cancellationToken);
-                    success = true;
-                    break;
-
-                default:
-                    responseJson = WriteErrorAndCapture(output, request.Id, JsonRpcError.MethodNotFound, $"Method not found: {request.Method}");
-                    break;
-            }
-        }
-        catch (Exception ex)
-        {
-            LogUnhandledError(_logger, request.Method, ex);
-            responseJson = WriteErrorAndCapture(output, request.Id, JsonRpcError.InternalError, $"Internal error: {ex.Message}");
-        }
+        (success, toolName, argsJson, responseJson) = await DispatchMessageAsync(request, output, cancellationToken);
 
         // 3) Trail (fire-and-forget)
         _trail.Record(new McpCallRecord(
@@ -275,5 +236,57 @@ public sealed class McpHost : IMcpHost
         {
             return (null, null);
         }
+    }
+
+    private async Task<(bool Success, string? ToolName, string? ArgsJson, string? ResponseJson)> DispatchMessageAsync(
+        JsonRpcRequest request, TextWriter output, CancellationToken cancellationToken)
+    {
+        string? toolName = null;
+        string? argsJson = null;
+        string? responseJson = null;
+        bool success = false;
+
+        try
+        {
+            switch (request.Method)
+            {
+                case McpConstants.MethodInitialize:
+                    responseJson = HandleInitialize(output, request);
+                    success = true;
+                    break;
+
+                case McpConstants.MethodInitialized:
+                    // Notification — no response required
+                    success = true;
+                    break;
+
+                case McpConstants.MethodPing:
+                    responseJson = WriteResultAndCapture(output, request.Id, new { });
+                    success = true;
+                    break;
+
+                case McpConstants.MethodToolsList:
+                    responseJson = HandleToolsList(output, request);
+                    success = true;
+                    break;
+
+                case McpConstants.MethodToolsCall:
+                    (toolName, argsJson) = ExtractToolCallMetadata(request);
+                    responseJson = await HandleToolsCallAsync(output, request, cancellationToken);
+                    success = true;
+                    break;
+
+                default:
+                    responseJson = WriteErrorAndCapture(output, request.Id, JsonRpcError.MethodNotFound, $"Method not found: {request.Method}");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            LogUnhandledError(_logger, request.Method, ex);
+            responseJson = WriteErrorAndCapture(output, request.Id, JsonRpcError.InternalError, $"Internal error: {ex.Message}");
+        }
+
+        return (success, toolName, argsJson, responseJson);
     }
 }

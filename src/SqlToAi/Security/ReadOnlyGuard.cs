@@ -46,45 +46,87 @@ public sealed class ReadOnlyGuard : IReadOnlyGuard
     /// mistaken for the mutating keyword DELETE. Quotes are replaced with a single space
     /// (not removed) so tokens on either side never merge into an unrelated word.
     /// </summary>
+    private enum SqlParserState
+    {
+        Normal,
+        LineComment,
+        BlockComment,
+        SingleQuote
+    }
+
     private static string StripCommentsAndStringLiterals(string sql)
     {
         var sb = new StringBuilder(sql.Length);
-        bool inSingleQuote = false;
-        bool inLineComment = false;
-        bool inBlockComment = false;
-
+        var state = SqlParserState.Normal;
         ReadOnlySpan<char> span = sql.AsSpan();
+
         for (int i = 0; i < span.Length; i++)
         {
             char c = span[i];
             char next = i + 1 < span.Length ? span[i + 1] : '\0';
 
-            if (inLineComment)
-            {
-                if (c == '\n') { inLineComment = false; sb.Append(c); }
-                continue;
-            }
-
-            if (inBlockComment)
-            {
-                if (c == '*' && next == '/') { inBlockComment = false; i++; }
-                continue;
-            }
-
-            if (inSingleQuote)
-            {
-                if (c == '\'' && next == '\'') { i++; continue; } // escaped '' inside literal
-                if (c == '\'') { inSingleQuote = false; sb.Append(' '); }
-                continue;
-            }
-
-            if (c == '-' && next == '-') { inLineComment = true; i++; continue; }
-            if (c == '/' && next == '*') { inBlockComment = true; i++; continue; }
-            if (c == '\'') { inSingleQuote = true; sb.Append(' '); continue; }
-
-            sb.Append(c);
+            state = ProcessChar(state, c, next, sb, ref i);
         }
 
         return sb.ToString();
+    }
+
+    private static SqlParserState ProcessChar(
+        SqlParserState state,
+        char c,
+        char next,
+        StringBuilder sb,
+        ref int i)
+    {
+        switch (state)
+        {
+            case SqlParserState.LineComment:
+                if (c == '\n')
+                {
+                    sb.Append(c);
+                    return SqlParserState.Normal;
+                }
+                return SqlParserState.LineComment;
+
+            case SqlParserState.BlockComment:
+                if (c == '*' && next == '/')
+                {
+                    i++;
+                    return SqlParserState.Normal;
+                }
+                return SqlParserState.BlockComment;
+
+            case SqlParserState.SingleQuote:
+                if (c == '\'' && next == '\'')
+                {
+                    i++; // escaped '' inside literal
+                    return SqlParserState.SingleQuote;
+                }
+                if (c == '\'')
+                {
+                    sb.Append(' ');
+                    return SqlParserState.Normal;
+                }
+                return SqlParserState.SingleQuote;
+
+            default:
+                if (c == '-' && next == '-')
+                {
+                    i++;
+                    return SqlParserState.LineComment;
+                }
+                if (c == '/' && next == '*')
+                {
+                    i++;
+                    return SqlParserState.BlockComment;
+                }
+                if (c == '\'')
+                {
+                    sb.Append(' ');
+                    return SqlParserState.SingleQuote;
+                }
+                sb.Append(c);
+                return SqlParserState.Normal;
+        }
     }
 }

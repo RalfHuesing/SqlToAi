@@ -164,29 +164,35 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
     {
         if (path is null || string.IsNullOrEmpty(content)) return;
 
+        string? text = ExtractMarkdownText(content);
+        if (text != null && LooksLikeMarkdown(text))
+        {
+            File.WriteAllText(path, text);
+        }
+    }
+
+    private static string? ExtractMarkdownText(string content)
+    {
         try
         {
             using var doc = JsonDocument.Parse(content);
             var root = doc.RootElement;
 
-            if (!root.TryGetProperty("result", out var result)) return;
-            if (!result.TryGetProperty("content", out var contentArr)) return;
-            if (contentArr.ValueKind != JsonValueKind.Array) return;
-            if (contentArr.GetArrayLength() != 1) return;
+            if (!root.TryGetProperty("result", out var result)) return null;
+            if (!result.TryGetProperty("content", out var contentArr)) return null;
+            if (contentArr.ValueKind != JsonValueKind.Array) return null;
+            if (contentArr.GetArrayLength() != 1) return null;
 
             var first = contentArr[0];
-            if (!first.TryGetProperty("type", out var typeEl) || typeEl.GetString() != "text") return;
-            if (!first.TryGetProperty("text", out var textEl) || textEl.ValueKind != JsonValueKind.String) return;
+            if (!first.TryGetProperty("type", out var typeEl) || typeEl.GetString() != "text") return null;
+            if (!first.TryGetProperty("text", out var textEl) || textEl.ValueKind != JsonValueKind.String) return null;
 
-            string text = textEl.GetString() ?? string.Empty;
-            if (LooksLikeMarkdown(text))
-            {
-                File.WriteAllText(path, text);
-            }
+            return textEl.GetString();
         }
-        catch (JsonException)
+        catch (JsonException ignored)
         {
-            // Not a valid JSON response — nothing to extract.
+            _ = ignored;
+            return null;
         }
     }
 

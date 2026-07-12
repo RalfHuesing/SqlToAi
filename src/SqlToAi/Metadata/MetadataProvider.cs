@@ -118,26 +118,14 @@ public sealed class MetadataProvider : IMetadataProvider
             using var connection = CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
 
-            var rows = await connection.QueryAsync<dynamic>(
+            var rows = await connection.QueryAsync<object>(
                 new CommandDefinition(sql, new { TableName = tableName }, cancellationToken: cancellationToken));
 
             foreach (var row in rows)
             {
                 if (row is IDictionary<string, object> dictRow)
                 {
-                    var colKey = dictRow.Keys.FirstOrDefault(k => string.Equals(k, "ColumnName", StringComparison.OrdinalIgnoreCase));
-                    var descKey = dictRow.Keys.FirstOrDefault(k => string.Equals(k, "Description", StringComparison.OrdinalIgnoreCase));
-
-                    if (colKey != null && descKey != null)
-                    {
-                        string? colName = dictRow[colKey]?.ToString();
-                        string? desc = dictRow[descKey]?.ToString();
-
-                        if (!string.IsNullOrWhiteSpace(colName) && desc != null)
-                        {
-                            dict[colName] = desc;
-                        }
-                    }
+                    ExtractColumnDescription(dictRow, dict);
                 }
             }
         }
@@ -147,6 +135,23 @@ public sealed class MetadataProvider : IMetadataProvider
         }
 
         return dict;
+    }
+
+    private static void ExtractColumnDescription(IDictionary<string, object> dictRow, Dictionary<string, string> dict)
+    {
+        var colKey = dictRow.Keys.FirstOrDefault(k => string.Equals(k, "ColumnName", StringComparison.OrdinalIgnoreCase));
+        var descKey = dictRow.Keys.FirstOrDefault(k => string.Equals(k, "Description", StringComparison.OrdinalIgnoreCase));
+
+        if (colKey != null && descKey != null)
+        {
+            string? colName = dictRow[colKey]?.ToString();
+            string? desc = dictRow[descKey]?.ToString();
+
+            if (!string.IsNullOrWhiteSpace(colName) && desc != null)
+            {
+                dict[colName] = desc;
+            }
+        }
     }
 
     private DbConnection CreateConnection(string databaseName)

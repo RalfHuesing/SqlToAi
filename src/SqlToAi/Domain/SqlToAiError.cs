@@ -8,16 +8,16 @@ namespace SqlToAi.Domain;
 public sealed record SqlToAiError(string Code, string Message)
 {
     // Error catalog codes according to mcp-specification.md
-    public const string InvalidParametersCode = "SQL-AI-0001";
-    public const string MultipleStatementsForbiddenCode = "SQL-AI-0101";
-    public const string QueryErrorCode = "SQL-AI-0102";
-    public const string ObjectNotFoundCode = "SQL-AI-0103";
-    public const string SafetyCheckFailedCode = "SQL-AI-0104";
-    public const string InfrastructureErrorCode = "SQL-AI-0105";
-    public const string TimeoutCode = "SQL-AI-0106";
-    public const string WriteOperationBlockedCode = "SQL-AI-0107";
-    public const string InvalidReferenceTypeCode = "SQL-AI-0108";
-    public const string InvalidParameterTypeCode = "SQL-AI-0109";
+    internal const string InvalidParametersCode = "SQL-AI-0001";
+    internal const string MultipleStatementsForbiddenCode = "SQL-AI-0101";
+    internal const string QueryErrorCode = "SQL-AI-0102";
+    internal const string ObjectNotFoundCode = "SQL-AI-0103";
+    internal const string SafetyCheckFailedCode = "SQL-AI-0104";
+    internal const string InfrastructureErrorCode = "SQL-AI-0105";
+    internal const string TimeoutCode = "SQL-AI-0106";
+    internal const string WriteOperationBlockedCode = "SQL-AI-0107";
+    internal const string InvalidReferenceTypeCode = "SQL-AI-0108";
+    internal const string InvalidParameterTypeCode = "SQL-AI-0109";
 
     public static SqlToAiError InvalidParameters(string details) =>
         new(InvalidParametersCode, $"Ungültige Parameter: {details}");
