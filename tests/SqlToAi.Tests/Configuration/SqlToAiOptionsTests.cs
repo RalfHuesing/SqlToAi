@@ -12,6 +12,7 @@ namespace SqlToAi.Tests.Configuration;
 // @covers SqlToAi.Configuration.AnonymizerOptions
 // @covers SqlToAi.Configuration.AnonymizerRule
 // @covers SqlToAi.Configuration.MetadataProviderOptions
+// @covers SqlToAi.Configuration.SqlFileResolver
 public sealed class SqlToAiOptionsTests
 {
     private static readonly Type TargetType = typeof(SqlToAiOptions);
@@ -79,5 +80,70 @@ public sealed class SqlToAiOptionsTests
         Assert.Equal(2, options.Anonymizer.ExcludedColumns.Count);
         Assert.Contains("*Code", options.Anonymizer.ExcludedColumns);
         Assert.Contains("Status", options.Anonymizer.ExcludedColumns);
+    }
+
+    [Fact]
+    public void SqlFileResolver_ShouldLeaveInlineSqlUntouched()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.Databases.AccessCheckSql = "SELECT CASE WHEN DB_NAME() = 'OLDemoReweAbfD910' THEN 'ReadWrite' ELSE 'None' END";
+        options.SqlDatabase.SafetyCheckSql = "SELECT 1";
+        options.MetadataProvider.TableMetadataQuery = "SELECT * FROM tables";
+        options.MetadataProvider.ColumnMetadataQuery = "SELECT * FROM columns";
+
+        // Act
+        SqlFileResolver.Resolve(options);
+
+        // Assert
+        Assert.Equal("SELECT CASE WHEN DB_NAME() = 'OLDemoReweAbfD910' THEN 'ReadWrite' ELSE 'None' END", options.Databases.AccessCheckSql);
+        Assert.Equal("SELECT 1", options.SqlDatabase.SafetyCheckSql);
+        Assert.Equal("SELECT * FROM tables", options.MetadataProvider.TableMetadataQuery);
+        Assert.Equal("SELECT * FROM columns", options.MetadataProvider.ColumnMetadataQuery);
+    }
+
+    [Fact]
+    public void SqlFileResolver_ShouldResolveRelativeAndAbsolutePaths()
+    {
+        // Arrange
+        string relativeFileName = "test-relative-query.sql";
+        string absoluteFileName = Path.Combine(Path.GetTempPath(), "test-absolute-query.sql");
+
+        string relativeSql = "SELECT 'Relative';";
+        string absoluteSql = "SELECT 'Absolute';";
+
+        string relativeFullPath = Path.Combine(AppContext.BaseDirectory, relativeFileName);
+        File.WriteAllText(relativeFullPath, relativeSql);
+        File.WriteAllText(absoluteFileName, absoluteSql);
+
+        try
+        {
+            var options = new SqlToAiOptions();
+            options.Databases.AccessCheckSql = relativeFileName;
+            options.MetadataProvider.TableMetadataQuery = absoluteFileName;
+
+            // Act
+            SqlFileResolver.Resolve(options);
+
+            // Assert
+            Assert.Equal(relativeSql, options.Databases.AccessCheckSql);
+            Assert.Equal(absoluteSql, options.MetadataProvider.TableMetadataQuery);
+        }
+        finally
+        {
+            if (File.Exists(relativeFullPath)) File.Delete(relativeFullPath);
+            if (File.Exists(absoluteFileName)) File.Delete(absoluteFileName);
+        }
+    }
+
+    [Fact]
+    public void SqlFileResolver_ShouldThrowFileNotFoundException_WhenFileDoesNotExist()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.Databases.AccessCheckSql = "non-existent-script.sql";
+
+        // Act & Assert
+        Assert.Throws<FileNotFoundException>(() => SqlFileResolver.Resolve(options));
     }
 }

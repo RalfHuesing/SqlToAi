@@ -70,3 +70,9 @@ dotnet run            # Starten (als MCP Server)
 - **Zero-Warning-Direktive:** Das Projekt nutzt `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`. Neuer Code darf keine Compiler-Warnungen einführen.
 - **Linter-Konformität:** Der Code muss den Linter-Richtlinien in [.agents/rules/AiNetLinter.mdc](AiNetLinter.mdc) (wie `sealed` Klassen, Methoden-Längen, etc.) entsprechen.
 - **Result-Pattern:** Bevorzuge `Result<T>` für die Fehlerbehandlung, besonders an den Schnittstellen der MCP-Tools (Error-Catalog).
+
+## 6. Agentische Planung & Mitdenken (Agentic Planning)
+
+- **Aktives Mitdenken:** Bei der agentischen Planung, Konzeption oder Besprechung von Aufgaben sollst du proaktiv mitdenken.
+- **Interaktive Rückfragen:** Stelle bei Bedarf interaktive Fragen, die eine klare Beschreibung des Problems/Szenarios sowie konkrete Handlungsempfehlungen beinhalten, um Unklarheiten zu beseitigen und das beste Design zu wählen.
+
