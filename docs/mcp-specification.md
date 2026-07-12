@@ -42,7 +42,7 @@ Nach dem statischen Namensabgleich führt der Server einen dynamischen Check dir
 * **Konfiguration:**
   ```json
   "Databases": {
-    "AccessCheckSql": "SELECT AccessLevel = CASE WHEN DB_NAME() LIKE '%demo%' THEN 'ReadData' WHEN SYSTEM_USER = 'readonly_ai' THEN 'SchemaOnly' ELSE 'None' END"
+    "AccessCheckSql": "SELECT AccessLevel = CASE WHEN DB_NAME() LIKE '%demo%' THEN 'ReadOnly' WHEN SYSTEM_USER = 'readonly_ai' THEN 'SchemaOnly' ELSE 'None' END"
   }
   ```
 * **Rückgabewerte (Access Levels):**
@@ -52,8 +52,8 @@ Nach dem statischen Namensabgleich führt der Server einen dynamischen Check dir
   | :--- | :--- | :--- |
   | `0` | `None` | **Gesamter Zugriff gesperrt.** Alle Tools für diese Datenbank schlagen mit `SQL-AI-0104` fehl. |
   | `1` | `SchemaOnly` | **Nur Metadaten.** Alle Schema- und Suchtools sind erlaubt. Abfragen über `sql_execute_query` werden mit `SQL-AI-0107` blockiert. |
-  | `2` | `ReadOnlyAnonymized` / `ReadDataAnonymized` | **Lesezugriff, anonymisiert.** Schema-Tools und Leseoperationen über `sql_execute_query` sind erlaubt; String-Spalten werden vor der Rückgabe per Anonymizer maskiert (siehe Abschnitt D). |
-  | `3` | `ReadOnly` / `ReadData` / `ReadOnlyClear` | **Lesezugriff, Klartext.** Schema-Tools und Leseoperationen sind erlaubt, ohne Anonymisierung. |
+  | `2` | `ReadOnlyAnonymized` | **Lesezugriff, anonymisiert.** Schema-Tools und Leseoperationen über `sql_execute_query` sind erlaubt; String-Spalten werden vor der Rückgabe per Anonymizer maskiert (siehe Abschnitt D). |
+  | `3` | `ReadOnly` | **Lesezugriff, Klartext.** Schema-Tools und Leseoperationen sind erlaubt, ohne Anonymisierung. |
   | `4` | `ReadWrite` | **Vollzugriff.** Alle Aktionen (inklusive Schreiboperationen über `sql_execute_query`) sind erlaubt. Dies ist die einzige Stufe, die den Read-Only Guard (Abschnitt C) umgeht — es gibt keinen zusätzlichen globalen Schalter. |
 
 * **Fehlerbehandlung:** Wenn die Ausführung von `AccessCheckSql` einen SQL-Fehler wirft oder kein Ergebnis liefert, wird das Level restriktiv auf `0` (`None`) gesetzt.
@@ -74,7 +74,7 @@ Für jede Datenbank außer solchen mit Access Level `ReadWrite` (Abschnitt B) wi
 ---
 
 ### D. Per-DB String-Anonymisierung (AccessLevel-gesteuert)
-Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server String-Werte im Arbeitsspeicher, bevor sie an den KI-Agenten übertragen werden. Die Entscheidung *ob* anonymisiert wird, fällt pro Datenbank am `AccessLevel` (siehe Abschnitt B): Liefert `AccessCheckSql` `ReadDataAnonymized`/`2`, wird jede zurückgegebene String-Spalte anonymisiert; bei `ReadData`/`3` (Klartext) nicht. Ein separater Muster-Block zur Pauschal-Aktivierung existiert nicht mehr — pauschal wird *jede* nicht ausgeschlossene String-Spalte anonymisiert, sobald das AccessLevel es verlangt.
+Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server String-Werte im Arbeitsspeicher, bevor sie an den KI-Agenten übertragen werden. Die Entscheidung *ob* anonymisiert wird, fällt pro Datenbank am `AccessLevel` (siehe Abschnitt B): Liefert `AccessCheckSql` `ReadOnlyAnonymized`/`2`, wird jede zurückgegebene String-Spalte anonymisiert; bei `ReadOnly`/`3` (Klartext) nicht. Ein separater Muster-Block zur Pauschal-Aktivierung existiert nicht mehr — pauschal wird *jede* nicht ausgeschlossene String-Spalte anonymisiert, sobald das AccessLevel es verlangt.
 
 * **Konfiguration:**
   ```json
@@ -85,7 +85,7 @@ Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server
   }
   ```
 * **Verhalten:**
-  Spalten, die auf eines der Muster in `ExcludedColumns` passen, werden *nie* anonymisiert. Alle anderen String-Spalten werden anonymisiert, sofern `Enabled: true` ist und das AccessLevel der Zieldatenbank `ReadOnlyAnonymized`/`ReadDataAnonymized` ergibt.
+  Spalten, die auf eines der Muster in `ExcludedColumns` passen, werden *nie* anonymisiert. Alle anderen String-Spalten werden anonymisiert, sofern `Enabled: true` ist und das AccessLevel der Zieldatenbank `ReadOnlyAnonymized` ergibt.
 * **Algorithmen:**
   * **ScramblePattern:** Erhält das strukturelle Muster des Strings. Großbuchstaben werden durch ein zufälliges `'X'`, Kleinbuchstaben durch `'x'` und Ziffern durch `'9'` ersetzt (z. B. `Max.Mustermann@mail.de` $\rightarrow$ `Xxx.Xxxxxxxxxx@xxxx.xx`). E-Mail-Adressen, Postleitzahlen und Telefonnummern bleiben für die KI strukturell erkennbar, enthalten aber keinerlei PII mehr.
   * **Hash (Consistency-Hashing):** Generiert einen eindeutigen, reproduzierbaren SHA-256-Hash-Wert pro Text. Dadurch bleiben Relationen und Gruppen (z. B. gleiche Kundennamen in verschiedenen Tabellen) für das LLM logisch verknüpfbar.

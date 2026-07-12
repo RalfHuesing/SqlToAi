@@ -52,7 +52,18 @@ public sealed class QueryExecutionServiceIntegrationTests
     {
         // Even though the rollback protects the DB, the ReadOnlyGuard must reject the statement
         // up front so it never reaches the server.
-        var result = await _fx.QueryExecutionService.ExecuteQueryAsync(
+        // We force ReadOnly access level to test the ReadOnlyGuard.
+        var customAccessProvider = new FakeAccessLevelProvider(AccessLevel.ReadOnly);
+        var service = new QueryExecutionService(
+            _fx.ConnectionFactory,
+            _fx.SecurityGuard,
+            customAccessProvider,
+            _fx.ReadOnlyGuard,
+            _fx.Anonymizer,
+            Microsoft.Extensions.Options.Options.Create(_fx.Options),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync(
             _db,
             "DELETE FROM dbo.BCSPjmProjekte",
             null,
@@ -175,4 +186,10 @@ public sealed class QueryExecutionServiceIntegrationTests
 
     private static int CountNonEmptyLines(string s) =>
         s.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
+
+    private sealed class FakeAccessLevelProvider(AccessLevel level) : IAccessLevelProvider
+    {
+        public Task<AccessLevel> GetAccessLevelAsync(string databaseName, CancellationToken cancellationToken = default)
+            => Task.FromResult(level);
+    }
 }

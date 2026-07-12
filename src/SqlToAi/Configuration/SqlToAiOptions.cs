@@ -48,7 +48,7 @@ public sealed class DatabasesOptions
 /// Default behavior: every string column is anonymized with <see cref="DefaultMode"/> unless its
 /// name matches one of the <see cref="ExcludedColumns"/> glob patterns. Per-database
 /// opt-out is configured via the dynamic <c>AccessCheckSql</c> returning
-/// <c>ReadData</c> (raw) versus <c>ReadDataAnonymized</c>.
+/// <c>ReadOnly</c> (raw) versus <c>ReadOnlyAnonymized</c>.
 /// </para>
 /// </summary>
 public sealed class AnonymizerOptions

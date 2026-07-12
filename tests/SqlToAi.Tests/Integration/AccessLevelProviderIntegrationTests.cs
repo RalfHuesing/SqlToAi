@@ -20,10 +20,10 @@ public sealed class AccessLevelProviderIntegrationTests
     [Fact]
     public async Task GetAccessLevelAsync_ShouldReturnConfiguredLevel_ForAllowedDatabase()
     {
-        // The bundled appsettings.json grants the configured login ReadData (alias for ReadOnly).
+        // The bundled appsettings.json grants the configured login ReadWrite.
         var level = await _fx.AccessLevelProvider.GetAccessLevelAsync(_db, TestContext.Current.CancellationToken);
 
-        Assert.Equal(AccessLevel.ReadData, level);
+        Assert.Equal(AccessLevel.ReadWrite, level);
     }
 
     [Fact]

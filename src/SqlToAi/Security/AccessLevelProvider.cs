@@ -153,21 +153,10 @@ public sealed class AccessLevelProvider : IAccessLevelProvider
             };
         }
 
-        // 2. Try parsing as AccessLevel Enum string name (handles aliases automatically)
+        // 2. Try parsing as AccessLevel Enum string name
         if (Enum.TryParse<AccessLevel>(strVal, true, out var parsedEnum))
         {
             return parsedEnum;
-        }
-
-        // 3. String value fallback aliases
-        if (string.Equals(strVal, "ReadData", StringComparison.OrdinalIgnoreCase))
-        {
-            return AccessLevel.ReadOnly;
-        }
-
-        if (string.Equals(strVal, "ReadDataAnonymized", StringComparison.OrdinalIgnoreCase))
-        {
-            return AccessLevel.ReadOnlyAnonymized;
         }
 
         return AccessLevel.None;

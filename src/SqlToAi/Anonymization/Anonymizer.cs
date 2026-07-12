@@ -50,7 +50,7 @@ public sealed class Anonymizer : IAnonymizer
 
         // 2. Pauschale Anonymisierung: every non-excluded string column is anonymized with the
         //    configured default mode. Per-database opt-out is handled at the AccessLevel layer
-        //    (ReadOnlyAnonymized vs ReadData) — the Anonymizer is only ever invoked when the
+        //    (ReadOnlyAnonymized vs ReadOnly) — the Anonymizer is only ever invoked when the
         //    access level already decided "yes, anonymize".
         return RunAnonymization(originalValue, _options.Anonymizer.DefaultMode);
     }
