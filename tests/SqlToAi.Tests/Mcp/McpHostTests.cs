@@ -152,6 +152,24 @@ public sealed class McpHostTests
         Assert.Empty(raw);
     }
 
+    [Fact]
+    public async Task RootsListChangedNotification_ShouldProduceNoResponse()
+    {
+        // notifications/roots/list_changed has no id and should produce no output
+        var host = BuildHost();
+        string raw = await SendAsync(host, """{"jsonrpc":"2.0","method":"notifications/roots/list_changed"}""");
+        Assert.Empty(raw);
+    }
+
+    [Fact]
+    public async Task UnrecognizedNotification_ShouldProduceNoResponse()
+    {
+        // any unrecognized notification should produce no output (MUST NOT respond to notifications)
+        var host = BuildHost();
+        string raw = await SendAsync(host, """{"jsonrpc":"2.0","method":"unknown/notification"}""");
+        Assert.Empty(raw);
+    }
+
     // =========================================================================
     // Fake
     // =========================================================================

@@ -42,6 +42,14 @@ public sealed class McpHost : IMcpHost
         LoggerMessage.Define<string>(LogLevel.Error, new EventId(5, "UnhandledError"),
             "Unhandled error while processing MCP method {Method}.");
 
+    private static readonly Action<ILogger, Exception?> LogRootsListChangedReceived =
+        LoggerMessage.Define(LogLevel.Debug, new EventId(6, "RootsListChangedReceived"),
+            "Received roots list changed notification.");
+
+    private static readonly Action<ILogger, string, Exception?> LogUnhandledNotification =
+        LoggerMessage.Define<string>(LogLevel.Warning, new EventId(7, "UnhandledNotification"),
+            "Received unhandled notification: {Method}");
+
     private readonly IToolDispatcher _dispatcher;
     private readonly ToolRegistry _toolRegistry;
     private readonly IMcpTrailWriter _trail;
@@ -256,6 +264,7 @@ public sealed class McpHost : IMcpHost
         string? argsJson = null;
         string? responseJson = null;
         bool success = false;
+        bool isNotification = !request.Id.HasValue || request.Id.Value.ValueKind == JsonValueKind.Null;
 
         try
         {
@@ -268,6 +277,12 @@ public sealed class McpHost : IMcpHost
 
                 case McpConstants.MethodInitialized:
                     // Notification — no response required
+                    success = true;
+                    break;
+
+                case McpConstants.MethodRootsListChanged:
+                    // Notification — no response required
+                    LogRootsListChangedReceived(_logger, null);
                     success = true;
                     break;
 
@@ -288,14 +303,24 @@ public sealed class McpHost : IMcpHost
                     break;
 
                 default:
-                    responseJson = WriteErrorAndCapture(output, request.Id, JsonRpcError.MethodNotFound, $"Method not found: {request.Method}");
+                    if (!isNotification)
+                    {
+                        responseJson = WriteErrorAndCapture(output, request.Id, JsonRpcError.MethodNotFound, $"Method not found: {request.Method}");
+                    }
+                    else
+                    {
+                        LogUnhandledNotification(_logger, request.Method, null);
+                    }
                     break;
             }
         }
         catch (Exception ex)
         {
             LogUnhandledError(_logger, request.Method, ex);
-            responseJson = WriteErrorAndCapture(output, request.Id, JsonRpcError.InternalError, $"Internal error: {ex.Message}");
+            if (!isNotification)
+            {
+                responseJson = WriteErrorAndCapture(output, request.Id, JsonRpcError.InternalError, $"Internal error: {ex.Message}");
+            }
         }
 
         return (success, toolName, argsJson, responseJson);
