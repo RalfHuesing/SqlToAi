@@ -31,41 +31,31 @@ public sealed class SqlConnectionFactory : IDatabaseConnectionFactory
     /// <exception cref="InvalidOperationException">Thrown if server connection settings are missing.</exception>
     public DbConnection CreateConnection(string? databaseName = null)
     {
-        string? envConnectionString = Environment.GetEnvironmentVariable("SQLTOAI_CONNECTION_STRING");
-        SqlConnectionStringBuilder builder;
-
-        if (!string.IsNullOrWhiteSpace(envConnectionString))
+        if (string.IsNullOrWhiteSpace(_options.SqlServer.Server))
         {
-            builder = new SqlConnectionStringBuilder(envConnectionString);
+            throw new InvalidOperationException("SQL Server address must be configured via 'SqlServer:Server'.");
+        }
+
+        var builder = new SqlConnectionStringBuilder
+        {
+            DataSource = _options.SqlServer.Server,
+            ApplicationName = "SqlToAi",
+            TrustServerCertificate = true, // Facilitate developer local connections
+            ConnectTimeout = _options.SqlServer.CommandTimeoutSeconds
+        };
+
+        if (_options.SqlServer.IntegratedSecurity)
+        {
+            builder.IntegratedSecurity = true;
         }
         else
         {
-            if (string.IsNullOrWhiteSpace(_options.SqlServer.Server))
+            if (string.IsNullOrWhiteSpace(_options.SqlServer.UserId) || string.IsNullOrWhiteSpace(_options.SqlServer.Password))
             {
-                throw new InvalidOperationException("SQL Server address must be configured either via 'SqlServer:Server' or the 'SQLTOAI_CONNECTION_STRING' environment variable.");
+                throw new InvalidOperationException("SQL Server authentication error: 'IntegratedSecurity' is false, but 'UserId' or 'Password' is not configured.");
             }
-
-            builder = new SqlConnectionStringBuilder
-            {
-                DataSource = _options.SqlServer.Server,
-                ApplicationName = "SqlToAi",
-                TrustServerCertificate = true, // Facilitate developer local connections
-                ConnectTimeout = _options.SqlServer.CommandTimeoutSeconds
-            };
-
-            if (_options.SqlServer.IntegratedSecurity)
-            {
-                builder.IntegratedSecurity = true;
-            }
-            else
-            {
-                if (string.IsNullOrWhiteSpace(_options.SqlServer.UserId) || string.IsNullOrWhiteSpace(_options.SqlServer.Password))
-                {
-                    throw new InvalidOperationException("SQL Server authentication error: 'IntegratedSecurity' is false, but 'UserId' or 'Password' is not configured.");
-                }
-                builder.UserID = _options.SqlServer.UserId;
-                builder.Password = _options.SqlServer.Password;
-            }
+            builder.UserID = _options.SqlServer.UserId;
+            builder.Password = _options.SqlServer.Password;
         }
 
         // Set or override target database

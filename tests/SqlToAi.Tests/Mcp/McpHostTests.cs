@@ -163,7 +163,7 @@ public sealed class McpHostTests
         public Task<ToolCallResult> DispatchAsync(ToolCallParams callParams, CancellationToken cancellationToken = default)
         {
             DispatchCalled = true;
-            return Task.FromResult(ToolCallResult.Success("[\"DemoDb\"]"));
+            return Task.FromResult(ToolCallResult.Success($"[\"{TestConstants.DatabaseName}\"]"));
         }
     }
 

@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 using SqlToAi.Domain;
 
@@ -14,7 +14,7 @@ public sealed class QueryValidationServiceIntegrationTests
     public QueryValidationServiceIntegrationTests(SqlServerFixture fx)
     {
         _fx = fx;
-        _db = "DemoDB";
+        _db = TestConstants.DatabaseName;
     }
 
     [Fact]

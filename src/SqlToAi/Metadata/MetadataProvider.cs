@@ -156,12 +156,6 @@ public sealed class MetadataProvider : IMetadataProvider
 
     private DbConnection CreateConnection(string databaseName)
     {
-        // If a separate connection string is configured for metadata, use it
-        if (!string.IsNullOrWhiteSpace(_options.MetadataProvider.ConnectionString))
-        {
-            return new SqlConnection(_options.MetadataProvider.ConnectionString);
-        }
-
         // If separate connection parameters are configured for metadata, build it dynamically
         if (!string.IsNullOrWhiteSpace(_options.MetadataProvider.Server))
         {

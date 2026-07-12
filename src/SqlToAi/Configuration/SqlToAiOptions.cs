@@ -71,7 +71,6 @@ public sealed class AnonymizerOptions
 public sealed class MetadataProviderOptions
 {
     public bool Enabled { get; set; } = true;
-    public string ConnectionString { get; set; } = string.Empty;
     public string Server { get; set; } = string.Empty;
     public string? UserId { get; set; }
     public string? Password { get; set; }

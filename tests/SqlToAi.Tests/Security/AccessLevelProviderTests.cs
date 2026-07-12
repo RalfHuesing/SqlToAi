@@ -31,7 +31,7 @@ public sealed class AccessLevelProviderTests
         var provider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
 
         // Act
-        var level = await provider.GetAccessLevelAsync("DemoDb", TestContext.Current.CancellationToken);
+        var level = await provider.GetAccessLevelAsync(TestConstants.DatabaseName, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(AccessLevel.ReadOnlyAnonymized, level);
@@ -52,12 +52,12 @@ public sealed class AccessLevelProviderTests
 
         // Act & Assert
         // First call: Queries connection
-        var level1 = await provider.GetAccessLevelAsync("DemoDb", TestContext.Current.CancellationToken);
+        var level1 = await provider.GetAccessLevelAsync(TestConstants.DatabaseName, TestContext.Current.CancellationToken);
         Assert.Equal(AccessLevel.ReadOnly, level1);
         Assert.Equal(1, mockFactory.ConnectionCreatedCount);
 
         // Second call (immediate): Cached, does not query again
-        var level2 = await provider.GetAccessLevelAsync("DemoDb", TestContext.Current.CancellationToken);
+        var level2 = await provider.GetAccessLevelAsync(TestConstants.DatabaseName, TestContext.Current.CancellationToken);
         Assert.Equal(AccessLevel.ReadOnly, level2);
         Assert.Equal(1, mockFactory.ConnectionCreatedCount);
 
@@ -65,7 +65,7 @@ public sealed class AccessLevelProviderTests
         await Task.Delay(1100, TestContext.Current.CancellationToken);
 
         // Third call: Expired, queries again
-        var level3 = await provider.GetAccessLevelAsync("DemoDb", TestContext.Current.CancellationToken);
+        var level3 = await provider.GetAccessLevelAsync(TestConstants.DatabaseName, TestContext.Current.CancellationToken);
         Assert.Equal(AccessLevel.ReadOnly, level3);
         Assert.Equal(2, mockFactory.ConnectionCreatedCount);
     }
@@ -82,7 +82,7 @@ public sealed class AccessLevelProviderTests
         var provider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
 
         // Act
-        var level = await provider.GetAccessLevelAsync("DemoDb", TestContext.Current.CancellationToken);
+        var level = await provider.GetAccessLevelAsync(TestConstants.DatabaseName, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(AccessLevel.None, level);

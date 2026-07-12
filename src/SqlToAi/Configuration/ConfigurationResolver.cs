@@ -46,7 +46,6 @@ public static class ConfigurationResolver
 
         if (options.MetadataProvider != null)
         {
-            options.MetadataProvider.ConnectionString = Expand(options.MetadataProvider.ConnectionString);
             options.MetadataProvider.Server = Expand(options.MetadataProvider.Server);
             options.MetadataProvider.UserId = Expand(options.MetadataProvider.UserId);
             options.MetadataProvider.Password = Expand(options.MetadataProvider.Password);

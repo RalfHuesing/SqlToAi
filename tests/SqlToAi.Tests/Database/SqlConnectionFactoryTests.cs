@@ -16,10 +16,9 @@ public sealed class SqlConnectionFactoryTests
     private static readonly Type TargetType = typeof(SqlConnectionFactory);
 
     [Fact]
-    public void CreateConnection_ShouldThrow_WhenServerIsMissingAndNoEnvVar()
+    public void CreateConnection_ShouldThrow_WhenServerIsMissing()
     {
         // Arrange
-        Environment.SetEnvironmentVariable("SQLTOAI_CONNECTION_STRING", null);
         var options = new SqlToAiOptions();
         options.SqlServer.Server = "";
         var factory = new SqlConnectionFactory(Options.Create(options));
@@ -29,10 +28,9 @@ public sealed class SqlConnectionFactoryTests
     }
 
     [Fact]
-    public void CreateConnection_ShouldUseOptions_WhenEnvVarIsMissing()
+    public void CreateConnection_ShouldUseOptions()
     {
         // Arrange
-        Environment.SetEnvironmentVariable("SQLTOAI_CONNECTION_STRING", null);
         var options = new SqlToAiOptions();
         options.SqlServer.Server = "localhost\\MSSQLSERVER";
         options.SqlServer.UserId = "test-user";
@@ -55,7 +53,6 @@ public sealed class SqlConnectionFactoryTests
     public void CreateConnection_ShouldThrow_WhenIntegratedSecurityIsFalseAndCredentialsMissing()
     {
         // Arrange
-        Environment.SetEnvironmentVariable("SQLTOAI_CONNECTION_STRING", null);
         var options = new SqlToAiOptions();
         options.SqlServer.Server = "localhost";
         options.SqlServer.IntegratedSecurity = false;
@@ -71,7 +68,6 @@ public sealed class SqlConnectionFactoryTests
     public void CreateConnection_ShouldUseIntegratedSecurity_WhenEnabled()
     {
         // Arrange
-        Environment.SetEnvironmentVariable("SQLTOAI_CONNECTION_STRING", null);
         var options = new SqlToAiOptions();
         options.SqlServer.Server = "localhost";
         options.SqlServer.IntegratedSecurity = true;
@@ -83,29 +79,5 @@ public sealed class SqlConnectionFactoryTests
         // Assert
         Assert.Contains("Integrated Security=True", connection.ConnectionString);
         Assert.Contains("Initial Catalog=MyDb", connection.ConnectionString);
-    }
-
-    [Fact]
-    public void CreateConnection_ShouldUseEnvVar_WhenPresent()
-    {
-        // Arrange
-        var testConnString = "Data Source=env-server;Initial Catalog=env-db;Integrated Security=True;Encrypt=False";
-        Environment.SetEnvironmentVariable("SQLTOAI_CONNECTION_STRING", testConnString);
-        var options = new SqlToAiOptions();
-        var factory = new SqlConnectionFactory(Options.Create(options));
-
-        try
-        {
-            // Act
-            using var connection = factory.CreateConnection();
-
-            // Assert
-            Assert.Contains("Data Source=env-server", connection.ConnectionString);
-            Assert.Contains("Initial Catalog=env-db", connection.ConnectionString);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("SQLTOAI_CONNECTION_STRING", null);
-        }
     }
 }

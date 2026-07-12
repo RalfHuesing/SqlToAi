@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
@@ -18,7 +18,7 @@ public sealed class QueryExecutionServiceIntegrationTests
     public QueryExecutionServiceIntegrationTests(SqlServerFixture fx)
     {
         _fx = fx;
-        _db = "DemoDB";
+        _db = TestConstants.DatabaseName;
     }
 
     [Fact]

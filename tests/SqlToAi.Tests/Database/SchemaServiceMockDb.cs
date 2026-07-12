@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 using System.Data;
 using System.Data.Common;
@@ -83,14 +83,14 @@ internal sealed class MockSchemaCommand : DbCommand
     
     public override object? ExecuteScalar()
     {
-        if (CommandText.Contains("sys.databases")) return "DemoDb";
+        if (CommandText.Contains("sys.databases")) return TestConstants.DatabaseName;
         if (CommandText.Contains("sys.objects")) return "U";
         return 1;
     }
 
     private static readonly (string Term, Func<MockSchemaCommand, DbDataReader> Factory)[] MockReaderDispatches = [
         ("COUNT(*)", _ => new MockDataTableReader(["CountValue"], [[1]])),
-        ("sys.databases", _ => new MockDataTableReader(["name"], [["DemoDb"], ["SalesDb"]])),
+        ("sys.databases", _ => new MockDataTableReader(["name"], [[TestConstants.DatabaseName], ["SalesDb"]])),
         ("sys.dm_sql_referencing_entities", _ => new MockDataTableReader(["SchemaName", "EntityName", "ClassDescription"], [["dbo", "GetCustomers", "OBJECT_OR_COLUMN"]])),
         ("sys.foreign_keys", _ => new MockDataTableReader(["ForeignKeyName", "ParentTable", "ParentColumn", "ReferencedTable", "ReferencedColumn"], [["FK_Orders_Customers", "dbo.Orders", "CustomerId", "dbo.Customers", "CustomerId"]])),
         // Matched on "is_identity" (the sys.columns field name), not "sys.columns" itself, and

@@ -103,7 +103,10 @@ Um kryptische Tabellen- und Spaltennamen für das LLM verständlicher zu machen,
   ```json
   "MetadataProvider": {
     "Enabled": true,
-    "ConnectionString": "", // Leer = nutzt dieselbe DB
+    "Server": "", // Leer = nutzt dieselbe DB
+    "UserId": "",
+    "Password": "",
+    "IntegratedSecurity": false,
     "TableMetadataQuery": "SELECT Description FROM dbo.TableDocs WHERE TableName = @TableName",
     "ColumnMetadataQuery": "SELECT ColumnName, Description FROM dbo.ColumnDocs WHERE TableName = @TableName"
   }

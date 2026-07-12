@@ -17,7 +17,7 @@ public sealed class AccessLevelProviderIntegrationTests
     public AccessLevelProviderIntegrationTests(SqlServerFixture fx)
     {
         _fx = fx;
-        _db = "DemoDB";
+        _db = TestConstants.DatabaseName;
     }
 
     [Fact]

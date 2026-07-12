@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 using System.Data;
 using System.Data.Common;
@@ -40,7 +40,7 @@ public sealed class SchemaServiceTests
         // Assert
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value.Count);
-        Assert.Contains("DemoDb", result.Value);
+        Assert.Contains(TestConstants.DatabaseName, result.Value);
         Assert.Contains("SalesDb", result.Value);
     }
 
@@ -81,7 +81,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.SearchObjectsAsync("DemoDb", "cust", null, null, TestContext.Current.CancellationToken);
+        var result = await service.SearchObjectsAsync(TestConstants.DatabaseName, "cust", null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -104,7 +104,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetSchemaAsync("DemoDb", "dbo.Customers", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -129,7 +129,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetSchemaAsync("DemoDb", "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -152,7 +152,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetSchemaAsync("DemoDb", "dbo.CustomersView", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.CustomersView", TestContext.Current.CancellationToken);
 
         // Assert — views get both the column list (like tables) and their SQL body (like routines).
         Assert.True(result.IsSuccess);
@@ -177,7 +177,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetSchemaForeignKeysAsync("DemoDb", "dbo.Orders", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaForeignKeysAsync(TestConstants.DatabaseName, "dbo.Orders", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -200,7 +200,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetSchemaIndexesAsync("DemoDb", "dbo.Customers", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaIndexesAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -223,7 +223,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetSchemaConstraintsAsync("DemoDb", "dbo.Customers", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaConstraintsAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -246,7 +246,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetTriggerDefinitionAsync("DemoDb", "dbo.Customers", "trg_Audit", TestContext.Current.CancellationToken);
+        var result = await service.GetTriggerDefinitionAsync(TestConstants.DatabaseName, "dbo.Customers", "trg_Audit", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -268,7 +268,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetObjectReferencesAsync("DemoDb", "dbo.Customers", TestContext.Current.CancellationToken);
+        var result = await service.GetObjectReferencesAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -291,7 +291,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetRoutineParametersAsync("DemoDb", "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
+        var result = await service.GetRoutineParametersAsync(TestConstants.DatabaseName, "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -314,7 +314,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act — no objectType filter; all types should be returned
-        var result = await service.SearchObjectsAsync("DemoDb", "cust", null, null, TestContext.Current.CancellationToken);
+        var result = await service.SearchObjectsAsync(TestConstants.DatabaseName, "cust", null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -337,7 +337,7 @@ public sealed class SchemaServiceTests
 
         // Act — pass "USER_TABLE" as objectType; mock DB returns Customers (USER_TABLE),
         // so we verify the call succeeds (SQL filter correctness is tested by the mock SQL).
-        var result = await service.SearchObjectsAsync("DemoDb", "cust", null, "USER_TABLE", TestContext.Current.CancellationToken);
+        var result = await service.SearchObjectsAsync(TestConstants.DatabaseName, "cust", null, "USER_TABLE", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -359,7 +359,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act — "dbo.GetCustomersProc" resolves to type "P" (procedure) in the mock
-        var result = await service.GetSchemaForeignKeysAsync("DemoDb", "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaForeignKeysAsync(TestConstants.DatabaseName, "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsFailure);
@@ -381,7 +381,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetSchemaIndexesAsync("DemoDb", "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaIndexesAsync(TestConstants.DatabaseName, "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsFailure);
@@ -403,7 +403,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetSchemaConstraintsAsync("DemoDb", "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaConstraintsAsync(TestConstants.DatabaseName, "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsFailure);
@@ -426,7 +426,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act — the mock returns 250 columns for any table named "WideTable"
-        var result = await service.GetSchemaAsync("DemoDb", "dbo.WideTable", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.WideTable", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);

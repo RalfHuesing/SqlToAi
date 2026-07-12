@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 using System.Data;
 using System.Data.Common;
@@ -57,7 +57,7 @@ public sealed class QueryExecutionServiceTests
     public async Task ExecuteQueryAsync_ShouldFail_WhenQueryIsEmpty()
     {
         var service = BuildService();
-        var result = await service.ExecuteQueryAsync("DemoDb", "   ", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "   ", null, TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
     }
@@ -81,7 +81,7 @@ public sealed class QueryExecutionServiceTests
     public async Task ExecuteQueryAsync_ShouldFail_WhenAccessLevelTooLow(AccessLevel level)
     {
         var service = BuildService(accessLevel: level);
-        var result = await service.ExecuteQueryAsync("DemoDb", "SELECT 1", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
     }
@@ -90,7 +90,7 @@ public sealed class QueryExecutionServiceTests
     public async Task ExecuteQueryAsync_ShouldFail_WhenQueryIsMutating()
     {
         var service = BuildService(readOnlySafe: false);
-        var result = await service.ExecuteQueryAsync("DemoDb", "DELETE FROM Customers", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "DELETE FROM Customers", null, TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
     }
@@ -106,7 +106,7 @@ public sealed class QueryExecutionServiceTests
     public async Task ExecuteQueryAsync_ShouldFail_WhenMultipleStatements(string query)
     {
         var service = BuildService();
-        var result = await service.ExecuteQueryAsync("DemoDb", query, null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, query, null, TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, result.Error.Code);
     }
@@ -119,7 +119,7 @@ public sealed class QueryExecutionServiceTests
     public async Task ExecuteQueryAsync_ShouldSucceed_WhenSingleStatement(string query)
     {
         var service = BuildService();
-        var result = await service.ExecuteQueryAsync("DemoDb", query, null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, query, null, TestContext.Current.CancellationToken);
         // We only verify the multi-statement check passes; actual query execution may return stub data
         Assert.True(result.IsSuccess || result.Error.Code == SqlToAiError.QueryErrorCode);
     }
@@ -139,7 +139,7 @@ public sealed class QueryExecutionServiceTests
             new Anonymizer(Options.Create(options)),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync("DemoDb", "UPDATE Customers SET Name = 'X'", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "UPDATE Customers SET Name = 'X'", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.CommitCount);
@@ -156,7 +156,7 @@ public sealed class QueryExecutionServiceTests
             new FakeReadOnlyGuard(safe: true), new Anonymizer(Options.Create(options)),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync("DemoDb", "SELECT 1", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
@@ -172,7 +172,7 @@ public sealed class QueryExecutionServiceTests
             new FakeReadOnlyGuard(safe: true), new Anonymizer(Options.Create(options)),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync("DemoDb", "UPDATE Foo SET X=1; UPDATE Bar SET Y=2", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "UPDATE Foo SET X=1; UPDATE Bar SET Y=2", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, result.Error.Code);
@@ -193,7 +193,7 @@ public sealed class QueryExecutionServiceTests
             new FakeReadOnlyGuard(true), new Anonymizer(Options.Create(options)),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync("DemoDb", "SELECT 1", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         int lineCount = result.Value.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
         Assert.Equal(2, lineCount);
@@ -209,7 +209,7 @@ public sealed class QueryExecutionServiceTests
             new FakeReadOnlyGuard(true), new Anonymizer(Options.Create(options)),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync("DemoDb", "SELECT 1", 999, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", 999, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         int lineCount = result.Value.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
         Assert.Equal(3, lineCount);
@@ -230,7 +230,7 @@ public sealed class QueryExecutionServiceTests
             new FakeReadOnlyGuard(true), new Anonymizer(Options.Create(options)),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync("DemoDb", "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.DoesNotContain("Ralf Huesing", result.Value, StringComparison.OrdinalIgnoreCase);
     }
@@ -247,7 +247,7 @@ public sealed class QueryExecutionServiceTests
             new FakeReadOnlyGuard(true), new Anonymizer(Options.Create(options)),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync("DemoDb", "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.Contains(original, result.Value, StringComparison.OrdinalIgnoreCase);
     }
@@ -305,7 +305,7 @@ public sealed class QueryExecutionServiceTests
         private ConnectionState _state = ConnectionState.Closed;
 
         public override string ConnectionString { get; set; } = string.Empty;
-        public override string Database => "DemoDb";
+        public override string Database => TestConstants.DatabaseName;
         public override string DataSource => "mock";
         public override string ServerVersion => "16.0";
         public override ConnectionState State => _state;

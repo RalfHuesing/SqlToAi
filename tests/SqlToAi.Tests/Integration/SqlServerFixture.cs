@@ -41,15 +41,7 @@ public sealed class SqlServerFixture
 
     public SqlServerFixture()
     {
-        // xUnit v3 runs test classes in parallel, and SqlConnectionFactoryTests mutates the
-        // SQLTOAI_CONNECTION_STRING environment variable as part of its setup/teardown. If one
-        // of those tests sets a non-null value while an integration test is in flight, the
-        // real SQL connection silently uses a bogus connection string and the access probe
-        // returns None — which then fails every dependent test.
-        //
-        // Force-unset the env var so the fixture always reads from appsettings.json, and
-        // mark the fixture collection as non-parallel via [CollectionDefinition] below.
-        Environment.SetEnvironmentVariable("SQLTOAI_CONNECTION_STRING", null);
+
 
         // Resolve appsettings.json next to the running test assembly. The file is copied into
         // the test output by the src project so the relative path is stable.
@@ -97,10 +89,7 @@ public sealed class SqlServerFixture
 }
 
 /// <summary>
-/// xUnit v3 collection that shares a single <see cref="SqlServerFixture"/> across all integration
-/// test classes. The collection is marked non-parallel because the fixture relies on
-/// process-global state (the SQLTOAI_CONNECTION_STRING env var) and parallel execution with the
-/// SqlConnectionFactoryTests would race the env-var mutation.
+/// xUnit v3 collection that shares a single <see cref="SqlServerFixture"/> across all integration test classes.
 /// </summary>
 [CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class SqlServerCollectionFixture : ICollectionFixture<SqlServerFixture>

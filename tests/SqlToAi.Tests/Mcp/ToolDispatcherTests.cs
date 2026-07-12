@@ -66,7 +66,7 @@ public sealed class ToolDispatcherTests
         var dispatcher = BuildDispatcher(validation: validation);
 
         var result = await dispatcher.DispatchAsync(
-            Call(McpConstants.ToolValidateQuery, (McpConstants.ArgQuery, "SELECT 1"), (McpConstants.ArgDatabase, "DemoDb")),
+            Call(McpConstants.ToolValidateQuery, (McpConstants.ArgQuery, "SELECT 1"), (McpConstants.ArgDatabase, TestConstants.DatabaseName)),
             TestContext.Current.CancellationToken);
 
         Assert.True(validation.ValidateCalled);
@@ -80,7 +80,7 @@ public sealed class ToolDispatcherTests
         var dispatcher = BuildDispatcher(exec: exec);
 
         var result = await dispatcher.DispatchAsync(
-            Call(McpConstants.ToolExecuteQuery, (McpConstants.ArgQuery, "SELECT 1"), (McpConstants.ArgDatabase, "DemoDb")),
+            Call(McpConstants.ToolExecuteQuery, (McpConstants.ArgQuery, "SELECT 1"), (McpConstants.ArgDatabase, TestConstants.DatabaseName)),
             TestContext.Current.CancellationToken);
 
         Assert.True(exec.ExecuteCalled);
@@ -94,7 +94,7 @@ public sealed class ToolDispatcherTests
         var dispatcher = BuildDispatcher(schema);
 
         var result = await dispatcher.DispatchAsync(
-            Call(McpConstants.ToolGetSchema, (McpConstants.ArgObjectName, "Customers"), (McpConstants.ArgDatabase, "DemoDb")),
+            Call(McpConstants.ToolGetSchema, (McpConstants.ArgObjectName, "Customers"), (McpConstants.ArgDatabase, TestConstants.DatabaseName)),
             TestContext.Current.CancellationToken);
 
         Assert.True(schema.GetSchemaCalled);
@@ -167,7 +167,7 @@ public sealed class ToolDispatcherTests
         var dispatcher = BuildDispatcher(exec: exec);
 
         var result = await dispatcher.DispatchAsync(
-            Call(McpConstants.ToolExecuteQuery, (McpConstants.ArgQuery, "SELECT 1"), (McpConstants.ArgDatabase, "DemoDb")),
+            Call(McpConstants.ToolExecuteQuery, (McpConstants.ArgQuery, "SELECT 1"), (McpConstants.ArgDatabase, TestConstants.DatabaseName)),
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsError);
@@ -187,7 +187,7 @@ public sealed class ToolDispatcherTests
         await dispatcher.DispatchAsync(
             Call(McpConstants.ToolExecuteQuery,
                 (McpConstants.ArgQuery, "SELECT 1"),
-                (McpConstants.ArgDatabase, "DemoDb"),
+                (McpConstants.ArgDatabase, TestConstants.DatabaseName),
                 (McpConstants.ArgRequestedRowLimit, (object)50)),
             TestContext.Current.CancellationToken);
 
@@ -219,13 +219,13 @@ public sealed class ToolDispatcherTests
         public Task<Result<IReadOnlyList<string>>> ListDatabasesAsync(CancellationToken ct = default)
         {
             ListDatabasesCalled = true;
-            return Task.FromResult(Result<IReadOnlyList<string>>.Success(["DemoDb"]));
+            return Task.FromResult(Result<IReadOnlyList<string>>.Success([TestConstants.DatabaseName]));
         }
 
         public Task<Result<IReadOnlyList<string>>> SearchDatabasesAsync(string searchTerm, CancellationToken ct = default)
         {
             SearchDatabasesCalled = true;
-            return Task.FromResult(Result<IReadOnlyList<string>>.Success(["DemoDb"]));
+            return Task.FromResult(Result<IReadOnlyList<string>>.Success([TestConstants.DatabaseName]));
         }
 
         public Task<Result<string>> SearchObjectsAsync(string db, string searchTerm, int? maxResults = null, string? objectType = null, CancellationToken ct = default)

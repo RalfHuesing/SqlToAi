@@ -28,7 +28,7 @@ public sealed class MetadataProviderTests
         var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
 
         // Act
-        var desc = await provider.GetTableDescriptionAsync("DemoDb", "dbo.Customers", TestContext.Current.CancellationToken);
+        var desc = await provider.GetTableDescriptionAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Null(desc);
@@ -47,7 +47,7 @@ public sealed class MetadataProviderTests
         var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
 
         // Act
-        var desc = await provider.GetTableDescriptionAsync("DemoDb", "dbo.Customers", TestContext.Current.CancellationToken);
+        var desc = await provider.GetTableDescriptionAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal("Test Table Description", desc);
@@ -71,7 +71,7 @@ public sealed class MetadataProviderTests
         var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
 
         // Act
-        var result = await provider.GetColumnDescriptionsAsync("DemoDb", "dbo.Customers", TestContext.Current.CancellationToken);
+        var result = await provider.GetColumnDescriptionsAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(2, result.Count);
