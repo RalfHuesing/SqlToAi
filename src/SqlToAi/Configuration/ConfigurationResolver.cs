@@ -93,7 +93,12 @@ public static class ConfigurationResolver
         {
             return value ?? string.Empty;
         }
-        return Environment.ExpandEnvironmentVariables(value);
+        string expanded = Environment.ExpandEnvironmentVariables(value);
+        if (expanded.Contains("%COMPUTERNAME%", StringComparison.OrdinalIgnoreCase))
+        {
+            expanded = expanded.Replace("%COMPUTERNAME%", Environment.MachineName, StringComparison.OrdinalIgnoreCase);
+        }
+        return expanded;
     }
 
     private static void ExpandListInPlace(List<string>? list)

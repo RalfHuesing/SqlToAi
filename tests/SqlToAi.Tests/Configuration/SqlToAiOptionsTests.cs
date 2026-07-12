@@ -173,4 +173,28 @@ public sealed class SqlToAiOptionsTests
             Environment.SetEnvironmentVariable("TEST_ENV_VAR_DB", null);
         }
     }
+
+    [Fact]
+    public void ConfigurationResolver_ShouldFallbackToMachineNameWhenComputerNameEnvVarIsMissing()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.SqlServer.Server = "%COMPUTERNAME%\\MSSQLSERVER2022";
+
+        string? originalComputerName = Environment.GetEnvironmentVariable("COMPUTERNAME");
+        Environment.SetEnvironmentVariable("COMPUTERNAME", null);
+
+        try
+        {
+            // Act
+            ConfigurationResolver.Resolve(options);
+
+            // Assert
+            Assert.Equal($"{Environment.MachineName}\\MSSQLSERVER2022", options.SqlServer.Server);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("COMPUTERNAME", originalComputerName);
+        }
+    }
 }

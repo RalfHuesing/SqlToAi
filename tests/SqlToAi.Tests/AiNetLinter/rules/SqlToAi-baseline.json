@@ -3,7 +3,7 @@
   "files": {
     "src/SqlToAi/Anonymization/Anonymizer.cs": "5e19bdbf04a550de776b40e3ff3291937dd66f09d6928edf61ec0d1263cf2fd4",
     "src/SqlToAi/Anonymization/IAnonymizer.cs": "356e2d7a3c80eee002cffe4279dd1abbcf4c7d5fbd3f9400f36f1c81fe6f8ccd",
-    "src/SqlToAi/Configuration/ConfigurationResolver.cs": "8ed07ba2bc24526fe5583572da4c7449c7911bfb9026da1e647cb995df88d67d",
+    "src/SqlToAi/Configuration/ConfigurationResolver.cs": "fe0cd7993ef8531e520e6ff2f703e16d70b1bd5e531e2189252cb3cc130597de",
     "src/SqlToAi/Configuration/LoggingOptions.cs": "5f3cde982e47e40155e6fde86350afaa52ac7c0ab3cb6517444b67b289bb5124",
     "src/SqlToAi/Configuration/SqlToAiOptions.cs": "c586a8e1712d931bfea1e3ed12d7eeb8aaca0c08b4d85e8717cff492e7f40c3d",
     "src/SqlToAi/Database/DetailSchemaRenderer.cs": "dea7e2701ad630b679cedbc6cb43594e031f7f769b2126e8a872226de356f673",
@@ -41,7 +41,7 @@
     "src/SqlToAi/Security/SecurityGuard.cs": "249f8b4911fb6f1a7f5a69991ef65c7d8c93538d11a1edda7d696ecbd137fb27",
     "tests/SqlToAi.Tests/AiNetLinter/AiNetLinterTests.cs": "e6a8f4f5e5d3e11d723adaa2df36803c43af9095749782f8fb2cb9f668942006",
     "tests/SqlToAi.Tests/Anonymization/AnonymizerTests.cs": "beeb32469129637f0709b74a20f99b2374f1d29429098d36d185a3f392f8b5e1",
-    "tests/SqlToAi.Tests/Configuration/SqlToAiOptionsTests.cs": "9850dbb563b6828483a2fdbd30c12247f96b897a0ce1f40140681a949a033eaa",
+    "tests/SqlToAi.Tests/Configuration/SqlToAiOptionsTests.cs": "077ae55fefb7be1415492ace8f9ca3e849aa9318e7b2f87d20084096ee3d5d2b",
     "tests/SqlToAi.Tests/Database/QueryExecutionServiceTests.cs": "82daae2c582b78f897b89bf54b18824838630ca76e0a30c980e6b87a72b1a3ba",
     "tests/SqlToAi.Tests/Database/SchemaServiceMockDb.cs": "1d582b7baf892c1eafba58cde417740915f66a92596928a9524438fd57c04bee",
     "tests/SqlToAi.Tests/Database/SchemaServiceTests.cs": "1f2c5143e880cc93172b0aec9ec0f50db3b0ba94caf14ea2c9e48f8eed375d15",
