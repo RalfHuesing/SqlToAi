@@ -18,7 +18,8 @@ public sealed class McpHost : IMcpHost
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        TypeInfoResolver = McpJsonContext.Default
     };
 
     private static readonly Action<ILogger, string, Exception?> LogMethodReceived =
@@ -103,7 +104,7 @@ public sealed class McpHost : IMcpHost
         JsonRpcRequest? request;
         try
         {
-            request = JsonSerializer.Deserialize<JsonRpcRequest>(rawJson, JsonOptions);
+            request = (JsonRpcRequest?)JsonSerializer.Deserialize(rawJson, typeof(JsonRpcRequest), McpJsonContext.Default);
         }
         catch (JsonException ex)
         {
@@ -156,7 +157,7 @@ public sealed class McpHost : IMcpHost
         try
         {
             callParams = request.Params.HasValue
-                ? JsonSerializer.Deserialize<ToolCallParams>(request.Params.Value.GetRawText(), JsonOptions)
+                ? (ToolCallParams?)JsonSerializer.Deserialize(request.Params.Value.GetRawText(), typeof(ToolCallParams), McpJsonContext.Default)
                 : null;
         }
         catch (JsonException)
@@ -180,7 +181,7 @@ public sealed class McpHost : IMcpHost
     private static string WriteResultAndCapture(TextWriter output, System.Text.Json.JsonElement? id, object result)
     {
         var response = new JsonRpcResponse { Id = id, Result = result };
-        string json = JsonSerializer.Serialize(response, JsonOptions);
+        string json = JsonSerializer.Serialize(response, typeof(JsonRpcResponse), McpJsonContext.Default);
         output.WriteLine(json);
         output.Flush();
         return json;
@@ -193,7 +194,7 @@ public sealed class McpHost : IMcpHost
             Id = id,
             Error = new JsonRpcError { Code = code, Message = message }
         };
-        string json = JsonSerializer.Serialize(response, JsonOptions);
+        string json = JsonSerializer.Serialize(response, typeof(JsonRpcErrorResponse), McpJsonContext.Default);
         output.WriteLine(json);
         output.Flush();
         return json;
@@ -261,7 +262,7 @@ public sealed class McpHost : IMcpHost
                     break;
 
                 case McpConstants.MethodPing:
-                    responseJson = WriteResultAndCapture(output, request.Id, new { });
+                    responseJson = WriteResultAndCapture(output, request.Id, new EmptyResult());
                     success = true;
                     break;
 

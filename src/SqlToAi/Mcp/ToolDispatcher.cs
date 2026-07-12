@@ -26,7 +26,8 @@ public sealed class ToolDispatcher : IToolDispatcher
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        TypeInfoResolver = McpJsonContext.Default
     };
 
     private static readonly Action<ILogger, string, Exception?> LogUnknownTool =
@@ -60,12 +61,12 @@ public sealed class ToolDispatcher : IToolDispatcher
         {
             [McpConstants.ToolListDatabases] = (paramsObj, ct) =>
                 CallAsync(() => _schemaService.ListDatabasesAsync(ct),
-                    list => JsonSerializer.Serialize(list, SerializerOptions)),
+                    list => JsonSerializer.Serialize(list, typeof(IReadOnlyList<string>), McpJsonContext.Default)),
 
             [McpConstants.ToolSearchDatabases] = (paramsObj, ct) =>
                 CallAsync(() => _schemaService.SearchDatabasesAsync(
                     Require(paramsObj, McpConstants.ArgSearchTerm), ct),
-                    list => JsonSerializer.Serialize(list, SerializerOptions)),
+                    list => JsonSerializer.Serialize(list, typeof(IReadOnlyList<string>), McpJsonContext.Default)),
 
             [McpConstants.ToolValidateQuery] = (paramsObj, ct) =>
                 CallAsync(() => _queryValidationService.ValidateQueryAsync(

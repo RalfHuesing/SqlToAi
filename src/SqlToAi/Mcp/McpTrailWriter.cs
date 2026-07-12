@@ -35,6 +35,20 @@ public sealed record McpCallRecord(
     bool Success);
 
 /// <summary>
+/// A helper type representing the serialized shape of a trail record.
+/// </summary>
+public sealed record McpCallRecordShape(
+    [property: JsonPropertyName("ts")] string Ts,
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("method")] string Method,
+    [property: JsonPropertyName("tool")] string? Tool,
+    [property: JsonPropertyName("args")] string? Args,
+    [property: JsonPropertyName("response")] string? Response,
+    [property: JsonPropertyName("duration_ms")] long DurationMs,
+    [property: JsonPropertyName("success")] bool Success
+);
+
+/// <summary>
 /// Writes MCP call records to a per-day directory. For each call, the writer produces:
 /// <list type="bullet">
 ///   <item><c>HH-mm-ss-{id}-call.jsonl</c> — one compact metadata line for <c>jq</c> / <c>grep</c>.</item>
@@ -56,14 +70,19 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         WriteIndented = false,
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        TypeInfoResolver = McpJsonContext.Default
     };
 
     private static readonly JsonSerializerOptions PrettyJsonOptions = new()
     {
         WriteIndented = true,
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        TypeInfoResolver = McpJsonContext.Default
     };
+
+    private static readonly McpJsonContext CompactContext = new(CompactJsonOptions);
+    private static readonly McpJsonContext PrettyContext = new(PrettyJsonOptions);
 
     private static readonly Action<ILogger, string, Exception?> LogWriteFailed =
         LoggerMessage.Define<string>(LogLevel.Error, new EventId(1, "WriteFailed"),
@@ -99,7 +118,7 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
             string filePrefix = $"{DateTime.UtcNow:HH-mm-ss}-{safeCorrelationId}";
 
             // The metadata line — one JSONL row per call, never truncated.
-            string line = JsonSerializer.Serialize(ToJsonShape(record), CompactJsonOptions);
+            string line = JsonSerializer.Serialize(ToJsonShape(record), typeof(McpCallRecordShape), CompactContext);
             string jsonlPath = Path.Combine(dateDir, $"{filePrefix}-call.jsonl");
 
             // Pretty-printed companions for humans / editors / syntax highlighters.
@@ -146,7 +165,7 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
         try
         {
             using var doc = JsonDocument.Parse(content);
-            File.WriteAllText(path, JsonSerializer.Serialize(doc.RootElement, PrettyJsonOptions));
+            File.WriteAllText(path, JsonSerializer.Serialize(doc.RootElement, typeof(JsonElement), PrettyContext));
         }
         catch (JsonException)
         {
@@ -239,15 +258,14 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
     // JSON shape (snake_case-ish, compact, human-readable)
     // -------------------------------------------------------------------------
 
-    private static object ToJsonShape(McpCallRecord r) => new
-    {
-        ts          = DateTime.UtcNow.ToString("O"),
-        id          = r.CorrelationId,
-        method      = r.Method,
-        tool        = r.Tool,
-        args        = r.ArgumentsJson,
-        response    = r.ResponseJson,
-        duration_ms = r.DurationMs,
-        success     = r.Success
-    };
+    private static McpCallRecordShape ToJsonShape(McpCallRecord r) => new(
+        DateTime.UtcNow.ToString("O"),
+        r.CorrelationId,
+        r.Method,
+        r.Tool,
+        r.ArgumentsJson,
+        r.ResponseJson,
+        r.DurationMs,
+        r.Success
+    );
 }

@@ -89,3 +89,9 @@ public sealed class JsonRpcNotification
     [JsonPropertyName("params")]
     public JsonElement? Params { get; init; }
 }
+
+/// <summary>
+/// Represents an empty result object for JSON-RPC responses (e.g. ping result).
+/// </summary>
+public sealed class EmptyResult;
+

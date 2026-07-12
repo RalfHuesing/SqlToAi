@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
 using SqlToAi.Domain;
+using SqlToAi.Mcp;
 using SqlToAi.Security;
 
 namespace SqlToAi.Database;
@@ -26,6 +27,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
             LogLevel.Error,
             new EventId(1, "QueryFailed"),
             "Query execution failed for database {Database}.");
+
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly ISecurityGuard _securityGuard;
     private readonly IAccessLevelProvider _accessLevelProvider;
@@ -200,7 +202,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
                 rowDict[columnNames[i]] = raw;
             }
 
-            sb.AppendLine(JsonSerializer.Serialize(rowDict, JsonSerializerOptions.Default));
+            sb.AppendLine(JsonSerializer.Serialize(rowDict, typeof(Dictionary<string, object?>), McpJsonContext.Default));
             rowCount++;
         }
 
