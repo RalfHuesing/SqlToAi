@@ -21,7 +21,7 @@ public sealed class SqlConnectionFactoryTests
         // Arrange
         Environment.SetEnvironmentVariable("SQLTOAI_CONNECTION_STRING", null);
         var options = new SqlToAiOptions();
-        options.SqlDatabase.Server = "";
+        options.SqlServer.Server = "";
         var factory = new SqlConnectionFactory(Options.Create(options));
 
         // Act & Assert
@@ -34,10 +34,10 @@ public sealed class SqlConnectionFactoryTests
         // Arrange
         Environment.SetEnvironmentVariable("SQLTOAI_CONNECTION_STRING", null);
         var options = new SqlToAiOptions();
-        options.SqlDatabase.Server = "localhost\\MSSQLSERVER";
-        options.SqlDatabase.DefaultDatabase = "MyDb";
-        options.SqlDatabase.UserId = "test-user";
-        options.SqlDatabase.Password = "secret";
+        options.SqlServer.Server = "localhost\\MSSQLSERVER";
+        options.SqlServer.DefaultDatabase = "MyDb";
+        options.SqlServer.UserId = "test-user";
+        options.SqlServer.Password = "secret";
         var factory = new SqlConnectionFactory(Options.Create(options));
 
         // Act
@@ -81,8 +81,8 @@ public sealed class SqlConnectionFactoryTests
         // Arrange
         Environment.SetEnvironmentVariable("SQLTOAI_CONNECTION_STRING", null);
         var options = new SqlToAiOptions();
-        options.SqlDatabase.Server = "localhost";
-        options.SqlDatabase.DefaultDatabase = "MainDb";
+        options.SqlServer.Server = "localhost";
+        options.SqlServer.DefaultDatabase = "MainDb";
         var factory = new SqlConnectionFactory(Options.Create(options));
 
         // Act

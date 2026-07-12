@@ -40,30 +40,30 @@ public sealed class SqlConnectionFactory : IDatabaseConnectionFactory
         }
         else
         {
-            if (string.IsNullOrWhiteSpace(_options.SqlDatabase.Server))
+            if (string.IsNullOrWhiteSpace(_options.SqlServer.Server))
             {
-                throw new InvalidOperationException("SQL Server address must be configured either via 'SqlDatabase:Server' or the 'SQLTOAI_CONNECTION_STRING' environment variable.");
+                throw new InvalidOperationException("SQL Server address must be configured either via 'SqlServer:Server' or the 'SQLTOAI_CONNECTION_STRING' environment variable.");
             }
 
             builder = new SqlConnectionStringBuilder
             {
-                DataSource = _options.SqlDatabase.Server,
-                InitialCatalog = !string.IsNullOrWhiteSpace(_options.SqlDatabase.DefaultDatabase)
-                    ? _options.SqlDatabase.DefaultDatabase
+                DataSource = _options.SqlServer.Server,
+                InitialCatalog = !string.IsNullOrWhiteSpace(_options.SqlServer.DefaultDatabase)
+                    ? _options.SqlServer.DefaultDatabase
                     : _options.Databases.Default,
                 ApplicationName = "SqlToAi",
                 TrustServerCertificate = true, // Facilitate developer local connections
-                ConnectTimeout = _options.SqlDatabase.CommandTimeoutSeconds
+                ConnectTimeout = _options.SqlServer.CommandTimeoutSeconds
             };
 
-            if (!string.IsNullOrEmpty(_options.SqlDatabase.UserId))
+            if (!string.IsNullOrEmpty(_options.SqlServer.UserId))
             {
-                builder.UserID = _options.SqlDatabase.UserId;
+                builder.UserID = _options.SqlServer.UserId;
             }
 
-            if (!string.IsNullOrEmpty(_options.SqlDatabase.Password))
+            if (!string.IsNullOrEmpty(_options.SqlServer.Password))
             {
-                builder.Password = _options.SqlDatabase.Password;
+                builder.Password = _options.SqlServer.Password;
             }
 
             if (string.IsNullOrWhiteSpace(builder.UserID))

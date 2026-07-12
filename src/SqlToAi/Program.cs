@@ -30,7 +30,7 @@ internal static class Program
             .Build();
 
         var sqlToAiOptions = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
-        SqlFileResolver.Resolve(sqlToAiOptions);
+        ConfigurationResolver.Resolve(sqlToAiOptions);
 
         // ---------------------------------------------------------------------------
         // Serilog (file-based, rolling) — used by both Microsoft.Extensions.Logging
@@ -50,7 +50,7 @@ internal static class Program
             services.AddSingleton(sqlToAiOptions);
             services.AddOptions();
             services.Configure<SqlToAiOptions>(configuration.GetSection("SqlToAi"));
-            services.PostConfigure<SqlToAiOptions>(options => SqlFileResolver.Resolve(options));
+            services.PostConfigure<SqlToAiOptions>(options => ConfigurationResolver.Resolve(options));
 
             services.AddLogging(logging =>
             {

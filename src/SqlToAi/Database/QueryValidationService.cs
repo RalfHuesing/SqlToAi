@@ -25,7 +25,7 @@ public sealed class QueryValidationService : IQueryValidationService
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly ISecurityGuard _securityGuard;
     private readonly IAccessLevelProvider _accessLevelProvider;
-    private readonly SqlDatabaseOptions _dbOptions;
+    private readonly SqlServerOptions _dbOptions;
     private readonly ILogger<QueryValidationService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="QueryValidationService"/>.</summary>
@@ -39,7 +39,7 @@ public sealed class QueryValidationService : IQueryValidationService
         _connectionFactory = connectionFactory;
         _securityGuard = securityGuard;
         _accessLevelProvider = accessLevelProvider;
-        _dbOptions = options.Value.SqlDatabase;
+        _dbOptions = options.Value.SqlServer;
         _logger = logger;
     }
 

@@ -7,12 +7,11 @@ using System.IO;
 namespace SqlToAi.Tests.Configuration;
 
 // @covers SqlToAi.Configuration.SqlToAiOptions
-// @covers SqlToAi.Configuration.SqlDatabaseOptions
+// @covers SqlToAi.Configuration.SqlServerOptions
 // @covers SqlToAi.Configuration.DatabasesOptions
 // @covers SqlToAi.Configuration.AnonymizerOptions
-// @covers SqlToAi.Configuration.AnonymizerRule
 // @covers SqlToAi.Configuration.MetadataProviderOptions
-// @covers SqlToAi.Configuration.SqlFileResolver
+// @covers SqlToAi.Configuration.ConfigurationResolver
 public sealed class SqlToAiOptionsTests
 {
     private static readonly Type TargetType = typeof(SqlToAiOptions);
@@ -24,12 +23,12 @@ public sealed class SqlToAiOptionsTests
         var options = new SqlToAiOptions();
 
         // Assert
-        Assert.NotNull(options.SqlDatabase);
+        Assert.NotNull(options.SqlServer);
         Assert.NotNull(options.Databases);
         Assert.NotNull(options.Anonymizer);
         Assert.NotNull(options.MetadataProvider);
 
-        Assert.True(options.SqlDatabase.EnforceSafetyCheck);
+        Assert.True(options.SqlServer.EnforceSafetyCheck);
         Assert.True(options.Anonymizer.Enabled);
         Assert.True(options.MetadataProvider.Enabled);
         Assert.Equal("ScramblePattern", options.Anonymizer.DefaultMode);
@@ -41,7 +40,7 @@ public sealed class SqlToAiOptionsTests
         // Arrange
         var appSettingsJson = """
         {
-          "SqlDatabase": {
+          "SqlServer": {
             "Server": "my-server",
             "DefaultDatabase": "MyDb"
           },
@@ -67,8 +66,8 @@ public sealed class SqlToAiOptionsTests
         configuration.Bind(options);
 
         // Assert
-        Assert.Equal("my-server", options.SqlDatabase.Server);
-        Assert.Equal("MyDb", options.SqlDatabase.DefaultDatabase);
+        Assert.Equal("my-server", options.SqlServer.Server);
+        Assert.Equal("MyDb", options.SqlServer.DefaultDatabase);
 
         Assert.Equal("DemoDb", options.Databases.Default);
         var allowed = Assert.Single(options.Databases.Allowed);
@@ -83,27 +82,27 @@ public sealed class SqlToAiOptionsTests
     }
 
     [Fact]
-    public void SqlFileResolver_ShouldLeaveInlineSqlUntouched()
+    public void ConfigurationResolver_ShouldLeaveInlineSqlUntouched()
     {
         // Arrange
         var options = new SqlToAiOptions();
         options.Databases.AccessCheckSql = "SELECT CASE WHEN DB_NAME() = 'OLDemoReweAbfD910' THEN 'ReadWrite' ELSE 'None' END";
-        options.SqlDatabase.SafetyCheckSql = "SELECT 1";
+        options.SqlServer.SafetyCheckSql = "SELECT 1";
         options.MetadataProvider.TableMetadataQuery = "SELECT * FROM tables";
         options.MetadataProvider.ColumnMetadataQuery = "SELECT * FROM columns";
 
         // Act
-        SqlFileResolver.Resolve(options);
+        ConfigurationResolver.Resolve(options);
 
         // Assert
         Assert.Equal("SELECT CASE WHEN DB_NAME() = 'OLDemoReweAbfD910' THEN 'ReadWrite' ELSE 'None' END", options.Databases.AccessCheckSql);
-        Assert.Equal("SELECT 1", options.SqlDatabase.SafetyCheckSql);
+        Assert.Equal("SELECT 1", options.SqlServer.SafetyCheckSql);
         Assert.Equal("SELECT * FROM tables", options.MetadataProvider.TableMetadataQuery);
         Assert.Equal("SELECT * FROM columns", options.MetadataProvider.ColumnMetadataQuery);
     }
 
     [Fact]
-    public void SqlFileResolver_ShouldResolveRelativeAndAbsolutePaths()
+    public void ConfigurationResolver_ShouldResolveRelativeAndAbsolutePaths()
     {
         // Arrange
         string relativeFileName = "test-relative-query.sql";
@@ -123,7 +122,7 @@ public sealed class SqlToAiOptionsTests
             options.MetadataProvider.TableMetadataQuery = absoluteFileName;
 
             // Act
-            SqlFileResolver.Resolve(options);
+            ConfigurationResolver.Resolve(options);
 
             // Assert
             Assert.Equal(relativeSql, options.Databases.AccessCheckSql);
@@ -137,13 +136,43 @@ public sealed class SqlToAiOptionsTests
     }
 
     [Fact]
-    public void SqlFileResolver_ShouldThrowFileNotFoundException_WhenFileDoesNotExist()
+    public void ConfigurationResolver_ShouldThrowFileNotFoundException_WhenFileDoesNotExist()
     {
         // Arrange
         var options = new SqlToAiOptions();
         options.Databases.AccessCheckSql = "non-existent-script.sql";
 
         // Act & Assert
-        Assert.Throws<FileNotFoundException>(() => SqlFileResolver.Resolve(options));
+        Assert.Throws<FileNotFoundException>(() => ConfigurationResolver.Resolve(options));
+    }
+
+    [Fact]
+    public void ConfigurationResolver_ShouldExpandEnvironmentVariables()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        Environment.SetEnvironmentVariable("TEST_ENV_VAR_SERVER", "EnvServerName");
+        Environment.SetEnvironmentVariable("TEST_ENV_VAR_DB", "EnvDbName");
+
+        try
+        {
+            options.SqlServer.Server = "%TEST_ENV_VAR_SERVER%\\MSSQLSERVER";
+            options.SqlServer.DefaultDatabase = "%TEST_ENV_VAR_DB%";
+            options.Databases.Allowed = new List<string> { "%TEST_ENV_VAR_DB%_Allowed" };
+
+            // Act
+            ConfigurationResolver.Resolve(options);
+
+            // Assert
+            Assert.Equal("EnvServerName\\MSSQLSERVER", options.SqlServer.Server);
+            Assert.Equal("EnvDbName", options.SqlServer.DefaultDatabase);
+            var allowed = Assert.Single(options.Databases.Allowed);
+            Assert.Equal("EnvDbName_Allowed", allowed);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TEST_ENV_VAR_SERVER", null);
+            Environment.SetEnvironmentVariable("TEST_ENV_VAR_DB", null);
+        }
     }
 }

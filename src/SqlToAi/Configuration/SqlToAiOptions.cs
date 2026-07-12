@@ -7,7 +7,7 @@ namespace SqlToAi.Configuration;
 /// </summary>
 public sealed class SqlToAiOptions
 {
-    public SqlDatabaseOptions SqlDatabase { get; set; } = new();
+    public SqlServerOptions SqlServer { get; set; } = new();
     public DatabasesOptions Databases { get; set; } = new();
     public AnonymizerOptions Anonymizer { get; set; } = new();
     public MetadataProviderOptions MetadataProvider { get; set; } = new();
@@ -18,7 +18,7 @@ public sealed class SqlToAiOptions
 /// <summary>
 /// Options specifically for the SQL Server connection credentials and global safety checks.
 /// </summary>
-public sealed class SqlDatabaseOptions
+public sealed class SqlServerOptions
 {
     public string Server { get; set; } = string.Empty;
     public string? UserId { get; set; }
@@ -73,6 +73,11 @@ public sealed class MetadataProviderOptions
 {
     public bool Enabled { get; set; } = true;
     public string ConnectionString { get; set; } = string.Empty;
+    public string Server { get; set; } = string.Empty;
+    public string? UserId { get; set; }
+    public string? Password { get; set; }
+    public string DefaultDatabase { get; set; } = string.Empty;
+    public int CommandTimeoutSeconds { get; set; } = 30;
     public string TableMetadataQuery { get; set; } = string.Empty;
     public string ColumnMetadataQuery { get; set; } = string.Empty;
 }

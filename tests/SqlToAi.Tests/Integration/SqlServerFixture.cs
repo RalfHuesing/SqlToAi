@@ -63,6 +63,7 @@ public sealed class SqlServerFixture
         // behavior as the runtime. For local dev against the bundled appsettings.json no env var
         // is required.
         Options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
+        ConfigurationResolver.Resolve(Options);
 
         var optionsWrapper = Microsoft.Extensions.Options.Options.Create(Options);
         ConnectionFactory   = new SqlConnectionFactory(optionsWrapper);

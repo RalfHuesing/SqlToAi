@@ -45,7 +45,7 @@ public sealed class SecurityGuardTests
         var options = new SqlToAiOptions();
         options.Databases.Allowed = new List<string> { "*" };
         options.Databases.Blocked = new List<string> { "master", "msdb", "tempdb" };
-        options.SqlDatabase.ExcludedDatabases = new List<string> { "HR_Payroll" };
+        options.SqlServer.ExcludedDatabases = new List<string> { "HR_Payroll" };
         var guard = new SecurityGuard(Options.Create(options));
 
         // Act & Assert

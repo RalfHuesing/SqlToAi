@@ -160,7 +160,7 @@ public sealed class QueryExecutionServiceIntegrationTests
 
     private SqlToAi.Configuration.SqlToAiOptions CloneOptions() => new()
     {
-        SqlDatabase = _fx.Options.SqlDatabase,
+        SqlServer = _fx.Options.SqlServer,
         Databases = _fx.Options.Databases,
         Anonymizer = _fx.Options.Anonymizer,
         MetadataProvider = _fx.Options.MetadataProvider,

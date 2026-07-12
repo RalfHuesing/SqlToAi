@@ -162,6 +162,40 @@ public sealed class MetadataProvider : IMetadataProvider
             return new SqlConnection(_options.MetadataProvider.ConnectionString);
         }
 
+        // If separate connection parameters are configured for metadata, build it dynamically
+        if (!string.IsNullOrWhiteSpace(_options.MetadataProvider.Server))
+        {
+            var builder = new SqlConnectionStringBuilder
+            {
+                DataSource = _options.MetadataProvider.Server,
+                InitialCatalog = !string.IsNullOrWhiteSpace(databaseName)
+                    ? databaseName
+                    : (!string.IsNullOrWhiteSpace(_options.MetadataProvider.DefaultDatabase)
+                        ? _options.MetadataProvider.DefaultDatabase
+                        : _options.Databases.Default),
+                ApplicationName = "SqlToAi-Metadata",
+                TrustServerCertificate = true, // Facilitate developer local connections
+                ConnectTimeout = _options.MetadataProvider.CommandTimeoutSeconds
+            };
+
+            if (!string.IsNullOrEmpty(_options.MetadataProvider.UserId))
+            {
+                builder.UserID = _options.MetadataProvider.UserId;
+            }
+
+            if (!string.IsNullOrEmpty(_options.MetadataProvider.Password))
+            {
+                builder.Password = _options.MetadataProvider.Password;
+            }
+
+            if (string.IsNullOrWhiteSpace(builder.UserID))
+            {
+                builder.IntegratedSecurity = true;
+            }
+
+            return new SqlConnection(builder.ConnectionString);
+        }
+
         // Otherwise, use the standard connection factory for the target database
         return _connectionFactory.CreateConnection(databaseName);
     }

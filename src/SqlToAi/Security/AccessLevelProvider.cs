@@ -86,7 +86,7 @@ public sealed class AccessLevelProvider : IAccessLevelProvider
             await connection.OpenAsync(cancellationToken);
 
             var queryResult = await connection.QueryFirstOrDefaultAsync<object>(
-                new CommandDefinition(sql, cancellationToken: cancellationToken, commandTimeout: _options.SqlDatabase.CommandTimeoutSeconds));
+                new CommandDefinition(sql, cancellationToken: cancellationToken, commandTimeout: _options.SqlServer.CommandTimeoutSeconds));
 
             if (queryResult is null)
             {

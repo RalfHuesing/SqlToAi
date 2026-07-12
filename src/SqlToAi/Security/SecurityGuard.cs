@@ -36,7 +36,7 @@ public sealed class SecurityGuard : ISecurityGuard
 
         // 1. Check against Blocked list and ExcludedDatabases list
         if (IsMatchedByAnyPattern(databaseName, _options.Databases.Blocked) ||
-            IsMatchedByAnyPattern(databaseName, _options.SqlDatabase.ExcludedDatabases))
+            IsMatchedByAnyPattern(databaseName, _options.SqlServer.ExcludedDatabases))
         {
             return false;
         }
