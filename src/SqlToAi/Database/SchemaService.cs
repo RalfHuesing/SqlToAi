@@ -140,13 +140,13 @@ public sealed class SchemaService : ISchemaService
             using var connection = _connectionFactory.CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
 
-            var rows = await connection.QueryAsync<dynamic>(
+            var rows = await connection.QueryAsync<ObjectRow>(
                 new CommandDefinition(sql, new { Limit = limit, SearchPattern = $"%{searchTerm}%" }, cancellationToken: cancellationToken));
 
             var renderedRows = new List<string[]>();
             foreach (var r in rows)
             {
-                renderedRows.Add([ (string)r.SchemaName, (string)r.ObjectName, (string)r.TypeDescription ]);
+                renderedRows.Add([ r.SchemaName, r.ObjectName, r.TypeDescription ]);
             }
 
             if (renderedRows.Count == 0)
@@ -230,7 +230,7 @@ public sealed class SchemaService : ISchemaService
             ORDER BY c.column_id
             """;
 
-        var columns = await connection.QueryAsync<dynamic>(
+        var columns = await connection.QueryAsync<ColumnRow>(
             new CommandDefinition(columnsSql, new { TableName = tableName }, cancellationToken: cancellationToken));
 
         // Get extended metadata descriptions
@@ -250,12 +250,12 @@ public sealed class SchemaService : ISchemaService
         foreach (var col in columns)
         {
             string colName = col.ColumnName;
-            string type = FormatTypeString((string)col.DataType, (int)col.MaxLength, (int)col.Precision, (int)col.Scale);
-            string nullable = (bool)col.IsNullable ? "Yes" : "No";
+            string type = FormatTypeString(col.DataType, col.MaxLength, col.Precision, col.Scale);
+            string nullable = col.IsNullable ? "Yes" : "No";
             
             var keyFlags = new List<string>();
-            if ((int)col.IsPrimaryKey == 1) keyFlags.Add("PK");
-            if ((bool)col.IsIdentity) keyFlags.Add("Identity");
+            if (col.IsPrimaryKey == 1) keyFlags.Add("PK");
+            if (col.IsIdentity) keyFlags.Add("Identity");
             string keyStr = string.Join(", ", keyFlags);
 
             columnDescs.TryGetValue(colName, out string? desc);
@@ -275,7 +275,7 @@ public sealed class SchemaService : ISchemaService
             WHERE parent_id = OBJECT_ID(@TableName)
             """;
 
-        var triggers = await connection.QueryAsync<dynamic>(
+        var triggers = await connection.QueryAsync<TriggerRow>(
             new CommandDefinition(triggersSql, new { TableName = tableName }, cancellationToken: cancellationToken));
 
         if (triggers.Any())
@@ -286,11 +286,11 @@ public sealed class SchemaService : ISchemaService
             foreach (var t in triggers)
             {
                 trigRows.Add([
-                    (string)t.TriggerName,
-                    (int)t.IsInsert == 1 ? "✓" : "",
-                    (int)t.IsUpdate == 1 ? "✓" : "",
-                    (int)t.IsDelete == 1 ? "✓" : "",
-                    (int)t.IsDisabled == 1 ? "Disabled" : "Active"
+                    t.TriggerName,
+                    t.IsInsert == 1 ? "✓" : "",
+                    t.IsUpdate == 1 ? "✓" : "",
+                    t.IsDelete == 1 ? "✓" : "",
+                    t.IsDisabled == 1 ? "Disabled" : "Active"
                 ]);
             }
             sb.AppendLine(RenderMarkdownTable(trigHeaders, trigRows));
@@ -400,17 +400,17 @@ public sealed class SchemaService : ISchemaService
             using var connection = _connectionFactory.CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
 
-            var rows = await connection.QueryAsync<dynamic>(
+            var rows = await connection.QueryAsync<ForeignKeyRow>(
                 new CommandDefinition(sql, new { TableName = tableName }, cancellationToken: cancellationToken));
 
             var renderedRows = new List<string[]>();
             foreach (var r in rows)
             {
                 renderedRows.Add([
-                    (string)r.ForeignKeyName,
-                    (string)r.ParentTable + "." + (string)r.ParentColumn,
+                    r.ForeignKeyName,
+                    r.ParentTable + "." + r.ParentColumn,
                     "→",
-                    (string)r.ReferencedTable + "." + (string)r.ReferencedColumn
+                    r.ReferencedTable + "." + r.ReferencedColumn
                 ]);
             }
 
@@ -457,10 +457,10 @@ public sealed class SchemaService : ISchemaService
             using var connection = _connectionFactory.CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
 
-            var rows = await connection.QueryAsync<dynamic>(
+            var rows = await connection.QueryAsync<IndexRow>(
                 new CommandDefinition(sql, new { TableName = tableName }, cancellationToken: cancellationToken));
 
-            var indexGroups = rows.GroupBy(r => new { IndexName = (string)r.IndexName, IndexType = (string)r.IndexType, IsUnique = (bool)r.IsUnique, IsPrimaryKey = (bool)r.IsPrimaryKey });
+            var indexGroups = rows.GroupBy(r => new { IndexName = r.IndexName, IndexType = r.IndexType, IsUnique = r.IsUnique, IsPrimaryKey = r.IsPrimaryKey });
 
             var renderedRows = new List<string[]>();
             foreach (var g in indexGroups)
@@ -470,13 +470,13 @@ public sealed class SchemaService : ISchemaService
 
                 foreach (var col in g)
                 {
-                    if ((bool)col.IsIncluded)
+                    if (col.IsIncluded)
                     {
-                        includes.Add((string)col.ColumnName);
+                        includes.Add(col.ColumnName);
                     }
                     else
                     {
-                        keys.Add((string)col.ColumnName);
+                        keys.Add(col.ColumnName);
                     }
                 }
 
@@ -539,20 +539,20 @@ public sealed class SchemaService : ISchemaService
             using var connection = _connectionFactory.CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
 
-            var defaultConstraints = await connection.QueryAsync<dynamic>(
+            var defaultConstraints = await connection.QueryAsync<ConstraintRow>(
                 new CommandDefinition(defaultSql, new { TableName = tableName }, cancellationToken: cancellationToken));
 
-            var checkConstraints = await connection.QueryAsync<dynamic>(
+            var checkConstraints = await connection.QueryAsync<ConstraintRow>(
                 new CommandDefinition(checkSql, new { TableName = tableName }, cancellationToken: cancellationToken));
 
             var renderedRows = new List<string[]>();
             foreach (var dc in defaultConstraints)
             {
-                renderedRows.Add([ (string)dc.ConstraintName, (string)dc.ColumnName, "DEFAULT", (string)dc.Definition ]);
+                renderedRows.Add([ dc.ConstraintName, dc.ColumnName ?? "", "DEFAULT", dc.Definition ]);
             }
             foreach (var cc in checkConstraints)
             {
-                renderedRows.Add([ (string)cc.ConstraintName, (string)(cc.ColumnName ?? ""), "CHECK", (string)cc.Definition ]);
+                renderedRows.Add([ cc.ConstraintName, cc.ColumnName ?? "", "CHECK", cc.Definition ]);
             }
 
             if (renderedRows.Count == 0)
@@ -644,13 +644,13 @@ public sealed class SchemaService : ISchemaService
                 ORDER BY referencing_schema_name, referencing_entity_name
                 """;
 
-            var rows = await connection.QueryAsync<dynamic>(
+            var rows = await connection.QueryAsync<ReferenceRow>(
                 new CommandDefinition(sql, new { ObjectName = objectName }, cancellationToken: cancellationToken));
 
             var renderedRows = new List<string[]>();
             foreach (var r in rows)
             {
-                renderedRows.Add([ (string)r.SchemaName, (string)r.EntityName, (string)r.ClassDescription ]);
+                renderedRows.Add([ r.SchemaName, r.EntityName, r.ClassDescription ]);
             }
 
             if (renderedRows.Count == 0)
@@ -706,18 +706,18 @@ public sealed class SchemaService : ISchemaService
                 ORDER BY p.parameter_id
                 """;
 
-            var rows = await connection.QueryAsync<dynamic>(
+            var rows = await connection.QueryAsync<ParameterRow>(
                 new CommandDefinition(sql, new { RoutineName = routineName }, cancellationToken: cancellationToken));
 
             var renderedRows = new List<string[]>();
             foreach (var r in rows)
             {
-                string pName = string.IsNullOrWhiteSpace((string)r.ParameterName) ? "(ReturnValue)" : (string)r.ParameterName;
+                string pName = string.IsNullOrWhiteSpace(r.ParameterName) ? "(ReturnValue)" : r.ParameterName;
                 renderedRows.Add([
                     pName,
-                    (string)r.DataType,
-                    (int)r.MaxLength == -1 ? "MAX" : ((int)r.MaxLength).ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    (bool)r.IsOutput ? "Yes" : "No"
+                    r.DataType,
+                    r.MaxLength == -1 ? "MAX" : r.MaxLength.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    r.IsOutput ? "Yes" : "No"
                 ]);
             }
 
@@ -759,4 +759,75 @@ public sealed class SchemaService : ISchemaService
         }
         return sb.ToString();
     }
+
+    private sealed class ColumnRow
+    {
+        public string ColumnName { get; init; } = string.Empty;
+        public string DataType { get; init; } = string.Empty;
+        public int MaxLength { get; init; }
+        public int Precision { get; init; }
+        public int Scale { get; init; }
+        public bool IsNullable { get; init; }
+        public bool IsIdentity { get; init; }
+        public int IsPrimaryKey { get; init; }
+    }
+
+    private sealed class TriggerRow
+    {
+        public string TriggerName { get; init; } = string.Empty;
+        public int? IsDisabled { get; init; }
+        public int? IsUpdate { get; init; }
+        public int? IsDelete { get; init; }
+        public int? IsInsert { get; init; }
+    }
+
+    private sealed class ObjectRow
+    {
+        public string SchemaName { get; init; } = string.Empty;
+        public string ObjectName { get; init; } = string.Empty;
+        public string TypeDescription { get; init; } = string.Empty;
+    }
+
+    private sealed class ForeignKeyRow
+    {
+        public string ForeignKeyName { get; init; } = string.Empty;
+        public string ParentTable { get; init; } = string.Empty;
+        public string ParentColumn { get; init; } = string.Empty;
+        public string ReferencedTable { get; init; } = string.Empty;
+        public string ReferencedColumn { get; init; } = string.Empty;
+    }
+
+    private sealed class IndexRow
+    {
+        public string? IndexName { get; init; }
+        public string IndexType { get; init; } = string.Empty;
+        public bool IsUnique { get; init; }
+        public bool IsPrimaryKey { get; init; }
+        public string ColumnName { get; init; } = string.Empty;
+        public bool IsIncluded { get; init; }
+    }
+
+    private sealed class ConstraintRow
+    {
+        public string ConstraintName { get; init; } = string.Empty;
+        public string? ColumnName { get; init; }
+        public string Definition { get; init; } = string.Empty;
+        public string ConstraintType { get; init; } = string.Empty;
+    }
+
+    private sealed class ReferenceRow
+    {
+        public string SchemaName { get; init; } = string.Empty;
+        public string EntityName { get; init; } = string.Empty;
+        public string ClassDescription { get; init; } = string.Empty;
+    }
+
+    private sealed class ParameterRow
+    {
+        public string? ParameterName { get; init; }
+        public string DataType { get; init; } = string.Empty;
+        public int MaxLength { get; init; }
+        public bool IsOutput { get; init; }
+    }
 }
+

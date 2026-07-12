@@ -85,7 +85,7 @@ public sealed class AccessLevelProvider : IAccessLevelProvider
             using var connection = _connectionFactory.CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
 
-            var queryResult = await connection.QueryFirstOrDefaultAsync<dynamic>(
+            var queryResult = await connection.QueryFirstOrDefaultAsync<object>(
                 new CommandDefinition(sql, cancellationToken: cancellationToken, commandTimeout: _options.SqlDatabase.CommandTimeoutSeconds));
 
             if (queryResult is null)
@@ -103,8 +103,13 @@ public sealed class AccessLevelProvider : IAccessLevelProvider
         }
     }
 
-    private static AccessLevel ParseResult(dynamic result)
+    private static AccessLevel ParseResult(object? result)
     {
+        if (result is null)
+        {
+            return AccessLevel.None;
+        }
+
         object? rawValue = null;
 
         if (result is IDictionary<string, object> row)
