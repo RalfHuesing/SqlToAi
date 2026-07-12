@@ -1,4 +1,4 @@
-# AiNetLinter — Konfigurationsreferenz & Dokumentation
+﻿# AiNetLinter — Konfigurationsreferenz & Dokumentation
 
 → [README](../README.md) | [Design-Rationale](rationale.md)
 
@@ -836,6 +836,43 @@ Die Regel `EnforceResultPatternOverExceptions` ist standardmäßig **deaktiviert
 
 > Fachliche Fehler → `Result<T>`; Infrastruktur/Unerwartetes → `throw` + Log. Die `AllowedExceptions`-Liste (z. B. `ArgumentNullException`) bleibt für typ-basierte Ausnahmen unverändert aktiv.
 
+### Vermeidung von Middle-Man-Klassen (AvoidExcessiveMiddleMen)
+
+Die Regel `AvoidExcessiveMiddleMen` ist standardmäßig **aktiviert** (`true`). Sie analysiert Klassen daraufhin, ob sie überwiegend als reine Weiterleitungsschichten ("Middle Man") agieren. Dies ist ein wichtiger Design-Constraint für agentische KI-Systeme, da tiefe Weiterleitungsketten den Agenten zwingen, viele Dateien nacheinander zu lesen (Tool-Call-Inflation) und den Kontext mit redundantem Wrapper-Code zu füllen.
+
+#### Einstellungsoptionen
+
+- **`AvoidExcessiveMiddleMen`** (Boolean, Default: `true`): Aktiviert oder deaktiviert den Middle-Man-Check.
+- **`MaxMiddleManForwardingRatio`** (Double, Default: `0.60`): Grenzwert für das Verhältnis von Weiterleitungen zur Gesamtanzahl berücksichtigter Methoden und Properties der Klasse. Eine Klasse mit z. B. 10 Methoden, von denen 7 nur Aufrufe weiterleiten (Ratio: 70%), wird abgemahnt. (Bezieht bei `MiddleManIncludePrivateMembers: true` auch private Member ein).
+- **`MiddleManMinMemberCount`** (Integer, Default: `5`): Mindestanzahl berücksichtigter Mitglieder (Methoden/Properties) in einer Klasse, ab der die Regel überhaupt greift. Kleine Klassen (z. B. einfache Adapter oder Wrapper mit 2–4 Membern) werden ignoriert, um Fehlalarme zu vermeiden. (Bezieht bei `MiddleManIncludePrivateMembers: true` auch private Member ein).
+- **`MiddleManIncludePrivateMembers`** (Boolean, Default: `false`): Wenn `true`, werden auch private Methoden und Properties auf Weiterleitungen analysiert. Explizite Interface-Implementierungen (z. B. `void IDisposable.Dispose()`) bleiben standardmäßig ausgenommen, da sie syntaktisch erzwungen sind.
+- **`MiddleManExemptSuffixes`** (Array von Strings, Default: `["Extensions", "Proxy", "Adapter", "Facade"]`): Klassen, deren Name mit einem dieser Suffixe endet, werden vom Check ausgenommen.
+
+#### Erkennungslogik
+
+Eine Methode oder Property wird als **Weiterleitung (Pure Forwarder)** gewertet, wenn:
+* Sie als Expression-Body (`=>`) oder als Block mit genau einer return- oder Ausdrücksanweisung deklariert ist.
+* Der Rumpf ausschließlich an ein Feld, eine Eigenschaft oder eine statische Methode einer *anderen* Klasse (Collaborator) delegiert.
+* Keine Bedingungen (`if`), Schleifen (`foreach`), lokale Variablen oder `try-catch`-Blöcke enthalten sind.
+* Aufrufe an lokale Hilfsmethoden der gleichen Klasse oder an geerbte Methoden von Basisklassen zählen *nicht* als Weiterleitung an externe Collaborators.
+
+#### Empfohlene Konfiguration:
+
+```json
+"Global": {
+  "AvoidExcessiveMiddleMen": true,
+  "MaxMiddleManForwardingRatio": 0.60,
+  "MiddleManMinMemberCount": 5,
+  "MiddleManIncludePrivateMembers": false,
+  "MiddleManExemptSuffixes": [
+    "Extensions",
+    "Proxy",
+    "Adapter",
+    "Facade"
+  ]
+}
+```
+
 ### Profil-Vorlagen
 
 Für häufige Einsatzszenarien können alle oben genannten Exemptions als vollständige `rules.json`-Datei zusammengestellt werden.
@@ -1044,8 +1081,9 @@ ainetlinter --config <Pfad-zur-rules.json> --path <Pfad-zur-slnx-oder-Verzeichni
 - `--git-since` (Ref): Nur Verstöße in per `git diff` geänderten `.cs`-Dateien seit Ref, z. B. `HEAD~1` (Optional).
 - `--fix` (Flag): Automatische Behebung einfacher Verstöße (z. B. `sealed`, `readonly`, `#nullable enable`) direkt über die CLI (Optional).
 - `-im`, `--impact` (Ref): Semantische Diff-Impact-Analyse ab Git-Referenz (z. B. `HEAD~1` oder leer für uncommitted). Listet alle betroffenen Aufrufstellen (Call-Sites) in der Solution auf (Optional).
-- `-scr`, `--sync-cursor-rules` (Flag): Synchronisiert die `rules.json` Konfiguration als `.cursor/rules/AiNetLinter.mdc` Regeldatei (Optional).
-- `--check` (Flag): Drift-Check ohne Datei-Schreiben (Optional). Kombiniert mit `--sync-cursor-rules`: Prüft `.cursor/rules/AiNetLinter.mdc`. Kombiniert mit `--playbook`: Prüft ob das Playbook aktuell ist. Exit 1 bei Abweichungen, Exit 0 bei Übereinstimmung.
+- `-scr`, `--sync-cursor-rules` (Flag): Synchronisiert die `rules.json` Konfiguration als Regeldatei (Optional). Standardmäßig wird der Pfad erraten (z. B. `.agents/rules` bevorzugt vor `.cursor/rules`).
+- `-crp`, `--cursor-rules-path` (Pfad): Benutzerdefinierter Pfad (Verzeichnis oder `.mdc`-Datei) für die Synchronisation der Cursor-Regeln (Optional).
+- `--check` (Flag): Drift-Check ohne Datei-Schreiben (Optional). Kombiniert mit `--sync-cursor-rules`: Prüft die Cursor-Regeldatei. Kombiniert mit `--playbook`: Prüft ob das Playbook aktuell ist. Exit 1 bei Abweichungen, Exit 0 bei Übereinstimmung.
 - `--footprint` (Klassenname): Startet eine Ad-hoc-Analyse der transitiven Zeilen für den angegebenen Klassennamen (inklusive Top-3-Abhängigkeiten) und beendet den Prozess mit Exit 0 (Optional).
 - `--docs <name>` / `-d <name>` (String): Gibt die eingebettete Dokumentation direkt auf stdout aus — ohne `--path`, ohne Dateisystem-Zugriff. Mögliche Werte: `readme`, `agent-api`, `configuration`, `rationale`, `roadmap`, `rules-json`. Für LLM-Agenten, die Projektkontext abrufen wollen. Exit 0 (Optional).
 - `--no-cache` (Flag): Erzwingt eine vollständige Neu-Analyse aller Dateien (deaktiviert den Analyse-Cache) (Optional).

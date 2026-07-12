@@ -1,4 +1,4 @@
-# AiNetLinter — .NET C# Linter für agentischen Entwicklungsworkflow
+﻿# AiNetLinter — .NET C# Linter für agentischen Entwicklungsworkflow
 
 `AiNetLinter` ist ein .NET 10 CLI-Tool, das C#-Code per Roslyn-Syntaxanalyse gegen konfigurierbare Qualitätsregeln prüft. Die Regeln sind auf den agentischen Entwicklungsworkflow mit AI-Tools wie Cursor, Claude Code oder GitHub Copilot ausgelegt — mit dem Ziel, die Fehlerrate autonomer Agenten beim Bearbeiten von C#-Code zu senken.
 

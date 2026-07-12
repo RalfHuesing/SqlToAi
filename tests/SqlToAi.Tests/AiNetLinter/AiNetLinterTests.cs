@@ -25,20 +25,71 @@ public sealed class AiNetLinterTests
         string baselinePath = Path.Combine(solutionRoot, "tests", "SqlToAi.Tests", "AiNetLinter", "rules", "SqlToAi-baseline.json");
         string outputReportDir = Path.Combine(solutionRoot, "tests", "SqlToAi.Tests", "AiNetLinter", "output");
         string outputReportFile = Path.Combine(outputReportDir, "SqlToAi-linter-report.md");
+        string targetRulesFile = Path.Combine(solutionRoot, ".agents", "rules", "AiNetLinter.mdc");
 
         Directory.CreateDirectory(outputReportDir);
 
-        // 3. Setup linter CLI arguments
-        var args = new[]
+        // 3. Step 1: Run code quality validation
+        var validationArgs = new[]
         {
             "--config", $"\"{configPath}\"",
             "--path", $"\"{solutionRoot}\"",
-            "--baseline", $"\"{baselinePath}\"",
-            "--sync-cursor-rules"
+            "--baseline", $"\"{baselinePath}\""
         };
 
-        string argumentsString = string.Join(" ", args);
+        var (valExitCode, valStdout, valStderr) = await RunLinterProcessAsync(
+            string.Join(" ", validationArgs), solutionRoot, TestContext.Current.CancellationToken);
 
+        // 4. Write report to output/SqlToAi-linter-report.md
+        var reportContent = new StringBuilder();
+        reportContent.AppendLine("# AiNetLinter Run Report");
+        reportContent.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"- **Timestamp:** {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        reportContent.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"- **Validation Exit Code:** {valExitCode}");
+        reportContent.AppendLine();
+        reportContent.AppendLine("## Validation Output");
+        reportContent.AppendLine("```");
+        reportContent.AppendLine(valStdout);
+        reportContent.AppendLine("```");
+        if (!string.IsNullOrWhiteSpace(valStderr))
+        {
+            reportContent.AppendLine();
+            reportContent.AppendLine("## Validation Error");
+            reportContent.AppendLine("```");
+            reportContent.AppendLine(valStderr);
+            reportContent.AppendLine("```");
+        }
+
+        await File.WriteAllTextAsync(outputReportFile, reportContent.ToString(), Encoding.UTF8, TestContext.Current.CancellationToken);
+
+        // 5. Assertions on validation success
+        if (valExitCode != 0)
+        {
+            Assert.Fail($"AiNetLinter validation failed with exit code {valExitCode}. See report at: {outputReportFile}\r\nErrors:\r\n{valStderr}\r\n{valStdout}");
+        }
+
+        // 6. Step 2: Run rules synchronization directly to target path (only if validation succeeded)
+        var syncArgs = new[]
+        {
+            "--config", $"\"{configPath}\"",
+            "--path", $"\"{solutionRoot}\"",
+            "--sync-cursor-rules",
+            "--cursor-rules-path", $"\"{targetRulesFile}\""
+        };
+
+        var (syncExitCode, syncStdout, syncStderr) = await RunLinterProcessAsync(
+            string.Join(" ", syncArgs), solutionRoot, TestContext.Current.CancellationToken);
+
+        if (syncExitCode != 0)
+        {
+            Assert.Fail($"AiNetLinter rules synchronization failed with exit code {syncExitCode}.\r\nErrors:\r\n{syncStderr}\r\n{syncStdout}");
+        }
+
+        Assert.True(File.Exists(targetRulesFile), $"Rules file was not found at target location: {targetRulesFile}");
+    }
+
+    private static async Task<(int ExitCode, string Stdout, string Stderr)> RunLinterProcessAsync(
+        string argumentsString, string solutionRoot, CancellationToken cancellationToken)
+    {
         var startInfo = new ProcessStartInfo
         {
             FileName = LinterExePath,
@@ -52,9 +103,7 @@ public sealed class AiNetLinterTests
             StandardErrorEncoding = Encoding.UTF8
         };
 
-        // 4. Run linter process
         using var process = new Process { StartInfo = startInfo };
-        
         var stdoutBuilder = new StringBuilder();
         var stderrBuilder = new StringBuilder();
 
@@ -65,68 +114,9 @@ public sealed class AiNetLinterTests
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
-        await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+        await process.WaitForExitAsync(cancellationToken);
 
-        string stdout = stdoutBuilder.ToString();
-        string stderr = stderrBuilder.ToString();
-        int exitCode = process.ExitCode;
-
-        // 5. Write report to output/SqlToAi-linter-report.md
-        var reportContent = new StringBuilder();
-        reportContent.AppendLine("# AiNetLinter Run Report");
-        reportContent.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"- **Timestamp:** {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-        reportContent.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"- **Exit Code:** {exitCode}");
-        reportContent.AppendLine();
-        reportContent.AppendLine("## Standard Output");
-        reportContent.AppendLine("```");
-        reportContent.AppendLine(stdout);
-        reportContent.AppendLine("```");
-        if (!string.IsNullOrWhiteSpace(stderr))
-        {
-            reportContent.AppendLine();
-            reportContent.AppendLine("## Standard Error");
-            reportContent.AppendLine("```");
-            reportContent.AppendLine(stderr);
-            reportContent.AppendLine("```");
-        }
-
-        await File.WriteAllTextAsync(outputReportFile, reportContent.ToString(), Encoding.UTF8, TestContext.Current.CancellationToken);
-
-        // 6. Assertions
-        if (exitCode != 0)
-        {
-            Assert.Fail($"AiNetLinter failed with exit code {exitCode}. See report at: {outputReportFile}\r\nErrors:\r\n{stderr}\r\n{stdout}");
-        }
-
-        // 7. If exitCode == 0, move the synchronized cursor rules file to the target rules directory
-        string cursorRulesFile = Path.Combine(solutionRoot, ".cursor", "rules", "AiNetLinter.mdc");
-        Assert.True(File.Exists(cursorRulesFile), $"Linter was successful, but Cursor rules file was not synchronized/created at: {cursorRulesFile}");
-
-        string targetRulesDir = Path.Combine(solutionRoot, ".agents", "rules");
-        string targetRulesFile = Path.Combine(targetRulesDir, "AiNetLinter.mdc");
-
-        Directory.CreateDirectory(targetRulesDir);
-        if (File.Exists(targetRulesFile))
-        {
-            File.Delete(targetRulesFile);
-        }
-        File.Move(cursorRulesFile, targetRulesFile);
-
-        // Clean up the .cursor/rules directory if it is now empty
-        string cursorRulesDir = Path.Combine(solutionRoot, ".cursor", "rules");
-        if (Directory.Exists(cursorRulesDir) && !Directory.EnumerateFileSystemEntries(cursorRulesDir).Any())
-        {
-            Directory.Delete(cursorRulesDir);
-            
-            // Also clean up .cursor directory if empty
-            string cursorDir = Path.Combine(solutionRoot, ".cursor");
-            if (Directory.Exists(cursorDir) && !Directory.EnumerateFileSystemEntries(cursorDir).Any())
-            {
-                Directory.Delete(cursorDir);
-            }
-        }
-
-        Assert.True(File.Exists(targetRulesFile), $"Rules file was not found at target location: {targetRulesFile}");
+        return (process.ExitCode, stdoutBuilder.ToString(), stderrBuilder.ToString());
     }
 
     private static string FindSolutionRoot()
