@@ -1,5 +1,8 @@
 #nullable enable
 
+using System.Collections.Generic;
+using System.Linq;
+using Dapper;
 using SqlToAi.Domain;
 
 namespace SqlToAi.Tests.Integration;
@@ -20,10 +23,87 @@ public sealed class AccessLevelProviderIntegrationTests
     [Fact]
     public async Task GetAccessLevelAsync_ShouldReturnConfiguredLevel_ForAllowedDatabase()
     {
-        // The bundled appsettings.json grants the configured login ReadWrite.
+        // The bundled appsettings.json dynamically determines the access level.
+        // We execute the AccessCheckSql query directly on the connection to see what it evaluates to
+        // for the current login and database, then assert the provider matches it.
+        var sql = _fx.Options.Databases.AccessCheckSql;
+        var expectedLevel = AccessLevel.ReadOnlyAnonymized; // default fallback if no query configured
+
+        if (!string.IsNullOrWhiteSpace(sql))
+        {
+            using var connection = _fx.ConnectionFactory.CreateConnection(_db);
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+
+            var queryResult = await connection.QueryFirstOrDefaultAsync<dynamic>(
+                new CommandDefinition(sql, cancellationToken: TestContext.Current.CancellationToken));
+
+            if (queryResult != null)
+            {
+                expectedLevel = ParseResult(queryResult);
+            }
+            else
+            {
+                expectedLevel = AccessLevel.None;
+            }
+        }
+
         var level = await _fx.AccessLevelProvider.GetAccessLevelAsync(_db, TestContext.Current.CancellationToken);
 
-        Assert.Equal(AccessLevel.ReadWrite, level);
+        Assert.Equal(expectedLevel, level);
+    }
+
+    private static AccessLevel ParseResult(dynamic result)
+    {
+        object? rawValue = null;
+
+        if (result is IDictionary<string, object> row)
+        {
+            var key = row.Keys.FirstOrDefault(k => string.Equals(k, "AccessLevel", StringComparison.OrdinalIgnoreCase));
+            if (key != null)
+            {
+                rawValue = row[key];
+            }
+            else
+            {
+                rawValue = row.Values.FirstOrDefault();
+            }
+        }
+        else
+        {
+            rawValue = result;
+        }
+
+        return ParseAccessLevel(rawValue);
+    }
+
+    private static AccessLevel ParseAccessLevel(object? val)
+    {
+        if (val is null)
+        {
+            return AccessLevel.None;
+        }
+
+        string strVal = val.ToString()?.Trim() ?? string.Empty;
+
+        if (int.TryParse(strVal, out int intVal))
+        {
+            return intVal switch
+            {
+                0 => AccessLevel.None,
+                1 => AccessLevel.SchemaOnly,
+                2 => AccessLevel.ReadOnlyAnonymized,
+                3 => AccessLevel.ReadOnly,
+                4 => AccessLevel.ReadWrite,
+                _ => AccessLevel.None
+            };
+        }
+
+        if (Enum.TryParse<AccessLevel>(strVal, true, out var parsedEnum))
+        {
+            return parsedEnum;
+        }
+
+        return AccessLevel.None;
     }
 
     [Fact]

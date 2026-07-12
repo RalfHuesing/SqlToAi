@@ -24,7 +24,7 @@ public sealed class QueryExecutionServiceIntegrationTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldReturnJsonLines_ForSimpleSelect()
     {
-        var result = await _fx.QueryExecutionService.ExecuteQueryAsync(_db, "SELECT 1 AS One, 'Hello' AS Greeting", null, TestContext.Current.CancellationToken);
+        var result = await _fx.QueryExecutionService.ExecuteQueryAsync(_db, "SELECT 1 AS One, 'Hello' AS Status", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value);
