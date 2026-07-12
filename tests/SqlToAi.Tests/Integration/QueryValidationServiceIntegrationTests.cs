@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 
 using SqlToAi.Domain;
 
@@ -30,7 +30,7 @@ public sealed class QueryValidationServiceIntegrationTests
     {
         var result = await _fx.QueryValidationService.ValidateQueryAsync(
             _db,
-            "SELECT TOP 1 * FROM dbo.BCSPjmProjekte",
+            "SELECT TOP 1 * FROM dbo.FakeProjects",
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));

@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
@@ -36,10 +36,10 @@ public sealed class QueryExecutionServiceIntegrationTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldReturnRowsFromKnownTable()
     {
-        // BCS view is large; project table is more controlled
+        // Fictional project table is more controlled
         var result = await _fx.QueryExecutionService.ExecuteQueryAsync(
             _db,
-            "SELECT TOP 5 Mandant FROM dbo.BCSPjmProjekte",
+            "SELECT TOP 5 Mandant FROM dbo.FakeProjects",
             null,
             TestContext.Current.CancellationToken);
 
@@ -65,7 +65,7 @@ public sealed class QueryExecutionServiceIntegrationTests
 
         var result = await service.ExecuteQueryAsync(
             _db,
-            "DELETE FROM dbo.BCSPjmProjekte",
+            "DELETE FROM dbo.FakeProjects",
             null,
             TestContext.Current.CancellationToken);
 
@@ -130,7 +130,7 @@ public sealed class QueryExecutionServiceIntegrationTests
         // specific content — only that the call succeeds and the output is well-formed JSON.
         var result = await _fx.QueryExecutionService.ExecuteQueryAsync(
             _db,
-            "SELECT TOP 1 Ausfuehrer FROM dbo.BCSPjmAdressenKontakt",
+            "SELECT TOP 1 Ausfuehrer FROM dbo.FakeContacts",
             null,
             TestContext.Current.CancellationToken);
 
