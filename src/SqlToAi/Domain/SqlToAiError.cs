@@ -18,6 +18,7 @@ public sealed record SqlToAiError(string Code, string Message)
     internal const string WriteOperationBlockedCode = "SQL-AI-0107";
     internal const string InvalidReferenceTypeCode = "SQL-AI-0108";
     internal const string InvalidParameterTypeCode = "SQL-AI-0109";
+    internal const string InvalidDetailQueryTypeCode = "SQL-AI-0110";
 
     public static SqlToAiError InvalidParameters(string details) =>
         new(InvalidParametersCode, $"Ungültige Parameter: {details}");
@@ -51,4 +52,7 @@ public sealed record SqlToAiError(string Code, string Message)
 
     public static SqlToAiError InvalidParameterType(string objectName) =>
         new(InvalidParameterTypeCode, $"Ungültiger Typ für Parameter: Routine-Parameter können nur für Prozeduren und Funktionen gelesen werden. Objekt: {objectName}");
+
+    public static SqlToAiError InvalidDetailQueryType(string objectName) =>
+        new(InvalidDetailQueryTypeCode, $"Ungültiger Typ für Detailabfrage: Fremdschlüssel, Indizes und Constraints können nur für Tabellen und Sichten abgefragt werden. Objekt: {objectName}");
 }

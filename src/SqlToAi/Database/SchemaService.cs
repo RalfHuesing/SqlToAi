@@ -116,6 +116,10 @@ public sealed class SchemaService : ISchemaService
         }
 
         int limit = maxResults ?? 100;
+        // Rank primary object types (tables, views, routines, triggers) ahead of the far more
+        // numerous constraint objects (FK/PK/DEFAULT/CHECK), which otherwise dominate alphabetically
+        // (e.g. "FOREIGN_KEY_CONSTRAINT" < "USER_TABLE") and crowd real objects out of the TOP N
+        // when no object_type filter is given.
         string sql = $"""
             SELECT TOP (@Limit)
                 schema_name(schema_id) AS SchemaName,
@@ -125,7 +129,18 @@ public sealed class SchemaService : ISchemaService
             WHERE is_ms_shipped = 0
               AND name LIKE @SearchPattern
               AND (@TypeFilter IS NULL OR type_desc LIKE @TypeFilter)
-            ORDER BY type_desc, schema_name(schema_id), name
+            ORDER BY
+                CASE type_desc
+                    WHEN 'USER_TABLE' THEN 0
+                    WHEN 'VIEW' THEN 1
+                    WHEN 'SQL_STORED_PROCEDURE' THEN 2
+                    WHEN 'SQL_SCALAR_FUNCTION' THEN 2
+                    WHEN 'SQL_TABLE_VALUED_FUNCTION' THEN 2
+                    WHEN 'SQL_INLINE_TABLE_VALUED_FUNCTION' THEN 2
+                    WHEN 'SQL_TRIGGER' THEN 3
+                    ELSE 9
+                END,
+                schema_name(schema_id), name
             """;
 
         try

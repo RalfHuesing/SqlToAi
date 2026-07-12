@@ -345,6 +345,72 @@ public sealed class SchemaServiceTests
     }
 
     [Fact]
+    public async Task GetSchemaForeignKeysAsync_ShouldReturnError_WhenObjectIsRoutine()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.Databases.Allowed = ["*"];
+
+        var mockFactory = new DummyConnectionFactory();
+        var securityGuard = new SecurityGuard(Options.Create(options));
+        var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
+        var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+
+        // Act — "dbo.GetCustomersProc" resolves to type "P" (procedure) in the mock
+        var result = await service.GetSchemaForeignKeysAsync("DemoDb", "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.InvalidDetailQueryTypeCode, result.Error.Code);
+    }
+
+    [Fact]
+    public async Task GetSchemaIndexesAsync_ShouldReturnError_WhenObjectIsRoutine()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.Databases.Allowed = ["*"];
+
+        var mockFactory = new DummyConnectionFactory();
+        var securityGuard = new SecurityGuard(Options.Create(options));
+        var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
+        var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+
+        // Act
+        var result = await service.GetSchemaIndexesAsync("DemoDb", "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.InvalidDetailQueryTypeCode, result.Error.Code);
+    }
+
+    [Fact]
+    public async Task GetSchemaConstraintsAsync_ShouldReturnError_WhenObjectIsRoutine()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.Databases.Allowed = ["*"];
+
+        var mockFactory = new DummyConnectionFactory();
+        var securityGuard = new SecurityGuard(Options.Create(options));
+        var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
+        var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+
+        // Act
+        var result = await service.GetSchemaConstraintsAsync("DemoDb", "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.InvalidDetailQueryTypeCode, result.Error.Code);
+    }
+
+    [Fact]
     public async Task GetSchemaAsync_WithMoreThan200Columns_ShouldRenderAllColumns()
     {
         // Arrange — verifies there is no hidden column-count limit anywhere in the

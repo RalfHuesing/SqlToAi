@@ -136,6 +136,46 @@ public sealed class SchemaServiceIntegrationTests
         Assert.True(dataRows <= 2, $"Expected at most 2 data rows, got {dataRows}");
     }
 
+    [Fact]
+    public async Task SearchObjectsAsync_WithoutTypeFilter_ShouldRankTablesBeforeConstraints()
+    {
+        // "Adressen" matches both the real KHKAdressen table and a large number of
+        // FOREIGN_KEY_CONSTRAINT/PRIMARY_KEY_CONSTRAINT objects. Alphabetically the constraint
+        // type names sort before "USER_TABLE", so without explicit ranking the table would be
+        // pushed out of a small TOP-N result entirely.
+        var result = await _fx.SchemaService.SearchObjectsAsync(_db, "Adressen", 5, null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
+        Assert.Contains("USER_TABLE", result.Value);
+    }
+
+    [Fact]
+    public async Task GetSchemaForeignKeysAsync_ShouldFail_WhenObjectIsRoutine()
+    {
+        var result = await _fx.SchemaService.GetSchemaForeignKeysAsync(_db, "dbo.spSysTan", TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.InvalidDetailQueryTypeCode, result.Error.Code);
+    }
+
+    [Fact]
+    public async Task GetSchemaIndexesAsync_ShouldFail_WhenObjectIsRoutine()
+    {
+        var result = await _fx.SchemaService.GetSchemaIndexesAsync(_db, "dbo.spSysTan", TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.InvalidDetailQueryTypeCode, result.Error.Code);
+    }
+
+    [Fact]
+    public async Task GetSchemaConstraintsAsync_ShouldFail_WhenObjectIsRoutine()
+    {
+        var result = await _fx.SchemaService.GetSchemaConstraintsAsync(_db, "dbo.spSysTan", TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.InvalidDetailQueryTypeCode, result.Error.Code);
+    }
+
     private static int CountMarkdownDataRows(string markdown)
     {
         if (string.IsNullOrEmpty(markdown)) return 0;

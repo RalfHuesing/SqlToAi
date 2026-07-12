@@ -36,7 +36,7 @@ Strikte Leitplanken für die Code-Erstellung, Sicherheitsprüfungen, Architektur
   - Automatisches Auslesen der native `MS_Description` Extended Properties aus SQL Server (Default-Provider).
   - Optionaler Custom-Provider mit parallelen Queries (`TableMetadataQuery`, `ColumnMetadataQuery`).
 - **Standardisierte Fehlerbehandlung (Error-Catalog):**
-  - Alle Fehler müssen einem Code aus dem Katalog (`SQL-AI-0001` bis `SQL-AI-0109`) entsprechen.
+  - Alle Fehler müssen einem Code aus dem Katalog (`SQL-AI-0001` bis `SQL-AI-0110`) entsprechen.
 
 ## 3. Windows-Umgebung & Tool-Regeln
 

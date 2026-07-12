@@ -133,6 +133,7 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Argumente:** `search_term` (String, Pflicht), `max_results` (Int, optional), `object_type` (String, optional), `database` (String, optional)
 * **Zweck:** Sucht nach Objektnamen (Tabellen, Sichten, Prozeduren, Trigger) in `sys.objects` der Zieldatenbank per `LIKE %search_term%`.
 * **`object_type`:** Optionaler Filter auf `type_desc` (z. B. `USER_TABLE`, `VIEW`, `SQL_STORED_PROCEDURE`, `SQL_TRIGGER`, `SQL_SCALAR_FUNCTION`), unterstützt LIKE-Wildcards (z. B. `SQL_%`). Nützlich, um gezielt nach Tabellen statt einer Mischung aus Tabellen, Constraints und Triggern zu suchen.
+* **Ranking ohne `object_type`:** Tabellen, Sichten, Prozeduren/Funktionen und Trigger werden vor Constraint-Objekten (`FOREIGN_KEY_CONSTRAINT`, `PRIMARY_KEY_CONSTRAINT`, `DEFAULT_CONSTRAINT`, `CHECK_CONSTRAINT`) einsortiert, da letztere zahlenmäßig meist überwiegen und alphabetisch vor `USER_TABLE` sortieren würden.
 
 ### 5. `sql_get_schema`
 * **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
@@ -144,14 +145,17 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 ### 6. `sql_get_schema_foreign_keys`
 * **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
 * **Zweck:** Progressive Disclosure: Liefert alle ausgehenden und eingehenden Fremdschlüssel einer Tabelle als Markdown-Tabelle.
+* **Typ-Prüfung:** Nur für Tabellen und Sichten zulässig; bei anderen Objekttypen (z. B. Prozeduren) schlägt der Aufruf mit `SQL-AI-0110` fehl, statt fälschlich ein leeres Ergebnis zu liefern.
 
 ### 7. `sql_get_schema_indexes`
 * **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
 * **Zweck:** Liefert alle Indizes (PK, Unique, Non-Clustered) inklusive Schlüssel- und `INCLUDE`-Spalten als Markdown.
+* **Typ-Prüfung:** Nur für Tabellen und Sichten zulässig; siehe `SQL-AI-0110` oben.
 
 ### 8. `sql_get_schema_constraints`
 * **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
 * **Zweck:** Liefert alle Default- und Check-Constraints inklusive ihrer Definitionstexte als Markdown.
+* **Typ-Prüfung:** Nur für Tabellen und Sichten zulässig; siehe `SQL-AI-0110` oben.
 
 ### 9. `sql_get_trigger_definition`
 * **Argumente:** `object_name` (Parent, Pflicht), `trigger_name` (Trigger, Pflicht), `database` (String, optional)
@@ -190,6 +194,7 @@ Tritt bei der Ausführung eines Tools ein Fehler auf, wird das Tool-Ergebnis als
 | **SQL-AI-0107** | Schreiboperation blockiert | Ein mutierendes Statement wurde im Read-Only-Modus abgewiesen oder der Zugriff auf Datenabfragen wurde durch das Access-Level `SchemaOnly` blockiert. |
 | **SQL-AI-0108** | Ungültiger Typ für Referenzen | Objektreferenzen können nur für Tabellen (`TABLE`) und Sichten (`VIEW`) abgefragt werden. |
 | **SQL-AI-0109** | Ungültiger Typ für Parameter | Routine-Parameter können nur für Prozeduren (`PROCEDURE`) und Funktionen (`FUNCTION`) gelesen werden. |
+| **SQL-AI-0110** | Ungültiger Typ für Detailabfrage | Fremdschlüssel, Indizes und Constraints können nur für Tabellen (`TABLE`) und Sichten (`VIEW`) abgefragt werden. |
 
 ---
 

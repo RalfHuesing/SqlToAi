@@ -12,8 +12,38 @@ internal static class DetailSchemaRenderer
     private const string DdlUnavailableNote =
         "*Definition not available — either the object is encrypted, or the configured login lacks VIEW DEFINITION permission on it.*";
 
-    public static async Task<string> GetSchemaForeignKeysAsync(DbConnection connection, string tableName, string databaseName, CancellationToken cancellationToken)
+    /// <summary>
+    /// Verifies the object exists and is a table or view. Used by the foreign-key/index/constraint
+    /// detail queries, which only make sense for tables (and indexed views) — without this check,
+    /// calling them on a procedure or function silently returns an empty "not found" result instead
+    /// of signalling that the object type itself is wrong.
+    /// </summary>
+    private static async Task<Result<string>?> ValidateTableOrViewAsync(DbConnection connection, string objectName, CancellationToken cancellationToken)
     {
+        string? objectType = await connection.QueryFirstOrDefaultAsync<string>(
+            new CommandDefinition("SELECT RTRIM(type) FROM sys.objects WHERE object_id = OBJECT_ID(@ObjectName)", new { ObjectName = objectName }, cancellationToken: cancellationToken));
+
+        if (string.IsNullOrEmpty(objectType))
+        {
+            return SqlToAiError.ObjectNotFound(objectName);
+        }
+
+        if (objectType != "U" && objectType != "V")
+        {
+            return SqlToAiError.InvalidDetailQueryType(objectName);
+        }
+
+        return null;
+    }
+
+    public static async Task<Result<string>> GetSchemaForeignKeysAsync(DbConnection connection, string tableName, string databaseName, CancellationToken cancellationToken)
+    {
+        var typeCheck = await ValidateTableOrViewAsync(connection, tableName, cancellationToken);
+        if (typeCheck is not null)
+        {
+            return typeCheck;
+        }
+
         string sql = """
             SELECT 
                 fk.name AS ForeignKeyName,
@@ -52,8 +82,14 @@ internal static class DetailSchemaRenderer
         return $"# Foreign Keys for `{tableName}`\n\n" + RenderMarkdownTable(["FK Name", "Source Column", "Dir", "Reference Column"], renderedRows);
     }
 
-    public static async Task<string> GetSchemaIndexesAsync(DbConnection connection, string tableName, string databaseName, CancellationToken cancellationToken)
+    public static async Task<Result<string>> GetSchemaIndexesAsync(DbConnection connection, string tableName, string databaseName, CancellationToken cancellationToken)
     {
+        var typeCheck = await ValidateTableOrViewAsync(connection, tableName, cancellationToken);
+        if (typeCheck is not null)
+        {
+            return typeCheck;
+        }
+
         string sql = """
             SELECT 
                 i.name AS IndexName,
@@ -111,8 +147,14 @@ internal static class DetailSchemaRenderer
         return $"# Indexes for `{tableName}`\n\n" + RenderMarkdownTable(["Index Name", "Type", "Property", "Keys", "Included Columns"], renderedRows);
     }
 
-    public static async Task<string> GetSchemaConstraintsAsync(DbConnection connection, string tableName, string databaseName, CancellationToken cancellationToken)
+    public static async Task<Result<string>> GetSchemaConstraintsAsync(DbConnection connection, string tableName, string databaseName, CancellationToken cancellationToken)
     {
+        var typeCheck = await ValidateTableOrViewAsync(connection, tableName, cancellationToken);
+        if (typeCheck is not null)
+        {
+            return typeCheck;
+        }
+
         string defaultSql = """
             SELECT 
                 dc.name AS ConstraintName,
