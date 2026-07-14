@@ -78,6 +78,9 @@ Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server
 
 * **Konfiguration:**
   ```json
+  "Databases": {
+    "AnonymizerExclusionSql": "SELECT TableName, ColumnName FROM dbo.AnonymizerExclusions"
+  },
   "Anonymizer": {
     "Enabled": true,
     "DefaultMode": "ScramblePattern",
@@ -85,7 +88,9 @@ Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server
   }
   ```
 * **Verhalten:**
-  Spalten, die auf eines der Muster in `ExcludedColumns` passen, werden *nie* anonymisiert. Alle anderen String-Spalten werden anonymisiert, sofern `Enabled: true` ist und das AccessLevel der Zieldatenbank `ReadOnlyAnonymized` ergibt.
+  Spalten, die auf eines der Muster in `ExcludedColumns` passen, werden *nie* anonymisiert. Ebenso werden Spalten von der Anonymisierung ausgenommen, die über das datenbankspezifische `AnonymizerExclusionSql` als Ausnahme zurückgegeben werden. Alle anderen String-Spalten werden anonymisiert, sofern `Enabled: true` ist und das AccessLevel der Zieldatenbank `ReadOnlyAnonymized` ergibt.
+* **Datenbank-spezifische Ausnahmen (`AnonymizerExclusionSql`):**
+  Über diese Option kann eine SQL-Abfrage definiert werden, die in der jeweiligen Datenbank ausgeführt wird (Unterstützung für SQL-Dateipfade analog zu `AccessCheckSql` ist gegeben). Die Abfrage muss zwei Spalten zurückgeben: die erste enthält den Tabellennamen (z. B. `Kunden`), die zweite den Spaltennamen (z. B. `Name`). Die entsprechenden Felder bleiben bei Abfrageergebnissen im Klartext.
 * **Algorithmen:**
   * **ScramblePattern:** Erhält das strukturelle Muster des Strings. Großbuchstaben werden durch ein zufälliges `'X'`, Kleinbuchstaben durch `'x'` und Ziffern durch `'9'` ersetzt (z. B. `Max.Mustermann@mail.de` $\rightarrow$ `Xxx.Xxxxxxxxxx@xxxx.xx`). E-Mail-Adressen, Postleitzahlen und Telefonnummern bleiben für die KI strukturell erkennbar, enthalten aber keinerlei PII mehr.
   * **Hash (Consistency-Hashing):** Generiert einen eindeutigen, reproduzierbaren SHA-256-Hash-Wert pro Text. Dadurch bleiben Relationen und Gruppen (z. B. gleiche Kundennamen in verschiedenen Tabellen) für das LLM logisch verknüpfbar.

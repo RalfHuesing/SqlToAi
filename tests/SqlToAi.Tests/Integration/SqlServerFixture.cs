@@ -38,6 +38,7 @@ public sealed class SqlServerFixture
     public QueryExecutionService QueryExecutionService { get; }
     public QueryValidationService QueryValidationService { get; }
     public Anonymizer Anonymizer { get; }
+    public AnonymizerExclusionProvider AnonymizerExclusionProvider { get; }
 
     public SqlServerFixture()
     {
@@ -61,10 +62,11 @@ public sealed class SqlServerFixture
         ConnectionFactory   = new SqlConnectionFactory(optionsWrapper);
         SecurityGuard       = new SecurityGuard(optionsWrapper);
         AccessLevelProvider = new AccessLevelProvider(ConnectionFactory, optionsWrapper, NullLogger<AccessLevelProvider>.Instance);
+        AnonymizerExclusionProvider = new AnonymizerExclusionProvider(ConnectionFactory, optionsWrapper, NullLogger<AnonymizerExclusionProvider>.Instance);
         ReadOnlyGuard       = new ReadOnlyGuard();
         MetadataProvider    = new MetadataProvider(ConnectionFactory, optionsWrapper, NullLogger<MetadataProvider>.Instance);
         SchemaService       = new SchemaService(ConnectionFactory, SecurityGuard, AccessLevelProvider, MetadataProvider, optionsWrapper, NullLogger<SchemaService>.Instance);
-        QueryExecutionService = new QueryExecutionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, new Anonymizer(optionsWrapper), optionsWrapper, NullLogger<QueryExecutionService>.Instance);
+        QueryExecutionService = new QueryExecutionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, new Anonymizer(optionsWrapper), optionsWrapper, NullLogger<QueryExecutionService>.Instance, AnonymizerExclusionProvider);
         QueryValidationService = new QueryValidationService(ConnectionFactory, SecurityGuard, AccessLevelProvider, optionsWrapper, NullLogger<QueryValidationService>.Instance);
         Anonymizer          = new Anonymizer(optionsWrapper);
     }

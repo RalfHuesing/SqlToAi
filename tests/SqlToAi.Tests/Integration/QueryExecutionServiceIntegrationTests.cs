@@ -5,6 +5,7 @@ using SqlToAi.Configuration;
 using SqlToAi.Database;
 using SqlToAi.Domain;
 using SqlToAi.Security;
+using Dapper;
 
 namespace SqlToAi.Tests.Integration;
 
@@ -171,17 +172,19 @@ public sealed class QueryExecutionServiceIntegrationTests
         }
     };
 
-    private QueryExecutionService BuildExecutionServiceWithOptions(SqlToAi.Configuration.SqlToAiOptions options)
+    private QueryExecutionService BuildExecutionServiceWithOptions(SqlToAi.Configuration.SqlToAiOptions options, IAccessLevelProvider? customAccessProvider = null)
     {
         var optionsWrapper = Microsoft.Extensions.Options.Options.Create(options);
+        var exclusionProvider = new AnonymizerExclusionProvider(_fx.ConnectionFactory, optionsWrapper, Microsoft.Extensions.Logging.Abstractions.NullLogger<AnonymizerExclusionProvider>.Instance);
         return new QueryExecutionService(
             _fx.ConnectionFactory,
             _fx.SecurityGuard,
-            _fx.AccessLevelProvider,
+            customAccessProvider ?? _fx.AccessLevelProvider,
             _fx.ReadOnlyGuard,
             new Anonymizer(optionsWrapper),
             optionsWrapper,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryExecutionService>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryExecutionService>.Instance,
+            exclusionProvider);
     }
 
     private static int CountNonEmptyLines(string s) =>
@@ -191,5 +194,69 @@ public sealed class QueryExecutionServiceIntegrationTests
     {
         public Task<AccessLevel> GetAccessLevelAsync(string databaseName, CancellationToken cancellationToken = default)
             => Task.FromResult(level);
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldRespectDatabaseExclusions_AgainstRealTable()
+    {
+        // 1. Arrange
+        // Create AnonymizerExclusions table and add FakeProjects.ProjectName exclusion
+        using (var connection = _fx.ConnectionFactory.CreateConnection(_db))
+        {
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+
+            // Create table
+            await connection.ExecuteAsync(@"
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[AnonymizerExclusions]') AND type in (N'U'))
+                BEGIN
+                    CREATE TABLE [dbo].[AnonymizerExclusions] (
+                        [TableName] NVARCHAR(255) NOT NULL,
+                        [ColumnName] NVARCHAR(255) NOT NULL,
+                        CONSTRAINT [PK_AnonymizerExclusions] PRIMARY KEY CLUSTERED ([TableName] ASC, [ColumnName] ASC)
+                    );
+                END");
+
+            // Insert exclusion
+            await connection.ExecuteAsync(@"
+                IF NOT EXISTS (SELECT * FROM [dbo].[AnonymizerExclusions] WHERE [TableName] = 'FakeProjects' AND [ColumnName] = 'ProjectName')
+                BEGIN
+                    INSERT INTO [dbo].[AnonymizerExclusions] ([TableName], [ColumnName])
+                    VALUES ('FakeProjects', 'ProjectName');
+                END");
+
+            // Insert test project always
+            await connection.ExecuteAsync(@"
+                INSERT INTO [dbo].[FakeProjects] (ProjectName, Mandant, Description, StartDate, Status)
+                VALUES ('UnanonymizedProjectName', 1, 'ThisIsSecretDescription', GETDATE(), 'Active')");
+        }
+
+        // Configure options to use our exclusion SQL
+        var options = CloneOptions();
+        options.Databases.AnonymizerExclusionSql = "SELECT TableName, ColumnName FROM dbo.AnonymizerExclusions";
+
+        // We build the custom execution service with these options and mock access level to force anonymization
+        var customAccessProvider = new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized);
+        var service = BuildExecutionServiceWithOptions(options, customAccessProvider);
+
+        // 2. Act
+        var result = await service.ExecuteQueryAsync(
+            _db,
+            "SELECT ProjectName, Description FROM dbo.FakeProjects WHERE ProjectName = 'UnanonymizedProjectName'",
+            null,
+            TestContext.Current.CancellationToken);
+
+        // 3. Clean up
+        using (var connection = _fx.ConnectionFactory.CreateConnection(_db))
+        {
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await connection.ExecuteAsync("DELETE FROM [dbo].[FakeProjects] WHERE [ProjectName] = 'UnanonymizedProjectName'");
+            await connection.ExecuteAsync("DELETE FROM [dbo].[AnonymizerExclusions] WHERE [TableName] = 'FakeProjects' AND [ColumnName] = 'ProjectName'");
+        }
+
+        // 4. Assert
+        Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
+        Assert.NotEmpty(result.Value.Data);
+        Assert.Contains("UnanonymizedProjectName", result.Value.Data);
+        Assert.DoesNotContain("ThisIsSecretDescription", result.Value.Data);
     }
 }

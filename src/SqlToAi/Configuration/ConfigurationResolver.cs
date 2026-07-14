@@ -40,6 +40,7 @@ public static class ConfigurationResolver
         if (options.Databases != null)
         {
             options.Databases.AccessCheckSql = Expand(options.Databases.AccessCheckSql);
+            options.Databases.AnonymizerExclusionSql = Expand(options.Databases.AnonymizerExclusionSql);
             ExpandListInPlace(options.Databases.Allowed);
             ExpandListInPlace(options.Databases.Blocked);
         }
@@ -78,6 +79,7 @@ public static class ConfigurationResolver
         if (options.Databases != null)
         {
             options.Databases.AccessCheckSql = ResolveValue(options.Databases.AccessCheckSql);
+            options.Databases.AnonymizerExclusionSql = ResolveValue(options.Databases.AnonymizerExclusionSql);
         }
 
         if (options.MetadataProvider != null)

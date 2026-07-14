@@ -34,12 +34,28 @@ public sealed class Anonymizer : IAnonymizer
     /// <returns>The anonymized value, or the original value if anonymization is disabled or excluded.</returns>
     public string Anonymize(string columnName, string originalValue)
     {
+        return Anonymize(columnName, originalValue, null, null);
+    }
+
+    /// <inheritdoc/>
+    public string Anonymize(string columnName, string originalValue, string? tableName, HashSet<string>? dbExclusions)
+    {
         if (!_options.Anonymizer.Enabled || string.IsNullOrEmpty(originalValue))
         {
             return originalValue;
         }
 
-        // 1. Check if column matches any exclusion pattern
+        // 1. Check database-specific exclusions first (TableName.ColumnName)
+        if (dbExclusions != null && !string.IsNullOrEmpty(tableName))
+        {
+            string key = $"{tableName}.{columnName}";
+            if (dbExclusions.Contains(key))
+            {
+                return originalValue;
+            }
+        }
+
+        // 2. Check global exclusion patterns
         foreach (string excludedPattern in _options.Anonymizer.ExcludedColumns)
         {
             if (MatchesPattern(columnName, excludedPattern))
@@ -48,7 +64,7 @@ public sealed class Anonymizer : IAnonymizer
             }
         }
 
-        // 2. Pauschale Anonymisierung: every non-excluded string column is anonymized with the
+        // 3. Pauschale Anonymisierung: every non-excluded string column is anonymized with the
         //    configured default mode. Per-database opt-out is handled at the AccessLevel layer
         //    (ReadOnlyAnonymized vs ReadOnly) — the Anonymizer is only ever invoked when the
         //    access level already decided "yes, anonymize".

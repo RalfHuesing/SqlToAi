@@ -137,4 +137,29 @@ public sealed class AnonymizerTests
         Assert.NotEqual("Nice project", val2);
         Assert.Equal("123", valExcluded);
     }
+
+    [Fact]
+    public void Anonymize_ShouldRespectDatabaseExclusions_WhenProvided()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.Anonymizer.Enabled = true;
+        options.Anonymizer.ExcludedColumns = new List<string> { "Id" };
+        var anonymizer = new Anonymizer(Options.Create(options));
+
+        var dbExclusions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "FakeProjects.ProjectName"
+        };
+
+        // Act
+        // 1. Matched database-specific exclusion -> should NOT be anonymized
+        var excludedVal = anonymizer.Anonymize("ProjectName", "SecretProject", "FakeProjects", dbExclusions);
+        // 2. Not matched database-specific exclusion -> should be anonymized
+        var normalVal = anonymizer.Anonymize("Description", "SecretDescription", "FakeProjects", dbExclusions);
+
+        // Assert
+        Assert.Equal("SecretProject", excludedVal);
+        Assert.NotEqual("SecretDescription", normalVal);
+    }
 }

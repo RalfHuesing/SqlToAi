@@ -39,6 +39,7 @@ public sealed class DatabasesOptions
     public List<string> Blocked { get; set; } = [];
     public int CacheTtlSeconds { get; set; } = 300;
     public string AccessCheckSql { get; set; } = string.Empty;
+    public string AnonymizerExclusionSql { get; set; } = string.Empty;
 }
 
 /// <summary>

@@ -33,6 +33,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
     private readonly IAccessLevelProvider _accessLevelProvider;
     private readonly IReadOnlyGuard _readOnlyGuard;
     private readonly IAnonymizer _anonymizer;
+    private readonly IAnonymizerExclusionProvider? _anonymizerExclusionProvider;
     private readonly QueryExecutionOptions _options;
     private readonly string _anonymizationMode;
     private readonly ILogger<QueryExecutionService> _logger;
@@ -45,13 +46,15 @@ public sealed class QueryExecutionService : IQueryExecutionService
         IReadOnlyGuard readOnlyGuard,
         IAnonymizer anonymizer,
         IOptions<SqlToAiOptions> options,
-        ILogger<QueryExecutionService> logger)
+        ILogger<QueryExecutionService> logger,
+        IAnonymizerExclusionProvider? anonymizerExclusionProvider = null)
     {
         _connectionFactory = connectionFactory;
         _securityGuard = securityGuard;
         _accessLevelProvider = accessLevelProvider;
         _readOnlyGuard = readOnlyGuard;
         _anonymizer = anonymizer;
+        _anonymizerExclusionProvider = anonymizerExclusionProvider;
         _options = options.Value.QueryExecution;
         _anonymizationMode = options.Value.Anonymizer.DefaultMode;
         _logger = logger;
@@ -132,7 +135,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
             Result<QueryExecutionResult> result;
             try
             {
-                result = await ExecuteAndSerializeAsync(connection, transaction, query, effectiveLimit, anonymize, cancellationToken);
+                result = await ExecuteAndSerializeAsync(connection, transaction, query, effectiveLimit, anonymize, databaseName, cancellationToken);
             }
             catch
             {
@@ -175,6 +178,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
         string query,
         int rowLimit,
         bool anonymize,
+        string databaseName,
         CancellationToken cancellationToken)
     {
         using var command = connection.CreateCommand();
@@ -182,13 +186,22 @@ public sealed class QueryExecutionService : IQueryExecutionService
         command.Transaction = transaction;
         command.CommandTimeout = 0; // governed by caller's CancellationToken
 
-        using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, cancellationToken);
+        using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess | CommandBehavior.KeyInfo, cancellationToken);
 
         var columnNames = GetColumnNames(reader);
         var sb = new StringBuilder();
         int rowCount = 0;
         bool wasAnonymized = false;
         var anonymizedColumns = new List<string>();
+
+        HashSet<string>? exclusions = null;
+        string?[]? baseTableNames = null;
+
+        if (anonymize && _anonymizerExclusionProvider != null)
+        {
+            exclusions = await _anonymizerExclusionProvider.GetExclusionsAsync(databaseName, cancellationToken);
+            baseTableNames = GetBaseTableNames(reader);
+        }
 
         while (rowCount < rowLimit && await reader.ReadAsync(cancellationToken))
         {
@@ -200,7 +213,8 @@ public sealed class QueryExecutionService : IQueryExecutionService
 
                 if (anonymize && raw is string strVal)
                 {
-                    string anonymizedValue = _anonymizer.Anonymize(columnNames[i], strVal);
+                    string? tableName = baseTableNames != null && i < baseTableNames.Length ? baseTableNames[i] : null;
+                    string anonymizedValue = _anonymizer.Anonymize(columnNames[i], strVal, tableName, exclusions);
                     if (anonymizedValue != strVal)
                     {
                         wasAnonymized = true;
@@ -225,6 +239,36 @@ public sealed class QueryExecutionService : IQueryExecutionService
         }
 
         return new QueryExecutionResult(sb.ToString().TrimEnd(), wasAnonymized, anonymizedColumns, _anonymizationMode);
+    }
+
+    private static string?[] GetBaseTableNames(DbDataReader reader)
+    {
+        var names = new string?[reader.FieldCount];
+        try
+        {
+            var schemaTable = reader.GetSchemaTable();
+            if (schemaTable != null)
+            {
+                bool hasOrdinal = schemaTable.Columns.Contains("ColumnOrdinal");
+                bool hasBaseTable = schemaTable.Columns.Contains("BaseTableName");
+
+                for (int i = 0; i < schemaTable.Rows.Count; i++)
+                {
+                    var row = schemaTable.Rows[i];
+                    int ordinal = hasOrdinal ? Convert.ToInt32(row["ColumnOrdinal"], System.Globalization.CultureInfo.InvariantCulture) : i;
+
+                    if (ordinal >= 0 && ordinal < names.Length && hasBaseTable)
+                    {
+                        names[ordinal] = row["BaseTableName"]?.ToString();
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Safe fallback
+        }
+        return names;
     }
 
     private static string[] GetColumnNames(DbDataReader reader)

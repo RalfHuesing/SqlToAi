@@ -39,7 +39,7 @@ output. The root section is `SqlToAi`, which contains the following sub-sections
 
 | Section | Purpose |
 | :--- | :--- |
-| `Databases` | Static whitelist (`Allowed`/`Blocked`), `AccessCheckSql` for the dynamic permission probe, and `CacheTtlSeconds`. |
+| `Databases` | Static whitelist (`Allowed`/`Blocked`), `AccessCheckSql` for the dynamic permission probe, `AnonymizerExclusionSql` for database-specific exceptions, and `CacheTtlSeconds`. |
 | `SqlServer` | Connection parameters (`Server`, `IntegratedSecurity`, `UserId`, `Password`, `CommandTimeoutSeconds`). Values support environment variable interpolation (e.g. `%COMPUTERNAME%`). |
 | `Anonymizer` | Master switch (`Enabled`), the algorithm (`DefaultMode`: `ScramblePattern` or `Hash`), and the list of column-name patterns that must NOT be anonymized (`ExcludedColumns`). |
 | `MetadataProvider` | Optional custom queries and separate database credentials (`Server`, `UserId`, `Password`, `IntegratedSecurity`, etc.) for table/column documentation enrichment. |
@@ -68,7 +68,8 @@ The server picks credentials in this order (first match wins):
       "Default": "MyDemoDatabase",
       "Allowed": ["Demo_*", "TestDb", "Reporting_ReadOnly"],
       "Blocked": ["master", "msdb", "tempdb", "model"],
-      "AccessCheckSql": "SELECT CASE WHEN SYSTEM_USER = 'readonly_ai' THEN 'ReadOnly' ELSE 'None' END AS AccessLevel"
+      "AccessCheckSql": "SELECT CASE WHEN SYSTEM_USER = 'readonly_ai' THEN 'ReadOnly' ELSE 'None' END AS AccessLevel",
+      "AnonymizerExclusionSql": "SELECT TableName, ColumnName FROM dbo.AnonymizerExclusions"
     },
     "SqlServer": {
       "Server": "%COMPUTERNAME%\\MSSQLSERVER",

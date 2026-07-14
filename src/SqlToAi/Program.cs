@@ -72,6 +72,7 @@ internal static class Program
 
             // Anonymization
             services.AddSingleton<IAnonymizer, Anonymizer>();
+            services.AddSingleton<IAnonymizerExclusionProvider, AnonymizerExclusionProvider>();
 
             // MCP
             services.AddSingleton<ToolRegistry>();
