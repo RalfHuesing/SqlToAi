@@ -26,7 +26,7 @@ public interface IQueryExecutionService
     /// A <see cref="Result{T}"/> containing a JSON-lines string (one JSON object per row) on success,
     /// or a structured error on failure.
     /// </returns>
-    Task<Result<string>> ExecuteQueryAsync(
+    Task<Result<QueryExecutionResult>> ExecuteQueryAsync(
         string databaseName,
         string query,
         int? requestedRowLimit,

@@ -194,6 +194,42 @@ public sealed class ToolDispatcherTests
         Assert.Equal(50, exec.LastRowLimit);
     }
 
+    [Fact]
+    public async Task ExecuteQuery_ShouldReturnSingleContentBlock_WhenNotAnonymized()
+    {
+        var exec = new FakeQueryExecutionService(wasAnonymized: false);
+        var dispatcher = BuildDispatcher(exec: exec);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExecuteQuery,
+                (McpConstants.ArgQuery, "SELECT 1"),
+                (McpConstants.ArgDatabase, TestConstants.DatabaseName)),
+            TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsError);
+        Assert.Single(result.Content);
+        Assert.Equal("{\"Col\":1}", result.Content[0].Text);
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_ShouldReturnTwoContentBlocks_WhenAnonymized()
+    {
+        var exec = new FakeQueryExecutionService(wasAnonymized: true);
+        var dispatcher = BuildDispatcher(exec: exec);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExecuteQuery,
+                (McpConstants.ArgQuery, "SELECT 1"),
+                (McpConstants.ArgDatabase, TestConstants.DatabaseName)),
+            TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsError);
+        Assert.Equal(2, result.Content.Count);
+        Assert.Contains("anonymized (Mode: ScramblePattern)", result.Content[0].Text);
+        Assert.Contains("columns were anonymized: FirstName, Email", result.Content[0].Text);
+        Assert.Equal("{\"Col\":1}", result.Content[1].Text);
+    }
+
     // =========================================================================
     // Helpers
     // =========================================================================
@@ -253,18 +289,28 @@ public sealed class ToolDispatcherTests
         { LastDatabase = db; return Task.FromResult(Result<string>.Success("# Params")); }
     }
 
-    private sealed class FakeQueryExecutionService(bool fail = false) : IQueryExecutionService
+    private sealed class FakeQueryExecutionService(bool fail = false, bool wasAnonymized = false) : IQueryExecutionService
     {
+        private static readonly string[] AnonymizedColumnsSample = new[] { "FirstName", "Email" };
+
         public bool ExecuteCalled { get; private set; }
         public int? LastRowLimit { get; private set; }
 
-        public Task<Result<string>> ExecuteQueryAsync(string db, string query, int? requestedRowLimit, CancellationToken ct = default)
+        public Task<Result<QueryExecutionResult>> ExecuteQueryAsync(string db, string query, int? requestedRowLimit, CancellationToken ct = default)
         {
             ExecuteCalled = true;
             LastRowLimit = requestedRowLimit;
-            return fail
-                ? Task.FromResult<Result<string>>(SqlToAiError.SafetyCheckFailed(db))
-                : Task.FromResult(Result<string>.Success("{\"Col\":1}"));
+            
+            if (fail)
+            {
+                return Task.FromResult<Result<QueryExecutionResult>>(SqlToAiError.SafetyCheckFailed(db));
+            }
+
+            var result = wasAnonymized
+                ? new QueryExecutionResult("{\"Col\":1}", true, AnonymizedColumnsSample, "ScramblePattern")
+                : new QueryExecutionResult("{\"Col\":1}", false, Array.Empty<string>(), "ScramblePattern");
+
+            return Task.FromResult(Result<QueryExecutionResult>.Success(result));
         }
     }
 

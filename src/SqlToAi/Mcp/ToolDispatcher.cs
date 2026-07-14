@@ -111,12 +111,45 @@ public sealed class ToolDispatcher : IToolDispatcher
                 CallAsync(() => _schemaService.GetRoutineParametersAsync(
                     GetDb(paramsObj), Require(paramsObj, McpConstants.ArgObjectName), ct)),
 
-            [McpConstants.ToolExecuteQuery] = (paramsObj, ct) =>
-                CallAsync(() => _queryExecutionService.ExecuteQueryAsync(
-                    GetDb(paramsObj),
-                    Require(paramsObj, McpConstants.ArgQuery),
-                    GetInt(paramsObj, McpConstants.ArgRequestedRowLimit),
-                    ct))
+            [McpConstants.ToolExecuteQuery] = async (paramsObj, ct) =>
+            {
+                Result<QueryExecutionResult> result;
+                try
+                {
+                    result = await _queryExecutionService.ExecuteQueryAsync(
+                        GetDb(paramsObj),
+                        Require(paramsObj, McpConstants.ArgQuery),
+                        GetInt(paramsObj, McpConstants.ArgRequestedRowLimit),
+                        ct);
+                }
+                catch (ArgumentException ex)
+                {
+                    return ToolCallResult.Failure(SqlToAiError.InvalidParametersCode, ex.Message);
+                }
+
+                if (result.IsFailure)
+                {
+                    return ToolCallResult.Failure(result.Error.Code, result.Error.Message);
+                }
+
+                var queryResult = result.Value;
+                if (queryResult.WasAnonymized)
+                {
+                    string columnsList = string.Join(", ", queryResult.AnonymizedColumns);
+                    string noteText = $"Note: The following query results have been anonymized (Mode: {queryResult.AnonymizationMode}) to protect PII. The following columns were anonymized: {columnsList}.";
+                    return new ToolCallResult
+                    {
+                        Content = new[]
+                        {
+                            new ToolContent { Type = "text", Text = noteText },
+                            new ToolContent { Type = "text", Text = queryResult.Data }
+                        },
+                        IsError = false
+                    };
+                }
+
+                return ToolCallResult.Success(queryResult.Data);
+            }
         };
     }
 

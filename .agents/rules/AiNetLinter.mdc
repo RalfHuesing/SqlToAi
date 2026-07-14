@@ -4,7 +4,7 @@ globs: *.cs
 alwaysApply: true
 ---
 # C#-Codequalität (AiNetLinter)
-Auto-generiert durch AiNetLinter 1.0.75 aus `C:\Daten\Entwicklung\Ralf\SqlToAi\tests\SqlToAi.Tests\AiNetLinter\rules\SqlToAi.rules.json`. Neuen Produktionscode direkt konform schreiben.
+Auto-generiert durch AiNetLinter 1.0.73 aus `C:\Daten\Entwicklung\Ralf\SqlToAi\tests\SqlToAi.Tests\AiNetLinter\rules\SqlToAi.rules.json`. Neuen Produktionscode direkt konform schreiben.
 
 ## Kurz-Stil
 - `sealed` für konkrete Klassen.

@@ -27,10 +27,10 @@ public sealed class QueryExecutionServiceIntegrationTests
         var result = await _fx.QueryExecutionService.ExecuteQueryAsync(_db, "SELECT 1 AS One, 'Hello' AS Status", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
-        Assert.NotEmpty(result.Value);
+        Assert.NotEmpty(result.Value.Data);
         // The output is a single JSON line with both columns
-        Assert.Contains("\"One\":1", result.Value);
-        Assert.Contains("Hello", result.Value);
+        Assert.Contains("\"One\":1", result.Value.Data);
+        Assert.Contains("Hello", result.Value.Data);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class QueryExecutionServiceIntegrationTests
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
-        Assert.NotEmpty(result.Value);
+        Assert.NotEmpty(result.Value.Data);
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public sealed class QueryExecutionServiceIntegrationTests
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
-        int lines = CountNonEmptyLines(result.Value);
+        int lines = CountNonEmptyLines(result.Value.Data);
         Assert.Equal(2, lines);
     }
 
@@ -119,7 +119,7 @@ public sealed class QueryExecutionServiceIntegrationTests
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
-        int lines = CountNonEmptyLines(result.Value);
+        int lines = CountNonEmptyLines(result.Value.Data);
         Assert.Equal(3, lines);
     }
 

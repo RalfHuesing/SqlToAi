@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 
 using System.Data;
 using System.Data.Common;
@@ -195,7 +195,7 @@ public sealed class QueryExecutionServiceTests
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
-        int lineCount = result.Value.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
+        int lineCount = result.Value.Data.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
         Assert.Equal(2, lineCount);
     }
 
@@ -211,7 +211,7 @@ public sealed class QueryExecutionServiceTests
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", 999, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
-        int lineCount = result.Value.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
+        int lineCount = result.Value.Data.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
         Assert.Equal(3, lineCount);
     }
 
@@ -232,7 +232,9 @@ public sealed class QueryExecutionServiceTests
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
-        Assert.DoesNotContain("Ralf Huesing", result.Value, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Ralf Huesing", result.Value.Data, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Value.WasAnonymized);
+        Assert.Contains("Name", result.Value.AnonymizedColumns);
     }
 
     [Fact]
@@ -249,7 +251,29 @@ public sealed class QueryExecutionServiceTests
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
-        Assert.Contains(original, result.Value, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(original, result.Value.Data, StringComparison.OrdinalIgnoreCase);
+        Assert.False(result.Value.WasAnonymized);
+        Assert.Empty(result.Value.AnonymizedColumns);
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldNotReportAnonymization_WhenAllStringColumnsAreExcluded()
+    {
+        var options = new SqlToAiOptions();
+        options.Anonymizer.Enabled = true;
+        options.Anonymizer.ExcludedColumns = new List<string> { "Name" };
+        var factory = new MockQueryConnectionFactory(stringValue: "123-ABC");
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+            new FakeReadOnlyGuard(true), new Anonymizer(Options.Create(options)),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        // Since the column name is Name (which matches exclusion), it is not anonymized
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
+        Assert.True(result.IsSuccess);
+        Assert.Contains("123-ABC", result.Value.Data);
+        Assert.False(result.Value.WasAnonymized);
+        Assert.Empty(result.Value.AnonymizedColumns);
     }
 
     // =========================================================================

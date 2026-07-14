@@ -178,7 +178,11 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Zweck:** Führt ein einzelnes SQL-SELECT-Statement aus.
 * **Einschränkung:** Nur ein einzelnes Statement erlaubt (Semikolon-Trennung mehrerer Queries führt zu Fehler `SQL-AI-0101`).
 * **Datenverarbeitung:** Anwendbare Limits greifen (Default: 100 Zeilen). String-Spalten werden anonymisiert, falls aktiviert und passend zu den Regeln.
-* **Berechtigungsprüfung:** Schlägt fehl mit `SQL-AI-0107`, falls das Access-Level der Datenbank nur `SchemaOnly` oder `None` is.
+* **Mehrfach-Content-Rückgabe bei Anonymisierung:** Wurden bei der Abfrage tatsächlich Spalten anonymisiert, liefert das Tool zwei Inhaltsblöcke (`Content` im MCP-Protokoll) zurück:
+  1. Einen Hinweis für das LLM, welche Spalten mit welchem Modus anonymisiert wurden.
+  2. Die eigentlichen JSON-Zeilen der Abfrageergebnisse.
+  Wurden keine Daten anonymisiert, wird nur der Datenblock zurückgegeben (spart Token).
+* **Berechtigungsprüfung:** Schlägt fehl mit `SQL-AI-0107`, falls das Access-Level der Datenbank nur `SchemaOnly` oder `None` ist.
 
 ---
 

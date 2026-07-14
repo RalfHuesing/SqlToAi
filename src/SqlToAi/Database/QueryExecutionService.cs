@@ -34,6 +34,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
     private readonly IReadOnlyGuard _readOnlyGuard;
     private readonly IAnonymizer _anonymizer;
     private readonly QueryExecutionOptions _options;
+    private readonly string _anonymizationMode;
     private readonly ILogger<QueryExecutionService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="QueryExecutionService"/>.</summary>
@@ -52,11 +53,12 @@ public sealed class QueryExecutionService : IQueryExecutionService
         _readOnlyGuard = readOnlyGuard;
         _anonymizer = anonymizer;
         _options = options.Value.QueryExecution;
+        _anonymizationMode = options.Value.Anonymizer.DefaultMode;
         _logger = logger;
     }
 
     /// <inheritdoc/>
-    public async Task<Result<string>> ExecuteQueryAsync(
+    public async Task<Result<QueryExecutionResult>> ExecuteQueryAsync(
         string databaseName,
         string query,
         int? requestedRowLimit,
@@ -113,7 +115,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
             databaseName, query, effectiveLimit, anonymize, writeAllowed, cancellationToken);
     }
 
-    private async Task<Result<string>> ExecuteQueryInTransactionAsync(
+    private async Task<Result<QueryExecutionResult>> ExecuteQueryInTransactionAsync(
         string databaseName,
         string query,
         int effectiveLimit,
@@ -127,7 +129,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
             await connection.OpenAsync(cancellationToken);
 
             using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
-            Result<string> result;
+            Result<QueryExecutionResult> result;
             try
             {
                 result = await ExecuteAndSerializeAsync(connection, transaction, query, effectiveLimit, anonymize, cancellationToken);
@@ -167,7 +169,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
     // Private helpers
     // -------------------------------------------------------------------------
 
-    private async Task<Result<string>> ExecuteAndSerializeAsync(
+    private async Task<Result<QueryExecutionResult>> ExecuteAndSerializeAsync(
         DbConnection connection,
         DbTransaction transaction,
         string query,
@@ -185,6 +187,8 @@ public sealed class QueryExecutionService : IQueryExecutionService
         var columnNames = GetColumnNames(reader);
         var sb = new StringBuilder();
         int rowCount = 0;
+        bool wasAnonymized = false;
+        var anonymizedColumns = new List<string>();
 
         while (rowCount < rowLimit && await reader.ReadAsync(cancellationToken))
         {
@@ -196,7 +200,16 @@ public sealed class QueryExecutionService : IQueryExecutionService
 
                 if (anonymize && raw is string strVal)
                 {
-                    raw = _anonymizer.Anonymize(columnNames[i], strVal);
+                    string anonymizedValue = _anonymizer.Anonymize(columnNames[i], strVal);
+                    if (anonymizedValue != strVal)
+                    {
+                        wasAnonymized = true;
+                        if (!anonymizedColumns.Contains(columnNames[i]))
+                        {
+                            anonymizedColumns.Add(columnNames[i]);
+                        }
+                    }
+                    raw = anonymizedValue;
                 }
 
                 rowDict[columnNames[i]] = raw;
@@ -208,10 +221,10 @@ public sealed class QueryExecutionService : IQueryExecutionService
 
         if (rowCount == 0)
         {
-            return "[]";
+            return new QueryExecutionResult("[]", false, Array.Empty<string>(), _anonymizationMode);
         }
 
-        return sb.ToString().TrimEnd();
+        return new QueryExecutionResult(sb.ToString().TrimEnd(), wasAnonymized, anonymizedColumns, _anonymizationMode);
     }
 
     private static string[] GetColumnNames(DbDataReader reader)
