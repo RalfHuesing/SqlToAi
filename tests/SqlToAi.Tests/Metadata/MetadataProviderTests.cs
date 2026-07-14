@@ -16,6 +16,7 @@ namespace SqlToAi.Tests.Metadata;
 public sealed class MetadataProviderTests
 {
     private static readonly Type TargetType = typeof(MetadataProvider);
+    public static string? LastTableNameParameter { get; set; }
 
     [Fact]
     public async Task GetTableDescriptionAsync_ShouldReturnNull_WhenDisabled()
@@ -77,6 +78,73 @@ public sealed class MetadataProviderTests
         Assert.Equal(2, result.Count);
         Assert.Equal("Primary Key", result["Id"]);
         Assert.Equal("Customer Name", result["Name"]);
+    }
+
+    [Fact]
+    public void CreateConnection_ShouldUseConfiguredDatabase_WhenDatabaseIsSpecified()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.MetadataProvider.Enabled = true;
+        options.MetadataProvider.Database = "CustomMetadataDb";
+
+        var mockFactory = new DummyConnectionFactory();
+        var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+
+        // Act
+        var method = typeof(MetadataProvider).GetMethod("CreateConnection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(method);
+        using var connection = (DbConnection)method.Invoke(provider, new object[] { "TargetDb" })!;
+
+        // Assert
+        Assert.NotNull(connection);
+        Assert.Equal(1, mockFactory.ConnectionCreatedCount);
+        Assert.Equal("CustomMetadataDb", mockFactory.LastDatabaseName);
+    }
+
+    [Fact]
+    public async Task GetTableDescriptionAsync_ShouldStripSchemaPrefix_WhenCustomQueryIsUsed()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.MetadataProvider.Enabled = true;
+        options.MetadataProvider.TableMetadataQuery = "SELECT Description FROM TableMetadata WHERE TableName = @TableName";
+
+        var mockConn = new MockMetadataConnection(tableDesc: "Metadata description");
+        var mockFactory = new DummyConnectionFactory(mockConn);
+        var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+
+        LastTableNameParameter = null;
+
+        // Act
+        var desc = await provider.GetTableDescriptionAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("Metadata description", desc);
+        Assert.Equal("Customers", LastTableNameParameter);
+    }
+
+    [Fact]
+    public async Task GetColumnDescriptionsAsync_ShouldStripSchemaPrefix_WhenCustomQueryIsUsed()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.MetadataProvider.Enabled = true;
+        options.MetadataProvider.ColumnMetadataQuery = "SELECT ColumnName, Description FROM ColumnMetadata WHERE TableName = @TableName";
+
+        var mockConn = new MockMetadataConnection(columnDescs: new Dictionary<string, string> { { "Col1", "Desc1" } });
+        var mockFactory = new DummyConnectionFactory(mockConn);
+        var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+
+        LastTableNameParameter = null;
+
+        // Act
+        var result = await provider.GetColumnDescriptionsAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Single(result);
+        Assert.Equal("Desc1", result["Col1"]);
+        Assert.Equal("Customers", LastTableNameParameter);
     }
 
     [Fact]
@@ -159,6 +227,7 @@ public sealed class MetadataProviderTests
     {
         private readonly DbConnection? _connectionToReturn;
         public int ConnectionCreatedCount { get; private set; }
+        public string? LastDatabaseName { get; private set; }
 
         public DummyConnectionFactory(DbConnection? connectionToReturn = null)
         {
@@ -168,6 +237,7 @@ public sealed class MetadataProviderTests
         public DbConnection CreateConnection(string? databaseName = null)
         {
             ConnectionCreatedCount++;
+            LastDatabaseName = databaseName;
             return _connectionToReturn ?? new MockMetadataConnection();
         }
     }
@@ -247,6 +317,14 @@ public sealed class MetadataProviderTests
 
         protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
         {
+            foreach (DbParameter param in _parameters)
+            {
+                if (param.ParameterName == "TableName")
+                {
+                    LastTableNameParameter = param.Value?.ToString();
+                }
+            }
+
             // If the query targets columns
             if (CommandText.Contains("sys.columns") || CommandText.Contains("ColumnName"))
             {

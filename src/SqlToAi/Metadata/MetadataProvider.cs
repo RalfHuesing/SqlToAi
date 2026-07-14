@@ -72,9 +72,23 @@ public sealed class MetadataProvider : IMetadataProvider
             return null;
         }
 
-        string sql = !string.IsNullOrWhiteSpace(_options.MetadataProvider.TableMetadataQuery)
-            ? _options.MetadataProvider.TableMetadataQuery
-            : NativeTableQuery;
+        string sql;
+        string queryTableName = tableName;
+
+        if (!string.IsNullOrWhiteSpace(_options.MetadataProvider.TableMetadataQuery))
+        {
+            sql = _options.MetadataProvider.TableMetadataQuery;
+            // Clean schema prefix from tableName for custom metadata queries (e.g. "dbo.KHKVKBelege" -> "KHKVKBelege")
+            int dotIndex = tableName.LastIndexOf('.');
+            if (dotIndex >= 0)
+            {
+                queryTableName = tableName[(dotIndex + 1)..];
+            }
+        }
+        else
+        {
+            sql = NativeTableQuery;
+        }
 
         try
         {
@@ -82,7 +96,7 @@ public sealed class MetadataProvider : IMetadataProvider
             await connection.OpenAsync(cancellationToken);
 
             string? description = await connection.QueryFirstOrDefaultAsync<string>(
-                new CommandDefinition(sql, new { TableName = tableName }, cancellationToken: cancellationToken));
+                new CommandDefinition(sql, new { TableName = queryTableName }, cancellationToken: cancellationToken));
 
             return description;
         }
@@ -109,9 +123,23 @@ public sealed class MetadataProvider : IMetadataProvider
             return dict;
         }
 
-        string sql = !string.IsNullOrWhiteSpace(_options.MetadataProvider.ColumnMetadataQuery)
-            ? _options.MetadataProvider.ColumnMetadataQuery
-            : NativeColumnQuery;
+        string sql;
+        string queryTableName = tableName;
+
+        if (!string.IsNullOrWhiteSpace(_options.MetadataProvider.ColumnMetadataQuery))
+        {
+            sql = _options.MetadataProvider.ColumnMetadataQuery;
+            // Clean schema prefix from tableName for custom metadata queries (e.g. "dbo.KHKVKBelege" -> "KHKVKBelege")
+            int dotIndex = tableName.LastIndexOf('.');
+            if (dotIndex >= 0)
+            {
+                queryTableName = tableName[(dotIndex + 1)..];
+            }
+        }
+        else
+        {
+            sql = NativeColumnQuery;
+        }
 
         try
         {
@@ -119,7 +147,7 @@ public sealed class MetadataProvider : IMetadataProvider
             await connection.OpenAsync(cancellationToken);
 
             var rows = await connection.QueryAsync<object>(
-                new CommandDefinition(sql, new { TableName = tableName }, cancellationToken: cancellationToken));
+                new CommandDefinition(sql, new { TableName = queryTableName }, cancellationToken: cancellationToken));
 
             foreach (var row in rows)
             {
@@ -156,14 +184,18 @@ public sealed class MetadataProvider : IMetadataProvider
 
     private DbConnection CreateConnection(string databaseName)
     {
+        string targetDb = !string.IsNullOrWhiteSpace(_options.MetadataProvider.Database)
+            ? _options.MetadataProvider.Database
+            : databaseName;
+
         // If separate connection parameters are configured for metadata, build it dynamically
         if (!string.IsNullOrWhiteSpace(_options.MetadataProvider.Server))
         {
             var builder = new SqlConnectionStringBuilder
             {
                 DataSource = _options.MetadataProvider.Server,
-                InitialCatalog = !string.IsNullOrWhiteSpace(databaseName)
-                    ? databaseName
+                InitialCatalog = !string.IsNullOrWhiteSpace(targetDb)
+                    ? targetDb
                     : throw new InvalidOperationException("MetadataProvider SQL connection error: Database name must be explicitly specified."),
                 ApplicationName = "SqlToAi-Metadata",
                 TrustServerCertificate = true, // Facilitate developer local connections
@@ -188,6 +220,6 @@ public sealed class MetadataProvider : IMetadataProvider
         }
 
         // Otherwise, use the standard connection factory for the target database
-        return _connectionFactory.CreateConnection(databaseName);
+        return _connectionFactory.CreateConnection(targetDb);
     }
 }

@@ -109,6 +109,7 @@ Um kryptische Tabellen- und Spaltennamen für das LLM verständlicher zu machen,
   "MetadataProvider": {
     "Enabled": true,
     "Server": "", // Leer = nutzt dieselbe DB
+    "Database": "", // Optional: Name einer zentralen Metadatendatenbank (z. B. "Knowhow")
     "UserId": "",
     "Password": "",
     "IntegratedSecurity": false,
