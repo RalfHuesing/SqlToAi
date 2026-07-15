@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -76,8 +77,9 @@ public sealed class AnonymizerExclusionProvider : IAnonymizerExclusionProvider
     private async Task<HashSet<string>> LoadExclusionsAsync(string databaseName, CancellationToken cancellationToken)
     {
         string sql = _options.Databases.AnonymizerExclusionSql;
+        string? tableName = _options.Anonymizer.ExclusionTableName;
 
-        if (string.IsNullOrWhiteSpace(sql))
+        if (string.IsNullOrWhiteSpace(sql) && string.IsNullOrWhiteSpace(tableName))
         {
             return [];
         }
@@ -89,32 +91,97 @@ public sealed class AnonymizerExclusionProvider : IAnonymizerExclusionProvider
             using var connection = _connectionFactory.CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
 
+            if (!string.IsNullOrWhiteSpace(sql))
+            {
+                await LoadExclusionsFromSqlAsync(connection, sql, exclusions, databaseName, cancellationToken);
+            }
+
+            if (!string.IsNullOrWhiteSpace(tableName))
+            {
+                await LoadExclusionsFromTableAsync(connection, tableName, exclusions, databaseName, cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open connection or load anonymizer exclusions for database {DatabaseName}.", databaseName);
+        }
+
+        return exclusions;
+    }
+
+    private async Task LoadExclusionsFromSqlAsync(
+        DbConnection connection,
+        string sql,
+        HashSet<string> exclusions,
+        string databaseName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
             var queryResult = await connection.QueryAsync<object>(
                 new CommandDefinition(sql, cancellationToken: cancellationToken, commandTimeout: _options.SqlServer.CommandTimeoutSeconds));
 
-            foreach (var rowObj in queryResult)
-            {
-                if (rowObj is IDictionary<string, object> row)
-                {
-                    var values = row.Values.ToList();
-                    if (values.Count >= 2)
-                    {
-                        string? table = values[0]?.ToString()?.Trim();
-                        string? column = values[1]?.ToString()?.Trim();
+            ParseExclusionRows(queryResult, exclusions);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to execute AnonymizerExclusionSql for database {DatabaseName}.", databaseName);
+        }
+    }
 
-                        if (!string.IsNullOrEmpty(table) && !string.IsNullOrEmpty(column))
-                        {
-                            exclusions.Add($"{table}.{column}");
-                        }
-                    }
+    private async Task LoadExclusionsFromTableAsync(
+        DbConnection connection,
+        string tableName,
+        HashSet<string> exclusions,
+        string databaseName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            string checkSql = "SELECT QUOTENAME(OBJECT_SCHEMA_NAME(OBJECT_ID(@TableName, 'U'))) + '.' + QUOTENAME(OBJECT_NAME(OBJECT_ID(@TableName, 'U')))";
+            string? safeTableName = await connection.QueryFirstOrDefaultAsync<string>(
+                new CommandDefinition(checkSql, new { TableName = tableName }, cancellationToken: cancellationToken, commandTimeout: _options.SqlServer.CommandTimeoutSeconds));
+
+            if (!string.IsNullOrEmpty(safeTableName))
+            {
+                string loadSql = $"SELECT [TableName], [ColumnName] FROM {safeTableName}";
+                var queryResult = await connection.QueryAsync<object>(
+                    new CommandDefinition(loadSql, cancellationToken: cancellationToken, commandTimeout: _options.SqlServer.CommandTimeoutSeconds));
+
+                ParseExclusionRows(queryResult, exclusions);
+            }
+            else
+            {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug("Exclusion table {TableName} does not exist in database {DatabaseName}.", tableName, databaseName);
                 }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load anonymizer exclusions for database {DatabaseName}.", databaseName);
+            _logger.LogWarning(ex, "Failed to load exclusions from table {TableName} in database {DatabaseName}.", tableName, databaseName);
         }
+    }
 
-        return exclusions;
+    private static void ParseExclusionRows(IEnumerable<object> queryResult, HashSet<string> exclusions)
+    {
+        foreach (var rowObj in queryResult)
+        {
+            if (rowObj is IDictionary<string, object> row)
+            {
+                var values = row.Values.ToList();
+                if (values.Count >= 2)
+                {
+                    string? table = values[0]?.ToString()?.Trim();
+                    string? column = values[1]?.ToString()?.Trim();
+
+                    if (!string.IsNullOrEmpty(table) && !string.IsNullOrEmpty(column))
+                    {
+                        exclusions.Add($"{table}.{column}");
+                    }
+                }
+            }
+        }
     }
 }

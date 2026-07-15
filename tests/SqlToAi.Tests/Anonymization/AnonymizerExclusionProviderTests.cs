@@ -99,6 +99,70 @@ public sealed class AnonymizerExclusionProviderTests
         Assert.Empty(exclusions);
     }
 
+    [Fact]
+    public async Task GetExclusionsAsync_ShouldLoadFromExclusionTable_WhenTableExists()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.Anonymizer.ExclusionTableName = "dbo.MyExclusions";
+
+        var tableRows = new List<(string, string)>
+        {
+            ("Kunden", "Vorname"),
+            ("Bestellungen", "BestellNr")
+        };
+
+        var mockConn = new MockConnection(tableRows, simulatedTableName: "dbo.MyExclusions");
+        var mockFactory = new DummyConnectionFactory(mockConn);
+        var provider = new AnonymizerExclusionProvider(mockFactory, Options.Create(options), NullLogger<AnonymizerExclusionProvider>.Instance);
+
+        // Act
+        var exclusions = await provider.GetExclusionsAsync("TestDb", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(2, exclusions.Count);
+        Assert.Contains("kunden.vorname", exclusions);
+        Assert.Contains("bestellungen.bestellnr", exclusions);
+    }
+
+    [Fact]
+    public async Task GetExclusionsAsync_ShouldNotLoadFromExclusionTable_WhenTableDoesNotExist()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.Anonymizer.ExclusionTableName = "dbo.MyExclusions";
+
+        // Simulated table name = null means table does not exist
+        var mockConn = new MockConnection([], simulatedTableName: null);
+        var mockFactory = new DummyConnectionFactory(mockConn);
+        var provider = new AnonymizerExclusionProvider(mockFactory, Options.Create(options), NullLogger<AnonymizerExclusionProvider>.Instance);
+
+        // Act
+        var exclusions = await provider.GetExclusionsAsync("TestDb", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(exclusions);
+    }
+
+    [Fact]
+    public async Task GetExclusionsAsync_ShouldFallBackSafely_WhenExclusionTableQueryFails()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.Anonymizer.ExclusionTableName = "dbo.MyExclusions";
+
+        // Throw exception simulates a database error during query
+        var mockConn = new MockConnection([], throwException: true);
+        var mockFactory = new DummyConnectionFactory(mockConn);
+        var provider = new AnonymizerExclusionProvider(mockFactory, Options.Create(options), NullLogger<AnonymizerExclusionProvider>.Instance);
+
+        // Act
+        var exclusions = await provider.GetExclusionsAsync("TestDb", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(exclusions);
+    }
+
     // Helper classes for mocking ADO.NET connections
     private sealed class DummyConnectionFactory : IDatabaseConnectionFactory
     {
@@ -121,12 +185,14 @@ public sealed class AnonymizerExclusionProviderTests
     {
         private readonly List<(string Table, string Column)> _rows;
         private readonly bool _throwException;
+        private readonly string? _simulatedTableName;
         private string _connectionString = "";
 
-        public MockConnection(List<(string Table, string Column)> rows, bool throwException = false)
+        public MockConnection(List<(string Table, string Column)> rows, bool throwException = false, string? simulatedTableName = "dbo.MyExclusions")
         {
             _rows = rows;
             _throwException = throwException;
+            _simulatedTableName = simulatedTableName;
         }
 
         [System.Diagnostics.CodeAnalysis.AllowNull]
@@ -148,7 +214,7 @@ public sealed class AnonymizerExclusionProviderTests
 
         protected override DbCommand CreateDbCommand()
         {
-            return new MockCommand(_rows, _throwException);
+            return new MockCommand(_rows, _throwException, _simulatedTableName);
         }
 
         protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
@@ -161,12 +227,14 @@ public sealed class AnonymizerExclusionProviderTests
     {
         private readonly List<(string Table, string Column)> _rows;
         private readonly bool _throwException;
+        private readonly string? _simulatedTableName;
         private DbConnection? _dbConnection;
 
-        public MockCommand(List<(string Table, string Column)> rows, bool throwException)
+        public MockCommand(List<(string Table, string Column)> rows, bool throwException, string? simulatedTableName)
         {
             _rows = rows;
             _throwException = throwException;
+            _simulatedTableName = simulatedTableName;
         }
 
         public override string CommandText { get; set; } = "";
@@ -180,7 +248,8 @@ public sealed class AnonymizerExclusionProviderTests
             set => _dbConnection = value;
         }
 
-        protected override DbParameterCollection DbParameterCollection => throw new NotImplementedException();
+        private readonly MockParameterCollection _parameters = new();
+        protected override DbParameterCollection DbParameterCollection => _parameters;
         protected override DbTransaction? DbTransaction { get; set; }
         public override UpdateRowSource UpdatedRowSource { get; set; } = UpdateRowSource.None;
 
@@ -194,12 +263,16 @@ public sealed class AnonymizerExclusionProviderTests
             {
                 throw new InvalidOperationException("Connection failed simulated.");
             }
+            if (CommandText != null && CommandText.Contains("OBJECT_ID"))
+            {
+                return new SingleValueDataReader(_simulatedTableName);
+            }
             return new MockDataReader(_rows);
         }
 
         protected override DbParameter CreateDbParameter()
         {
-            throw new NotImplementedException();
+            return new MockParameter();
         }
 
         public override void Prepare() { }
@@ -283,5 +356,115 @@ public sealed class AnonymizerExclusionProviderTests
         {
             throw new NotImplementedException();
         }
+    }
+
+    private sealed class SingleValueDataReader : DbDataReader
+    {
+        private readonly string? _value;
+        private int _readIndex = -1;
+
+        public SingleValueDataReader(string? value)
+        {
+            _value = value;
+        }
+
+        public override int FieldCount => 1;
+        public override int Depth => 0;
+        public override bool IsClosed => false;
+        public override int RecordsAffected => -1;
+        public override bool HasRows => _value != null;
+
+        public override object this[int ordinal] => GetValue(ordinal);
+        public override object this[string name] => GetValue(0);
+
+        public override bool Read()
+        {
+            if (_value != null && _readIndex < 0)
+            {
+                _readIndex++;
+                return true;
+            }
+            return false;
+        }
+
+        public override Task<bool> ReadAsync(CancellationToken cancellationToken) => Task.FromResult(Read());
+        public override bool NextResult() => false;
+        public override string GetName(int ordinal) => "Value";
+        public override int GetOrdinal(string name) => 0;
+        public override object GetValue(int ordinal) => (object?)_value ?? DBNull.Value;
+
+        public override bool GetBoolean(int ordinal) => false;
+        public override byte GetByte(int ordinal) => 0;
+        public override long GetBytes(int ordinal, long dataOffset, byte[]? buffer, int bufferOffset, int length) => 0;
+        public override char GetChar(int ordinal) => '\0';
+        public override long GetChars(int ordinal, long dataOffset, char[]? buffer, int bufferOffset, int length) => 0;
+        public override string GetDataTypeName(int ordinal) => "varchar";
+        public override DateTime GetDateTime(int ordinal) => DateTime.MinValue;
+        public override decimal GetDecimal(int ordinal) => 0;
+        public override double GetDouble(int ordinal) => 0;
+        public override Type GetFieldType(int ordinal) => typeof(string);
+        public override float GetFloat(int ordinal) => 0;
+        public override Guid GetGuid(int ordinal) => Guid.Empty;
+        public override short GetInt16(int ordinal) => 0;
+        public override int GetInt32(int ordinal) => 0;
+        public override long GetInt64(int ordinal) => 0;
+        public override string GetString(int ordinal) => _value ?? "";
+        public override bool IsDBNull(int ordinal) => _value == null;
+
+        public override int GetValues(object[] values)
+        {
+            values[0] = GetValue(0);
+            return 1;
+        }
+
+        public override System.Collections.IEnumerator GetEnumerator()
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    private sealed class MockParameterCollection : DbParameterCollection
+    {
+        private readonly List<DbParameter> _parameters = new();
+
+        public override int Count => _parameters.Count;
+        public override object SyncRoot => throw new NotImplementedException();
+        public override int Add(object value)
+        {
+            _parameters.Add((DbParameter)value);
+            return _parameters.Count - 1;
+        }
+        public override void AddRange(Array values)
+        {
+            foreach (var val in values) Add(val!);
+        }
+        public override void Clear() => _parameters.Clear();
+        public override bool Contains(object value) => _parameters.Contains((DbParameter)value);
+        public override int IndexOf(object value) => _parameters.IndexOf((DbParameter)value);
+        public override void Insert(int index, object value) => _parameters.Insert(index, (DbParameter)value);
+        public override void Remove(object value) => _parameters.Remove((DbParameter)value);
+        public override void RemoveAt(int index) => _parameters.RemoveAt(index);
+        public override void RemoveAt(string parameterName) => throw new NotImplementedException();
+        protected override DbParameter GetParameter(int index) => _parameters[index];
+        protected override DbParameter GetParameter(string parameterName) => throw new NotImplementedException();
+        protected override void SetParameter(int index, DbParameter value) => _parameters[index] = value;
+        protected override void SetParameter(string parameterName, DbParameter value) => throw new NotImplementedException();
+        public override void CopyTo(Array array, int index) => throw new NotImplementedException();
+        public override System.Collections.IEnumerator GetEnumerator() => _parameters.GetEnumerator();
+        public override bool Contains(string value) => throw new NotImplementedException();
+        public override int IndexOf(string parameterName) => throw new NotImplementedException();
+    }
+
+    private sealed class MockParameter : DbParameter
+    {
+        public override DbType DbType { get; set; }
+        public override ParameterDirection Direction { get; set; }
+        public override bool IsNullable { get; set; }
+        public override string ParameterName { get; set; } = string.Empty;
+        public override int Size { get; set; }
+        public override string SourceColumn { get; set; } = string.Empty;
+        public override bool SourceColumnNullMapping { get; set; }
+        public override object? Value { get; set; }
+        public override void ResetDbType() { }
     }
 }

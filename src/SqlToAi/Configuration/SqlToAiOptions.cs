@@ -64,6 +64,12 @@ public sealed class AnonymizerOptions
     /// <c>Status</c>). Use sparingly — anything not listed here is anonymized by default.
     /// </summary>
     public List<string> ExcludedColumns { get; set; } = [];
+
+    /// <summary>
+    /// Optional central table name containing table/column exemptions.
+    /// The table must contain the columns <c>TableName</c> and <c>ColumnName</c>.
+    /// </summary>
+    public string? ExclusionTableName { get; set; }
 }
 
 /// <summary>
