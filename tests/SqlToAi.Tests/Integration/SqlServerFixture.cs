@@ -66,7 +66,7 @@ public sealed class SqlServerFixture
         ReadOnlyGuard       = new ReadOnlyGuard();
         MetadataProvider    = new MetadataProvider(ConnectionFactory, optionsWrapper, NullLogger<MetadataProvider>.Instance);
         SchemaService       = new SchemaService(ConnectionFactory, SecurityGuard, AccessLevelProvider, MetadataProvider, optionsWrapper, NullLogger<SchemaService>.Instance);
-        QueryExecutionService = new QueryExecutionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, new Anonymizer(optionsWrapper), optionsWrapper, NullLogger<QueryExecutionService>.Instance, AnonymizerExclusionProvider);
+        QueryExecutionService = new QueryExecutionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, new AnonymizationDependencies(new Anonymizer(optionsWrapper), AnonymizerExclusionProvider), optionsWrapper, NullLogger<QueryExecutionService>.Instance);
         QueryValidationService = new QueryValidationService(ConnectionFactory, SecurityGuard, AccessLevelProvider, optionsWrapper, NullLogger<QueryValidationService>.Instance);
         Anonymizer          = new Anonymizer(optionsWrapper);
     }

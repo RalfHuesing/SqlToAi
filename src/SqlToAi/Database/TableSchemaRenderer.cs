@@ -47,9 +47,10 @@ internal sealed class TableSchemaRenderer
         var columns = await connection.QueryAsync<ColumnRow>(
             new CommandDefinition(columnsSql, new { TableName = tableName }, cancellationToken: cancellationToken));
 
-        // Get extended metadata descriptions
         string? tableDesc = await _metadataProvider.GetTableDescriptionAsync(databaseName, tableName, cancellationToken);
         var columnDescs = await _metadataProvider.GetColumnDescriptionsAsync(databaseName, tableName, cancellationToken);
+
+        var triggers = (await QueryTriggersAsync(connection, tableName, cancellationToken)).ToList();
 
         var sb = new StringBuilder();
         sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"# Schema for Table/View: `{tableName}`");
@@ -58,59 +59,52 @@ internal sealed class TableSchemaRenderer
             sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"*Description:* {tableDesc}").AppendLine();
         }
 
-        // Render Columns table
+        AppendColumnsTable(sb, columns, columnDescs);
+        AppendTriggersTable(sb, triggers);
+        await AppendDiscoveryIndexAsync(sb, connection, tableName, triggers, cancellationToken);
+
+        return sb.ToString();
+    }
+
+    private static void AppendColumnsTable(StringBuilder sb, IEnumerable<ColumnRow> columns, IReadOnlyDictionary<string, string> columnDescs)
+    {
         var headers = new[] { "Column Name", "Type", "Nullable", "Key/Identity", "Description" };
         var renderedRows = new List<string[]>();
         foreach (var col in columns)
         {
-            string colName = col.ColumnName;
             string type = FormatTypeString(col.DataType, col.MaxLength, col.Precision, col.Scale);
             string nullable = col.IsNullable ? "Yes" : "No";
-            
+
             var keyFlags = new List<string>();
             if (col.IsPrimaryKey == 1) keyFlags.Add("PK");
             if (col.IsIdentity) keyFlags.Add("Identity");
             string keyStr = string.Join(", ", keyFlags);
 
-            columnDescs.TryGetValue(colName, out string? desc);
-            renderedRows.Add([colName, type, nullable, keyStr, desc ?? ""]);
+            columnDescs.TryGetValue(col.ColumnName, out string? desc);
+            renderedRows.Add([col.ColumnName, type, nullable, keyStr, desc ?? ""]);
         }
         sb.AppendLine(RenderMarkdownTable(headers, renderedRows));
+    }
 
-        // Query Triggers summary
-        string triggersSql = """
-            SELECT 
-                name AS TriggerName,
-                OBJECTPROPERTY(object_id, 'ExecIsTriggerDisabled') AS IsDisabled,
-                OBJECTPROPERTY(object_id, 'ExecIsUpdateTrigger') AS IsUpdate,
-                OBJECTPROPERTY(object_id, 'ExecIsDeleteTrigger') AS IsDelete,
-                OBJECTPROPERTY(object_id, 'ExecIsInsertTrigger') AS IsInsert
-            FROM sys.triggers
-            WHERE parent_id = OBJECT_ID(@TableName)
-            """;
+    private static void AppendTriggersTable(StringBuilder sb, List<TriggerRow> triggers)
+    {
+        if (triggers.Count == 0) return;
 
-        var triggers = await connection.QueryAsync<TriggerRow>(
-            new CommandDefinition(triggersSql, new { TableName = tableName }, cancellationToken: cancellationToken));
-
-        if (triggers.Any())
+        sb.AppendLine("## Triggers");
+        var trigHeaders = new[] { "Trigger Name", "Insert", "Update", "Delete", "Status" };
+        var trigRows = triggers.Select(t => new[]
         {
-            sb.AppendLine("## Triggers");
-            var trigHeaders = new[] { "Trigger Name", "Insert", "Update", "Delete", "Status" };
-            var trigRows = new List<string[]>();
-            foreach (var t in triggers)
-            {
-                trigRows.Add([
-                    t.TriggerName,
-                    t.IsInsert == 1 ? "✓" : "",
-                    t.IsUpdate == 1 ? "✓" : "",
-                    t.IsDelete == 1 ? "✓" : "",
-                    t.IsDisabled == 1 ? "Disabled" : "Active"
-                ]);
-            }
-            sb.AppendLine(RenderMarkdownTable(trigHeaders, trigRows));
-        }
+            t.TriggerName,
+            t.IsInsert == 1 ? "✓" : "",
+            t.IsUpdate == 1 ? "✓" : "",
+            t.IsDelete == 1 ? "✓" : "",
+            t.IsDisabled == 1 ? "Disabled" : "Active"
+        }).ToList();
+        sb.AppendLine(RenderMarkdownTable(trigHeaders, trigRows));
+    }
 
-        // Query counts for Discovery Index
+    private static async Task AppendDiscoveryIndexAsync(StringBuilder sb, DbConnection connection, string tableName, List<TriggerRow> triggers, CancellationToken cancellationToken)
+    {
         int fksCount = await connection.QueryFirstOrDefaultAsync<int>(
             new CommandDefinition("SELECT COUNT(*) FROM sys.foreign_keys WHERE parent_object_id = OBJECT_ID(@TableName) OR referenced_object_id = OBJECT_ID(@TableName)", new { TableName = tableName }, cancellationToken: cancellationToken));
 
@@ -125,17 +119,29 @@ internal sealed class TableSchemaRenderer
         sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"- **Indexes:** {indexesCount} (run `sql_get_schema_indexes` to view details)");
         sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"- **Constraints:** {constraintsCount} (run `sql_get_schema_constraints` to view details)");
 
-        // Emit trigger names explicitly so the agent can call sql_get_trigger_definition
-        // directly without parsing the trigger summary table above.
-        var triggerList = triggers.ToList();
-        if (triggerList.Count > 0)
+        if (triggers.Count > 0)
         {
-            string names = string.Join(", ", triggerList.Select(t => $"`{t.TriggerName}`"));
+            string names = string.Join(", ", triggers.Select(t => $"`{t.TriggerName}`"));
             sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture,
-                $"- **Triggers:** {triggerList.Count} active — use `sql_get_trigger_definition` with: {names}");
+                $"- **Triggers:** {triggers.Count} active — use `sql_get_trigger_definition` with: {names}");
         }
+    }
 
-        return sb.ToString();
+    private static async Task<IEnumerable<TriggerRow>> QueryTriggersAsync(DbConnection connection, string tableName, CancellationToken cancellationToken)
+    {
+        string triggersSql = """
+            SELECT 
+                name AS TriggerName,
+                OBJECTPROPERTY(object_id, 'ExecIsTriggerDisabled') AS IsDisabled,
+                OBJECTPROPERTY(object_id, 'ExecIsUpdateTrigger') AS IsUpdate,
+                OBJECTPROPERTY(object_id, 'ExecIsDeleteTrigger') AS IsDelete,
+                OBJECTPROPERTY(object_id, 'ExecIsInsertTrigger') AS IsInsert
+            FROM sys.triggers
+            WHERE parent_id = OBJECT_ID(@TableName)
+            """;
+
+        return await connection.QueryAsync<TriggerRow>(
+            new CommandDefinition(triggersSql, new { TableName = tableName }, cancellationToken: cancellationToken));
     }
 
     public static async Task<string> GetViewDefinitionMarkdownAsync(DbConnection connection, string viewName, CancellationToken cancellationToken)

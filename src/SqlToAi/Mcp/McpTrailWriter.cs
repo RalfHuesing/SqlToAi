@@ -66,23 +66,10 @@ public interface IMcpTrailWriter
 /// <inheritdoc/>
 public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
 {
-    private static readonly JsonSerializerOptions CompactJsonOptions = new()
-    {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        WriteIndented = false,
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        TypeInfoResolver = McpJsonContext.Default
-    };
-
-    private static readonly JsonSerializerOptions PrettyJsonOptions = new()
-    {
-        WriteIndented = true,
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        TypeInfoResolver = McpJsonContext.Default
-    };
-
-    private static readonly McpJsonContext CompactContext = new(CompactJsonOptions);
-    private static readonly McpJsonContext PrettyContext = new(PrettyJsonOptions);
+    private static readonly JsonSerializerOptions CompactJsonOptions = McpTrailJsonOptions.Compact;
+    private static readonly JsonSerializerOptions PrettyJsonOptions = McpTrailJsonOptions.Pretty;
+    private static readonly McpJsonContext CompactContext = McpTrailJsonOptions.CompactContext;
+    private static readonly McpJsonContext PrettyContext = McpTrailJsonOptions.PrettyContext;
 
     private static readonly Action<ILogger, string, Exception?> LogWriteFailed =
         LoggerMessage.Define<string>(LogLevel.Error, new EventId(1, "WriteFailed"),

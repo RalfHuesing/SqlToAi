@@ -110,23 +110,28 @@ public sealed class ReadOnlyGuard : IReadOnlyGuard
                 return SqlParserState.SingleQuote;
 
             default:
-                if (c == '-' && next == '-')
-                {
-                    i++;
-                    return SqlParserState.LineComment;
-                }
-                if (c == '/' && next == '*')
-                {
-                    i++;
-                    return SqlParserState.BlockComment;
-                }
-                if (c == '\'')
-                {
-                    sb.Append(' ');
-                    return SqlParserState.SingleQuote;
-                }
-                sb.Append(c);
-                return SqlParserState.Normal;
+                return TransitionFromNormalState(c, next, sb, ref i);
         }
+    }
+
+    private static SqlParserState TransitionFromNormalState(char c, char next, StringBuilder sb, ref int i)
+    {
+        if (c == '-' && next == '-')
+        {
+            i++;
+            return SqlParserState.LineComment;
+        }
+        if (c == '/' && next == '*')
+        {
+            i++;
+            return SqlParserState.BlockComment;
+        }
+        if (c == '\'')
+        {
+            sb.Append(' ');
+            return SqlParserState.SingleQuote;
+        }
+        sb.Append(c);
+        return SqlParserState.Normal;
     }
 }

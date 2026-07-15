@@ -60,7 +60,7 @@ public sealed class QueryExecutionServiceIntegrationTests
             _fx.SecurityGuard,
             customAccessProvider,
             _fx.ReadOnlyGuard,
-            _fx.Anonymizer,
+            new AnonymizationDependencies(_fx.Anonymizer),
             Microsoft.Extensions.Options.Options.Create(_fx.Options),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryExecutionService>.Instance);
 
@@ -181,10 +181,9 @@ public sealed class QueryExecutionServiceIntegrationTests
             _fx.SecurityGuard,
             customAccessProvider ?? _fx.AccessLevelProvider,
             _fx.ReadOnlyGuard,
-            new Anonymizer(optionsWrapper),
+            new AnonymizationDependencies(new Anonymizer(optionsWrapper), exclusionProvider),
             optionsWrapper,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryExecutionService>.Instance,
-            exclusionProvider);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryExecutionService>.Instance);
     }
 
     private static int CountNonEmptyLines(string s) =>

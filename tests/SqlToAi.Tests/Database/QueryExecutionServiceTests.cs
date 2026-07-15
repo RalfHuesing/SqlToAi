@@ -37,7 +37,7 @@ public sealed class QueryExecutionServiceTests
         var anonymizer = new Anonymizer(Options.Create(options));
         return new QueryExecutionService(
             factory, securityGuard, accessLevelProvider, readOnlyGuard,
-            anonymizer, Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+            new AnonymizationDependencies(anonymizer), Options.Create(options), NullLogger<QueryExecutionService>.Instance);
     }
 
     // -------------------------------------------------------------------------
@@ -136,7 +136,7 @@ public sealed class QueryExecutionServiceTests
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadWrite),
             new FakeReadOnlyGuard(safe: false), // guard would reject it — must be bypassed
-            new Anonymizer(Options.Create(options)),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "UPDATE Customers SET Name = 'X'", null, TestContext.Current.CancellationToken);
@@ -153,7 +153,7 @@ public sealed class QueryExecutionServiceTests
         var factory = new MockQueryConnectionFactory();
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly), // not ReadWrite
-            new FakeReadOnlyGuard(safe: true), new Anonymizer(Options.Create(options)),
+            new FakeReadOnlyGuard(safe: true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
@@ -169,7 +169,7 @@ public sealed class QueryExecutionServiceTests
         var options = new SqlToAiOptions();
         var service = new QueryExecutionService(
             new MockQueryConnectionFactory(), new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadWrite),
-            new FakeReadOnlyGuard(safe: true), new Anonymizer(Options.Create(options)),
+            new FakeReadOnlyGuard(safe: true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "UPDATE Foo SET X=1; UPDATE Bar SET Y=2", null, TestContext.Current.CancellationToken);
@@ -190,7 +190,7 @@ public sealed class QueryExecutionServiceTests
         var factory = new MockQueryConnectionFactory(null, rowCount: 5);
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
-            new FakeReadOnlyGuard(true), new Anonymizer(Options.Create(options)),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
@@ -206,7 +206,7 @@ public sealed class QueryExecutionServiceTests
         var factory = new MockQueryConnectionFactory(null, rowCount: 10);
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
-            new FakeReadOnlyGuard(true), new Anonymizer(Options.Create(options)),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", 999, TestContext.Current.CancellationToken);
@@ -227,7 +227,7 @@ public sealed class QueryExecutionServiceTests
         var factory = new MockQueryConnectionFactory(stringValue: "Ralf Huesing");
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new Anonymizer(Options.Create(options)),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
@@ -246,7 +246,7 @@ public sealed class QueryExecutionServiceTests
         var factory = new MockQueryConnectionFactory(stringValue: original);
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
-            new FakeReadOnlyGuard(true), new Anonymizer(Options.Create(options)),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
@@ -265,7 +265,7 @@ public sealed class QueryExecutionServiceTests
         var factory = new MockQueryConnectionFactory(stringValue: "123-ABC");
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new Anonymizer(Options.Create(options)),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         // Since the column name is Name (which matches exclusion), it is not anonymized

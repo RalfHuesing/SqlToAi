@@ -15,6 +15,16 @@ using SqlToAi.Security;
 namespace SqlToAi.Database;
 
 /// <summary>
+/// Bundles the anonymization dependencies for <see cref="QueryExecutionService"/> to keep
+/// the constructor parameter count within architectural limits.
+/// </summary>
+/// <param name="Anonymizer">The anonymizer used for PII column masking.</param>
+/// <param name="ExclusionProvider">Optional provider that returns table/column exclusions for anonymization.</param>
+public sealed record AnonymizationDependencies(
+    IAnonymizer Anonymizer,
+    IAnonymizerExclusionProvider? ExclusionProvider = null);
+
+/// <summary>
 /// Executes a single SQL statement. For every database except those at
 /// <see cref="AccessLevel.ReadWrite"/>, the statement runs inside an explicit rollback
 /// transaction and mutating keywords are rejected outright. Applies row limits and on-the-fly
@@ -44,17 +54,16 @@ public sealed class QueryExecutionService : IQueryExecutionService
         ISecurityGuard securityGuard,
         IAccessLevelProvider accessLevelProvider,
         IReadOnlyGuard readOnlyGuard,
-        IAnonymizer anonymizer,
+        AnonymizationDependencies anonymization,
         IOptions<SqlToAiOptions> options,
-        ILogger<QueryExecutionService> logger,
-        IAnonymizerExclusionProvider? anonymizerExclusionProvider = null)
+        ILogger<QueryExecutionService> logger)
     {
         _connectionFactory = connectionFactory;
         _securityGuard = securityGuard;
         _accessLevelProvider = accessLevelProvider;
         _readOnlyGuard = readOnlyGuard;
-        _anonymizer = anonymizer;
-        _anonymizerExclusionProvider = anonymizerExclusionProvider;
+        _anonymizer = anonymization.Anonymizer;
+        _anonymizerExclusionProvider = anonymization.ExclusionProvider;
         _options = options.Value.QueryExecution;
         _anonymizationMode = options.Value.Anonymizer.DefaultMode;
         _logger = logger;
@@ -189,47 +198,17 @@ public sealed class QueryExecutionService : IQueryExecutionService
         using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess | CommandBehavior.KeyInfo, cancellationToken);
 
         var columnNames = GetColumnNames(reader);
+        var (exclusions, baseTableNames) = await ResolveAnonymizationContextAsync(reader, anonymize, databaseName, cancellationToken);
+        var anonCtx = new AnonymizationContext(anonymize, exclusions, baseTableNames);
+
         var sb = new StringBuilder();
         int rowCount = 0;
         bool wasAnonymized = false;
         var anonymizedColumns = new List<string>();
 
-        HashSet<string>? exclusions = null;
-        string?[]? baseTableNames = null;
-
-        if (anonymize && _anonymizerExclusionProvider != null)
-        {
-            exclusions = await _anonymizerExclusionProvider.GetExclusionsAsync(databaseName, cancellationToken);
-            baseTableNames = GetBaseTableNames(reader);
-        }
-
         while (rowCount < rowLimit && await reader.ReadAsync(cancellationToken))
         {
-            var rowDict = new Dictionary<string, object?>(columnNames.Length, StringComparer.OrdinalIgnoreCase);
-
-            for (int i = 0; i < columnNames.Length; i++)
-            {
-                object? raw = reader.IsDBNull(i) ? null : reader.GetValue(i);
-
-                if (anonymize && raw is string strVal)
-                {
-                    string? tableName = baseTableNames != null && i < baseTableNames.Length ? baseTableNames[i] : null;
-                    string anonymizedValue = _anonymizer.Anonymize(columnNames[i], strVal, tableName, exclusions);
-                    if (anonymizedValue != strVal)
-                    {
-                        wasAnonymized = true;
-                        if (!anonymizedColumns.Contains(columnNames[i]))
-                        {
-                            anonymizedColumns.Add(columnNames[i]);
-                        }
-                    }
-                    raw = anonymizedValue;
-                }
-
-                rowDict[columnNames[i]] = raw;
-            }
-
-            sb.AppendLine(JsonSerializer.Serialize(rowDict, typeof(Dictionary<string, object?>), McpJsonContext.Default));
+            AppendSerializedRow(sb, reader, columnNames, anonCtx, ref wasAnonymized, anonymizedColumns);
             rowCount++;
         }
 
@@ -239,6 +218,76 @@ public sealed class QueryExecutionService : IQueryExecutionService
         }
 
         return new QueryExecutionResult(sb.ToString().TrimEnd(), wasAnonymized, anonymizedColumns, _anonymizationMode);
+    }
+
+    /// <summary>Bundles per-query anonymization context for passing between internal helpers.</summary>
+    private sealed record AnonymizationContext(
+        bool Anonymize,
+        HashSet<string>? Exclusions,
+        string?[]? BaseTableNames);
+
+    private async Task<(HashSet<string>? Exclusions, string?[]? BaseTableNames)> ResolveAnonymizationContextAsync(
+        DbDataReader reader,
+        bool anonymize,
+        string databaseName,
+        CancellationToken cancellationToken)
+    {
+        if (!anonymize || _anonymizerExclusionProvider == null)
+        {
+            return (null, null);
+        }
+
+        var exclusions = await _anonymizerExclusionProvider.GetExclusionsAsync(databaseName, cancellationToken);
+        var baseTableNames = GetBaseTableNames(reader);
+        return (exclusions, baseTableNames);
+    }
+
+    private void AppendSerializedRow(
+        StringBuilder sb,
+        DbDataReader reader,
+        string[] columnNames,
+        AnonymizationContext anonCtx,
+        ref bool wasAnonymized,
+        List<string> anonymizedColumns)
+    {
+        var rowDict = new Dictionary<string, object?>(columnNames.Length, StringComparer.OrdinalIgnoreCase);
+
+        for (int i = 0; i < columnNames.Length; i++)
+        {
+            object? raw = reader.IsDBNull(i) ? null : reader.GetValue(i);
+            raw = AnonymizeCell(columnNames[i], raw, anonCtx, i, ref wasAnonymized, anonymizedColumns);
+            rowDict[columnNames[i]] = raw;
+        }
+
+        sb.AppendLine(JsonSerializer.Serialize(rowDict, typeof(Dictionary<string, object?>), McpJsonContext.Default));
+    }
+
+    private object? AnonymizeCell(
+        string columnName,
+        object? raw,
+        AnonymizationContext anonCtx,
+        int columnIndex,
+        ref bool wasAnonymized,
+        List<string> anonymizedColumns)
+    {
+        if (!anonCtx.Anonymize || raw is not string strVal)
+        {
+            return raw;
+        }
+
+        string? tableName = anonCtx.BaseTableNames != null && columnIndex < anonCtx.BaseTableNames.Length ? anonCtx.BaseTableNames[columnIndex] : null;
+        string anonymizedValue = _anonymizer.Anonymize(columnName, strVal, tableName, anonCtx.Exclusions);
+
+        if (anonymizedValue != strVal)
+        {
+            wasAnonymized = true;
+            if (!anonymizedColumns.Contains(columnName))
+            {
+                anonymizedColumns.Add(columnName);
+            }
+        }
+
+        return anonymizedValue;
     }
 
     private static string?[] GetBaseTableNames(DbDataReader reader)
@@ -264,9 +313,9 @@ public sealed class QueryExecutionService : IQueryExecutionService
                 }
             }
         }
-        catch
+        catch (Exception ignored)
         {
-            // Safe fallback
+            _ = ignored; // Safe fallback: schema table not available for this provider
         }
         return names;
     }
@@ -350,19 +399,24 @@ public sealed class QueryExecutionService : IQueryExecutionService
                 return SqlParserState.Bracket;
 
             default:
-                if (c == '-' && next == '-')
-                {
-                    i++;
-                    return SqlParserState.LineComment;
-                }
-                if (c == '/' && next == '*')
-                {
-                    i++;
-                    return SqlParserState.BlockComment;
-                }
-                if (c == '\'') return SqlParserState.SingleQuote;
-                if (c == '[') return SqlParserState.Bracket;
-                return SqlParserState.Normal;
+                return TransitionFromNormal(c, next, ref i);
         }
+    }
+
+    private static SqlParserState TransitionFromNormal(char c, char next, ref int i)
+    {
+        if (c == '-' && next == '-')
+        {
+            i++;
+            return SqlParserState.LineComment;
+        }
+        if (c == '/' && next == '*')
+        {
+            i++;
+            return SqlParserState.BlockComment;
+        }
+        if (c == '\'') return SqlParserState.SingleQuote;
+        if (c == '[') return SqlParserState.Bracket;
+        return SqlParserState.Normal;
     }
 }

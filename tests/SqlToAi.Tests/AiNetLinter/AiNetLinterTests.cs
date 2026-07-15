@@ -22,25 +22,23 @@ public sealed class AiNetLinterTests
         string solutionRoot = FindSolutionRoot();
 
         string configPath = Path.Combine(solutionRoot, "tests", "SqlToAi.Tests", "AiNetLinter", "rules", "SqlToAi.rules.json");
-        string baselinePath = Path.Combine(solutionRoot, "tests", "SqlToAi.Tests", "AiNetLinter", "rules", "SqlToAi-baseline.json");
         string outputReportDir = Path.Combine(solutionRoot, "tests", "SqlToAi.Tests", "AiNetLinter", "output");
         string outputReportFile = Path.Combine(outputReportDir, "SqlToAi-linter-report.md");
         string targetRulesFile = Path.Combine(solutionRoot, ".agents", "rules", "AiNetLinter.mdc");
 
         Directory.CreateDirectory(outputReportDir);
 
-        // 3. Step 1: Run code quality validation
+        // 3. Run code quality validation (no baseline — full clean check)
         var validationArgs = new[]
         {
             "--config", $"\"{configPath}\"",
-            "--path", $"\"{solutionRoot}\"",
-            "--baseline", $"\"{baselinePath}\""
+            "--path", $"\"{solutionRoot}\""
         };
 
         var (valExitCode, valStdout, valStderr) = await RunLinterProcessAsync(
             string.Join(" ", validationArgs), solutionRoot, TestContext.Current.CancellationToken);
 
-        // 4. Write report to output/SqlToAi-linter-report.md
+        // 4. Always write report — even on failure, so the agent can read it
         var reportContent = new StringBuilder();
         reportContent.AppendLine("# AiNetLinter Run Report");
         reportContent.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"- **Timestamp:** {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
@@ -67,7 +65,7 @@ public sealed class AiNetLinterTests
             Assert.Fail($"AiNetLinter validation failed with exit code {valExitCode}. See report at: {outputReportFile}\r\nErrors:\r\n{valStderr}\r\n{valStdout}");
         }
 
-        // 6. Step 2: Run rules synchronization directly to target path (only if validation succeeded)
+        // 6. Step 2: Run rules synchronization (only if validation succeeded)
         var syncArgs = new[]
         {
             "--config", $"\"{configPath}\"",
