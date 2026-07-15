@@ -84,11 +84,17 @@ Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server
   "Anonymizer": {
     "Enabled": true,
     "DefaultMode": "ScramblePattern",
-    "ExcludedColumns": ["*Id", "Id", "*Code", "*Type", "Status", "State", "Category"]
+    "ExcludedColumns": ["*Id", "Id", "*Code", "*Type", "Status", "State", "Category"],
+    "ExclusionTableName": "dbo.AnonymizerExclusions"
   }
   ```
 * **Verhalten:**
-  Spalten, die auf eines der Muster in `ExcludedColumns` passen, werden *nie* anonymisiert. Ebenso werden Spalten von der Anonymisierung ausgenommen, die über das datenbankspezifische `AnonymizerExclusionSql` als Ausnahme zurückgegeben werden. Alle anderen String-Spalten werden anonymisiert, sofern `Enabled: true` ist und das AccessLevel der Zieldatenbank `ReadOnlyAnonymized` ergibt.
+  Spalten, die auf eines der Muster in `ExcludedColumns` passen, werden *nie* anonymisiert. Ebenso werden Spalten von der Anonymisierung ausgenommen, die über das datenbankspezifische `AnonymizerExclusionSql` oder die über `ExclusionTableName` definierte Tabelle als Ausnahme zurückgegeben werden. Alle anderen String-Spalten werden anonymisiert, sofern `Enabled: true` ist und das AccessLevel der Zieldatenbank `ReadOnlyAnonymized` ergibt.
+* **Zentrale Ausschluss-Tabelle (`ExclusionTableName`):**
+  Über diese Option kann optional und zentral ein Tabellenname definiert werden. Wenn diese Tabelle in der jeweiligen Zieldatenbank vorhanden ist, liest der Server automatisch alle Ausnahmen aus ihr aus.
+  - **Existenzprüfung:** Der Server prüft die Existenz der Tabelle per `OBJECT_ID` in SQL Server, um Fehler bei nicht vorhandener Tabelle zu vermeiden.
+  - **Erwartete Struktur:** Die Tabelle muss mindestens die Spalten `TableName` und `ColumnName` besitzen.
+  - **Resilienz:** Ist die Tabelle in einer Datenbank nicht vorhanden oder schlägt die Abfrage fehl, wird dies stillschweigend ignoriert und der Server fällt auf die übrigen Ausschluss-Mechanismen zurück.
 * **Datenbank-spezifische Ausnahmen (`AnonymizerExclusionSql`):**
   Über diese Option kann eine SQL-Abfrage definiert werden, die in der jeweiligen Datenbank ausgeführt wird (Unterstützung für SQL-Dateipfade analog zu `AccessCheckSql` ist gegeben). Die Abfrage muss zwei Spalten zurückgeben: die erste enthält den Tabellennamen (z. B. `Kunden`), die zweite den Spaltennamen (z. B. `Name`). Die entsprechenden Felder bleiben bei Abfrageergebnissen im Klartext.
 * **Algorithmen:**
