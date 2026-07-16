@@ -1,5 +1,6 @@
 #nullable enable
 
+using System.CommandLine;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Options;
 using Serilog;
 using Serilog.Events;
 using SqlToAi.Anonymization;
+using SqlToAi.Cli;
 using SqlToAi.Configuration;
 using SqlToAi.Database;
 using SqlToAi.Mcp;
@@ -19,15 +21,7 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
-        // ---------------------------------------------------------------------------
-        // Configuration
-        // ---------------------------------------------------------------------------
-        IConfiguration configuration = new ConfigurationBuilder()
-            .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
-            .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"}.json", optional: true)
-            .AddEnvironmentVariables()
-            .Build();
+        IConfiguration configuration = BuildConfiguration();
 
         var sqlToAiOptions = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
         ConfigurationResolver.Resolve(sqlToAiOptions);
@@ -35,96 +29,173 @@ internal static class Program
         // ---------------------------------------------------------------------------
         // Serilog (file-based, rolling) — used by both Microsoft.Extensions.Logging
         // and direct Serilog.Log.Logger consumers. Stdout stays clean for the MCP
-        // stdio protocol; Serilog writes to stderr at Information+ and to file at the
-        // configured level.
+        // stdio protocol (and for `query` output), Serilog writes to stderr at
+        // Information+ and to file at the configured level.
         // ---------------------------------------------------------------------------
         Log.Logger = BuildLogger(sqlToAiOptions.Logging);
 
         try
         {
-            // ---------------------------------------------------------------------------
-            // Dependency Injection
-            // ---------------------------------------------------------------------------
-            var services = new ServiceCollection();
-
-            services.AddSingleton(sqlToAiOptions);
-            services.AddOptions();
-            services.Configure<SqlToAiOptions>(configuration.GetSection("SqlToAi"));
-            services.PostConfigure<SqlToAiOptions>(options => ConfigurationResolver.Resolve(options));
-
-            services.AddLogging(logging =>
-            {
-                logging.ClearProviders();
-                logging.AddSerilog(dispose: false);
-            });
-
-            // Security
-            services.AddSingleton<ISecurityGuard, SecurityGuard>();
-            services.AddSingleton<IAccessLevelProvider, AccessLevelProvider>();
-            services.AddSingleton<IReadOnlyGuard, ReadOnlyGuard>();
-
-            // Database
-            services.AddSingleton<IDatabaseConnectionFactory, SqlConnectionFactory>();
-            services.AddSingleton<IMetadataProvider, MetadataProvider>();
-            services.AddSingleton<ISchemaService, SchemaService>();
-            services.AddSingleton<IQueryExecutionService, QueryExecutionService>();
-            services.AddSingleton<IQueryValidationService, QueryValidationService>();
-
-            // Anonymization
-            services.AddSingleton<IAnonymizer, Anonymizer>();
-            services.AddSingleton<IAnonymizerExclusionProvider, AnonymizerExclusionProvider>();
-            services.AddSingleton<AnonymizationDependencies>(sp => new AnonymizationDependencies(
-                sp.GetRequiredService<IAnonymizer>(),
-                sp.GetRequiredService<IAnonymizerExclusionProvider>()));
-
-            // MCP
-            services.AddSingleton<ToolRegistry>();
-            services.AddSingleton<IToolDispatcher, ToolDispatcher>();
-            services.AddSingleton<IMcpTrailWriter, McpTrailWriter>();
-            services.AddSingleton<IMcpHost, McpHost>();
-            services.AddSingleton<LogRetentionService>(sp =>
-                new LogRetentionService(
-                    sp.GetRequiredService<SqlToAiOptions>().Logging,
-                    sp.GetRequiredService<ILogger<LogRetentionService>>()));
-
-            await using ServiceProvider serviceProvider = services.BuildServiceProvider();
+            await using ServiceProvider serviceProvider = BuildServiceProvider(configuration, sqlToAiOptions);
 
             // ---------------------------------------------------------------------------
             // Run retention sweep on startup (best-effort)
             // ---------------------------------------------------------------------------
             serviceProvider.GetRequiredService<LogRetentionService>().Run();
 
-            // ---------------------------------------------------------------------------
-            // Run MCP host
-            // ---------------------------------------------------------------------------
-            using var cts = new CancellationTokenSource();
-            Console.CancelKeyPress += (_, e) =>
-            {
-                e.Cancel = true;
-                cts.Cancel();
-            };
-
-            var host = serviceProvider.GetRequiredService<IMcpHost>();
-
-            // Ensure stdout uses UTF-8 without BOM so the MCP JSON stream stays clean.
-            Console.OutputEncoding = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
-
-            // Wrap stdin in a BOM-stripping StreamReader. Some clients (e.g. PowerShell)
-            // emit a UTF-8 BOM on the first write. detectEncodingFromByteOrderMarks:true
-            // transparently skips those bytes so the first JSON-RPC message is never lost.
-            using var stdinReader = new StreamReader(
-                Console.OpenStandardInput(),
-                new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-                detectEncodingFromByteOrderMarks: true);
-
-            await host.RunAsync(stdinReader, Console.Out, cts.Token);
-
-            return 0;
+            RootCommand rootCommand = BuildRootCommand(serviceProvider);
+            ParseResult parseResult = rootCommand.Parse(args);
+            return await parseResult.InvokeAsync();
         }
         finally
         {
             await Log.CloseAndFlushAsync();
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Command tree: `server` (default, MCP stdio loop) and `query <tool>` (CLI escape hatch)
+    // -------------------------------------------------------------------------
+
+    private static RootCommand BuildRootCommand(ServiceProvider serviceProvider)
+    {
+        var rootCommand = new RootCommand("SqlToAi — MCP server for SQL Server, with a CLI escape hatch for manual tool verification.");
+
+        Func<ParseResult, CancellationToken, Task<int>> runServer = (_, cancellationToken) => RunServerAsync(serviceProvider, cancellationToken);
+
+        var serverCommand = new Command("server", "Runs the MCP stdio server. This is also the default when no subcommand is given.");
+        serverCommand.SetAction(runServer);
+        rootCommand.Add(serverCommand);
+        rootCommand.SetAction(runServer);
+
+        Command queryCommand = ToolCommandFactory.BuildQueryCommand(
+            new ToolRegistry().GetAll(),
+            (toolName, arguments, cancellationToken) => ExecuteToolAsync(serviceProvider, toolName, arguments, cancellationToken));
+        rootCommand.Add(queryCommand);
+
+        return rootCommand;
+    }
+
+    private static async Task<int> RunServerAsync(ServiceProvider serviceProvider, CancellationToken cancellationToken)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            cts.Cancel();
+        };
+
+        var host = serviceProvider.GetRequiredService<IMcpHost>();
+
+        // Ensure stdout uses UTF-8 without BOM so the MCP JSON stream stays clean.
+        Console.OutputEncoding = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
+        // Wrap stdin in a BOM-stripping StreamReader. Some clients (e.g. PowerShell)
+        // emit a UTF-8 BOM on the first write. detectEncodingFromByteOrderMarks:true
+        // transparently skips those bytes so the first JSON-RPC message is never lost.
+        using var stdinReader = new StreamReader(
+            Console.OpenStandardInput(),
+            new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+            detectEncodingFromByteOrderMarks: true);
+
+        await host.RunAsync(stdinReader, Console.Out, cts.Token);
+        return 0;
+    }
+
+    private static async Task<int> ExecuteToolAsync(
+        ServiceProvider serviceProvider,
+        string toolName,
+        Dictionary<string, object?> arguments,
+        CancellationToken cancellationToken)
+    {
+        var dispatcher = serviceProvider.GetRequiredService<IToolDispatcher>();
+        var callParams = new ToolCallParams { Name = toolName, Arguments = arguments };
+
+        ToolCallResult result = await dispatcher.DispatchAsync(callParams, cancellationToken);
+        return PrintToolResult(result);
+    }
+
+    /// <summary>
+    /// Prints a tool result for CLI consumption. On error, everything goes to stderr with exit code 1.
+    /// On success, all but the last content block (e.g. the anonymization notice on `sql_execute_query`)
+    /// go to stderr, and the last block (the actual data) goes to stdout — so output stays pipeable.
+    /// </summary>
+    private static int PrintToolResult(ToolCallResult result)
+    {
+        if (result.IsError)
+        {
+            foreach (ToolContent content in result.Content)
+            {
+                Console.Error.WriteLine(content.Text);
+            }
+            return 1;
+        }
+
+        for (int i = 0; i < result.Content.Count; i++)
+        {
+            TextWriter writer = i == result.Content.Count - 1 ? Console.Out : Console.Error;
+            writer.WriteLine(result.Content[i].Text);
+        }
+        return 0;
+    }
+
+    // -------------------------------------------------------------------------
+    // Configuration & DI
+    // -------------------------------------------------------------------------
+
+    private static IConfiguration BuildConfiguration() =>
+        new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
+            .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"}.json", optional: true)
+            .AddEnvironmentVariables()
+            .Build();
+
+    private static ServiceProvider BuildServiceProvider(IConfiguration configuration, SqlToAiOptions sqlToAiOptions)
+    {
+        var services = new ServiceCollection();
+
+        services.AddSingleton(sqlToAiOptions);
+        services.AddOptions();
+        services.Configure<SqlToAiOptions>(configuration.GetSection("SqlToAi"));
+        services.PostConfigure<SqlToAiOptions>(options => ConfigurationResolver.Resolve(options));
+
+        services.AddLogging(logging =>
+        {
+            logging.ClearProviders();
+            logging.AddSerilog(dispose: false);
+        });
+
+        // Security
+        services.AddSingleton<ISecurityGuard, SecurityGuard>();
+        services.AddSingleton<IAccessLevelProvider, AccessLevelProvider>();
+        services.AddSingleton<IReadOnlyGuard, ReadOnlyGuard>();
+
+        // Database
+        services.AddSingleton<IDatabaseConnectionFactory, SqlConnectionFactory>();
+        services.AddSingleton<IMetadataProvider, MetadataProvider>();
+        services.AddSingleton<ISchemaService, SchemaService>();
+        services.AddSingleton<IQueryExecutionService, QueryExecutionService>();
+        services.AddSingleton<IQueryValidationService, QueryValidationService>();
+
+        // Anonymization
+        services.AddSingleton<IAnonymizer, Anonymizer>();
+        services.AddSingleton<IAnonymizerExclusionProvider, AnonymizerExclusionProvider>();
+        services.AddSingleton<AnonymizationDependencies>(sp => new AnonymizationDependencies(
+            sp.GetRequiredService<IAnonymizer>(),
+            sp.GetRequiredService<IAnonymizerExclusionProvider>()));
+
+        // MCP
+        services.AddSingleton<ToolRegistry>();
+        services.AddSingleton<IToolDispatcher, ToolDispatcher>();
+        services.AddSingleton<IMcpTrailWriter, McpTrailWriter>();
+        services.AddSingleton<IMcpHost, McpHost>();
+        services.AddSingleton<LogRetentionService>(sp =>
+            new LogRetentionService(
+                sp.GetRequiredService<SqlToAiOptions>().Logging,
+                sp.GetRequiredService<ILogger<LogRetentionService>>()));
+
+        return services.BuildServiceProvider();
     }
 
     // -------------------------------------------------------------------------
@@ -138,7 +209,8 @@ internal static class Program
             .WriteTo.Console(
                 formatProvider: System.Globalization.CultureInfo.InvariantCulture,
                 outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}",
-                restrictedToMinimumLevel: LogEventLevel.Warning);
+                restrictedToMinimumLevel: LogEventLevel.Warning,
+                standardErrorFromLevel: LogEventLevel.Warning);
 
         if (options.AppLog.Enabled)
         {

@@ -126,6 +126,25 @@ Add the following entry to your `mcp.json` configuration in Cursor, Claude Deskt
 }
 ```
 
+### 3. Verify a Tool Manually (without an AI Client)
+`SqlToAi.exe` also exposes every MCP tool directly on the command line — useful for manually
+verifying behavior (e.g. query results, anonymization, exclusions) without going through an LLM.
+Running the exe with no arguments (or with `server`) starts the MCP stdio server as before;
+`query <tool>` invokes a single tool once and prints its result to stdout, then exits.
+
+```powershell
+# List all available tools and their options
+.\SqlToAi.exe query --help
+.\SqlToAi.exe query sql_execute_query --help
+
+# Invoke a tool directly
+.\SqlToAi.exe query sql_list_databases
+.\SqlToAi.exe query sql_execute_query --database MyDemoDatabase --query "SELECT TOP 5 * FROM dbo.Customers"
+```
+
+Tool data is written to stdout (pipeable, e.g. into `jq`); any anonymization notice and error
+messages are written to stderr. A failed call exits with code `1`.
+
 ---
 
 ## Development Workflow
