@@ -60,6 +60,14 @@ public static class ConfigurationResolver
             ExpandListInPlace(options.Anonymizer.ExcludedColumns);
         }
 
+        if (options.AnonymizationRules != null)
+        {
+            options.AnonymizationRules.Server = Expand(options.AnonymizationRules.Server);
+            options.AnonymizationRules.Database = Expand(options.AnonymizationRules.Database);
+            options.AnonymizationRules.UserId = Expand(options.AnonymizationRules.UserId);
+            options.AnonymizationRules.Password = Expand(options.AnonymizationRules.Password);
+        }
+
         if (options.Logging != null)
         {
             options.Logging.Directory = Expand(options.Logging.Directory);

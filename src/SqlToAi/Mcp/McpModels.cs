@@ -45,6 +45,12 @@ public sealed class InitializeResult
 
     [JsonPropertyName("capabilities")]
     public ServerCapabilities Capabilities { get; init; } = new();
+
+    /// <summary>
+    /// One-time behavioral guidance for the connecting agent (see <see cref="McpConstants.ServerInstructions"/>).
+    /// </summary>
+    [JsonPropertyName("instructions")]
+    public string Instructions { get; init; } = McpConstants.ServerInstructions;
 }
 
 /// <summary>Metadata about this MCP server.</summary>

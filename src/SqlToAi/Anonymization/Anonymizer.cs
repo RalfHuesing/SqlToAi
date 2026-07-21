@@ -2,7 +2,6 @@
 
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
 
@@ -58,7 +57,7 @@ public sealed class Anonymizer : IAnonymizer
         // 2. Check global exclusion patterns
         foreach (string excludedPattern in _options.Anonymizer.ExcludedColumns)
         {
-            if (MatchesPattern(columnName, excludedPattern))
+            if (GlobPatternMatcher.IsMatch(columnName, excludedPattern))
             {
                 return originalValue;
             }
@@ -129,26 +128,5 @@ public sealed class Anonymizer : IAnonymizer
             sb.Append(b.ToString("x2", System.Globalization.CultureInfo.InvariantCulture));
         }
         return sb.ToString();
-    }
-
-    private static bool MatchesPattern(string text, string pattern)
-    {
-        if (string.IsNullOrEmpty(pattern))
-        {
-            return false;
-        }
-
-        string regexPattern = "^" + Regex.Escape(pattern)
-            .Replace("\\*", ".*")
-            .Replace("\\?", ".") + "$";
-
-        try
-        {
-            return Regex.IsMatch(text, regexPattern, RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(200));
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            return false;
-        }
     }
 }

@@ -136,7 +136,9 @@ public sealed class ToolDispatcher : IToolDispatcher
                 if (queryResult.WasAnonymized)
                 {
                     string columnsList = string.Join(", ", queryResult.AnonymizedColumns);
-                    string noteText = $"Note: The following query results have been anonymized (Mode: {queryResult.AnonymizationMode}) to protect PII. The following columns were anonymized: {columnsList}.";
+                    string noteText = $"Note: The following query results have been anonymized (Mode: {queryResult.AnonymizationMode}) to protect PII. The following columns were anonymized: {columnsList}. " +
+                        "If this task needs any of these columns in clear text, tell the user which of these Table.Column names are affected and propose an exclusion rule rather than treating the scrambled values as real data; " +
+                        "for a view or computed column, trace the real source with sql_get_object_references first.";
                     return new ToolCallResult
                     {
                         Content = new[]

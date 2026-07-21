@@ -20,9 +20,11 @@ namespace SqlToAi.Database;
 /// </summary>
 /// <param name="Anonymizer">The anonymizer used for PII column masking.</param>
 /// <param name="ExclusionProvider">Optional provider that returns table/column exclusions for anonymization.</param>
+/// <param name="RuleProvider">Optional central, cross-database rule provider (see <see cref="IAnonymizationRuleProvider"/>).</param>
 public sealed record AnonymizationDependencies(
     IAnonymizer Anonymizer,
-    IAnonymizerExclusionProvider? ExclusionProvider = null);
+    IAnonymizerExclusionProvider? ExclusionProvider = null,
+    IAnonymizationRuleProvider? RuleProvider = null);
 
 /// <summary>
 /// Executes a single SQL statement. For every database except those at
@@ -44,6 +46,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
     private readonly IReadOnlyGuard _readOnlyGuard;
     private readonly IAnonymizer _anonymizer;
     private readonly IAnonymizerExclusionProvider? _anonymizerExclusionProvider;
+    private readonly IAnonymizationRuleProvider? _anonymizationRuleProvider;
     private readonly QueryExecutionOptions _options;
     private readonly string _anonymizationMode;
     private readonly ILogger<QueryExecutionService> _logger;
@@ -64,6 +67,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
         _readOnlyGuard = readOnlyGuard;
         _anonymizer = anonymization.Anonymizer;
         _anonymizerExclusionProvider = anonymization.ExclusionProvider;
+        _anonymizationRuleProvider = anonymization.RuleProvider;
         _options = options.Value.QueryExecution;
         _anonymizationMode = options.Value.Anonymizer.DefaultMode;
         _logger = logger;
@@ -198,8 +202,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
         using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess | CommandBehavior.KeyInfo, cancellationToken);
 
         var columnNames = GetColumnNames(reader);
-        var (exclusions, baseTableNames) = await ResolveAnonymizationContextAsync(reader, anonymize, databaseName, cancellationToken);
-        var anonCtx = new AnonymizationContext(anonymize, exclusions, baseTableNames);
+        var anonCtx = await ResolveAnonymizationContextAsync(reader, columnNames, anonymize, databaseName, cancellationToken);
 
         var sb = new StringBuilder();
         int rowCount = 0;
@@ -224,22 +227,46 @@ public sealed class QueryExecutionService : IQueryExecutionService
     private sealed record AnonymizationContext(
         bool Anonymize,
         HashSet<string>? Exclusions,
-        string?[]? BaseTableNames);
+        string?[]? BaseTableNames,
+        bool[]? CentralExclusions);
 
-    private async Task<(HashSet<string>? Exclusions, string?[]? BaseTableNames)> ResolveAnonymizationContextAsync(
+    private async Task<AnonymizationContext> ResolveAnonymizationContextAsync(
         DbDataReader reader,
+        string[] columnNames,
         bool anonymize,
         string databaseName,
         CancellationToken cancellationToken)
     {
-        if (!anonymize || _anonymizerExclusionProvider == null)
+        if (!anonymize)
         {
-            return (null, null);
+            return new AnonymizationContext(false, null, null, null);
         }
 
-        var exclusions = await _anonymizerExclusionProvider.GetExclusionsAsync(databaseName, cancellationToken);
+        HashSet<string>? exclusions = _anonymizerExclusionProvider != null
+            ? await _anonymizerExclusionProvider.GetExclusionsAsync(databaseName, cancellationToken)
+            : null;
         var baseTableNames = GetBaseTableNames(reader);
-        return (exclusions, baseTableNames);
+        bool[]? centralExclusions = _anonymizationRuleProvider != null
+            ? await ResolveCentralExclusionsAsync(databaseName, columnNames, baseTableNames, cancellationToken)
+            : null;
+
+        return new AnonymizationContext(true, exclusions, baseTableNames, centralExclusions);
+    }
+
+    /// <summary>
+    /// Resolves the central rule provider's exclusion decision once per column ordinal (not per
+    /// row), so a 1000-row result only pays for N rule lookups instead of N × rowCount.
+    /// </summary>
+    private async Task<bool[]> ResolveCentralExclusionsAsync(
+        string databaseName, string[] columnNames, string?[] baseTableNames, CancellationToken cancellationToken)
+    {
+        var result = new bool[columnNames.Length];
+        for (int i = 0; i < columnNames.Length; i++)
+        {
+            string tableName = i < baseTableNames.Length ? baseTableNames[i] ?? string.Empty : string.Empty;
+            result[i] = await _anonymizationRuleProvider!.IsExcludedAsync(databaseName, tableName, columnNames[i], cancellationToken);
+        }
+        return result;
     }
 
     private void AppendSerializedRow(
@@ -275,15 +302,23 @@ public sealed class QueryExecutionService : IQueryExecutionService
             return raw;
         }
 
+        if (anonCtx.CentralExclusions != null && columnIndex < anonCtx.CentralExclusions.Length && anonCtx.CentralExclusions[columnIndex])
+        {
+            return raw;
+        }
+
         string? tableName = anonCtx.BaseTableNames != null && columnIndex < anonCtx.BaseTableNames.Length ? anonCtx.BaseTableNames[columnIndex] : null;
         string anonymizedValue = _anonymizer.Anonymize(columnName, strVal, tableName, anonCtx.Exclusions);
 
         if (anonymizedValue != strVal)
         {
             wasAnonymized = true;
-            if (!anonymizedColumns.Contains(columnName))
+            // Qualify with the resolved base table when known, so the LLM (and the human it
+            // reports to) can act on a concrete "TableName.ColumnName" instead of a bare alias.
+            string qualifiedName = string.IsNullOrEmpty(tableName) ? columnName : $"{tableName}.{columnName}";
+            if (!anonymizedColumns.Contains(qualifiedName))
             {
-                anonymizedColumns.Add(columnName);
+                anonymizedColumns.Add(qualifiedName);
             }
         }
 

@@ -25,6 +25,17 @@ internal static class McpConstants
     /// <summary>Server version string reported to the MCP client.</summary>
     internal const string ServerVersion = "1.0.0";
 
+    /// <summary>
+    /// Behavioral guidance sent once to the connecting MCP client via the <c>initialize</c>
+    /// response's <c>instructions</c> field, so agents don't need this repeated in every
+    /// tool description or query result.
+    /// </summary>
+    internal const string ServerInstructions = """
+        This server may anonymize (scramble or hash) string column values to protect PII. `sql_get_schema` proactively marks each column "Anonymized: Yes/No" so you can see this before writing a query; `sql_execute_query` also reports it after the fact via an accompanying note listing the affected `Table.Column` names.
+
+        If a task needs a column marked anonymized, tell the user explicitly which `Table.Column` is affected instead of treating the scrambled value as real data. For a plain table/view column, propose to the user that they add an exclusion rule (do not attempt to modify any exclusion or rule configuration yourself). For a view, computed column, or aggregation where the underlying source is unclear, first call `sql_get_object_references` (and inspect the base table's schema) to trace the real source column before proposing anything — only suggest an exclusion once you are confident which concrete table and column it maps to.
+        """;
+
     // -------------------------------------------------------------------------
     // JSON-RPC methods
     // -------------------------------------------------------------------------

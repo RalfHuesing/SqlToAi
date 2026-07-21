@@ -3,7 +3,6 @@
 using System.Data.Common;
 using System.Text.RegularExpressions;
 using Dapper;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
@@ -184,42 +183,14 @@ public sealed class MetadataProvider : IMetadataProvider
 
     private DbConnection CreateConnection(string databaseName)
     {
-        string targetDb = !string.IsNullOrWhiteSpace(_options.MetadataProvider.Database)
-            ? _options.MetadataProvider.Database
-            : databaseName;
+        var settings = new SecondaryConnectionSettings(
+            _options.MetadataProvider.Server,
+            _options.MetadataProvider.Database,
+            _options.MetadataProvider.UserId,
+            _options.MetadataProvider.Password,
+            _options.MetadataProvider.IntegratedSecurity,
+            _options.MetadataProvider.CommandTimeoutSeconds);
 
-        // If separate connection parameters are configured for metadata, build it dynamically
-        if (!string.IsNullOrWhiteSpace(_options.MetadataProvider.Server))
-        {
-            var builder = new SqlConnectionStringBuilder
-            {
-                DataSource = _options.MetadataProvider.Server,
-                InitialCatalog = !string.IsNullOrWhiteSpace(targetDb)
-                    ? targetDb
-                    : throw new InvalidOperationException("MetadataProvider SQL connection error: Database name must be explicitly specified."),
-                ApplicationName = "SqlToAi-Metadata",
-                TrustServerCertificate = true, // Facilitate developer local connections
-                ConnectTimeout = _options.MetadataProvider.CommandTimeoutSeconds
-            };
-
-            if (_options.MetadataProvider.IntegratedSecurity)
-            {
-                builder.IntegratedSecurity = true;
-            }
-            else
-            {
-                if (string.IsNullOrWhiteSpace(_options.MetadataProvider.UserId) || string.IsNullOrWhiteSpace(_options.MetadataProvider.Password))
-                {
-                    throw new InvalidOperationException("MetadataProvider SQL authentication error: 'IntegratedSecurity' is false, but 'UserId' or 'Password' is not configured.");
-                }
-                builder.UserID = _options.MetadataProvider.UserId;
-                builder.Password = _options.MetadataProvider.Password;
-            }
-
-            return new SqlConnection(builder.ConnectionString);
-        }
-
-        // Otherwise, use the standard connection factory for the target database
-        return _connectionFactory.CreateConnection(targetDb);
+        return SecondaryConnectionBuilder.Create(settings, "SqlToAi-Metadata", databaseName, _connectionFactory);
     }
 }

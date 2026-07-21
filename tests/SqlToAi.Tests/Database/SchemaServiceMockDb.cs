@@ -2,6 +2,7 @@
 
 using System.Data;
 using System.Data.Common;
+using SqlToAi.Anonymization;
 using SqlToAi.Database;
 
 namespace SqlToAi.Tests.Database;
@@ -15,6 +16,20 @@ internal sealed class DummyConnectionFactory : IDatabaseConnectionFactory
         ConnectionCreatedCount++;
         return new MockSchemaConnection();
     }
+}
+
+/// <summary>Stub policy resolver for schema tests that don't exercise anonymization annotation.</summary>
+internal sealed class AlwaysAllowPolicyResolver : IAnonymizationPolicyResolver
+{
+    public Task<bool> WillAnonymizeAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
+}
+
+/// <summary>Reports a single named column as anonymized, so tests can verify the schema markdown annotation.</summary>
+internal sealed class SelectiveAnonymizePolicyResolver(string anonymizedColumnName) : IAnonymizationPolicyResolver
+{
+    public Task<bool> WillAnonymizeAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => Task.FromResult(string.Equals(columnName, anonymizedColumnName, StringComparison.OrdinalIgnoreCase));
 }
 
 internal sealed class MockSchemaConnection : DbConnection

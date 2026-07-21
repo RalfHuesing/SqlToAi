@@ -100,6 +100,51 @@ Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server
 * **Algorithmen:**
   * **ScramblePattern:** Erhält das strukturelle Muster des Strings. Großbuchstaben werden durch ein zufälliges `'X'`, Kleinbuchstaben durch `'x'` und Ziffern durch `'9'` ersetzt (z. B. `Max.Mustermann@mail.de` $\rightarrow$ `Xxx.Xxxxxxxxxx@xxxx.xx`). E-Mail-Adressen, Postleitzahlen und Telefonnummern bleiben für die KI strukturell erkennbar, enthalten aber keinerlei PII mehr.
   * **Hash (Consistency-Hashing):** Generiert einen eindeutigen, reproduzierbaren SHA-256-Hash-Wert pro Text. Dadurch bleiben Relationen und Gruppen (z. B. gleiche Kundennamen in verschiedenen Tabellen) für das LLM logisch verknüpfbar.
+* **Bekannte Grenze:** Die Anonymisierung greift ausschließlich bei String-Werten. Eine Spalte, die numerisch typisiert ist (z. B. `INT`/`BIGINT`, etwa eine als Zahl gespeicherte Kundennummer), wird nie anonymisiert, unabhängig von Konfiguration oder Regeln — das ist bei der Modellierung sensibler numerischer Spalten zu beachten.
+
+---
+
+### E. Zentrale, datenbankübergreifende Anonymisierungsregeln (`AnonymizationRules`, optional)
+
+Die Abschnitte `ExclusionTableName`/`AnonymizerExclusionSql` oben leben *in* der jeweiligen Kundendatenbank — praktisch für eine einzelne DB, aber unpraktisch, wenn ein Kunden-Backup eingespielt wird (die Ausnahmen werden dabei mit überschrieben) oder wenn dieselbe Regel für viele, unterschiedlich benannte Kundendatenbanken gelten soll. `AnonymizationRules` löst das, indem die Regeln in einer eigenen, unabhängig konfigurierbaren Datenbank liegen (Server/Datenbank/Zugangsdaten getrennt von der Kundenverbindung — analog zu `MetadataProvider`).
+
+* **Konfiguration:**
+  ```json
+  "AnonymizationRules": {
+    "Enabled": true,
+    "Server": "central-sql-server",
+    "Database": "SqlToAiConfig",
+    "UserId": "config_reader",
+    "Password": "...",
+    "IntegratedSecurity": false,
+    "TableName": "dbo.AnonymizationRules",
+    "CommandTimeoutSeconds": 30,
+    "CacheTtlSeconds": 300
+  }
+  ```
+  Ist `Server` leer, wird stattdessen die reguläre Kundenverbindung verwendet (Fallback wie bei `MetadataProvider`).
+* **Tabellenschema** (siehe [`sql-scripts/03_anonymization_rules.sql`](../sql-scripts/03_anonymization_rules.sql)):
+
+  | Spalte | Typ | Bedeutung |
+  | :--- | :--- | :--- |
+  | `DatabasePattern` | `NVARCHAR` | SQL-`LIKE`-Muster (`%`, `_`) für den Datenbanknamen, z. B. `%`, `Kunde_%`, exakter Name. |
+  | `TablePattern` | `NVARCHAR` | `LIKE`-Muster für den Tabellennamen. |
+  | `ColumnPattern` | `NVARCHAR` | `LIKE`-Muster für den Spaltennamen. |
+  | `Anonymize` | `BIT` | `0` = Spalte im Klartext zeigen, `1` = anonymisieren. |
+  | `IsActive` | `BIT` | Regel temporär deaktivieren, ohne sie zu löschen. |
+  | `Comment` | `NVARCHAR` | Freitext-Begründung (empfohlen, da die Regel jetzt kundenübergreifend wirkt). |
+
+* **Auflösung (spezifischste Regel gewinnt):** Für ein konkretes (Datenbank, Tabelle, Spalte)-Tripel werden alle aktiven Regeln ausgewertet, deren Muster passen. Jedes Muster erhält einen Spezifitäts-Score (`2` = exakter Text, `1` = Teil-Wildcard wie `Kunde%Gruppe`, `0` = reiner Platzhalter `%`), gewichtet `DatabasePattern` > `TablePattern` > `ColumnPattern`. Die Regel mit dem höchsten Gesamt-Score gewinnt; bei keinem Treffer bleibt es beim Standardverhalten (anonymisieren). Damit lassen sich beide Kernszenarien ohne Sonderfall abbilden:
+  * *Tabelle öffnen, eine Spalte davon ausnehmen:* Regel `(%, FakeConsultants, %, Anonymize=0)` plus eine spezifischere Regel `(%, FakeConsultants, FullName, Anonymize=1)` — `FullName` bleibt anonymisiert, alle anderen Spalten der Tabelle nicht.
+  * *Datenbank nur als Allow-List:* Für eine hochsensible Datenbank wird schlicht keine breite `%`-Regel angelegt — nur einzelne, explizite `Anonymize=0`-Regeln pro freigegebener Spalte. Alles andere bleibt beim Default (anonymisieren).
+* **Zusammenspiel mit den bestehenden Mechanismen:** `AnonymizationRules` ist ein zusätzlicher, additiver Ausschluss-Kanal neben `ExclusionTableName`/`AnonymizerExclusionSql` — eine Spalte gilt als ausgenommen, sobald *einer* der Mechanismen sie freigibt. In der Praxis nutzt eine Installation typischerweise nur einen der beiden Wege.
+* **Caching:** Anders als die Exclusion-Provider oben (die pro Kundendatenbank cachen) lädt `AnonymizationRules` das komplette Regelwerk einmal pro `CacheTtlSeconds` — unabhängig davon, welche Kundendatenbank gerade abgefragt wird.
+
+### F. Proaktive Kennzeichnung & agentische Verhaltenssteuerung
+
+* **`sql_get_schema` markiert Spalten proaktiv:** Die Spalten-Tabelle enthält eine zusätzliche Spalte **„Anonymized“** (`Yes`/`No`), berechnet über dieselben Ausschluss-Quellen wie zur Abfragezeit — das LLM sieht so schon beim Schema-Erkunden, welche Spalten maskiert würden, bevor überhaupt eine Query geschrieben wird. Nicht-String-Typen (siehe Bekannte Grenze oben) werden immer als `No` ausgewiesen.
+* **`sql_execute_query`-Hinweis referenziert konkrete Spalten:** Die Anonymisierungs-Notiz (siehe Tool-Spezifikation unten) nennt betroffene Spalten als `Tabelle.Spalte` (sofern die Basistabelle auflösbar ist) statt nur des Spalten-Alias, und enthält eine konkrete Handlungsanweisung: den Nutzer informieren und eine Freischaltung vorschlagen, statt den maskierten Wert als echte Daten zu behandeln. Bei Sichten/Aggregationen wird das LLM angehalten, zunächst mit `sql_get_object_references` die tatsächliche Quelltabelle zu ermitteln.
+* **MCP `instructions`-Feld:** Die `initialize`-Antwort enthält ein `instructions`-Feld mit genau dieser Verhaltensrichtlinie in kompakter Form — einmalig beim Verbindungsaufbau an den Client übergeben, statt in jeder Tool-Beschreibung oder jedem Ergebnis wiederholt zu werden.
 
 ---
 
@@ -154,7 +199,7 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
 * **Zweck:** Liefert das primäre Schema eines Objekts als Markdown-Dokument, angereichert mit Extended Properties / Metadaten.
 * **Inhalt:**
-  * **TABLE/VIEW:** Spalten-Tabelle (Typ, Nullable, PK, Identity, Custom-Beschreibung) + Trigger-Übersicht (Name, Events, Disabled-Status) + **Discovery-Index** (Zähler für Fremdschlüssel, Indizes, Constraints, sowie die Trigger-Namen selbst zur direkten Verwendung mit `sql_get_trigger_definition`).
+  * **TABLE/VIEW:** Spalten-Tabelle (Typ, Nullable, PK, Identity, **Anonymized** (proaktive Kennzeichnung, siehe Abschnitt 2.F), Custom-Beschreibung) + Trigger-Übersicht (Name, Events, Disabled-Status) + **Discovery-Index** (Zähler für Fremdschlüssel, Indizes, Constraints, sowie die Trigger-Namen selbst zur direkten Verwendung mit `sql_get_trigger_definition`).
   * **PROCEDURE/FUNCTION:** DDL-Definitionstext aus `sys.sql_modules` + **Routine-Parameter-Discovery**.
 
 ### 6. `sql_get_schema_foreign_keys`
@@ -191,7 +236,7 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Einschränkung:** Nur ein einzelnes Statement erlaubt (Semikolon-Trennung mehrerer Queries führt zu Fehler `SQL-AI-0101`).
 * **Datenverarbeitung:** Anwendbare Limits greifen (Default: 100 Zeilen). String-Spalten werden anonymisiert, falls aktiviert und passend zu den Regeln.
 * **Mehrfach-Content-Rückgabe bei Anonymisierung:** Wurden bei der Abfrage tatsächlich Spalten anonymisiert, liefert das Tool zwei Inhaltsblöcke (`Content` im MCP-Protokoll) zurück:
-  1. Einen Hinweis für das LLM, welche Spalten mit welchem Modus anonymisiert wurden.
+  1. Einen Hinweis für das LLM, welche `Tabelle.Spalte`-Kombinationen mit welchem Modus anonymisiert wurden, inklusive einer Handlungsanweisung (Nutzer informieren, Freischaltung vorschlagen statt die Werte als echte Daten zu behandeln; siehe Abschnitt 2.F).
   2. Die eigentlichen JSON-Zeilen der Abfrageergebnisse.
   Wurden keine Daten anonymisiert, wird nur der Datenblock zurückgegeben (spart Token).
 * **Berechtigungsprüfung:** Schlägt fehl mit `SQL-AI-0107`, falls das Access-Level der Datenbank nur `SchemaOnly` oder `None` ist.

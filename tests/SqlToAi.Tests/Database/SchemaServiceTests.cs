@@ -31,8 +31,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
         var result = await service.ListDatabasesAsync(TestContext.Current.CancellationToken);
@@ -55,8 +56,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
         var result = await service.SearchObjectsAsync("BlockedDb", "cust", null, null, TestContext.Current.CancellationToken);
@@ -77,8 +79,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
         var result = await service.SearchObjectsAsync(TestConstants.DatabaseName, "cust", null, null, TestContext.Current.CancellationToken);
@@ -100,8 +103,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
         var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
@@ -115,6 +119,34 @@ public sealed class SchemaServiceTests
     }
 
     [Fact]
+    public async Task GetSchemaAsync_ShouldAnnotateAnonymizedColumn_UsingPolicyResolver()
+    {
+        // Arrange — mock schema returns CustomerId (int, PK/Identity) and Email (varchar, nullable).
+        var options = new SqlToAiOptions();
+        options.Databases.Allowed = ["*"];
+
+        var mockFactory = new DummyConnectionFactory();
+        var securityGuard = new SecurityGuard(Options.Create(options));
+        var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
+        var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new SelectiveAnonymizePolicyResolver("Email");
+
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
+
+        // Act
+        var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Contains("Anonymized", result.Value);
+        // Email is a string column the resolver flags -> "Yes".
+        Assert.Contains("| Email | varchar(100) | Yes |  | Yes |  |", result.Value);
+        // CustomerId is an int column -> never anonymized regardless of the resolver ("No"),
+        // because Anonymizer only ever touches string values.
+        Assert.Contains("| CustomerId | int | No | PK, Identity | No |  |", result.Value);
+    }
+
+    [Fact]
     public async Task GetSchemaAsync_ShouldReturnRoutineSchema_WhenObjectIsProcedure()
     {
         // Arrange
@@ -125,8 +157,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
         var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
@@ -148,8 +181,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
         var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.CustomersView", TestContext.Current.CancellationToken);
@@ -173,8 +207,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
         var result = await service.GetSchemaForeignKeysAsync(TestConstants.DatabaseName, "dbo.Orders", TestContext.Current.CancellationToken);
@@ -196,8 +231,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
         var result = await service.GetSchemaIndexesAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
@@ -219,8 +255,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
         var result = await service.GetSchemaConstraintsAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
@@ -242,8 +279,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
         var result = await service.GetTriggerDefinitionAsync(TestConstants.DatabaseName, "dbo.Customers", "trg_Audit", TestContext.Current.CancellationToken);
@@ -264,8 +302,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
         var result = await service.GetObjectReferencesAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
@@ -287,8 +326,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
         var result = await service.GetRoutineParametersAsync(TestConstants.DatabaseName, "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
@@ -310,8 +350,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act — no objectType filter; all types should be returned
         var result = await service.SearchObjectsAsync(TestConstants.DatabaseName, "cust", null, null, TestContext.Current.CancellationToken);
@@ -332,8 +373,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act — pass "USER_TABLE" as objectType; mock DB returns Customers (USER_TABLE),
         // so we verify the call succeeds (SQL filter correctness is tested by the mock SQL).
@@ -355,8 +397,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act — "dbo.GetCustomersProc" resolves to type "P" (procedure) in the mock
         var result = await service.GetSchemaForeignKeysAsync(TestConstants.DatabaseName, "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
@@ -377,8 +420,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
         var result = await service.GetSchemaIndexesAsync(TestConstants.DatabaseName, "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
@@ -399,8 +443,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
         var result = await service.GetSchemaConstraintsAsync(TestConstants.DatabaseName, "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
@@ -422,8 +467,9 @@ public sealed class SchemaServiceTests
         var securityGuard = new SecurityGuard(Options.Create(options));
         var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
         var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
 
-        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, Options.Create(options), NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act — the mock returns 250 columns for any table named "WideTable"
         var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.WideTable", TestContext.Current.CancellationToken);

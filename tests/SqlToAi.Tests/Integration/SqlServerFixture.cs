@@ -39,6 +39,8 @@ public sealed class SqlServerFixture
     public QueryValidationService QueryValidationService { get; }
     public Anonymizer Anonymizer { get; }
     public AnonymizerExclusionProvider AnonymizerExclusionProvider { get; }
+    public AnonymizationRuleProvider AnonymizationRuleProvider { get; }
+    public AnonymizationPolicyResolver AnonymizationPolicyResolver { get; }
 
     public SqlServerFixture()
     {
@@ -63,10 +65,12 @@ public sealed class SqlServerFixture
         SecurityGuard       = new SecurityGuard(optionsWrapper);
         AccessLevelProvider = new AccessLevelProvider(ConnectionFactory, optionsWrapper, NullLogger<AccessLevelProvider>.Instance);
         AnonymizerExclusionProvider = new AnonymizerExclusionProvider(ConnectionFactory, optionsWrapper, NullLogger<AnonymizerExclusionProvider>.Instance);
+        AnonymizationRuleProvider = new AnonymizationRuleProvider(ConnectionFactory, optionsWrapper, NullLogger<AnonymizationRuleProvider>.Instance);
+        AnonymizationPolicyResolver = new AnonymizationPolicyResolver(optionsWrapper, AnonymizerExclusionProvider, AnonymizationRuleProvider);
         ReadOnlyGuard       = new ReadOnlyGuard();
         MetadataProvider    = new MetadataProvider(ConnectionFactory, optionsWrapper, NullLogger<MetadataProvider>.Instance);
-        SchemaService       = new SchemaService(ConnectionFactory, SecurityGuard, AccessLevelProvider, MetadataProvider, optionsWrapper, NullLogger<SchemaService>.Instance);
-        QueryExecutionService = new QueryExecutionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, new AnonymizationDependencies(new Anonymizer(optionsWrapper), AnonymizerExclusionProvider), optionsWrapper, NullLogger<QueryExecutionService>.Instance);
+        SchemaService       = new SchemaService(ConnectionFactory, SecurityGuard, AccessLevelProvider, MetadataProvider, AnonymizationPolicyResolver, optionsWrapper, NullLogger<SchemaService>.Instance);
+        QueryExecutionService = new QueryExecutionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, new AnonymizationDependencies(new Anonymizer(optionsWrapper), AnonymizerExclusionProvider, AnonymizationRuleProvider), optionsWrapper, NullLogger<QueryExecutionService>.Instance);
         QueryValidationService = new QueryValidationService(ConnectionFactory, SecurityGuard, AccessLevelProvider, optionsWrapper, NullLogger<QueryValidationService>.Instance);
         Anonymizer          = new Anonymizer(optionsWrapper);
     }

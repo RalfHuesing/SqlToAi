@@ -10,6 +10,7 @@ public sealed class SqlToAiOptions
     public SqlServerOptions SqlServer { get; set; } = new();
     public DatabasesOptions Databases { get; set; } = new();
     public AnonymizerOptions Anonymizer { get; set; } = new();
+    public AnonymizationRulesOptions AnonymizationRules { get; set; } = new();
     public MetadataProviderOptions MetadataProvider { get; set; } = new();
     public QueryExecutionOptions QueryExecution { get; set; } = new();
     public LoggingOptions Logging { get; set; } = new();
@@ -70,6 +71,40 @@ public sealed class AnonymizerOptions
     /// The table must contain the columns <c>TableName</c> and <c>ColumnName</c>.
     /// </summary>
     public string? ExclusionTableName { get; set; }
+}
+
+/// <summary>
+/// Options for the optional central, cross-database anonymization rule table. Unlike
+/// <see cref="AnonymizerOptions.ExclusionTableName"/> (which lives inside each customer
+/// database and is wiped out by a customer backup restore), this table is intended to live
+/// in its own dedicated database — configured independently of any customer connection — so
+/// its rules survive customer-side restores and apply consistently across many customer
+/// databases via wildcard patterns.
+/// </summary>
+public sealed class AnonymizationRulesOptions
+{
+    /// <summary>Master switch. When false, the rule table is never queried.</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// SQL Server instance hosting the rule table. When empty, falls back to the standard
+    /// <see cref="SqlServerOptions.Server"/> connection.
+    /// </summary>
+    public string Server { get; set; } = string.Empty;
+
+    /// <summary>Database hosting the rule table. Required when <see cref="Server"/> is set.</summary>
+    public string? Database { get; set; }
+
+    public string? UserId { get; set; }
+    public string? Password { get; set; }
+    public bool IntegratedSecurity { get; set; }
+    public int CommandTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>Name of the rule table, e.g. <c>dbo.AnonymizationRules</c>.</summary>
+    public string TableName { get; set; } = "dbo.AnonymizationRules";
+
+    /// <summary>How long the full rule set is cached in memory before being reloaded.</summary>
+    public int CacheTtlSeconds { get; set; } = 300;
 }
 
 /// <summary>

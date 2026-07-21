@@ -162,6 +162,17 @@ public sealed class McpModelsTests
         Assert.Equal(McpConstants.ServerVersion, initResult.ServerInfo.Version);
     }
 
+    [Fact]
+    public void InitializeResult_ShouldAdvertiseAnonymizationInstructions()
+    {
+        var initResult = new InitializeResult();
+        Assert.Contains("Anonymized", initResult.Instructions, StringComparison.Ordinal);
+        Assert.Contains("sql_get_object_references", initResult.Instructions, StringComparison.Ordinal);
+
+        string json = JsonSerializer.Serialize(initResult, Options);
+        Assert.Contains("\"instructions\"", json);
+    }
+
     // -------------------------------------------------------------------------
     // McpConstants completeness
     // -------------------------------------------------------------------------

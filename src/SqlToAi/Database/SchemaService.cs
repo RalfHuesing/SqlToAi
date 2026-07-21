@@ -5,6 +5,7 @@ using System.Text;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
 using SqlToAi.Domain;
 using SqlToAi.Metadata;
@@ -34,6 +35,7 @@ public sealed class SchemaService : ISchemaService
         ISecurityGuard securityGuard,
         IAccessLevelProvider accessLevelProvider,
         IMetadataProvider metadataProvider,
+        IAnonymizationPolicyResolver policyResolver,
         IOptions<SqlToAiOptions> options,
         ILogger<SchemaService> logger)
     {
@@ -42,7 +44,7 @@ public sealed class SchemaService : ISchemaService
         _accessLevelProvider = accessLevelProvider;
         _options = options.Value;
         _logger = logger;
-        _tableSchemaRenderer = new TableSchemaRenderer(metadataProvider);
+        _tableSchemaRenderer = new TableSchemaRenderer(metadataProvider, policyResolver);
     }
 
     /// <summary>

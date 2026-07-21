@@ -3,6 +3,7 @@
 using System.Data.Common;
 using System.Text;
 using Dapper;
+using SqlToAi.Anonymization;
 using SqlToAi.Metadata;
 
 namespace SqlToAi.Database;
@@ -12,11 +13,19 @@ internal sealed class TableSchemaRenderer
     private const string DdlUnavailableNote =
         "*Definition not available — either the object is encrypted, or the configured login lacks VIEW DEFINITION permission on it.*";
 
-    private readonly IMetadataProvider _metadataProvider;
+    /// <summary>SQL Server types whose values are read as .NET strings and are therefore ever subject to anonymization.</summary>
+    private static readonly HashSet<string> AnonymizableSqlTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "char", "varchar", "text", "nchar", "nvarchar", "ntext"
+    };
 
-    public TableSchemaRenderer(IMetadataProvider metadataProvider)
+    private readonly IMetadataProvider _metadataProvider;
+    private readonly IAnonymizationPolicyResolver _policyResolver;
+
+    public TableSchemaRenderer(IMetadataProvider metadataProvider, IAnonymizationPolicyResolver policyResolver)
     {
         _metadataProvider = metadataProvider;
+        _policyResolver = policyResolver;
     }
 
     public async Task<string> GetTableSchemaMarkdownAsync(DbConnection connection, string databaseName, string tableName, CancellationToken cancellationToken)
@@ -49,6 +58,7 @@ internal sealed class TableSchemaRenderer
 
         string? tableDesc = await _metadataProvider.GetTableDescriptionAsync(databaseName, tableName, cancellationToken);
         var columnDescs = await _metadataProvider.GetColumnDescriptionsAsync(databaseName, tableName, cancellationToken);
+        var anonymizedFlags = await ResolveAnonymizedFlagsAsync(databaseName, tableName, columns, cancellationToken);
 
         var triggers = (await QueryTriggersAsync(connection, tableName, cancellationToken)).ToList();
 
@@ -59,16 +69,35 @@ internal sealed class TableSchemaRenderer
             sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"*Description:* {tableDesc}").AppendLine();
         }
 
-        AppendColumnsTable(sb, columns, columnDescs);
+        AppendColumnsTable(sb, columns, columnDescs, anonymizedFlags);
         AppendTriggersTable(sb, triggers);
         await AppendDiscoveryIndexAsync(sb, connection, tableName, triggers, cancellationToken);
 
         return sb.ToString();
     }
 
-    private static void AppendColumnsTable(StringBuilder sb, IEnumerable<ColumnRow> columns, IReadOnlyDictionary<string, string> columnDescs)
+    /// <summary>
+    /// Resolves, once per column, whether its string values would currently be anonymized —
+    /// so the schema markdown can tell the caller upfront, before any query is written. Columns
+    /// whose SQL type is never read as a string (e.g. int, bit) are never anonymized regardless
+    /// of configuration, so they are reported as "No" without even asking the policy resolver.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, bool>> ResolveAnonymizedFlagsAsync(
+        string databaseName, string tableName, IEnumerable<ColumnRow> columns, CancellationToken cancellationToken)
     {
-        var headers = new[] { "Column Name", "Type", "Nullable", "Key/Identity", "Description" };
+        var flags = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        foreach (var col in columns)
+        {
+            flags[col.ColumnName] = AnonymizableSqlTypes.Contains(col.DataType)
+                && await _policyResolver.WillAnonymizeAsync(databaseName, tableName, col.ColumnName, cancellationToken);
+        }
+        return flags;
+    }
+
+    private static void AppendColumnsTable(
+        StringBuilder sb, IEnumerable<ColumnRow> columns, IReadOnlyDictionary<string, string> columnDescs, IReadOnlyDictionary<string, bool> anonymizedFlags)
+    {
+        var headers = new[] { "Column Name", "Type", "Nullable", "Key/Identity", "Anonymized", "Description" };
         var renderedRows = new List<string[]>();
         foreach (var col in columns)
         {
@@ -80,8 +109,10 @@ internal sealed class TableSchemaRenderer
             if (col.IsIdentity) keyFlags.Add("Identity");
             string keyStr = string.Join(", ", keyFlags);
 
+            string anonymized = anonymizedFlags.TryGetValue(col.ColumnName, out bool isAnonymized) && isAnonymized ? "Yes" : "No";
+
             columnDescs.TryGetValue(col.ColumnName, out string? desc);
-            renderedRows.Add([col.ColumnName, type, nullable, keyStr, desc ?? ""]);
+            renderedRows.Add([col.ColumnName, type, nullable, keyStr, anonymized, desc ?? ""]);
         }
         sb.AppendLine(RenderMarkdownTable(headers, renderedRows));
     }

@@ -181,9 +181,12 @@ internal static class Program
         // Anonymization
         services.AddSingleton<IAnonymizer, Anonymizer>();
         services.AddSingleton<IAnonymizerExclusionProvider, AnonymizerExclusionProvider>();
+        services.AddSingleton<IAnonymizationRuleProvider, AnonymizationRuleProvider>();
+        services.AddSingleton<IAnonymizationPolicyResolver, AnonymizationPolicyResolver>();
         services.AddSingleton<AnonymizationDependencies>(sp => new AnonymizationDependencies(
             sp.GetRequiredService<IAnonymizer>(),
-            sp.GetRequiredService<IAnonymizerExclusionProvider>()));
+            sp.GetRequiredService<IAnonymizerExclusionProvider>(),
+            sp.GetRequiredService<IAnonymizationRuleProvider>()));
 
         // MCP
         services.AddSingleton<ToolRegistry>();
