@@ -31,5 +31,6 @@
 
   <ItemGroup>
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="appsettings.json" />
   </ItemGroup>
 </Project>

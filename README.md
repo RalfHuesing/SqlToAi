@@ -51,6 +51,14 @@ output. The root section is `SqlToAi`, which contains the following sub-sections
 | `QueryExecution` | `DefaultRowLimit` and `MaxRowLimit` for `sql_execute_query`. |
 | `Logging` | File-based logging root directory, app/error rolling sinks, and the MCP-trail settings. See [Logging](#logging) below. |
 
+### Automatic Migration (`appsettings.json.bak`)
+
+Upon launch, `SqlToAi` automatically inspects the local `appsettings.json` file against the embedded factory default template:
+* **New options** are automatically inserted with factory default values.
+* **Obsolete options** (removed from the default template in a new release) are pruned.
+* **User modifications** (e.g. customized connection strings, whitelist entries, secrets) are strictly preserved.
+* **Backup:** If any changes are applied, a backup copy (`appsettings.json.bak`) is created next to the configuration file before saving.
+
 ### Credentials
 
 The server picks credentials in this order (first match wins):

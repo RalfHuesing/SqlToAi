@@ -302,3 +302,13 @@ ging** — inklusive der ggf. angewendeten Anonymisierung. Damit ist der Trail e
 Reproduktion des LLM-Datenflusses, nicht eine Zusammenfassung.
 
 Aufbewahrung und Pfad konfigurierbar unter `SqlToAi:Logging:McpTrail` in `appsettings.json`.
+
+---
+
+## 7. Automatische Konfigurations-Migration (Smart Auto-Migrator)
+
+Beim Start von `SqlToAi` prüft der `AppSettingsMigrator` die lokale `appsettings.json` gegenüber dem in der Assembly eingebetteten Werkstemplate:
+* **Neue Optionen:** Werden automatisch mit den Werkseinstellungen eingefügt.
+* **Obsolete Optionen:** Werden aus der Konfigurationsdatei entfernt.
+* **Nutzeranpassungen:** Vom Nutzer geänderte Werte (z. B. Connection Strings, Passwörter, Whitelists) bleiben unverändert erhalten.
+* **Backup:** Werden Änderungen vorgenommen, legt der Server vor dem Speichern eine Sicherungsdatei `appsettings.json.bak` an und protokolliert die Anpassungen über das Logging-System.

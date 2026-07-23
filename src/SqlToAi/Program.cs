@@ -21,6 +21,9 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        string appSettingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        MigrationResult migrationResult = AppSettingsMigrator.Migrate(appSettingsPath);
+
         IConfiguration configuration = BuildConfiguration();
 
         var sqlToAiOptions = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
@@ -33,6 +36,11 @@ internal static class Program
         // Information+ and to file at the configured level.
         // ---------------------------------------------------------------------------
         Log.Logger = BuildLogger(sqlToAiOptions.Logging);
+
+        foreach (string entry in migrationResult.LogEntries)
+        {
+            Log.Information("[ConfigMigration] {Message}", entry);
+        }
 
         try
         {
