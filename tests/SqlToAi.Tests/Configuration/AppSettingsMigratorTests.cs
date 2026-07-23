@@ -176,4 +176,42 @@ public sealed class AppSettingsMigratorTests : IDisposable
         Assert.Null(result.BackupFilePath);
         Assert.False(File.Exists(targetFilePath + ".bak"));
     }
+
+    [Fact]
+    public void Migrate_ShouldNotEscapeSingleQuotesInJsonOutput()
+    {
+        // Arrange
+        string targetFilePath = Path.Combine(_tempDirectory, "appsettings.json");
+        string userJsonText = """
+        {
+          "SqlToAi": {
+            "Databases": {
+              "AccessCheckSql": "SELECT CASE WHEN DB_NAME() IN ('OLDemoReweAbfD') THEN 'ReadWrite' ELSE 'ReadOnlyAnonymized' END AS AccessLevel"
+            }
+          }
+        }
+        """;
+        File.WriteAllText(targetFilePath, userJsonText, Encoding.UTF8);
+
+        string defaultJsonText = """
+        {
+          "SqlToAi": {
+            "Databases": {
+              "AccessCheckSql": "SELECT 1",
+              "NewKey": "NewValue"
+            }
+          }
+        }
+        """;
+        using var defaultStream = new MemoryStream(Encoding.UTF8.GetBytes(defaultJsonText));
+
+        // Act
+        MigrationResult result = AppSettingsMigrator.Migrate(targetFilePath, defaultStream);
+
+        // Assert
+        Assert.True(result.MigrationApplied);
+        string updatedText = File.ReadAllText(targetFilePath);
+        Assert.Contains("'OLDemoReweAbfD'", updatedText);
+        Assert.DoesNotContain("\\u0027", updatedText);
+    }
 }
