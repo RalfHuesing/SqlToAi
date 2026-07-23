@@ -61,7 +61,6 @@ public static class ConfigurationResolver
             if (options.Anonymizer.Tokenization != null)
             {
                 options.Anonymizer.Tokenization.Secret = Expand(options.Anonymizer.Tokenization.Secret);
-                ExpandListInPlace(options.Anonymizer.Tokenization.SearchableColumns);
             }
         }
 

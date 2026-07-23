@@ -167,7 +167,7 @@ public sealed class QueryTokenResolverTests
         var resolver = new QueryTokenResolver(vault, Options.Create(options));
 
         // 1. Egress: the AI receives a token instead of the real IBAN.
-        string token = anonymizer.Tokenize("DE89370400440532013000");
+        string token = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
 
         // 2. Ingress: the AI reuses that exact token in a later query.
         string result = resolver.ResolveTokens($"SELECT * FROM Accounts WHERE IBAN = '{token}'");

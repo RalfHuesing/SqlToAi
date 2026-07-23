@@ -26,13 +26,27 @@ public interface IAnonymizer
     string Anonymize(string columnName, string originalValue, string? tableName, HashSet<string>? dbExclusions);
 
     /// <summary>
-    /// Produces a deterministic, reversible token for a value flagged as searchable (instead of the
-    /// regular scramble/hash mask): the same value always yields the same token, and the server
-    /// remembers the token-to-value mapping so a later query can reuse the token to find matching rows
-    /// without the AI ever learning the real value. Falls back to the regular masking algorithm when
+    /// Produces a deterministic, reversible token instead of the regular scramble/hash mask: the
+    /// same value always yields the same token, and the server remembers the token-to-value mapping
+    /// so a later query can reuse the token to find matching rows without the AI ever learning the
+    /// real value. Respects the exact same exclusion rules as <see cref="Anonymize(string, string)"/>
+    /// (master switch, <c>ExcludedColumns</c>) — this only changes *how* an already-anonymized value
+    /// is anonymized, never *whether* it is. Falls back to the regular masking algorithm when
     /// tokenization is not configured to be usable (see <c>TokenizationOptions.IsUsable</c>).
     /// </summary>
+    /// <param name="columnName">The name of the column containing the value.</param>
     /// <param name="originalValue">The original raw value.</param>
-    /// <returns>A token that can be resolved back to <paramref name="originalValue"/>, or the value unchanged if empty.</returns>
-    string Tokenize(string originalValue);
+    /// <returns>A token that can be resolved back to <paramref name="originalValue"/>, or the value unchanged if excluded or empty.</returns>
+    string Tokenize(string columnName, string originalValue);
+
+    /// <summary>
+    /// Produces a deterministic, reversible token based on the column name, table name, and
+    /// database-specific exclusions — see <see cref="Tokenize(string, string)"/>.
+    /// </summary>
+    /// <param name="columnName">The name of the column containing the value.</param>
+    /// <param name="originalValue">The original raw value.</param>
+    /// <param name="tableName">The optional table name containing the column.</param>
+    /// <param name="dbExclusions">The optional set of database-specific exclusions ("TableName.ColumnName").</param>
+    /// <returns>A token that can be resolved back to <paramref name="originalValue"/>, or the value unchanged if excluded or empty.</returns>
+    string Tokenize(string columnName, string originalValue, string? tableName, HashSet<string>? dbExclusions);
 }

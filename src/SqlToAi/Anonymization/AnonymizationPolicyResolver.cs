@@ -58,21 +58,5 @@ public sealed class AnonymizationPolicyResolver : IAnonymizationPolicyResolver
     }
 
     /// <inheritdoc/>
-    public async Task<bool> IsSearchableTokenAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
-    {
-        if (!_options.Anonymizer.Tokenization.IsUsable)
-        {
-            return false;
-        }
-
-        foreach (string pattern in _options.Anonymizer.Tokenization.SearchableColumns)
-        {
-            if (GlobPatternMatcher.IsMatch(columnName, pattern))
-            {
-                return true;
-            }
-        }
-
-        return await _ruleProvider.IsSearchableTokenAsync(databaseName, tableName, columnName, cancellationToken);
-    }
+    public bool IsTokenizationActive => _options.Anonymizer.Tokenization.IsUsable;
 }

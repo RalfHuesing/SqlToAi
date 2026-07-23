@@ -8,7 +8,7 @@ namespace SqlToAi.Tests.Anonymization;
 
 #pragma warning disable CS8765 // Nullability of parameter doesn't match overridden member
 
-internal sealed record RuleRowData(string DatabasePattern, string TablePattern, string ColumnPattern, bool Anonymize, bool SearchableToken = false);
+internal sealed record RuleRowData(string DatabasePattern, string TablePattern, string ColumnPattern, bool Anonymize);
 
 internal sealed class DummyConnectionFactory : IDatabaseConnectionFactory
 {
@@ -125,7 +125,7 @@ internal sealed class RuleDataReader : DbDataReader
         _rows = rows;
     }
 
-    public override int FieldCount => 5;
+    public override int FieldCount => 4;
     public override int Depth => 0;
     public override bool IsClosed => false;
     public override int RecordsAffected => -1;
@@ -152,8 +152,7 @@ internal sealed class RuleDataReader : DbDataReader
         0 => "DatabasePattern",
         1 => "TablePattern",
         2 => "ColumnPattern",
-        3 => "Anonymize",
-        _ => "SearchableToken"
+        _ => "Anonymize"
     };
 
     public override int GetOrdinal(string name) => name switch
@@ -161,8 +160,7 @@ internal sealed class RuleDataReader : DbDataReader
         "DatabasePattern" => 0,
         "TablePattern" => 1,
         "ColumnPattern" => 2,
-        "Anonymize" => 3,
-        _ => 4
+        _ => 3
     };
 
     public override object GetValue(int ordinal)
@@ -173,8 +171,7 @@ internal sealed class RuleDataReader : DbDataReader
             0 => row.DatabasePattern,
             1 => row.TablePattern,
             2 => row.ColumnPattern,
-            3 => row.Anonymize,
-            _ => row.SearchableToken
+            _ => row.Anonymize
         };
     }
 
@@ -183,11 +180,11 @@ internal sealed class RuleDataReader : DbDataReader
     public override long GetBytes(int ordinal, long dataOffset, byte[]? buffer, int bufferOffset, int length) => 0;
     public override char GetChar(int ordinal) => '\0';
     public override long GetChars(int ordinal, long dataOffset, char[]? buffer, int bufferOffset, int length) => 0;
-    public override string GetDataTypeName(int ordinal) => ordinal is 3 or 4 ? "bit" : "nvarchar";
+    public override string GetDataTypeName(int ordinal) => ordinal == 3 ? "bit" : "nvarchar";
     public override DateTime GetDateTime(int ordinal) => DateTime.MinValue;
     public override decimal GetDecimal(int ordinal) => 0;
     public override double GetDouble(int ordinal) => 0;
-    public override Type GetFieldType(int ordinal) => ordinal is 3 or 4 ? typeof(bool) : typeof(string);
+    public override Type GetFieldType(int ordinal) => ordinal == 3 ? typeof(bool) : typeof(string);
     public override float GetFloat(int ordinal) => 0;
     public override Guid GetGuid(int ordinal) => Guid.Empty;
     public override short GetInt16(int ordinal) => 0;

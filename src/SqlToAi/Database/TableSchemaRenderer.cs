@@ -116,8 +116,7 @@ internal sealed class TableSchemaRenderer
             return ColumnAnonymizationState.None;
         }
 
-        bool searchable = await _policyResolver.IsSearchableTokenAsync(databaseName, tableName, col.ColumnName, cancellationToken);
-        return searchable ? ColumnAnonymizationState.SearchableToken : ColumnAnonymizationState.Masked;
+        return _policyResolver.IsTokenizationActive ? ColumnAnonymizationState.SearchableToken : ColumnAnonymizationState.Masked;
     }
 
     private static void AppendColumnsTable(

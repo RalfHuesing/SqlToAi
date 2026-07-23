@@ -317,18 +317,17 @@ public sealed class QueryExecutionServiceTests
     // Tests: searchable tokenization (egress + ingress)
     // -------------------------------------------------------------------------
 
-    private static SqlToAiOptions BuildTokenizationOptions(params string[] searchableColumnGlobs)
+    private static SqlToAiOptions BuildTokenizationOptions(bool enabled = true)
     {
         var options = new SqlToAiOptions();
         options.Anonymizer.Enabled = true;
-        options.Anonymizer.Tokenization.Enabled = true;
+        options.Anonymizer.Tokenization.Enabled = enabled;
         options.Anonymizer.Tokenization.Secret = "top-secret";
-        options.Anonymizer.Tokenization.SearchableColumns = searchableColumnGlobs.ToList();
         return options;
     }
 
     private static (QueryExecutionService Service, MockQueryConnectionFactory Factory, TokenVault Vault) BuildTokenizingService(
-        SqlToAiOptions options, string stringValue, IAnonymizationRuleProvider? ruleProvider = null, string columnName = "IBAN")
+        SqlToAiOptions options, string stringValue, string columnName = "IBAN")
     {
         var vault = new TokenVault();
         var factory = new MockQueryConnectionFactory(stringValue: stringValue, columnName: columnName);
@@ -337,7 +336,7 @@ public sealed class QueryExecutionServiceTests
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
             new FakeReadOnlyGuard(true),
-            new AnonymizationDependencies(anonymizer, RuleProvider: ruleProvider, TokenResolver: resolver),
+            new AnonymizationDependencies(anonymizer, TokenResolver: resolver),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
         return (service, factory, vault);
     }
@@ -354,32 +353,34 @@ public sealed class QueryExecutionServiceTests
     }
 
     [Fact]
-    public async Task ExecuteQueryAsync_ShouldTokenizeColumn_MatchingSearchableColumnsGlob()
+    public async Task ExecuteQueryAsync_ShouldTokenizeEveryAnonymizedColumn_WhenTokenizationEnabled()
     {
-        const string iban = "DE89370400440532013000";
-        var options = BuildTokenizationOptions("IBAN");
-        var (service, _, vault) = BuildTokenizingService(options, iban);
+        // No column-name configuration anywhere — tokenization is a blanket mode switch, exactly
+        // like DefaultMode, so an arbitrarily named column gets tokenized automatically.
+        const string realValue = "DE89370400440532013000";
+        var options = BuildTokenizationOptions();
+        var (service, _, vault) = BuildTokenizingService(options, realValue, columnName: "SomeArbitraryColumn");
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT IBAN FROM Accounts", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT SomeArbitraryColumn FROM Whatever", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
-        Assert.DoesNotContain(iban, result.Value.Data, StringComparison.Ordinal);
+        Assert.DoesNotContain(realValue, result.Value.Data, StringComparison.Ordinal);
         Assert.True(result.Value.WasAnonymized);
 
-        string token = ExtractColumnValue(result.Value.Data, "IBAN");
+        string token = ExtractColumnValue(result.Value.Data, "SomeArbitraryColumn");
         Assert.StartsWith(options.Anonymizer.Tokenization.Prefix, token, StringComparison.Ordinal);
         Assert.True(vault.TryResolve(token, out string? resolved));
-        Assert.Equal(iban, resolved);
+        Assert.Equal(realValue, resolved);
 
-        Assert.Contains("IBAN", result.Value.SearchableTokenColumns);
-        Assert.Contains("IBAN", result.Value.AnonymizedColumns);
+        Assert.Contains("SomeArbitraryColumn", result.Value.SearchableTokenColumns);
+        Assert.Contains("SomeArbitraryColumn", result.Value.AnonymizedColumns);
     }
 
     [Fact]
-    public async Task ExecuteQueryAsync_ShouldNotTokenize_ColumnNotMatchingSearchableColumnsGlob()
+    public async Task ExecuteQueryAsync_ShouldUseRegularMasking_WhenTokenizationDisabled()
     {
         const string original = "Ralf Huesing";
-        var options = BuildTokenizationOptions("IBAN"); // "Name" column below doesn't match
+        var options = BuildTokenizationOptions(enabled: false);
         var (service, _, _) = BuildTokenizingService(options, original, columnName: "Name");
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
@@ -392,26 +393,27 @@ public sealed class QueryExecutionServiceTests
     }
 
     [Fact]
-    public async Task ExecuteQueryAsync_ShouldTokenizeColumn_WhenCentralRuleProviderFlagsSearchable()
+    public async Task ExecuteQueryAsync_ShouldRespectExistingExclusions_EvenWhenTokenizationEnabled()
     {
-        const string iban = "DE89370400440532013000";
-        var options = BuildTokenizationOptions(); // no appsettings glob — rule provider decides
-        var (service, _, vault) = BuildTokenizingService(options, iban, new AlwaysSearchableRuleProvider());
+        // Exclusion mechanisms (ExcludedColumns here) still take precedence — tokenization only
+        // changes *how* an already-anonymized column is anonymized, never *whether* it is.
+        const string original = "Active";
+        var options = BuildTokenizationOptions();
+        options.Anonymizer.ExcludedColumns = new List<string> { "Status" };
+        var (service, _, _) = BuildTokenizingService(options, original, columnName: "Status");
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT IBAN FROM Accounts", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Status FROM Orders", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
-        string token = ExtractColumnValue(result.Value.Data, "IBAN");
-        Assert.StartsWith(options.Anonymizer.Tokenization.Prefix, token, StringComparison.Ordinal);
-        Assert.True(vault.TryResolve(token, out string? resolved));
-        Assert.Equal(iban, resolved);
-        Assert.Contains("IBAN", result.Value.SearchableTokenColumns);
+        Assert.Contains(original, result.Value.Data, StringComparison.Ordinal);
+        Assert.False(result.Value.WasAnonymized);
+        Assert.Empty(result.Value.SearchableTokenColumns);
     }
 
     [Fact]
     public async Task ExecuteQueryAsync_ShouldResolveToken_BackToRealValue_BeforeExecution()
     {
-        var options = BuildTokenizationOptions("IBAN");
+        var options = BuildTokenizationOptions();
         var (service, factory, vault) = BuildTokenizingService(options, "unused");
         vault.Store("§§§preissued§§§", "DE89370400440532013000");
 
@@ -427,7 +429,7 @@ public sealed class QueryExecutionServiceTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldLeaveUnknownToken_UnresolvedInExecutedQuery()
     {
-        var options = BuildTokenizationOptions("IBAN");
+        var options = BuildTokenizationOptions();
         var (service, factory, _) = BuildTokenizingService(options, "unused");
 
         await service.ExecuteQueryAsync(
@@ -441,7 +443,7 @@ public sealed class QueryExecutionServiceTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldNotResolveTokens_WhenAccessLevelIsNotAnonymized()
     {
-        var options = BuildTokenizationOptions("IBAN");
+        var options = BuildTokenizationOptions();
         var vault = new TokenVault();
         vault.Store("§§§preissued§§§", "DE89370400440532013000");
         var factory = new MockQueryConnectionFactory(stringValue: "unused");
@@ -464,7 +466,7 @@ public sealed class QueryExecutionServiceTests
     public async Task ExecuteQueryAsync_ShouldRoundTripToken_FromEgressQueryIntoIngressQuery()
     {
         const string iban = "DE89370400440532013000";
-        var options = BuildTokenizationOptions("IBAN");
+        var options = BuildTokenizationOptions();
         var (service, factory, _) = BuildTokenizingService(options, iban);
 
         // 1. Egress: a first query hands the AI a token instead of the real IBAN.

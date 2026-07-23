@@ -181,7 +181,7 @@ public sealed class AnonymizerTests
     {
         var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), new TokenVault());
 
-        Assert.Equal("", anonymizer.Tokenize(""));
+        Assert.Equal("", anonymizer.Tokenize("IBAN", ""));
     }
 
     [Fact]
@@ -189,8 +189,8 @@ public sealed class AnonymizerTests
     {
         var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), new TokenVault());
 
-        var token1 = anonymizer.Tokenize("DE89370400440532013000");
-        var token2 = anonymizer.Tokenize("DE89370400440532013000");
+        var token1 = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
+        var token2 = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
 
         Assert.Equal(token1, token2);
     }
@@ -200,8 +200,8 @@ public sealed class AnonymizerTests
     {
         var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), new TokenVault());
 
-        var token1 = anonymizer.Tokenize("DE89370400440532013000");
-        var token2 = anonymizer.Tokenize("DE11520513735120710131");
+        var token1 = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
+        var token2 = anonymizer.Tokenize("IBAN", "DE11520513735120710131");
 
         Assert.NotEqual(token1, token2);
     }
@@ -214,7 +214,7 @@ public sealed class AnonymizerTests
         options.Anonymizer.Tokenization.Suffix = ">>";
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
-        var token = anonymizer.Tokenize("DE89370400440532013000");
+        var token = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
 
         Assert.StartsWith("<<", token, StringComparison.Ordinal);
         Assert.EndsWith(">>", token, StringComparison.Ordinal);
@@ -227,8 +227,8 @@ public sealed class AnonymizerTests
         var anonymizerA = new Anonymizer(Options.Create(BuildTokenizationOptions(secret: "secret-a")), vault);
         var anonymizerB = new Anonymizer(Options.Create(BuildTokenizationOptions(secret: "secret-b")), vault);
 
-        var tokenA = anonymizerA.Tokenize("DE89370400440532013000");
-        var tokenB = anonymizerB.Tokenize("DE89370400440532013000");
+        var tokenA = anonymizerA.Tokenize("IBAN", "DE89370400440532013000");
+        var tokenB = anonymizerB.Tokenize("IBAN", "DE89370400440532013000");
 
         Assert.NotEqual(tokenA, tokenB);
     }
@@ -239,7 +239,7 @@ public sealed class AnonymizerTests
         var vault = new TokenVault();
         var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), vault);
 
-        var token = anonymizer.Tokenize("DE89370400440532013000");
+        var token = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
 
         Assert.True(vault.TryResolve(token, out string? resolved));
         Assert.Equal("DE89370400440532013000", resolved);
@@ -250,7 +250,7 @@ public sealed class AnonymizerTests
     {
         var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions(enabled: false)), new TokenVault());
 
-        var result = anonymizer.Tokenize("Ralf");
+        var result = anonymizer.Tokenize("Name", "Ralf");
 
         Assert.NotEqual("Ralf", result);
         Assert.Equal(4, result.Length); // ScramblePattern default preserves length
@@ -261,9 +261,42 @@ public sealed class AnonymizerTests
     {
         var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions(secret: "")), new TokenVault());
 
-        var result = anonymizer.Tokenize("Ralf");
+        var result = anonymizer.Tokenize("Name", "Ralf");
 
         Assert.NotEqual("Ralf", result);
         Assert.Equal(4, result.Length);
+    }
+
+    [Fact]
+    public void Tokenize_ShouldReturnOriginalValue_WhenColumnMatchesGlobExclusion()
+    {
+        var options = BuildTokenizationOptions();
+        options.Anonymizer.ExcludedColumns = new List<string> { "*Id", "Status" };
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
+
+        Assert.Equal("123", anonymizer.Tokenize("CustomerId", "123"));
+        Assert.Equal("Active", anonymizer.Tokenize("Status", "Active"));
+    }
+
+    [Fact]
+    public void Tokenize_ShouldReturnOriginalValue_WhenDatabaseExclusionMatches()
+    {
+        var options = BuildTokenizationOptions();
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
+        var dbExclusions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "FakeProjects.ProjectName" };
+
+        var result = anonymizer.Tokenize("ProjectName", "SecretProject", "FakeProjects", dbExclusions);
+
+        Assert.Equal("SecretProject", result);
+    }
+
+    [Fact]
+    public void Tokenize_ShouldReturnOriginalValue_WhenGloballyDisabled()
+    {
+        var options = BuildTokenizationOptions();
+        options.Anonymizer.Enabled = false;
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
+
+        Assert.Equal("Ralf", anonymizer.Tokenize("Name", "Ralf"));
     }
 }

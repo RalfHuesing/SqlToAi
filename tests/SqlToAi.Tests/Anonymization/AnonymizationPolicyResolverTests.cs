@@ -14,12 +14,11 @@ public sealed class AnonymizationPolicyResolverTests
     private static AnonymizationPolicyResolver BuildResolver(
         SqlToAiOptions? options = null,
         HashSet<string>? legacyExclusions = null,
-        bool centralExcluded = false,
-        bool centralSearchable = false)
+        bool centralExcluded = false)
     {
         options ??= new SqlToAiOptions();
         var exclusionProvider = new FakeExclusionProvider(legacyExclusions ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-        var ruleProvider = new FakeRuleProvider(centralExcluded, centralSearchable);
+        var ruleProvider = new FakeRuleProvider(centralExcluded);
         return new AnonymizationPolicyResolver(Options.Create(options), exclusionProvider, ruleProvider);
     }
 
@@ -79,74 +78,40 @@ public sealed class AnonymizationPolicyResolverTests
     }
 
     // -------------------------------------------------------------------------
-    // Tests: IsSearchableTokenAsync
+    // Tests: IsTokenizationActive
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task IsSearchableTokenAsync_ShouldReturnFalse_WhenTokenizationDisabled()
+    public void IsTokenizationActive_ShouldBeFalse_WhenTokenizationDisabled()
     {
         var options = new SqlToAiOptions();
         options.Anonymizer.Tokenization.Enabled = false;
-        options.Anonymizer.Tokenization.SearchableColumns = new List<string> { "IBAN" };
+        options.Anonymizer.Tokenization.Secret = "top-secret";
         var resolver = BuildResolver(options);
 
-        bool result = await resolver.IsSearchableTokenAsync("Db", "Accounts", "IBAN", TestContext.Current.CancellationToken);
-
-        Assert.False(result);
+        Assert.False(resolver.IsTokenizationActive);
     }
 
     [Fact]
-    public async Task IsSearchableTokenAsync_ShouldReturnFalse_WhenSecretMissing()
+    public void IsTokenizationActive_ShouldBeFalse_WhenSecretMissing()
     {
         var options = new SqlToAiOptions();
         options.Anonymizer.Tokenization.Enabled = true;
         options.Anonymizer.Tokenization.Secret = "";
-        options.Anonymizer.Tokenization.SearchableColumns = new List<string> { "IBAN" };
         var resolver = BuildResolver(options);
 
-        bool result = await resolver.IsSearchableTokenAsync("Db", "Accounts", "IBAN", TestContext.Current.CancellationToken);
-
-        Assert.False(result);
+        Assert.False(resolver.IsTokenizationActive);
     }
 
     [Fact]
-    public async Task IsSearchableTokenAsync_ShouldReturnTrue_WhenColumnMatchesSearchableColumnsGlob()
-    {
-        var options = new SqlToAiOptions();
-        options.Anonymizer.Tokenization.Enabled = true;
-        options.Anonymizer.Tokenization.Secret = "top-secret";
-        options.Anonymizer.Tokenization.SearchableColumns = new List<string> { "IBAN" };
-        var resolver = BuildResolver(options);
-
-        bool result = await resolver.IsSearchableTokenAsync("Db", "Accounts", "IBAN", TestContext.Current.CancellationToken);
-
-        Assert.True(result);
-    }
-
-    [Fact]
-    public async Task IsSearchableTokenAsync_ShouldReturnTrue_WhenCentralRuleFlagsColumn()
-    {
-        var options = new SqlToAiOptions();
-        options.Anonymizer.Tokenization.Enabled = true;
-        options.Anonymizer.Tokenization.Secret = "top-secret";
-        var resolver = BuildResolver(options, centralSearchable: true);
-
-        bool result = await resolver.IsSearchableTokenAsync("Db", "Accounts", "IBAN", TestContext.Current.CancellationToken);
-
-        Assert.True(result);
-    }
-
-    [Fact]
-    public async Task IsSearchableTokenAsync_ShouldReturnFalse_WhenNeitherSourceFlagsTheColumn()
+    public void IsTokenizationActive_ShouldBeTrue_WhenEnabledWithSecret()
     {
         var options = new SqlToAiOptions();
         options.Anonymizer.Tokenization.Enabled = true;
         options.Anonymizer.Tokenization.Secret = "top-secret";
         var resolver = BuildResolver(options);
 
-        bool result = await resolver.IsSearchableTokenAsync("Db", "Accounts", "IBAN", TestContext.Current.CancellationToken);
-
-        Assert.False(result);
+        Assert.True(resolver.IsTokenizationActive);
     }
 
     private sealed class FakeExclusionProvider(HashSet<string> exclusions) : IAnonymizerExclusionProvider
@@ -155,12 +120,9 @@ public sealed class AnonymizationPolicyResolverTests
             => Task.FromResult(exclusions);
     }
 
-    private sealed class FakeRuleProvider(bool excluded, bool searchable = false) : IAnonymizationRuleProvider
+    private sealed class FakeRuleProvider(bool excluded) : IAnonymizationRuleProvider
     {
         public Task<bool> IsExcludedAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
             => Task.FromResult(excluded);
-
-        public Task<bool> IsSearchableTokenAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
-            => Task.FromResult(searchable);
     }
 }

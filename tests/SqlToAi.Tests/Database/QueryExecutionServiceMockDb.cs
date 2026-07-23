@@ -15,18 +15,6 @@ internal sealed class AlwaysExcludeRuleProvider : IAnonymizationRuleProvider
 {
     public Task<bool> IsExcludedAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
         => Task.FromResult(true);
-
-    public Task<bool> IsSearchableTokenAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
-        => Task.FromResult(false);
-}
-
-internal sealed class AlwaysSearchableRuleProvider : IAnonymizationRuleProvider
-{
-    public Task<bool> IsExcludedAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
-        => Task.FromResult(false);
-
-    public Task<bool> IsSearchableTokenAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
-        => Task.FromResult(true);
 }
 
 internal sealed class FakeSecurityGuard(bool allowed) : ISecurityGuard

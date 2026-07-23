@@ -50,7 +50,6 @@ public sealed class QueryExecutionService : IQueryExecutionService
     private readonly IAnonymizerExclusionProvider? _anonymizerExclusionProvider;
     private readonly IAnonymizationRuleProvider? _anonymizationRuleProvider;
     private readonly IQueryTokenResolver? _queryTokenResolver;
-    private readonly SearchableTokenColumnResolver _searchableTokenColumnResolver;
     private readonly QueryExecutionOptions _options;
     private readonly string _anonymizationMode;
     private readonly TokenizationOptions _tokenizationOptions;
@@ -77,7 +76,6 @@ public sealed class QueryExecutionService : IQueryExecutionService
         _options = options.Value.QueryExecution;
         _anonymizationMode = options.Value.Anonymizer.DefaultMode;
         _tokenizationOptions = options.Value.Anonymizer.Tokenization;
-        _searchableTokenColumnResolver = new SearchableTokenColumnResolver(_tokenizationOptions, _anonymizationRuleProvider);
         _logger = logger;
     }
 
@@ -265,7 +263,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
         HashSet<string>? Exclusions,
         string?[]? BaseTableNames,
         bool[]? CentralExclusions,
-        bool[]? SearchableTokenColumns);
+        bool UseTokenization);
 
     private async Task<AnonymizationContext> ResolveAnonymizationContextAsync(
         DbDataReader reader,
@@ -276,7 +274,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
     {
         if (!anonymize)
         {
-            return new AnonymizationContext(false, null, null, null, null);
+            return new AnonymizationContext(false, null, null, null, false);
         }
 
         HashSet<string>? exclusions = _anonymizerExclusionProvider != null
@@ -286,11 +284,8 @@ public sealed class QueryExecutionService : IQueryExecutionService
         bool[]? centralExclusions = _anonymizationRuleProvider != null
             ? await ResolveCentralExclusionsAsync(databaseName, columnNames, baseTableNames, cancellationToken)
             : null;
-        bool[]? searchableTokenColumns = _tokenizationOptions.IsUsable
-            ? await _searchableTokenColumnResolver.ResolveAsync(databaseName, columnNames, baseTableNames, cancellationToken)
-            : null;
 
-        return new AnonymizationContext(true, exclusions, baseTableNames, centralExclusions, searchableTokenColumns);
+        return new AnonymizationContext(true, exclusions, baseTableNames, centralExclusions, _tokenizationOptions.IsUsable);
     }
 
     /// <summary>
@@ -346,9 +341,8 @@ public sealed class QueryExecutionService : IQueryExecutionService
         }
 
         string? tableName = anonCtx.BaseTableNames != null && columnIndex < anonCtx.BaseTableNames.Length ? anonCtx.BaseTableNames[columnIndex] : null;
-        bool searchable = IsFlagSet(anonCtx.SearchableTokenColumns, columnIndex);
-        string anonymizedValue = searchable
-            ? _anonymizer.Tokenize(strVal)
+        string anonymizedValue = anonCtx.UseTokenization
+            ? _anonymizer.Tokenize(columnName, strVal, tableName, anonCtx.Exclusions)
             : _anonymizer.Anonymize(columnName, strVal, tableName, anonCtx.Exclusions);
 
         if (anonymizedValue != strVal)
@@ -356,7 +350,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
             // Qualify with the resolved base table when known, so the LLM (and the human it
             // reports to) can act on a concrete "TableName.ColumnName" instead of a bare alias.
             string qualifiedName = string.IsNullOrEmpty(tableName) ? columnName : $"{tableName}.{columnName}";
-            tracker.RecordAnonymizedColumn(qualifiedName, searchable);
+            tracker.RecordAnonymizedColumn(qualifiedName, anonCtx.UseTokenization);
         }
 
         return anonymizedValue;

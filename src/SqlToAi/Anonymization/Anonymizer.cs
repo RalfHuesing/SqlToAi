@@ -42,41 +42,26 @@ public sealed class Anonymizer : IAnonymizer
     /// <inheritdoc/>
     public string Anonymize(string columnName, string originalValue, string? tableName, HashSet<string>? dbExclusions)
     {
-        if (!_options.Anonymizer.Enabled || string.IsNullOrEmpty(originalValue))
+        if (string.IsNullOrEmpty(originalValue) || IsColumnExcluded(columnName, tableName, dbExclusions))
         {
             return originalValue;
         }
 
-        // 1. Check database-specific exclusions first (TableName.ColumnName)
-        if (dbExclusions != null && !string.IsNullOrEmpty(tableName))
-        {
-            string key = $"{tableName}.{columnName}";
-            if (dbExclusions.Contains(key))
-            {
-                return originalValue;
-            }
-        }
-
-        // 2. Check global exclusion patterns
-        foreach (string excludedPattern in _options.Anonymizer.ExcludedColumns)
-        {
-            if (GlobPatternMatcher.IsMatch(columnName, excludedPattern))
-            {
-                return originalValue;
-            }
-        }
-
-        // 3. Pauschale Anonymisierung: every non-excluded string column is anonymized with the
-        //    configured default mode. Per-database opt-out is handled at the AccessLevel layer
-        //    (ReadOnlyAnonymized vs ReadOnly) — the Anonymizer is only ever invoked when the
-        //    access level already decided "yes, anonymize".
+        // Pauschale Anonymisierung: every non-excluded string column is anonymized with the
+        // configured default mode. Per-database opt-out is handled at the AccessLevel layer
+        // (ReadOnlyAnonymized vs ReadOnly) — the Anonymizer is only ever invoked when the
+        // access level already decided "yes, anonymize".
         return RunAnonymization(originalValue, _options.Anonymizer.DefaultMode);
     }
 
     /// <inheritdoc/>
-    public string Tokenize(string originalValue)
+    public string Tokenize(string columnName, string originalValue) =>
+        Tokenize(columnName, originalValue, null, null);
+
+    /// <inheritdoc/>
+    public string Tokenize(string columnName, string originalValue, string? tableName, HashSet<string>? dbExclusions)
     {
-        if (string.IsNullOrEmpty(originalValue))
+        if (string.IsNullOrEmpty(originalValue) || IsColumnExcluded(columnName, tableName, dbExclusions))
         {
             return originalValue;
         }
@@ -92,6 +77,39 @@ public sealed class Anonymizer : IAnonymizer
         string token = ComputeToken(originalValue, tokenization);
         _tokenVault.Store(token, originalValue);
         return token;
+    }
+
+    /// <summary>
+    /// The single exclusion decision shared by <see cref="Anonymize(string, string, string?, HashSet{string}?)"/>
+    /// and <see cref="Tokenize(string, string, string?, HashSet{string}?)"/>, so tokenization can never
+    /// bypass an exclusion that regular masking would honor: the master switch, the database-specific
+    /// exclusion table, and the <see cref="AnonymizerOptions.ExcludedColumns"/> glob patterns.
+    /// </summary>
+    private bool IsColumnExcluded(string columnName, string? tableName, HashSet<string>? dbExclusions)
+    {
+        if (!_options.Anonymizer.Enabled)
+        {
+            return true;
+        }
+
+        if (dbExclusions != null && !string.IsNullOrEmpty(tableName))
+        {
+            string key = $"{tableName}.{columnName}";
+            if (dbExclusions.Contains(key))
+            {
+                return true;
+            }
+        }
+
+        foreach (string excludedPattern in _options.Anonymizer.ExcludedColumns)
+        {
+            if (GlobPatternMatcher.IsMatch(columnName, excludedPattern))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string ComputeToken(string value, TokenizationOptions tokenization)
