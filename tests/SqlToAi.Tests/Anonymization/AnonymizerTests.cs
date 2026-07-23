@@ -17,7 +17,7 @@ public sealed class AnonymizerTests
         // Arrange
         var options = new SqlToAiOptions();
         options.Anonymizer.Enabled = false;
-        var anonymizer = new Anonymizer(Options.Create(options));
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
         // Act
         var result = anonymizer.Anonymize("LastName", "Mustermann");
@@ -32,7 +32,7 @@ public sealed class AnonymizerTests
         // Arrange
         var options = new SqlToAiOptions();
         options.Anonymizer.Enabled = true;
-        var anonymizer = new Anonymizer(Options.Create(options));
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
         // Act & Assert
         Assert.Equal("", anonymizer.Anonymize("LastName", ""));
@@ -45,7 +45,7 @@ public sealed class AnonymizerTests
         var options = new SqlToAiOptions();
         options.Anonymizer.Enabled = true;
         options.Anonymizer.ExcludedColumns = new List<string> { "Id", "*Id", "*Code", "Status" };
-        var anonymizer = new Anonymizer(Options.Create(options));
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
         // Act & Assert
         Assert.Equal("123", anonymizer.Anonymize("CustomerId", "123"));
@@ -63,7 +63,7 @@ public sealed class AnonymizerTests
         options.Anonymizer.Enabled = true;
         options.Anonymizer.DefaultMode = "ScramblePattern";
         options.Anonymizer.ExcludedColumns = new List<string>();
-        var anonymizer = new Anonymizer(Options.Create(options));
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
         // Act
         var result1 = anonymizer.Anonymize("Name", "Ralf");
@@ -102,7 +102,7 @@ public sealed class AnonymizerTests
         options.Anonymizer.Enabled = true;
         options.Anonymizer.DefaultMode = "Hash";
         options.Anonymizer.ExcludedColumns = new List<string>();
-        var anonymizer = new Anonymizer(Options.Create(options));
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
         // Act
         var hash1 = anonymizer.Anonymize("CustomerName", "Ralf");
@@ -125,7 +125,7 @@ public sealed class AnonymizerTests
         var options = new SqlToAiOptions();
         options.Anonymizer.Enabled = true;
         options.Anonymizer.ExcludedColumns = new List<string> { "Id" };
-        var anonymizer = new Anonymizer(Options.Create(options));
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
         // Act
         var val1 = anonymizer.Anonymize("FirstName", "Ralf");
@@ -145,7 +145,7 @@ public sealed class AnonymizerTests
         var options = new SqlToAiOptions();
         options.Anonymizer.Enabled = true;
         options.Anonymizer.ExcludedColumns = new List<string> { "Id" };
-        var anonymizer = new Anonymizer(Options.Create(options));
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
         var dbExclusions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -161,5 +161,109 @@ public sealed class AnonymizerTests
         // Assert
         Assert.Equal("SecretProject", excludedVal);
         Assert.NotEqual("SecretDescription", normalVal);
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests: Tokenize
+    // -------------------------------------------------------------------------
+
+    private static SqlToAiOptions BuildTokenizationOptions(bool enabled = true, string secret = "top-secret")
+    {
+        var options = new SqlToAiOptions();
+        options.Anonymizer.Enabled = true;
+        options.Anonymizer.Tokenization.Enabled = enabled;
+        options.Anonymizer.Tokenization.Secret = secret;
+        return options;
+    }
+
+    [Fact]
+    public void Tokenize_ShouldReturnOriginalValue_WhenValueIsEmptyOrNull()
+    {
+        var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), new TokenVault());
+
+        Assert.Equal("", anonymizer.Tokenize(""));
+    }
+
+    [Fact]
+    public void Tokenize_ShouldBeDeterministic_ForTheSameValue()
+    {
+        var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), new TokenVault());
+
+        var token1 = anonymizer.Tokenize("DE89370400440532013000");
+        var token2 = anonymizer.Tokenize("DE89370400440532013000");
+
+        Assert.Equal(token1, token2);
+    }
+
+    [Fact]
+    public void Tokenize_ShouldProduceDifferentTokens_ForDifferentValues()
+    {
+        var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), new TokenVault());
+
+        var token1 = anonymizer.Tokenize("DE89370400440532013000");
+        var token2 = anonymizer.Tokenize("DE11520513735120710131");
+
+        Assert.NotEqual(token1, token2);
+    }
+
+    [Fact]
+    public void Tokenize_ShouldWrapTokenInConfiguredPrefixAndSuffix()
+    {
+        var options = BuildTokenizationOptions();
+        options.Anonymizer.Tokenization.Prefix = "<<";
+        options.Anonymizer.Tokenization.Suffix = ">>";
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
+
+        var token = anonymizer.Tokenize("DE89370400440532013000");
+
+        Assert.StartsWith("<<", token, StringComparison.Ordinal);
+        Assert.EndsWith(">>", token, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Tokenize_ShouldProduceDifferentTokens_ForDifferentSecrets()
+    {
+        var vault = new TokenVault();
+        var anonymizerA = new Anonymizer(Options.Create(BuildTokenizationOptions(secret: "secret-a")), vault);
+        var anonymizerB = new Anonymizer(Options.Create(BuildTokenizationOptions(secret: "secret-b")), vault);
+
+        var tokenA = anonymizerA.Tokenize("DE89370400440532013000");
+        var tokenB = anonymizerB.Tokenize("DE89370400440532013000");
+
+        Assert.NotEqual(tokenA, tokenB);
+    }
+
+    [Fact]
+    public void Tokenize_ShouldStoreValueInVault_SoItCanBeResolvedBack()
+    {
+        var vault = new TokenVault();
+        var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), vault);
+
+        var token = anonymizer.Tokenize("DE89370400440532013000");
+
+        Assert.True(vault.TryResolve(token, out string? resolved));
+        Assert.Equal("DE89370400440532013000", resolved);
+    }
+
+    [Fact]
+    public void Tokenize_ShouldFallBackToMasking_WhenTokenizationDisabled()
+    {
+        var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions(enabled: false)), new TokenVault());
+
+        var result = anonymizer.Tokenize("Ralf");
+
+        Assert.NotEqual("Ralf", result);
+        Assert.Equal(4, result.Length); // ScramblePattern default preserves length
+    }
+
+    [Fact]
+    public void Tokenize_ShouldFallBackToMasking_WhenSecretIsEmpty()
+    {
+        var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions(secret: "")), new TokenVault());
+
+        var result = anonymizer.Tokenize("Ralf");
+
+        Assert.NotEqual("Ralf", result);
+        Assert.Equal(4, result.Length);
     }
 }

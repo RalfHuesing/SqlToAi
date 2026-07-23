@@ -50,14 +50,26 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
     /// <inheritdoc/>
     public async Task<bool> IsExcludedAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
     {
+        AnonymizationRule? bestMatch = await ResolveBestMatchAsync(databaseName, tableName, columnName, cancellationToken);
+        return bestMatch is not null && !bestMatch.Anonymize;
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> IsSearchableTokenAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
+    {
+        AnonymizationRule? bestMatch = await ResolveBestMatchAsync(databaseName, tableName, columnName, cancellationToken);
+        return bestMatch is not null && bestMatch.SearchableToken;
+    }
+
+    private async Task<AnonymizationRule?> ResolveBestMatchAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken)
+    {
         if (!_options.AnonymizationRules.Enabled || string.IsNullOrWhiteSpace(columnName))
         {
-            return false;
+            return null;
         }
 
         var rules = await GetActiveRulesAsync(cancellationToken);
-        AnonymizationRule? bestMatch = FindMostSpecificMatch(rules, databaseName ?? string.Empty, tableName ?? string.Empty, columnName);
-        return bestMatch is not null && !bestMatch.Anonymize;
+        return FindMostSpecificMatch(rules, databaseName ?? string.Empty, tableName ?? string.Empty, columnName);
     }
 
     private async Task<IReadOnlyList<AnonymizationRule>> GetActiveRulesAsync(CancellationToken cancellationToken)
@@ -114,11 +126,11 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
                 return [];
             }
 
-            string sql = $"SELECT [DatabasePattern], [TablePattern], [ColumnPattern], [Anonymize] FROM {safeTableName} WHERE [IsActive] = 1";
+            string sql = $"SELECT [DatabasePattern], [TablePattern], [ColumnPattern], [Anonymize], [SearchableToken] FROM {safeTableName} WHERE [IsActive] = 1";
             var rows = await connection.QueryAsync<RuleRow>(
                 new CommandDefinition(sql, cancellationToken: cancellationToken, commandTimeout: _options.AnonymizationRules.CommandTimeoutSeconds));
 
-            return rows.Select(r => new AnonymizationRule(r.DatabasePattern, r.TablePattern, r.ColumnPattern, r.Anonymize)).ToList();
+            return rows.Select(r => new AnonymizationRule(r.DatabasePattern, r.TablePattern, r.ColumnPattern, r.Anonymize, r.SearchableToken)).ToList();
         }
         catch (Exception ex)
         {
@@ -162,5 +174,6 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
         public string TablePattern { get; init; } = "%";
         public string ColumnPattern { get; init; } = string.Empty;
         public bool Anonymize { get; init; }
+        public bool SearchableToken { get; init; }
     }
 }

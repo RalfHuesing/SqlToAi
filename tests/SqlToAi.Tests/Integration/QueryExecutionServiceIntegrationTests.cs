@@ -181,7 +181,7 @@ public sealed class QueryExecutionServiceIntegrationTests
             _fx.SecurityGuard,
             customAccessProvider ?? _fx.AccessLevelProvider,
             _fx.ReadOnlyGuard,
-            new AnonymizationDependencies(new Anonymizer(optionsWrapper), exclusionProvider),
+            new AnonymizationDependencies(new Anonymizer(optionsWrapper, new TokenVault()), exclusionProvider),
             optionsWrapper,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryExecutionService>.Instance);
     }

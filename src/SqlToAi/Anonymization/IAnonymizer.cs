@@ -24,4 +24,15 @@ public interface IAnonymizer
     /// <param name="dbExclusions">The optional set of database-specific exclusions ("TableName.ColumnName").</param>
     /// <returns>The anonymized string value, or the original value if it should be excluded.</returns>
     string Anonymize(string columnName, string originalValue, string? tableName, HashSet<string>? dbExclusions);
+
+    /// <summary>
+    /// Produces a deterministic, reversible token for a value flagged as searchable (instead of the
+    /// regular scramble/hash mask): the same value always yields the same token, and the server
+    /// remembers the token-to-value mapping so a later query can reuse the token to find matching rows
+    /// without the AI ever learning the real value. Falls back to the regular masking algorithm when
+    /// tokenization is not configured to be usable (see <c>TokenizationOptions.IsUsable</c>).
+    /// </summary>
+    /// <param name="originalValue">The original raw value.</param>
+    /// <returns>A token that can be resolved back to <paramref name="originalValue"/>, or the value unchanged if empty.</returns>
+    string Tokenize(string originalValue);
 }

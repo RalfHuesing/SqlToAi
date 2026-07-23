@@ -18,11 +18,21 @@ BEGIN
         [TablePattern] NVARCHAR(255) NOT NULL DEFAULT '%',
         [ColumnPattern] NVARCHAR(255) NOT NULL,
         [Anonymize] BIT NOT NULL,
+        [SearchableToken] BIT NOT NULL DEFAULT 0,
         [IsActive] BIT NOT NULL DEFAULT 1,
         [Comment] NVARCHAR(500) NULL,
         [CreatedAtUtc] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         [CreatedBy] NVARCHAR(128) NULL
     );
+END
+GO
+
+-- Migration for tables created before SearchableToken existed: adds the column, defaulting to 0
+-- (not searchable) so existing rules keep their exact prior behavior until explicitly opted in.
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[AnonymizationRules]') AND type IN (N'U'))
+   AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AnonymizationRules]') AND name = 'SearchableToken')
+BEGIN
+    ALTER TABLE [dbo].[AnonymizationRules] ADD [SearchableToken] BIT NOT NULL DEFAULT 0;
 END
 GO
 

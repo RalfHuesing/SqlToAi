@@ -131,6 +131,7 @@ Die Abschnitte `ExclusionTableName`/`AnonymizerExclusionSql` oben leben *in* der
   | `TablePattern` | `NVARCHAR` | `LIKE`-Muster für den Tabellennamen. |
   | `ColumnPattern` | `NVARCHAR` | `LIKE`-Muster für den Spaltennamen. |
   | `Anonymize` | `BIT` | `0` = Spalte im Klartext zeigen, `1` = anonymisieren. |
+  | `SearchableToken` | `BIT` | `1` = bei Anonymisierung reversibles Token statt Scramble/Hash verwenden (siehe Abschnitt F). Default `0`. |
   | `IsActive` | `BIT` | Regel temporär deaktivieren, ohne sie zu löschen. |
   | `Comment` | `NVARCHAR` | Freitext-Begründung (empfohlen, da die Regel jetzt kundenübergreifend wirkt). |
 
@@ -140,7 +141,38 @@ Die Abschnitte `ExclusionTableName`/`AnonymizerExclusionSql` oben leben *in* der
 * **Zusammenspiel mit den bestehenden Mechanismen:** `AnonymizationRules` ist ein zusätzlicher, additiver Ausschluss-Kanal neben `ExclusionTableName`/`AnonymizerExclusionSql` — eine Spalte gilt als ausgenommen, sobald *einer* der Mechanismen sie freigibt. In der Praxis nutzt eine Installation typischerweise nur einen der beiden Wege.
 * **Caching:** Anders als die Exclusion-Provider oben (die pro Kundendatenbank cachen) lädt `AnonymizationRules` das komplette Regelwerk einmal pro `CacheTtlSeconds` — unabhängig davon, welche Kundendatenbank gerade abgefragt wird.
 
-### F. Proaktive Kennzeichnung & agentische Verhaltenssteuerung
+---
+
+### F. Reversible, durchsuchbare Tokenisierung (`Anonymizer.Tokenization`, optional)
+
+Normale Anonymisierung (Abschnitt D) ist bewusst eine Einbahnstraße: Der Server maskiert einen Wert beim Herausgeben, kann ihn aber nicht zurückrechnen. Für explizit freigegebene Spalten (z. B. Kontonummern, IBANs) kann das zu restriktiv sein — die KI soll denselben Wert über mehrere Tabellen hinweg wiederfinden können (`WHERE`, `JOIN`, `LIKE`, Bereichsvergleiche), ohne den Klartext je zu sehen. `Tokenization` löst das durch reversible, schlüssel-basierte Tokens statt Scramble/Hash — nur für Spalten, die dafür explizit markiert sind.
+
+* **Funktionsweise:**
+  1. **Ausgabe (Egress):** Für eine als `SearchableToken` markierte Spalte berechnet der Server `Token = HMAC-SHA256(Secret, Wert)` (Base64Url-kodiert, umschlossen von `Prefix`/`Suffix`) statt Scramble/Hash. Derselbe Wert ergibt immer dasselbe Token — Korrelation über Tabellen hinweg bleibt möglich, ohne dass die KI den Wert kennt. Der Server merkt sich `Token → Wert` in einem In-Memory-Vault für die Laufzeit des Prozesses.
+  2. **Eingabe (Ingress):** Bevor eine Abfrage gegen `sql_execute_query` ausgeführt wird, durchsucht der Server jedes String-Literal (niemals Kommentare, `[...]`-Bezeichner oder SQL-Schlüsselwörter) nach dem Token-Muster. Ein erkanntes, im Vault bekanntes Token wird durch den Realwert ersetzt — SQL Server sieht danach eine ganz normale Abfrage gegen echte Daten. Ein unbekanntes (geratenes/gefälschtes) Token bleibt unverändert stehen; das Prädikat findet dann schlicht keine Treffer, statt einen Fehler zu werfen.
+  3. **Wichtige Eigenschaft:** Da die Datenbank selbst nie verändert wird — nur der Text, den die KI schreibt, wird vor der Ausführung textuell ersetzt —, funktionieren praktisch alle Operatoren (`=`, `IN`, `LIKE '%...%'`, `>=`/`<=`, `JOIN ... ON`), solange die KI ein zuvor tatsächlich ausgehändigtes, vollständiges Token verwendet. Was nicht geht (und auch nicht gehen soll): Ein *Teil* eines Tokens erraten oder selbst konstruieren — das Token trägt keine positionale Beziehung zum Realwert.
+* **Konfiguration:**
+  ```json
+  "Anonymizer": {
+    "Tokenization": {
+      "Enabled": false,
+      "Secret": "",
+      "Prefix": "§§§",
+      "Suffix": "§§§",
+      "SearchableColumns": []
+    }
+  }
+  ```
+  * `Enabled`: Hauptschalter. `Secret` ist zwingend für einen tatsächlichen Effekt — ist er leer, fällt eine als `SearchableToken` markierte Spalte automatisch auf die reguläre `DefaultMode`-Maskierung zurück (Fail-Safe). `Secret` sollte über eine Umgebungsvariable eingespielt werden (z. B. `"%SQLTOAI_TOKEN_SECRET%"`), niemals im Klartext eingecheckt.
+  * `Prefix`/`Suffix`: Umschließen jedes Token eindeutig, damit die Ingress-Erkennung Tokens sicher von normalem Text unterscheidet.
+  * `SearchableColumns`: Glob-Muster für Spaltennamen (analog `ExcludedColumns`), die tokenisiert statt maskiert werden sollen — ergänzend zum `SearchableToken`-Flag der zentralen Regeltabelle (Abschnitt E); trifft *eine* der beiden Quellen zu, wird tokenisiert.
+* **Zentrale Regeltabelle (`AnonymizationRules.SearchableToken`):** Zusätzlich zur `Anonymize`-Spalte (Abschnitt E) trägt jede Regel ein `SearchableToken BIT`-Flag. Die spezifischste passende Regel entscheidet — dieselbe Spezifitäts-Auflösung wie bei `Anonymize`.
+* **Bekannte Grenzen:**
+  * **Cross-Referenz:** Da Tokens deterministisch sind, kann die KI Token↔Wert selbst zuordnen, sobald derselbe Wert irgendwo (z. B. über eine Ausschlussregel) im Klartext sichtbar ist. Freigabe-Entscheidungen sollten daher konsistent gepflegt werden.
+  * **Speicherung:** Der Token-Vault lebt nur im Arbeitsspeicher des laufenden Server-Prozesses (kein Neustart-Überstand) — ausreichend für eine laufende Analyse-Sitzung.
+  * Gilt, wie die reguläre Anonymisierung, nur für String-Werte.
+
+### G. Proaktive Kennzeichnung & agentische Verhaltenssteuerung
 
 * **`sql_get_schema` markiert Spalten proaktiv:** Die Spalten-Tabelle enthält eine zusätzliche Spalte **„Anonymized“** (`Yes`/`No`), berechnet über dieselben Ausschluss-Quellen wie zur Abfragezeit — das LLM sieht so schon beim Schema-Erkunden, welche Spalten maskiert würden, bevor überhaupt eine Query geschrieben wird. Nicht-String-Typen (siehe Bekannte Grenze oben) werden immer als `No` ausgewiesen.
 * **`sql_execute_query`-Hinweis referenziert konkrete Spalten:** Die Anonymisierungs-Notiz (siehe Tool-Spezifikation unten) nennt betroffene Spalten als `Tabelle.Spalte` (sofern die Basistabelle auflösbar ist) statt nur des Spalten-Alias, und enthält eine konkrete Handlungsanweisung: den Nutzer informieren und eine Freischaltung vorschlagen, statt den maskierten Wert als echte Daten zu behandeln. Bei Sichten/Aggregationen wird das LLM angehalten, zunächst mit `sql_get_object_references` die tatsächliche Quelltabelle zu ermitteln.
@@ -199,7 +231,7 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
 * **Zweck:** Liefert das primäre Schema eines Objekts als Markdown-Dokument, angereichert mit Extended Properties / Metadaten.
 * **Inhalt:**
-  * **TABLE/VIEW:** Spalten-Tabelle (Typ, Nullable, PK, Identity, **Anonymized** (proaktive Kennzeichnung, siehe Abschnitt 2.F), Custom-Beschreibung) + Trigger-Übersicht (Name, Events, Disabled-Status) + **Discovery-Index** (Zähler für Fremdschlüssel, Indizes, Constraints, sowie die Trigger-Namen selbst zur direkten Verwendung mit `sql_get_trigger_definition`).
+  * **TABLE/VIEW:** Spalten-Tabelle (Typ, Nullable, PK, Identity, **Anonymized** (proaktive Kennzeichnung, siehe Abschnitt 2.G), Custom-Beschreibung) + Trigger-Übersicht (Name, Events, Disabled-Status) + **Discovery-Index** (Zähler für Fremdschlüssel, Indizes, Constraints, sowie die Trigger-Namen selbst zur direkten Verwendung mit `sql_get_trigger_definition`).
   * **PROCEDURE/FUNCTION:** DDL-Definitionstext aus `sys.sql_modules` + **Routine-Parameter-Discovery**.
 
 ### 6. `sql_get_schema_foreign_keys`
@@ -235,8 +267,9 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Zweck:** Führt ein einzelnes SQL-SELECT-Statement aus.
 * **Einschränkung:** Nur ein einzelnes Statement erlaubt (Semikolon-Trennung mehrerer Queries führt zu Fehler `SQL-AI-0101`).
 * **Datenverarbeitung:** Anwendbare Limits greifen (Default: 100 Zeilen). String-Spalten werden anonymisiert, falls aktiviert und passend zu den Regeln.
+* **Token-Auflösung (falls `Anonymizer.Tokenization` aktiv):** Bevor die Abfrage ausgeführt wird, löst der Server jedes erkannte, gültige Anonymisierungs-Token in String-Literalen zum Realwert auf (siehe Abschnitt 2.F). Die KI kann so mit zuvor erhaltenen Tokens filtern/joinen, ohne den Wert je zu kennen.
 * **Mehrfach-Content-Rückgabe bei Anonymisierung:** Wurden bei der Abfrage tatsächlich Spalten anonymisiert, liefert das Tool zwei Inhaltsblöcke (`Content` im MCP-Protokoll) zurück:
-  1. Einen Hinweis für das LLM, welche `Tabelle.Spalte`-Kombinationen mit welchem Modus anonymisiert wurden, inklusive einer Handlungsanweisung (Nutzer informieren, Freischaltung vorschlagen statt die Werte als echte Daten zu behandeln; siehe Abschnitt 2.F).
+  1. Einen Hinweis für das LLM, welche `Tabelle.Spalte`-Kombinationen mit welchem Modus anonymisiert wurden, inklusive einer Handlungsanweisung (Nutzer informieren, Freischaltung vorschlagen statt die Werte als echte Daten zu behandeln; siehe Abschnitt 2.G).
   2. Die eigentlichen JSON-Zeilen der Abfrageergebnisse.
   Wurden keine Daten anonymisiert, wird nur der Datenblock zurückgegeben (spart Token).
 * **Berechtigungsprüfung:** Schlägt fehl mit `SQL-AI-0107`, falls das Access-Level der Datenbank nur `SchemaOnly` oder `None` ist.

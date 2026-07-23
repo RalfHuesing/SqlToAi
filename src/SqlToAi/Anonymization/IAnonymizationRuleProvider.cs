@@ -15,4 +15,12 @@ public interface IAnonymizationRuleProvider
     /// Returns <c>false</c> when no rule matches, or the feature is disabled.
     /// </summary>
     Task<bool> IsExcludedAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns <c>true</c> when the most specific matching active rule for this
+    /// (database, table, column) says <c>SearchableToken = true</c> (i.e. use reversible
+    /// tokenization instead of regular masking). Returns <c>false</c> when no rule matches,
+    /// or the feature is disabled.
+    /// </summary>
+    Task<bool> IsSearchableTokenAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default);
 }

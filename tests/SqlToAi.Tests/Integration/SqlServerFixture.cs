@@ -41,6 +41,8 @@ public sealed class SqlServerFixture
     public AnonymizerExclusionProvider AnonymizerExclusionProvider { get; }
     public AnonymizationRuleProvider AnonymizationRuleProvider { get; }
     public AnonymizationPolicyResolver AnonymizationPolicyResolver { get; }
+    public TokenVault TokenVault { get; }
+    public QueryTokenResolver QueryTokenResolver { get; }
 
     public SqlServerFixture()
     {
@@ -70,9 +72,11 @@ public sealed class SqlServerFixture
         ReadOnlyGuard       = new ReadOnlyGuard();
         MetadataProvider    = new MetadataProvider(ConnectionFactory, optionsWrapper, NullLogger<MetadataProvider>.Instance);
         SchemaService       = new SchemaService(ConnectionFactory, SecurityGuard, AccessLevelProvider, MetadataProvider, AnonymizationPolicyResolver, optionsWrapper, NullLogger<SchemaService>.Instance);
-        QueryExecutionService = new QueryExecutionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, new AnonymizationDependencies(new Anonymizer(optionsWrapper), AnonymizerExclusionProvider, AnonymizationRuleProvider), optionsWrapper, NullLogger<QueryExecutionService>.Instance);
+        TokenVault          = new TokenVault();
+        QueryTokenResolver  = new QueryTokenResolver(TokenVault, optionsWrapper);
+        Anonymizer          = new Anonymizer(optionsWrapper, TokenVault);
+        QueryExecutionService = new QueryExecutionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, new AnonymizationDependencies(Anonymizer, AnonymizerExclusionProvider, AnonymizationRuleProvider, QueryTokenResolver), optionsWrapper, NullLogger<QueryExecutionService>.Instance);
         QueryValidationService = new QueryValidationService(ConnectionFactory, SecurityGuard, AccessLevelProvider, optionsWrapper, NullLogger<QueryValidationService>.Instance);
-        Anonymizer          = new Anonymizer(optionsWrapper);
     }
 
     private static string LocateAppsettings()

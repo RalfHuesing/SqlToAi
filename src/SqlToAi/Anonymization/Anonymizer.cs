@@ -13,14 +13,17 @@ namespace SqlToAi.Anonymization;
 public sealed class Anonymizer : IAnonymizer
 {
     private readonly SqlToAiOptions _options;
+    private readonly ITokenVault _tokenVault;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Anonymizer"/> class.
     /// </summary>
     /// <param name="options">Options containing the default anonymization mode and excluded columns.</param>
-    public Anonymizer(IOptions<SqlToAiOptions> options)
+    /// <param name="tokenVault">Reverse lookup store for tokens produced by <see cref="Tokenize"/>.</param>
+    public Anonymizer(IOptions<SqlToAiOptions> options, ITokenVault tokenVault)
     {
         _options = options.Value;
+        _tokenVault = tokenVault;
     }
 
     /// <summary>
@@ -68,6 +71,41 @@ public sealed class Anonymizer : IAnonymizer
         //    (ReadOnlyAnonymized vs ReadOnly) — the Anonymizer is only ever invoked when the
         //    access level already decided "yes, anonymize".
         return RunAnonymization(originalValue, _options.Anonymizer.DefaultMode);
+    }
+
+    /// <inheritdoc/>
+    public string Tokenize(string originalValue)
+    {
+        if (string.IsNullOrEmpty(originalValue))
+        {
+            return originalValue;
+        }
+
+        var tokenization = _options.Anonymizer.Tokenization;
+        if (!tokenization.IsUsable)
+        {
+            // Fail-safe fallback: tokenization isn't properly configured, so never expose the
+            // value in clear text — mask it exactly like a non-searchable column instead.
+            return RunAnonymization(originalValue, _options.Anonymizer.DefaultMode);
+        }
+
+        string token = ComputeToken(originalValue, tokenization);
+        _tokenVault.Store(token, originalValue);
+        return token;
+    }
+
+    private static string ComputeToken(string value, TokenizationOptions tokenization)
+    {
+        byte[] keyBytes = Encoding.UTF8.GetBytes(tokenization.Secret);
+        byte[] valueBytes = Encoding.UTF8.GetBytes(value);
+        byte[] hash = HMACSHA256.HashData(keyBytes, valueBytes);
+
+        string body = Convert.ToBase64String(hash)
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .TrimEnd('=');
+
+        return tokenization.Prefix + body + tokenization.Suffix;
     }
 
     private static string RunAnonymization(string value, string mode)

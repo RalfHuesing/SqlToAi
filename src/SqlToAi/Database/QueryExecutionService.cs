@@ -21,10 +21,12 @@ namespace SqlToAi.Database;
 /// <param name="Anonymizer">The anonymizer used for PII column masking.</param>
 /// <param name="ExclusionProvider">Optional provider that returns table/column exclusions for anonymization.</param>
 /// <param name="RuleProvider">Optional central, cross-database rule provider (see <see cref="IAnonymizationRuleProvider"/>).</param>
+/// <param name="TokenResolver">Optional resolver that substitutes previously issued anonymization tokens back into their real values before a query executes (see <see cref="IQueryTokenResolver"/>).</param>
 public sealed record AnonymizationDependencies(
     IAnonymizer Anonymizer,
     IAnonymizerExclusionProvider? ExclusionProvider = null,
-    IAnonymizationRuleProvider? RuleProvider = null);
+    IAnonymizationRuleProvider? RuleProvider = null,
+    IQueryTokenResolver? TokenResolver = null);
 
 /// <summary>
 /// Executes a single SQL statement. For every database except those at
@@ -47,8 +49,11 @@ public sealed class QueryExecutionService : IQueryExecutionService
     private readonly IAnonymizer _anonymizer;
     private readonly IAnonymizerExclusionProvider? _anonymizerExclusionProvider;
     private readonly IAnonymizationRuleProvider? _anonymizationRuleProvider;
+    private readonly IQueryTokenResolver? _queryTokenResolver;
+    private readonly SearchableTokenColumnResolver _searchableTokenColumnResolver;
     private readonly QueryExecutionOptions _options;
     private readonly string _anonymizationMode;
+    private readonly TokenizationOptions _tokenizationOptions;
     private readonly ILogger<QueryExecutionService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="QueryExecutionService"/>.</summary>
@@ -68,8 +73,11 @@ public sealed class QueryExecutionService : IQueryExecutionService
         _anonymizer = anonymization.Anonymizer;
         _anonymizerExclusionProvider = anonymization.ExclusionProvider;
         _anonymizationRuleProvider = anonymization.RuleProvider;
+        _queryTokenResolver = anonymization.TokenResolver;
         _options = options.Value.QueryExecution;
         _anonymizationMode = options.Value.Anonymizer.DefaultMode;
+        _tokenizationOptions = options.Value.Anonymizer.Tokenization;
+        _searchableTokenColumnResolver = new SearchableTokenColumnResolver(_tokenizationOptions, _anonymizationRuleProvider);
         _logger = logger;
     }
 
@@ -127,8 +135,15 @@ public sealed class QueryExecutionService : IQueryExecutionService
 
         bool anonymize = accessLevel == AccessLevel.ReadOnlyAnonymized;
 
+        // Detokenization runs only for anonymized databases (the only place tokens are ever
+        // issued) and after the safety/multi-statement checks above, so it substitutes literal
+        // values only — it never changes the query's structure.
+        string effectiveQuery = anonymize && _queryTokenResolver != null
+            ? _queryTokenResolver.ResolveTokens(query)
+            : query;
+
         return await ExecuteQueryInTransactionAsync(
-            databaseName, query, effectiveLimit, anonymize, writeAllowed, cancellationToken);
+            databaseName, effectiveQuery, effectiveLimit, anonymize, writeAllowed, cancellationToken);
     }
 
     private async Task<Result<QueryExecutionResult>> ExecuteQueryInTransactionAsync(
@@ -228,7 +243,8 @@ public sealed class QueryExecutionService : IQueryExecutionService
         bool Anonymize,
         HashSet<string>? Exclusions,
         string?[]? BaseTableNames,
-        bool[]? CentralExclusions);
+        bool[]? CentralExclusions,
+        bool[]? SearchableTokenColumns);
 
     private async Task<AnonymizationContext> ResolveAnonymizationContextAsync(
         DbDataReader reader,
@@ -239,7 +255,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
     {
         if (!anonymize)
         {
-            return new AnonymizationContext(false, null, null, null);
+            return new AnonymizationContext(false, null, null, null, null);
         }
 
         HashSet<string>? exclusions = _anonymizerExclusionProvider != null
@@ -249,8 +265,11 @@ public sealed class QueryExecutionService : IQueryExecutionService
         bool[]? centralExclusions = _anonymizationRuleProvider != null
             ? await ResolveCentralExclusionsAsync(databaseName, columnNames, baseTableNames, cancellationToken)
             : null;
+        bool[]? searchableTokenColumns = _tokenizationOptions.IsUsable
+            ? await _searchableTokenColumnResolver.ResolveAsync(databaseName, columnNames, baseTableNames, cancellationToken)
+            : null;
 
-        return new AnonymizationContext(true, exclusions, baseTableNames, centralExclusions);
+        return new AnonymizationContext(true, exclusions, baseTableNames, centralExclusions, searchableTokenColumns);
     }
 
     /// <summary>
@@ -302,13 +321,15 @@ public sealed class QueryExecutionService : IQueryExecutionService
             return raw;
         }
 
-        if (anonCtx.CentralExclusions != null && columnIndex < anonCtx.CentralExclusions.Length && anonCtx.CentralExclusions[columnIndex])
+        if (IsFlagSet(anonCtx.CentralExclusions, columnIndex))
         {
             return raw;
         }
 
         string? tableName = anonCtx.BaseTableNames != null && columnIndex < anonCtx.BaseTableNames.Length ? anonCtx.BaseTableNames[columnIndex] : null;
-        string anonymizedValue = _anonymizer.Anonymize(columnName, strVal, tableName, anonCtx.Exclusions);
+        string anonymizedValue = IsFlagSet(anonCtx.SearchableTokenColumns, columnIndex)
+            ? _anonymizer.Tokenize(strVal)
+            : _anonymizer.Anonymize(columnName, strVal, tableName, anonCtx.Exclusions);
 
         if (anonymizedValue != strVal)
         {
@@ -324,6 +345,9 @@ public sealed class QueryExecutionService : IQueryExecutionService
 
         return anonymizedValue;
     }
+
+    private static bool IsFlagSet(bool[]? flags, int index) =>
+        flags != null && index < flags.Length && flags[index];
 
     private static string?[] GetBaseTableNames(DbDataReader reader)
     {

@@ -87,5 +87,8 @@ public sealed class AnonymizationPolicyResolverTests
     {
         public Task<bool> IsExcludedAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
             => Task.FromResult(excluded);
+
+        public Task<bool> IsSearchableTokenAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
     }
 }

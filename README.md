@@ -14,6 +14,7 @@ Designed specifically for developers analyzing ERP systems and complex database 
 * 🚦 **Safety/Demo Probe Check:** Run a configurable SQL validation query (e.g. `SELECT 1 WHERE DB_NAME() LIKE '%demo%'`) before accessing any database, blocking access to production databases. The probe also controls per-database anonymization (return `ReadOnly` for clear-text, `ReadOnlyAnonymized` for protected access) and, if returned, full write access (`ReadWrite`).
 * 🛡️ **Default Anonymization:** Every string column is automatically scrambled with the configured default algorithm unless its name matches an `ExcludedColumns` pattern — no per-column rule maintenance required.
 * 🌐 **Central, Cross-Database Anonymization Rules (optional):** Configure exclusion rules in their own dedicated database (`AnonymizationRules`) instead of inside each customer database, so they survive customer-side backup restores and apply across many customer databases via `LIKE`-style wildcard patterns, with the most specific matching rule winning.
+* 🔑 **Reversible, Searchable Tokenization (optional):** For columns explicitly flagged `SearchableToken`, the AI receives a deterministic, keyed token instead of a scramble/hash mask. The server resolves that exact token back to the real value inside string literals before a later query executes — so `WHERE`, `JOIN`, `LIKE`, and range comparisons all keep working across tables, without the AI ever learning the value itself.
 * 🔎 **Proactive Anonymization Awareness:** `sql_get_schema` marks each column "Anonymized: Yes/No" before any query is written, `sql_execute_query`'s notice names the affected `Table.Column` pairs, and the MCP `instructions` field tells the connecting agent how to handle masked columns (ask the user, don't assume, trace views via `sql_get_object_references`).
 * 📖 **Schema Enrichment (Custom Metadata):** Inject custom business logic or table/column documentation from another database/table via configurable SQL queries directly into the schema results returned to the AI.
 * 📋 **Progressive Disclosure Schema Tools:** Exposes optimized tools for schema discovery, triggers, constraints, indexes, routine parameters, and referencing entities (`sys.dm_sql_referencing_entities`), formatted in clean Markdown for the AI.
@@ -43,8 +44,9 @@ output. The root section is `SqlToAi`, which contains the following sub-sections
 | :--- | :--- |
 | `Databases` | Static whitelist (`Allowed`/`Blocked`), `AccessCheckSql` for the dynamic permission probe, `AnonymizerExclusionSql` for database-specific exceptions, and `CacheTtlSeconds`. |
 | `SqlServer` | Connection parameters (`Server`, `IntegratedSecurity`, `UserId`, `Password`, `CommandTimeoutSeconds`). Values support environment variable interpolation (e.g. `%COMPUTERNAME%`). |
-| `Anonymizer` | Master switch (`Enabled`), the algorithm (`DefaultMode`: `ScramblePattern` or `Hash`), and the list of column-name patterns that must NOT be anonymized (`ExcludedColumns`). |
-| `AnonymizationRules` | Optional central, cross-database exclusion rules (`Enabled`, separate `Server`/`Database`/credentials, `TableName`, `CacheTtlSeconds`). See [mcp-specification.md](docs/mcp-specification.md#e-zentrale-datenbankübergreifende-anonymisierungsregeln-anonymizationrules-optional). |
+| `Anonymizer` | Master switch (`Enabled`), the algorithm (`DefaultMode`: `ScramblePattern` or `Hash`), the list of column-name patterns that must NOT be anonymized (`ExcludedColumns`), and the optional `Tokenization` sub-section below. |
+| `Anonymizer.Tokenization` | Optional, opt-in reversible tokenization for explicitly flagged columns (`Enabled`, `Secret`, `Prefix`/`Suffix`, `SearchableColumns`). See [mcp-specification.md](docs/mcp-specification.md#f-reversible-durchsuchbare-tokenisierung-anonymizertokenization-optional). |
+| `AnonymizationRules` | Optional central, cross-database exclusion rules (`Enabled`, separate `Server`/`Database`/credentials, `TableName`, `CacheTtlSeconds`) — also carries the per-column `SearchableToken` flag used by `Anonymizer.Tokenization`. See [mcp-specification.md](docs/mcp-specification.md#e-zentrale-datenbankübergreifende-anonymisierungsregeln-anonymizationrules-optional). |
 | `MetadataProvider` | Optional custom queries and separate database credentials (`Server`, `Database`, `UserId`, `Password`, `IntegratedSecurity`, etc.) for table/column documentation enrichment. |
 | `QueryExecution` | `DefaultRowLimit` and `MaxRowLimit` for `sql_execute_query`. |
 | `Logging` | File-based logging root directory, app/error rolling sinks, and the MCP-trail settings. See [Logging](#logging) below. |
@@ -81,7 +83,14 @@ The server picks credentials in this order (first match wins):
     "Anonymizer": {
       "Enabled": true,
       "DefaultMode": "ScramblePattern",
-      "ExcludedColumns": ["*Id", "Id", "*Code", "*Type", "Status"]
+      "ExcludedColumns": ["*Id", "Id", "*Code", "*Type", "Status"],
+      "Tokenization": {
+        "Enabled": false,
+        "Secret": "",
+        "Prefix": "§§§",
+        "Suffix": "§§§",
+        "SearchableColumns": []
+      }
     },
     "AnonymizationRules": {
       "Enabled": false,

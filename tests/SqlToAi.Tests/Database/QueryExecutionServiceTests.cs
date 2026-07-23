@@ -1,5 +1,6 @@
 #nullable enable
 
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
@@ -31,7 +32,7 @@ public sealed class QueryExecutionServiceTests
         var securityGuard = new FakeSecurityGuard(isAllowed);
         var accessLevelProvider = new FakeAccessLevelProvider(accessLevel);
         var readOnlyGuard = new FakeReadOnlyGuard(readOnlySafe);
-        var anonymizer = new Anonymizer(Options.Create(options));
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
         return new QueryExecutionService(
             factory, securityGuard, accessLevelProvider, readOnlyGuard,
             new AnonymizationDependencies(anonymizer), Options.Create(options), NullLogger<QueryExecutionService>.Instance);
@@ -133,7 +134,7 @@ public sealed class QueryExecutionServiceTests
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadWrite),
             new FakeReadOnlyGuard(safe: false), // guard would reject it — must be bypassed
-            new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "UPDATE Customers SET Name = 'X'", null, TestContext.Current.CancellationToken);
@@ -150,7 +151,7 @@ public sealed class QueryExecutionServiceTests
         var factory = new MockQueryConnectionFactory();
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly), // not ReadWrite
-            new FakeReadOnlyGuard(safe: true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
+            new FakeReadOnlyGuard(safe: true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
@@ -166,7 +167,7 @@ public sealed class QueryExecutionServiceTests
         var options = new SqlToAiOptions();
         var service = new QueryExecutionService(
             new MockQueryConnectionFactory(), new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadWrite),
-            new FakeReadOnlyGuard(safe: true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
+            new FakeReadOnlyGuard(safe: true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "UPDATE Foo SET X=1; UPDATE Bar SET Y=2", null, TestContext.Current.CancellationToken);
@@ -187,7 +188,7 @@ public sealed class QueryExecutionServiceTests
         var factory = new MockQueryConnectionFactory(null, rowCount: 5);
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
@@ -203,7 +204,7 @@ public sealed class QueryExecutionServiceTests
         var factory = new MockQueryConnectionFactory(null, rowCount: 10);
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", 999, TestContext.Current.CancellationToken);
@@ -224,7 +225,7 @@ public sealed class QueryExecutionServiceTests
         var factory = new MockQueryConnectionFactory(stringValue: "Ralf Huesing");
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
@@ -243,7 +244,7 @@ public sealed class QueryExecutionServiceTests
         var factory = new MockQueryConnectionFactory(stringValue: original);
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
@@ -262,7 +263,7 @@ public sealed class QueryExecutionServiceTests
         var factory = new MockQueryConnectionFactory(stringValue: "123-ABC");
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         // Since the column name is Name (which matches exclusion), it is not anonymized
@@ -281,7 +282,7 @@ public sealed class QueryExecutionServiceTests
         var factory = new MockQueryConnectionFactory(stringValue: "Ralf Huesing", baseTableName: "FakeConsultants");
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options))),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM FakeConsultants", null, TestContext.Current.CancellationToken);
@@ -301,7 +302,7 @@ public sealed class QueryExecutionServiceTests
         var service = new QueryExecutionService(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
             new FakeReadOnlyGuard(true),
-            new AnonymizationDependencies(new Anonymizer(Options.Create(options)), RuleProvider: new AlwaysExcludeRuleProvider()),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault()), RuleProvider: new AlwaysExcludeRuleProvider()),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM FakeConsultants", null, TestContext.Current.CancellationToken);
@@ -312,4 +313,165 @@ public sealed class QueryExecutionServiceTests
         Assert.Empty(result.Value.AnonymizedColumns);
     }
 
+    // -------------------------------------------------------------------------
+    // Tests: searchable tokenization (egress + ingress)
+    // -------------------------------------------------------------------------
+
+    private static SqlToAiOptions BuildTokenizationOptions(params string[] searchableColumnGlobs)
+    {
+        var options = new SqlToAiOptions();
+        options.Anonymizer.Enabled = true;
+        options.Anonymizer.Tokenization.Enabled = true;
+        options.Anonymizer.Tokenization.Secret = "top-secret";
+        options.Anonymizer.Tokenization.SearchableColumns = searchableColumnGlobs.ToList();
+        return options;
+    }
+
+    private static (QueryExecutionService Service, MockQueryConnectionFactory Factory, TokenVault Vault) BuildTokenizingService(
+        SqlToAiOptions options, string stringValue, IAnonymizationRuleProvider? ruleProvider = null, string columnName = "IBAN")
+    {
+        var vault = new TokenVault();
+        var factory = new MockQueryConnectionFactory(stringValue: stringValue, columnName: columnName);
+        var anonymizer = new Anonymizer(Options.Create(options), vault);
+        var resolver = new QueryTokenResolver(vault, Options.Create(options));
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+            new FakeReadOnlyGuard(true),
+            new AnonymizationDependencies(anonymizer, RuleProvider: ruleProvider, TokenResolver: resolver),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+        return (service, factory, vault);
+    }
+
+    /// <summary>
+    /// Deserializes the first JSONL row and returns a column's real string value — the result is
+    /// what an AI actually sees after JSON-decoding, unlike scanning the raw (Unicode-escaped) text.
+    /// </summary>
+    private static string ExtractColumnValue(string jsonLinesData, string columnName)
+    {
+        string firstLine = jsonLinesData.Split('\n', StringSplitOptions.RemoveEmptyEntries)[0];
+        using var doc = JsonDocument.Parse(firstLine);
+        return doc.RootElement.GetProperty(columnName).GetString()!;
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldTokenizeColumn_MatchingSearchableColumnsGlob()
+    {
+        const string iban = "DE89370400440532013000";
+        var options = BuildTokenizationOptions("IBAN");
+        var (service, _, vault) = BuildTokenizingService(options, iban);
+
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT IBAN FROM Accounts", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.DoesNotContain(iban, result.Value.Data, StringComparison.Ordinal);
+        Assert.True(result.Value.WasAnonymized);
+
+        string token = ExtractColumnValue(result.Value.Data, "IBAN");
+        Assert.StartsWith(options.Anonymizer.Tokenization.Prefix, token, StringComparison.Ordinal);
+        Assert.True(vault.TryResolve(token, out string? resolved));
+        Assert.Equal(iban, resolved);
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldNotTokenize_ColumnNotMatchingSearchableColumnsGlob()
+    {
+        const string original = "Ralf Huesing";
+        var options = BuildTokenizationOptions("IBAN"); // "Name" column below doesn't match
+        var (service, _, _) = BuildTokenizingService(options, original, columnName: "Name");
+
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.DoesNotContain("§§§", result.Value.Data, StringComparison.Ordinal);
+        Assert.DoesNotContain(original, result.Value.Data, StringComparison.Ordinal); // still masked, just not tokenized
+        Assert.True(result.Value.WasAnonymized);
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldTokenizeColumn_WhenCentralRuleProviderFlagsSearchable()
+    {
+        const string iban = "DE89370400440532013000";
+        var options = BuildTokenizationOptions(); // no appsettings glob — rule provider decides
+        var (service, _, vault) = BuildTokenizingService(options, iban, new AlwaysSearchableRuleProvider());
+
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT IBAN FROM Accounts", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        string token = ExtractColumnValue(result.Value.Data, "IBAN");
+        Assert.StartsWith(options.Anonymizer.Tokenization.Prefix, token, StringComparison.Ordinal);
+        Assert.True(vault.TryResolve(token, out string? resolved));
+        Assert.Equal(iban, resolved);
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldResolveToken_BackToRealValue_BeforeExecution()
+    {
+        var options = BuildTokenizationOptions("IBAN");
+        var (service, factory, vault) = BuildTokenizingService(options, "unused");
+        vault.Store("§§§preissued§§§", "DE89370400440532013000");
+
+        var result = await service.ExecuteQueryAsync(
+            TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE IBAN = '§§§preissued§§§'", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(
+            "SELECT * FROM Accounts WHERE IBAN = 'DE89370400440532013000'",
+            factory.LastConnection?.LastCommand?.CommandText);
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldLeaveUnknownToken_UnresolvedInExecutedQuery()
+    {
+        var options = BuildTokenizationOptions("IBAN");
+        var (service, factory, _) = BuildTokenizingService(options, "unused");
+
+        await service.ExecuteQueryAsync(
+            TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE IBAN = '§§§forged§§§'", null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            "SELECT * FROM Accounts WHERE IBAN = '§§§forged§§§'",
+            factory.LastConnection?.LastCommand?.CommandText);
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldNotResolveTokens_WhenAccessLevelIsNotAnonymized()
+    {
+        var options = BuildTokenizationOptions("IBAN");
+        var vault = new TokenVault();
+        vault.Store("§§§preissued§§§", "DE89370400440532013000");
+        var factory = new MockQueryConnectionFactory(stringValue: "unused");
+        var anonymizer = new Anonymizer(Options.Create(options), vault);
+        var resolver = new QueryTokenResolver(vault, Options.Create(options));
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly), // plain ReadOnly, not anonymized
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(anonymizer, TokenResolver: resolver),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        await service.ExecuteQueryAsync(
+            TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE IBAN = '§§§preissued§§§'", null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            "SELECT * FROM Accounts WHERE IBAN = '§§§preissued§§§'",
+            factory.LastConnection?.LastCommand?.CommandText);
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldRoundTripToken_FromEgressQueryIntoIngressQuery()
+    {
+        const string iban = "DE89370400440532013000";
+        var options = BuildTokenizationOptions("IBAN");
+        var (service, factory, _) = BuildTokenizingService(options, iban);
+
+        // 1. Egress: a first query hands the AI a token instead of the real IBAN.
+        var first = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT IBAN FROM Accounts", null, TestContext.Current.CancellationToken);
+        string token = ExtractColumnValue(first.Value.Data, "IBAN");
+
+        // 2. Ingress: the AI reuses that exact token in a follow-up query.
+        await service.ExecuteQueryAsync(
+            TestConstants.DatabaseName, $"SELECT * FROM Accounts WHERE IBAN = '{token}'", null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            $"SELECT * FROM Accounts WHERE IBAN = '{iban}'",
+            factory.LastConnection?.LastCommand?.CommandText);
+    }
 }

@@ -58,6 +58,11 @@ public static class ConfigurationResolver
         if (options.Anonymizer != null)
         {
             ExpandListInPlace(options.Anonymizer.ExcludedColumns);
+            if (options.Anonymizer.Tokenization != null)
+            {
+                options.Anonymizer.Tokenization.Secret = Expand(options.Anonymizer.Tokenization.Secret);
+                ExpandListInPlace(options.Anonymizer.Tokenization.SearchableColumns);
+            }
         }
 
         if (options.AnonymizationRules != null)

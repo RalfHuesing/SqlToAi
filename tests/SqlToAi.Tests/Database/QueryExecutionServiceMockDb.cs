@@ -15,6 +15,18 @@ internal sealed class AlwaysExcludeRuleProvider : IAnonymizationRuleProvider
 {
     public Task<bool> IsExcludedAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
         => Task.FromResult(true);
+
+    public Task<bool> IsSearchableTokenAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
+}
+
+internal sealed class AlwaysSearchableRuleProvider : IAnonymizationRuleProvider
+{
+    public Task<bool> IsExcludedAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
+
+    public Task<bool> IsSearchableTokenAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => Task.FromResult(true);
 }
 
 internal sealed class FakeSecurityGuard(bool allowed) : ISecurityGuard
@@ -42,12 +54,14 @@ internal sealed class MockQueryConnectionFactory : IDatabaseConnectionFactory
     private readonly string? _stringValue;
     private readonly int _rowCount;
     private readonly string? _baseTableName;
+    private readonly string _columnName;
 
-    public MockQueryConnectionFactory(string? stringValue = null, int rowCount = 1, string? baseTableName = null)
+    public MockQueryConnectionFactory(string? stringValue = null, int rowCount = 1, string? baseTableName = null, string columnName = "Name")
     {
         _stringValue = stringValue;
         _rowCount = rowCount;
         _baseTableName = baseTableName;
+        _columnName = columnName;
     }
 
     /// <summary>The most recently created connection — lets tests inspect its transaction.</summary>
@@ -55,14 +69,14 @@ internal sealed class MockQueryConnectionFactory : IDatabaseConnectionFactory
 
     public DbConnection CreateConnection(string? databaseName)
     {
-        LastConnection = new MockQueryConnection(_stringValue, _rowCount, _baseTableName);
+        LastConnection = new MockQueryConnection(_stringValue, _rowCount, _baseTableName, _columnName);
         return LastConnection;
     }
 
     public DbConnection CreateConnection() => CreateConnection((string?)null);
 }
 
-internal sealed class MockQueryConnection(string? stringValue, int rowCount, string? baseTableName = null) : DbConnection
+internal sealed class MockQueryConnection(string? stringValue, int rowCount, string? baseTableName = null, string columnName = "Name") : DbConnection
 {
     private ConnectionState _state = ConnectionState.Closed;
 
@@ -75,6 +89,9 @@ internal sealed class MockQueryConnection(string? stringValue, int rowCount, str
     /// <summary>The most recently started transaction — lets tests inspect commit/rollback calls.</summary>
     public MockQueryTransaction? LastTransaction { get; private set; }
 
+    /// <summary>The most recently created command — lets tests inspect the resolved <c>CommandText</c> actually sent to "SQL".</summary>
+    public MockQueryCommand? LastCommand { get; private set; }
+
     public override void Open() => _state = ConnectionState.Open;
     public override Task OpenAsync(CancellationToken cancellationToken) { _state = ConnectionState.Open; return Task.CompletedTask; }
 
@@ -85,7 +102,10 @@ internal sealed class MockQueryConnection(string? stringValue, int rowCount, str
     }
 
     protected override DbCommand CreateDbCommand()
-        => new MockQueryCommand(this, stringValue, rowCount, baseTableName);
+    {
+        LastCommand = new MockQueryCommand(this, stringValue, rowCount, baseTableName, columnName);
+        return LastCommand;
+    }
 
     public override void ChangeDatabase(string databaseName) { }
     public override void Close() => _state = ConnectionState.Closed;
@@ -102,7 +122,7 @@ internal sealed class MockQueryTransaction(DbConnection connection) : DbTransact
     public override void Rollback() => RollbackCount++;
 }
 
-internal sealed class MockQueryCommand(DbConnection connection, string? stringValue, int rowCount, string? baseTableName = null) : DbCommand
+internal sealed class MockQueryCommand(DbConnection connection, string? stringValue, int rowCount, string? baseTableName = null, string columnName = "Name") : DbCommand
 {
     private readonly MockQueryParameterCollectionAdapter _parameters = new();
 
@@ -120,13 +140,13 @@ internal sealed class MockQueryCommand(DbConnection connection, string? stringVa
     public override object? ExecuteScalar() => 1;
 
     protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
-        => new MockQueryReader(stringValue, rowCount, baseTableName);
+        => new MockQueryReader(stringValue, rowCount, baseTableName, columnName);
 
     protected override DbParameter CreateDbParameter() => new MockQueryParameter();
     public override void Prepare() { }
 }
 
-internal sealed class MockQueryReader(string? stringValue, int totalRows, string? baseTableName = null) : DbDataReader
+internal sealed class MockQueryReader(string? stringValue, int totalRows, string? baseTableName = null, string columnName = "Name") : DbDataReader
 {
     private int _rowIndex = -1;
 
@@ -164,7 +184,7 @@ internal sealed class MockQueryReader(string? stringValue, int totalRows, string
     public override Task<bool> ReadAsync(CancellationToken cancellationToken) => Task.FromResult(Read());
     public override bool NextResult() => false;
 
-    public override string GetName(int ordinal) => "Name";
+    public override string GetName(int ordinal) => columnName;
     public override int GetOrdinal(string name) => 0;
     public override object GetValue(int ordinal) => (object?)stringValue ?? "Val";
     public override bool IsDBNull(int ordinal) => stringValue is null && ordinal == 0;

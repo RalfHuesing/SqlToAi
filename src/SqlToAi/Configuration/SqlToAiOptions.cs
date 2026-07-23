@@ -71,6 +71,61 @@ public sealed class AnonymizerOptions
     /// The table must contain the columns <c>TableName</c> and <c>ColumnName</c>.
     /// </summary>
     public string? ExclusionTableName { get; set; }
+
+    /// <summary>Options for reversible, searchable tokenization (see <see cref="TokenizationOptions"/>).</summary>
+    public TokenizationOptions Tokenization { get; set; } = new();
+}
+
+/// <summary>
+/// Options for reversible, searchable tokenization: for columns explicitly marked as
+/// <c>SearchableToken</c> (via <see cref="AnonymizationRulesOptions"/> or <see cref="SearchableColumns"/>),
+/// the anonymized value handed to the AI is a deterministic, keyed token instead of a scrambled/hashed
+/// mask. The server remembers the token-to-value mapping in memory for the lifetime of the process, so
+/// a later query that reuses the very same token (e.g. in a <c>WHERE</c>, <c>JOIN</c>, or <c>LIKE</c>)
+/// is transparently resolved back to the real value before execution — the AI never learns the real
+/// value itself, only that two tokens refer to the same underlying row.
+/// <para>
+/// This is a stricter, opt-in mode layered on top of <see cref="AnonymizerOptions"/>: it only ever
+/// applies to columns explicitly flagged as searchable, everything else keeps using
+/// <see cref="AnonymizerOptions.DefaultMode"/> as before.
+/// </para>
+/// </summary>
+public sealed class TokenizationOptions
+{
+    /// <summary>Master switch. When false, flagged columns fall back to the regular <see cref="AnonymizerOptions.DefaultMode"/> masking.</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// Secret key for the deterministic HMAC-SHA256 token derivation. Required for tokenization to be
+    /// usable — when empty, <see cref="Enabled"/> is effectively ignored and flagged columns fall back
+    /// to regular masking (fail-safe default). Never hardcode this; supply it via an environment
+    /// variable placeholder (e.g. <c>%SQLTOAI_TOKEN_SECRET%</c>).
+    /// </summary>
+    public string Secret { get; set; } = string.Empty;
+
+    /// <summary>Marker prepended to every token so it can be unambiguously recognized in SQL text.</summary>
+    public string Prefix { get; set; } = "§§§";
+
+    /// <summary>Marker appended to every token so it can be unambiguously recognized in SQL text.</summary>
+    public string Suffix { get; set; } = "§§§";
+
+    /// <summary>
+    /// Glob patterns for column names that should use searchable tokenization instead of regular
+    /// masking, evaluated in addition to the central <c>AnonymizationRules.SearchableToken</c> flag.
+    /// Empty by default — nothing is searchable unless explicitly listed here or via a rule.
+    /// </summary>
+    public List<string> SearchableColumns { get; set; } = [];
+
+    /// <summary>
+    /// Whether tokenization is actually usable, i.e. enabled with a non-empty secret and non-empty
+    /// delimiters. Both <see cref="Anonymizer"/> and the query-side token resolver must agree on this
+    /// exact condition, so it lives here as the single source of truth.
+    /// </summary>
+    public bool IsUsable =>
+        Enabled
+        && !string.IsNullOrEmpty(Secret)
+        && !string.IsNullOrEmpty(Prefix)
+        && !string.IsNullOrEmpty(Suffix);
 }
 
 /// <summary>

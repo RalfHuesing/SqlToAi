@@ -179,14 +179,17 @@ internal static class Program
         services.AddSingleton<IQueryValidationService, QueryValidationService>();
 
         // Anonymization
+        services.AddSingleton<ITokenVault, TokenVault>();
         services.AddSingleton<IAnonymizer, Anonymizer>();
         services.AddSingleton<IAnonymizerExclusionProvider, AnonymizerExclusionProvider>();
         services.AddSingleton<IAnonymizationRuleProvider, AnonymizationRuleProvider>();
         services.AddSingleton<IAnonymizationPolicyResolver, AnonymizationPolicyResolver>();
+        services.AddSingleton<IQueryTokenResolver, QueryTokenResolver>();
         services.AddSingleton<AnonymizationDependencies>(sp => new AnonymizationDependencies(
             sp.GetRequiredService<IAnonymizer>(),
             sp.GetRequiredService<IAnonymizerExclusionProvider>(),
-            sp.GetRequiredService<IAnonymizationRuleProvider>()));
+            sp.GetRequiredService<IAnonymizationRuleProvider>(),
+            sp.GetRequiredService<IQueryTokenResolver>()));
 
         // MCP
         services.AddSingleton<ToolRegistry>();
