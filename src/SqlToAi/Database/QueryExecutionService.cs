@@ -221,12 +221,11 @@ public sealed class QueryExecutionService : IQueryExecutionService
 
         var sb = new StringBuilder();
         int rowCount = 0;
-        bool wasAnonymized = false;
-        var anonymizedColumns = new List<string>();
+        var tracker = new RowAnonymizationTracker();
 
         while (rowCount < rowLimit && await reader.ReadAsync(cancellationToken))
         {
-            AppendSerializedRow(sb, reader, columnNames, anonCtx, ref wasAnonymized, anonymizedColumns);
+            AppendSerializedRow(sb, reader, columnNames, anonCtx, tracker);
             rowCount++;
         }
 
@@ -235,7 +234,29 @@ public sealed class QueryExecutionService : IQueryExecutionService
             return new QueryExecutionResult("[]", false, Array.Empty<string>(), _anonymizationMode);
         }
 
-        return new QueryExecutionResult(sb.ToString().TrimEnd(), wasAnonymized, anonymizedColumns, _anonymizationMode);
+        return new QueryExecutionResult(
+            sb.ToString().TrimEnd(), tracker.WasAnonymized, tracker.AnonymizedColumns, _anonymizationMode, tracker.SearchableTokenColumns);
+    }
+
+    /// <summary>Accumulates per-row anonymization outcomes while serializing a result set.</summary>
+    private sealed class RowAnonymizationTracker
+    {
+        public bool WasAnonymized { get; set; }
+        public List<string> AnonymizedColumns { get; } = [];
+        public List<string> SearchableTokenColumns { get; } = [];
+
+        public void RecordAnonymizedColumn(string qualifiedName, bool searchable)
+        {
+            WasAnonymized = true;
+            if (!AnonymizedColumns.Contains(qualifiedName))
+            {
+                AnonymizedColumns.Add(qualifiedName);
+            }
+            if (searchable && !SearchableTokenColumns.Contains(qualifiedName))
+            {
+                SearchableTokenColumns.Add(qualifiedName);
+            }
+        }
     }
 
     /// <summary>Bundles per-query anonymization context for passing between internal helpers.</summary>
@@ -293,15 +314,14 @@ public sealed class QueryExecutionService : IQueryExecutionService
         DbDataReader reader,
         string[] columnNames,
         AnonymizationContext anonCtx,
-        ref bool wasAnonymized,
-        List<string> anonymizedColumns)
+        RowAnonymizationTracker tracker)
     {
         var rowDict = new Dictionary<string, object?>(columnNames.Length, StringComparer.OrdinalIgnoreCase);
 
         for (int i = 0; i < columnNames.Length; i++)
         {
             object? raw = reader.IsDBNull(i) ? null : reader.GetValue(i);
-            raw = AnonymizeCell(columnNames[i], raw, anonCtx, i, ref wasAnonymized, anonymizedColumns);
+            raw = AnonymizeCell(columnNames[i], raw, anonCtx, i, tracker);
             rowDict[columnNames[i]] = raw;
         }
 
@@ -313,8 +333,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
         object? raw,
         AnonymizationContext anonCtx,
         int columnIndex,
-        ref bool wasAnonymized,
-        List<string> anonymizedColumns)
+        RowAnonymizationTracker tracker)
     {
         if (!anonCtx.Anonymize || raw is not string strVal)
         {
@@ -327,20 +346,17 @@ public sealed class QueryExecutionService : IQueryExecutionService
         }
 
         string? tableName = anonCtx.BaseTableNames != null && columnIndex < anonCtx.BaseTableNames.Length ? anonCtx.BaseTableNames[columnIndex] : null;
-        string anonymizedValue = IsFlagSet(anonCtx.SearchableTokenColumns, columnIndex)
+        bool searchable = IsFlagSet(anonCtx.SearchableTokenColumns, columnIndex);
+        string anonymizedValue = searchable
             ? _anonymizer.Tokenize(strVal)
             : _anonymizer.Anonymize(columnName, strVal, tableName, anonCtx.Exclusions);
 
         if (anonymizedValue != strVal)
         {
-            wasAnonymized = true;
             // Qualify with the resolved base table when known, so the LLM (and the human it
             // reports to) can act on a concrete "TableName.ColumnName" instead of a bare alias.
             string qualifiedName = string.IsNullOrEmpty(tableName) ? columnName : $"{tableName}.{columnName}";
-            if (!anonymizedColumns.Contains(qualifiedName))
-            {
-                anonymizedColumns.Add(qualifiedName);
-            }
+            tracker.RecordAnonymizedColumn(qualifiedName, searchable);
         }
 
         return anonymizedValue;

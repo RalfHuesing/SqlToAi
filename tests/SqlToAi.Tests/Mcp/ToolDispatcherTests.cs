@@ -230,6 +230,40 @@ public sealed class ToolDispatcherTests
         Assert.Equal("{\"Col\":1}", result.Content[1].Text);
     }
 
+    [Fact]
+    public async Task ExecuteQuery_ShouldExplainReusableTokens_WhenSearchableColumnsPresent()
+    {
+        var exec = new FakeQueryExecutionService(wasAnonymized: true, withSearchableTokens: true);
+        var dispatcher = BuildDispatcher(exec: exec);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExecuteQuery,
+                (McpConstants.ArgQuery, "SELECT 1"),
+                (McpConstants.ArgDatabase, TestConstants.DatabaseName)),
+            TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsError);
+        Assert.Contains("Email", result.Content[0].Text);
+        Assert.Contains("searchable tokens", result.Content[0].Text);
+        Assert.Contains("reuse it verbatim", result.Content[0].Text);
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_ShouldNotMentionTokens_WhenNoSearchableColumns()
+    {
+        var exec = new FakeQueryExecutionService(wasAnonymized: true, withSearchableTokens: false);
+        var dispatcher = BuildDispatcher(exec: exec);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExecuteQuery,
+                (McpConstants.ArgQuery, "SELECT 1"),
+                (McpConstants.ArgDatabase, TestConstants.DatabaseName)),
+            TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsError);
+        Assert.DoesNotContain("searchable tokens", result.Content[0].Text);
+    }
+
     // =========================================================================
     // Helpers
     // =========================================================================
@@ -289,9 +323,10 @@ public sealed class ToolDispatcherTests
         { LastDatabase = db; return Task.FromResult(Result<string>.Success("# Params")); }
     }
 
-    private sealed class FakeQueryExecutionService(bool fail = false, bool wasAnonymized = false) : IQueryExecutionService
+    private sealed class FakeQueryExecutionService(bool fail = false, bool wasAnonymized = false, bool withSearchableTokens = false) : IQueryExecutionService
     {
         private static readonly string[] AnonymizedColumnsSample = new[] { "FirstName", "Email" };
+        private static readonly string[] SearchableTokenColumnsSample = new[] { "Email" };
 
         public bool ExecuteCalled { get; private set; }
         public int? LastRowLimit { get; private set; }
@@ -300,7 +335,7 @@ public sealed class ToolDispatcherTests
         {
             ExecuteCalled = true;
             LastRowLimit = requestedRowLimit;
-            
+
             if (fail)
             {
                 return Task.FromResult<Result<QueryExecutionResult>>(SqlToAiError.SafetyCheckFailed(db));
@@ -308,6 +343,9 @@ public sealed class ToolDispatcherTests
 
             var result = wasAnonymized
                 ? new QueryExecutionResult("{\"Col\":1}", true, AnonymizedColumnsSample, "ScramblePattern")
+                {
+                    SearchableTokenColumns = withSearchableTokens ? SearchableTokenColumnsSample : Array.Empty<string>()
+                }
                 : new QueryExecutionResult("{\"Col\":1}", false, Array.Empty<string>(), "ScramblePattern");
 
             return Task.FromResult(Result<QueryExecutionResult>.Success(result));

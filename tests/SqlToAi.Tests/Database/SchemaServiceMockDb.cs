@@ -23,6 +23,9 @@ internal sealed class AlwaysAllowPolicyResolver : IAnonymizationPolicyResolver
 {
     public Task<bool> WillAnonymizeAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
         => Task.FromResult(false);
+
+    public Task<bool> IsSearchableTokenAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
 }
 
 /// <summary>Reports a single named column as anonymized, so tests can verify the schema markdown annotation.</summary>
@@ -30,6 +33,19 @@ internal sealed class SelectiveAnonymizePolicyResolver(string anonymizedColumnNa
 {
     public Task<bool> WillAnonymizeAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
         => Task.FromResult(string.Equals(columnName, anonymizedColumnName, StringComparison.OrdinalIgnoreCase));
+
+    public Task<bool> IsSearchableTokenAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
+}
+
+/// <summary>Reports a single named column as anonymized AND searchable, so tests can verify the "Yes (searchable)" annotation.</summary>
+internal sealed class SearchableAnonymizePolicyResolver(string searchableColumnName) : IAnonymizationPolicyResolver
+{
+    public Task<bool> WillAnonymizeAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => Task.FromResult(string.Equals(columnName, searchableColumnName, StringComparison.OrdinalIgnoreCase));
+
+    public Task<bool> IsSearchableTokenAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => Task.FromResult(string.Equals(columnName, searchableColumnName, StringComparison.OrdinalIgnoreCase));
 }
 
 internal sealed class MockSchemaConnection : DbConnection

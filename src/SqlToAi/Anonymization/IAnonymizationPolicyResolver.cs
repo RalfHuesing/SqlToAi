@@ -13,4 +13,12 @@ public interface IAnonymizationPolicyResolver
 {
     /// <summary>Returns <c>true</c> if string values in this column would currently be anonymized.</summary>
     Task<bool> WillAnonymizeAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns <c>true</c> if an anonymized column would use reversible, searchable tokenization
+    /// (see <c>Anonymizer.Tokenize</c>) instead of regular scramble/hash masking — combining the
+    /// <c>Anonymizer.Tokenization.SearchableColumns</c> glob list with the central rule provider's
+    /// <c>SearchableToken</c> flag. Only meaningful when <see cref="WillAnonymizeAsync"/> is also true.
+    /// </summary>
+    Task<bool> IsSearchableTokenAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default);
 }

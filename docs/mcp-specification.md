@@ -21,14 +21,13 @@ Ein SQL Server besitzt typischerweise viele System- und Benutzerdatenbanken. Sta
 * **Konfiguration:**
   ```json
   "Databases": {
-    "Default": "DemoDb",
     "Allowed": ["Demo_*", "TestDb", "Reporting_ReadOnly"],
     "Blocked": ["master", "msdb", "tempdb", "model", "HR_Payroll"],
     "CacheTtlSeconds": 300
   }
   ```
 * **Mechanismus:**
-  1. Jede Anfrage an ein Tool enthält einen optionalen Parameter `database`. Fehlt dieser, wird `Default` verwendet.
+  1. Jedes Tool außer `sql_list_databases`/`sql_search_databases` verlangt den Parameter `database` als **Pflichtfeld** — es gibt keinen impliziten Default; fehlt er, schlägt der Aufruf mit `SQL-AI-0001` fehl.
   2. Der Name der Zieldatenbank wird gegen die Listen `Allowed` und `Blocked` geprüft (Unterstützung von einfachen Wildcards wie `*`).
   3. Passt der Name nicht auf ein Muster in `Allowed` oder passt er auf ein Muster in `Blocked`, wird die Anfrage sofort blockiert (`SQL-AI-0104`).
 * **Credentials-Sicherheit:**
@@ -174,9 +173,9 @@ Normale Anonymisierung (Abschnitt D) ist bewusst eine Einbahnstraße: Der Server
 
 ### G. Proaktive Kennzeichnung & agentische Verhaltenssteuerung
 
-* **`sql_get_schema` markiert Spalten proaktiv:** Die Spalten-Tabelle enthält eine zusätzliche Spalte **„Anonymized“** (`Yes`/`No`), berechnet über dieselben Ausschluss-Quellen wie zur Abfragezeit — das LLM sieht so schon beim Schema-Erkunden, welche Spalten maskiert würden, bevor überhaupt eine Query geschrieben wird. Nicht-String-Typen (siehe Bekannte Grenze oben) werden immer als `No` ausgewiesen.
-* **`sql_execute_query`-Hinweis referenziert konkrete Spalten:** Die Anonymisierungs-Notiz (siehe Tool-Spezifikation unten) nennt betroffene Spalten als `Tabelle.Spalte` (sofern die Basistabelle auflösbar ist) statt nur des Spalten-Alias, und enthält eine konkrete Handlungsanweisung: den Nutzer informieren und eine Freischaltung vorschlagen, statt den maskierten Wert als echte Daten zu behandeln. Bei Sichten/Aggregationen wird das LLM angehalten, zunächst mit `sql_get_object_references` die tatsächliche Quelltabelle zu ermitteln.
-* **MCP `instructions`-Feld:** Die `initialize`-Antwort enthält ein `instructions`-Feld mit genau dieser Verhaltensrichtlinie in kompakter Form — einmalig beim Verbindungsaufbau an den Client übergeben, statt in jeder Tool-Beschreibung oder jedem Ergebnis wiederholt zu werden.
+* **`sql_get_schema` markiert Spalten proaktiv:** Die Spalten-Tabelle enthält eine zusätzliche Spalte **„Anonymized“** mit drei möglichen Werten — `No`, `Yes` (Scramble/Hash-Maskierung), oder `Yes (searchable)` (reversibles Token, siehe Abschnitt F) — berechnet über dieselben Ausschluss-/Tokenisierungs-Quellen wie zur Abfragezeit. Das LLM sieht so schon beim Schema-Erkunden, welche Spalten maskiert *oder* tokenisiert würden, bevor überhaupt eine Query geschrieben wird. Nicht-String-Typen (siehe Bekannte Grenze oben) werden immer als `No` ausgewiesen.
+* **`sql_execute_query`-Hinweis referenziert konkrete Spalten:** Die Anonymisierungs-Notiz (siehe Tool-Spezifikation unten) nennt betroffene Spalten als `Tabelle.Spalte` (sofern die Basistabelle auflösbar ist) statt nur des Spalten-Alias, und enthält eine konkrete Handlungsanweisung: den Nutzer informieren und eine Freischaltung vorschlagen, statt den maskierten Wert als echte Daten zu behandeln. Bei Sichten/Aggregationen wird das LLM angehalten, zunächst mit `sql_get_object_references` die tatsächliche Quelltabelle zu ermitteln. Sind darunter Spalten mit reversiblem Token (Abschnitt F), ergänzt die Notiz einen zweiten, nur dann angehängten Satz: welche der genannten Spalten Tokens statt maskierten Text liefern, und dass dieser Wert unverändert in eine spätere `WHERE`/`JOIN`/`LIKE`/`IN`/Bereichs-Bedingung übernommen werden kann — der Server löst ihn vor der Ausführung zum Realwert auf. Ohne tokenisierte Spalten im Ergebnis entfällt dieser Satz komplett (Token-Effizienz).
+* **MCP `instructions`-Feld:** Die `initialize`-Antwort enthält ein `instructions`-Feld mit genau dieser Verhaltensrichtlinie in kompakter Form — einmalig beim Verbindungsaufbau an den Client übergeben, statt in jeder Tool-Beschreibung oder jedem Ergebnis wiederholt zu werden. Es erklärt seit Einführung der Tokenisierung zusätzlich, dass ein Token unverändert wiederverwendet werden darf/soll, aber nie selbst konstruiert oder verändert werden darf.
 
 ---
 
@@ -218,52 +217,52 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Zweck:** Filtert die Liste der freigegebenen Datenbanken nach einem Teilstring.
 
 ### 3. `sql_validate_query`
-* **Argumente:** `query` (String, Pflicht), `database` (String, optional)
+* **Argumente:** `query` (String, Pflicht), `database` (String, Pflicht)
 * **Zweck:** Prüft eine SQL-Abfrage fachlich und technisch (Syntax-Check über `PARSEONLY` im Kontext der Zieldatenbank), ohne sie auszuführen.
 
 ### 4. `sql_search_objects`
-* **Argumente:** `search_term` (String, Pflicht), `max_results` (Int, optional), `object_type` (String, optional), `database` (String, optional)
+* **Argumente:** `search_term` (String, Pflicht), `max_results` (Int, optional), `object_type` (String, optional), `database` (String, Pflicht)
 * **Zweck:** Sucht nach Objektnamen (Tabellen, Sichten, Prozeduren, Trigger) in `sys.objects` der Zieldatenbank per `LIKE %search_term%`.
 * **`object_type`:** Optionaler Filter auf `type_desc` (z. B. `USER_TABLE`, `VIEW`, `SQL_STORED_PROCEDURE`, `SQL_TRIGGER`, `SQL_SCALAR_FUNCTION`), unterstützt LIKE-Wildcards (z. B. `SQL_%`). Nützlich, um gezielt nach Tabellen statt einer Mischung aus Tabellen, Constraints und Triggern zu suchen.
 * **Ranking ohne `object_type`:** Tabellen, Sichten, Prozeduren/Funktionen und Trigger werden vor Constraint-Objekten (`FOREIGN_KEY_CONSTRAINT`, `PRIMARY_KEY_CONSTRAINT`, `DEFAULT_CONSTRAINT`, `CHECK_CONSTRAINT`) einsortiert, da letztere zahlenmäßig meist überwiegen und alphabetisch vor `USER_TABLE` sortieren würden.
 
 ### 5. `sql_get_schema`
-* **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
+* **Argumente:** `object_name` (String, Pflicht), `database` (String, Pflicht)
 * **Zweck:** Liefert das primäre Schema eines Objekts als Markdown-Dokument, angereichert mit Extended Properties / Metadaten.
 * **Inhalt:**
   * **TABLE/VIEW:** Spalten-Tabelle (Typ, Nullable, PK, Identity, **Anonymized** (proaktive Kennzeichnung, siehe Abschnitt 2.G), Custom-Beschreibung) + Trigger-Übersicht (Name, Events, Disabled-Status) + **Discovery-Index** (Zähler für Fremdschlüssel, Indizes, Constraints, sowie die Trigger-Namen selbst zur direkten Verwendung mit `sql_get_trigger_definition`).
   * **PROCEDURE/FUNCTION:** DDL-Definitionstext aus `sys.sql_modules` + **Routine-Parameter-Discovery**.
 
 ### 6. `sql_get_schema_foreign_keys`
-* **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
+* **Argumente:** `object_name` (String, Pflicht), `database` (String, Pflicht)
 * **Zweck:** Progressive Disclosure: Liefert alle ausgehenden und eingehenden Fremdschlüssel einer Tabelle als Markdown-Tabelle.
 * **Typ-Prüfung:** Nur für Tabellen und Sichten zulässig; bei anderen Objekttypen (z. B. Prozeduren) schlägt der Aufruf mit `SQL-AI-0110` fehl, statt fälschlich ein leeres Ergebnis zu liefern.
 * **Composite Keys:** Ein Fremdschlüssel über mehrere Spalten erscheint als **eine** Zeile (`Tabelle (Spalte1, Spalte2)`) statt einer Zeile pro Spalte, damit die Zeilenanzahl mit dem Discovery-Index-Zähler übereinstimmt.
 
 ### 7. `sql_get_schema_indexes`
-* **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
+* **Argumente:** `object_name` (String, Pflicht), `database` (String, Pflicht)
 * **Zweck:** Liefert alle Indizes (PK, Unique, Non-Clustered) inklusive Schlüssel- und `INCLUDE`-Spalten als Markdown.
 * **Typ-Prüfung:** Nur für Tabellen und Sichten zulässig; siehe `SQL-AI-0110` oben.
 
 ### 8. `sql_get_schema_constraints`
-* **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
+* **Argumente:** `object_name` (String, Pflicht), `database` (String, Pflicht)
 * **Zweck:** Liefert alle Default- und Check-Constraints inklusive ihrer Definitionstexte als Markdown.
 * **Typ-Prüfung:** Nur für Tabellen und Sichten zulässig; siehe `SQL-AI-0110` oben.
 
 ### 9. `sql_get_trigger_definition`
-* **Argumente:** `object_name` (Parent, Pflicht), `trigger_name` (Trigger, Pflicht), `database` (String, optional)
+* **Argumente:** `object_name` (Parent, Pflicht), `trigger_name` (Trigger, Pflicht), `database` (String, Pflicht)
 * **Zweck:** Liefert die vollständige DDL-Definition (`CREATE TRIGGER ...`) eines DML-Triggers.
 
 ### 10. `sql_get_object_references`
-* **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
+* **Argumente:** `object_name` (String, Pflicht), `database` (String, Pflicht)
 * **Zweck:** Zeigt statische Referenzen ("Wo wird diese Tabelle/Sicht verwendet?") über die DMV `sys.dm_sql_referencing_entities`.
 
 ### 11. `sql_get_routine_parameters`
-* **Argumente:** `object_name` (String, Pflicht), `database` (String, optional)
+* **Argumente:** `object_name` (String, Pflicht), `database` (String, Pflicht)
 * **Zweck:** Liefert Parameter, Typen und Rückgabestrukturen für Prozeduren und Funktionen.
 
 ### 12. `sql_execute_query`
-* **Argumente:** `query` (String, Pflicht), `requested_row_limit` (Int, optional), `database` (String, optional)
+* **Argumente:** `query` (String, Pflicht), `requested_row_limit` (Int, optional), `database` (String, Pflicht)
 * **Zweck:** Führt ein einzelnes SQL-SELECT-Statement aus.
 * **Einschränkung:** Nur ein einzelnes Statement erlaubt (Semikolon-Trennung mehrerer Queries führt zu Fehler `SQL-AI-0101`).
 * **Datenverarbeitung:** Anwendbare Limits greifen (Default: 100 Zeilen). String-Spalten werden anonymisiert, falls aktiviert und passend zu den Regeln.

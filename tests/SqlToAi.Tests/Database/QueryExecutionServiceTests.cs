@@ -370,6 +370,9 @@ public sealed class QueryExecutionServiceTests
         Assert.StartsWith(options.Anonymizer.Tokenization.Prefix, token, StringComparison.Ordinal);
         Assert.True(vault.TryResolve(token, out string? resolved));
         Assert.Equal(iban, resolved);
+
+        Assert.Contains("IBAN", result.Value.SearchableTokenColumns);
+        Assert.Contains("IBAN", result.Value.AnonymizedColumns);
     }
 
     [Fact]
@@ -385,6 +388,7 @@ public sealed class QueryExecutionServiceTests
         Assert.DoesNotContain("§§§", result.Value.Data, StringComparison.Ordinal);
         Assert.DoesNotContain(original, result.Value.Data, StringComparison.Ordinal); // still masked, just not tokenized
         Assert.True(result.Value.WasAnonymized);
+        Assert.Empty(result.Value.SearchableTokenColumns);
     }
 
     [Fact]
@@ -401,6 +405,7 @@ public sealed class QueryExecutionServiceTests
         Assert.StartsWith(options.Anonymizer.Tokenization.Prefix, token, StringComparison.Ordinal);
         Assert.True(vault.TryResolve(token, out string? resolved));
         Assert.Equal(iban, resolved);
+        Assert.Contains("IBAN", result.Value.SearchableTokenColumns);
     }
 
     [Fact]

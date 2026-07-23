@@ -15,7 +15,7 @@ Designed specifically for developers analyzing ERP systems and complex database 
 * 🛡️ **Default Anonymization:** Every string column is automatically scrambled with the configured default algorithm unless its name matches an `ExcludedColumns` pattern — no per-column rule maintenance required.
 * 🌐 **Central, Cross-Database Anonymization Rules (optional):** Configure exclusion rules in their own dedicated database (`AnonymizationRules`) instead of inside each customer database, so they survive customer-side backup restores and apply across many customer databases via `LIKE`-style wildcard patterns, with the most specific matching rule winning.
 * 🔑 **Reversible, Searchable Tokenization (optional):** For columns explicitly flagged `SearchableToken`, the AI receives a deterministic, keyed token instead of a scramble/hash mask. The server resolves that exact token back to the real value inside string literals before a later query executes — so `WHERE`, `JOIN`, `LIKE`, and range comparisons all keep working across tables, without the AI ever learning the value itself.
-* 🔎 **Proactive Anonymization Awareness:** `sql_get_schema` marks each column "Anonymized: Yes/No" before any query is written, `sql_execute_query`'s notice names the affected `Table.Column` pairs, and the MCP `instructions` field tells the connecting agent how to handle masked columns (ask the user, don't assume, trace views via `sql_get_object_references`).
+* 🔎 **Proactive Anonymization Awareness:** `sql_get_schema` marks each column `No` / `Yes` / `Yes (searchable)` before any query is written, `sql_execute_query`'s notice names the affected `Table.Column` pairs (plus, only when relevant, which of those are reusable tokens rather than masked text), and the MCP `instructions` field tells the connecting agent how to handle both cases (ask the user before treating masked values as real data, reuse a token verbatim instead of guessing it, trace views via `sql_get_object_references`).
 * 📖 **Schema Enrichment (Custom Metadata):** Inject custom business logic or table/column documentation from another database/table via configurable SQL queries directly into the schema results returned to the AI.
 * 📋 **Progressive Disclosure Schema Tools:** Exposes optimized tools for schema discovery, triggers, constraints, indexes, routine parameters, and referencing entities (`sys.dm_sql_referencing_entities`), formatted in clean Markdown for the AI.
 * 📂 **File-Based Logging + MCP Trail:** Serilog writes rolling app and error logs next to the executable; every MCP request and response is recorded verbatim as JSONL under `log/mcp/YYYY-MM-DD/`, with the same anonymization the LLM saw.
@@ -59,10 +59,12 @@ The server picks credentials in this order (first match wins):
 2. **`SqlServer.Server` + `SqlServer.UserId` + `SqlServer.Password`** in `appsettings.json` (when `IntegratedSecurity` is `false`) —
    convenient for local development against a developer SQL Server. If `IntegratedSecurity` is false, `UserId` and `Password` must be explicitly configured, otherwise connection creation throws an exception. All values support environment variable expansion (e.g. `%COMPUTERNAME%\\MSSQLSERVER2022`).
 
-> **Note for shared repos:** the template `appsettings.json` ships without credentials, so a fresh
-> clone won't leak anything. If you check in credentials for your local dev server (e.g. a
-> throwaway `Agent/Agent!` test login), make sure the repo is private and the credentials are
-> limited to read-only access on a non-production database.
+> **Note for shared repos:** the template [`appsettings.json`](src/SqlToAi/appsettings.json) ships with
+> a throwaway `Agent/Agent!` login scoped to a single local demo database (`DemoDB`) — replace it with
+> your own credentials (ideally via `SQLTOAI_CONNECTION_STRING` or Integrated Security, not a checked-in
+> password) before pointing the server at anything beyond local development. If you do check in
+> credentials for a local dev server, make sure the repo is private and the login is limited to
+> read-only access on a non-production database.
 
 ### Example `appsettings.json`
 
@@ -70,7 +72,6 @@ The server picks credentials in this order (first match wins):
 {
   "SqlToAi": {
     "Databases": {
-      "Default": "MyDemoDatabase",
       "Allowed": ["Demo_*", "TestDb", "Reporting_ReadOnly"],
       "Blocked": ["master", "msdb", "tempdb", "model"],
       "AccessCheckSql": "SELECT CASE WHEN SYSTEM_USER = 'readonly_ai' THEN 'ReadOnly' ELSE 'None' END AS AccessLevel",

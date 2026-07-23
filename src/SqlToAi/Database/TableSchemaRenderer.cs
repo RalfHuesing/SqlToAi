@@ -76,26 +76,53 @@ internal sealed class TableSchemaRenderer
         return sb.ToString();
     }
 
+    /// <summary>How a column's string values are currently handled by the anonymization pipeline.</summary>
+    private enum ColumnAnonymizationState
+    {
+        /// <summary>Not anonymized — either never a string type, or excluded by configuration.</summary>
+        None,
+
+        /// <summary>Regular scramble/hash masking.</summary>
+        Masked,
+
+        /// <summary>Reversible, searchable tokenization (see <c>Anonymizer.Tokenize</c>).</summary>
+        SearchableToken
+    }
+
     /// <summary>
     /// Resolves, once per column, whether its string values would currently be anonymized —
     /// so the schema markdown can tell the caller upfront, before any query is written. Columns
     /// whose SQL type is never read as a string (e.g. int, bit) are never anonymized regardless
     /// of configuration, so they are reported as "No" without even asking the policy resolver.
     /// </summary>
-    private async Task<IReadOnlyDictionary<string, bool>> ResolveAnonymizedFlagsAsync(
+    private async Task<IReadOnlyDictionary<string, ColumnAnonymizationState>> ResolveAnonymizedFlagsAsync(
         string databaseName, string tableName, IEnumerable<ColumnRow> columns, CancellationToken cancellationToken)
     {
-        var flags = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        var flags = new Dictionary<string, ColumnAnonymizationState>(StringComparer.OrdinalIgnoreCase);
         foreach (var col in columns)
         {
-            flags[col.ColumnName] = AnonymizableSqlTypes.Contains(col.DataType)
-                && await _policyResolver.WillAnonymizeAsync(databaseName, tableName, col.ColumnName, cancellationToken);
+            flags[col.ColumnName] = await ResolveColumnStateAsync(databaseName, tableName, col, cancellationToken);
         }
         return flags;
     }
 
+    private async Task<ColumnAnonymizationState> ResolveColumnStateAsync(
+        string databaseName, string tableName, ColumnRow col, CancellationToken cancellationToken)
+    {
+        bool willAnonymize = AnonymizableSqlTypes.Contains(col.DataType)
+            && await _policyResolver.WillAnonymizeAsync(databaseName, tableName, col.ColumnName, cancellationToken);
+        if (!willAnonymize)
+        {
+            return ColumnAnonymizationState.None;
+        }
+
+        bool searchable = await _policyResolver.IsSearchableTokenAsync(databaseName, tableName, col.ColumnName, cancellationToken);
+        return searchable ? ColumnAnonymizationState.SearchableToken : ColumnAnonymizationState.Masked;
+    }
+
     private static void AppendColumnsTable(
-        StringBuilder sb, IEnumerable<ColumnRow> columns, IReadOnlyDictionary<string, string> columnDescs, IReadOnlyDictionary<string, bool> anonymizedFlags)
+        StringBuilder sb, IEnumerable<ColumnRow> columns, IReadOnlyDictionary<string, string> columnDescs,
+        IReadOnlyDictionary<string, ColumnAnonymizationState> anonymizedFlags)
     {
         var headers = new[] { "Column Name", "Type", "Nullable", "Key/Identity", "Anonymized", "Description" };
         var renderedRows = new List<string[]>();
@@ -109,13 +136,21 @@ internal sealed class TableSchemaRenderer
             if (col.IsIdentity) keyFlags.Add("Identity");
             string keyStr = string.Join(", ", keyFlags);
 
-            string anonymized = anonymizedFlags.TryGetValue(col.ColumnName, out bool isAnonymized) && isAnonymized ? "Yes" : "No";
+            anonymizedFlags.TryGetValue(col.ColumnName, out var state);
+            string anonymized = FormatAnonymizedState(state);
 
             columnDescs.TryGetValue(col.ColumnName, out string? desc);
             renderedRows.Add([col.ColumnName, type, nullable, keyStr, anonymized, desc ?? ""]);
         }
         sb.AppendLine(RenderMarkdownTable(headers, renderedRows));
     }
+
+    private static string FormatAnonymizedState(ColumnAnonymizationState state) => state switch
+    {
+        ColumnAnonymizationState.SearchableToken => "Yes (searchable)",
+        ColumnAnonymizationState.Masked => "Yes",
+        _ => "No"
+    };
 
     private static void AppendTriggersTable(StringBuilder sb, List<TriggerRow> triggers)
     {

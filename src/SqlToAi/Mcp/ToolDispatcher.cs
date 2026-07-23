@@ -135,10 +135,7 @@ public sealed class ToolDispatcher : IToolDispatcher
                 var queryResult = result.Value;
                 if (queryResult.WasAnonymized)
                 {
-                    string columnsList = string.Join(", ", queryResult.AnonymizedColumns);
-                    string noteText = $"Note: The following query results have been anonymized (Mode: {queryResult.AnonymizationMode}) to protect PII. The following columns were anonymized: {columnsList}. " +
-                        "If this task needs any of these columns in clear text, tell the user which of these Table.Column names are affected and propose an exclusion rule rather than treating the scrambled values as real data; " +
-                        "for a view or computed column, trace the real source with sql_get_object_references first.";
+                    string noteText = BuildAnonymizationNote(queryResult);
                     return new ToolCallResult
                     {
                         Content = new[]
@@ -163,6 +160,27 @@ public sealed class ToolDispatcher : IToolDispatcher
             return handler(callParams, cancellationToken);
         }
         return UnknownTool(callParams.Name);
+    }
+
+    /// <summary>
+    /// Builds the PII-protection note shown alongside anonymized query results — plus, when any
+    /// column used reversible tokenization instead of masking, a compact hint that the AI can
+    /// reuse those exact values in a later query (see <c>Anonymizer.Tokenize</c>).
+    /// </summary>
+    private static string BuildAnonymizationNote(QueryExecutionResult queryResult)
+    {
+        string columnsList = string.Join(", ", queryResult.AnonymizedColumns);
+        string note = $"Note: The following query results have been anonymized (Mode: {queryResult.AnonymizationMode}) to protect PII. The following columns were anonymized: {columnsList}. " +
+            "If this task needs any of these columns in clear text, tell the user which of these Table.Column names are affected and propose an exclusion rule rather than treating the scrambled values as real data; " +
+            "for a view or computed column, trace the real source with sql_get_object_references first.";
+
+        if (queryResult.SearchableTokenColumns.Count > 0)
+        {
+            string searchableList = string.Join(", ", queryResult.SearchableTokenColumns);
+            note += $" Of these, {searchableList} are searchable tokens, not masked text: still not the real value, but reuse it verbatim (unchanged) in a later query's WHERE/JOIN/LIKE/IN/range predicate on that column — the server resolves it back to the real value before executing.";
+        }
+
+        return note;
     }
 
     private static string GetDb(ToolCallParams p)
