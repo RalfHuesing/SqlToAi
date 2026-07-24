@@ -36,7 +36,7 @@ public sealed class Anonymizer : IAnonymizer
     /// <returns>The anonymized value, or the original value if anonymization is disabled or excluded.</returns>
     public string Anonymize(string columnName, string originalValue)
     {
-        return Anonymize(originalValue, new AnonymizationColumnContext(null, columnName, null, null));
+        return Anonymize(originalValue, new AnonymizationColumnContext(null, columnName, null));
     }
 
     /// <inheritdoc/>
@@ -47,16 +47,12 @@ public sealed class Anonymizer : IAnonymizer
             return originalValue;
         }
 
-        // Pauschale Anonymisierung: every non-excluded string column is anonymized with the
-        // configured default mode. Per-database opt-out is handled at the AccessLevel layer
-        // (ReadOnlyAnonymized vs ReadOnly) — the Anonymizer is only ever invoked when the
-        // access level already decided "yes, anonymize".
         return RunAnonymization(originalValue, _options.Anonymizer.DefaultMode);
     }
 
     /// <inheritdoc/>
     public string Tokenize(string columnName, string originalValue) =>
-        Tokenize(originalValue, new AnonymizationColumnContext(null, columnName, null, null));
+        Tokenize(originalValue, new AnonymizationColumnContext(null, columnName, null));
 
     /// <inheritdoc/>
     public string Tokenize(string originalValue, AnonymizationColumnContext context)
@@ -69,8 +65,6 @@ public sealed class Anonymizer : IAnonymizer
         var tokenization = _options.Anonymizer.Tokenization;
         if (!tokenization.IsUsable)
         {
-            // Fail-safe fallback: tokenization isn't properly configured, so never expose the
-            // value in clear text — mask it exactly like a non-searchable column instead.
             return RunAnonymization(originalValue, _options.Anonymizer.DefaultMode);
         }
 
@@ -79,51 +73,9 @@ public sealed class Anonymizer : IAnonymizer
         return token;
     }
 
-    /// <summary>
-    /// The single exclusion decision shared by <see cref="Anonymize(string, AnonymizationColumnContext)"/>
-    /// and <see cref="Tokenize(string, AnonymizationColumnContext)"/>, so tokenization can never
-    /// bypass an exclusion that regular masking would honor: the master switch, the database-specific
-    /// exclusion table, and the <see cref="AnonymizerOptions.ExcludedColumns"/> glob patterns.
-    /// Both the exclusion-table lookup and the glob-pattern match are keyed off
-    /// <see cref="AnonymizationColumnContext.OriginColumnName"/> — the query result's real source
-    /// column — never off a query's output alias, so <c>SELECT SSN AS RecordId</c> cannot dodge an
-    /// <c>*Id</c> exclusion pattern meant for actual ID columns. The exclusion-table lookup is also
-    /// schema-aware (<see cref="AnonymizationColumnContext.SchemaName"/>), so a same-named table in
-    /// a different schema never inherits an exclusion scoped to another schema.
-    /// </summary>
     private bool IsColumnExcluded(AnonymizationColumnContext context)
     {
-        if (!_options.Anonymizer.Enabled)
-        {
-            return true;
-        }
-
-        if (context.DbExclusions != null && !string.IsNullOrEmpty(context.TableName) && !string.IsNullOrEmpty(context.OriginColumnName))
-        {
-            if (context.DbExclusions.Contains(context.SchemaName, context.TableName, context.OriginColumnName))
-            {
-                return true;
-            }
-        }
-
-        if (string.IsNullOrEmpty(context.OriginColumnName))
-        {
-            // Fail-safe: the column's real origin could not be resolved (e.g. a computed,
-            // literal, or aggregate expression with no traceable source column). Never trust an
-            // alias against the plain pattern list in that case — treat it as not excluded so it
-            // still gets anonymized/tokenized.
-            return false;
-        }
-
-        foreach (string excludedPattern in _options.Anonymizer.ExcludedColumns)
-        {
-            if (GlobPatternMatcher.IsMatch(context.OriginColumnName, excludedPattern))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return !_options.Anonymizer.Enabled;
     }
 
     private static string ComputeToken(string value, TokenizationOptions tokenization)

@@ -51,8 +51,7 @@ public sealed class SqlToAiOptionsTests
           },
           "Anonymizer": {
             "Enabled": true,
-            "DefaultMode": "Hash",
-            "ExcludedColumns": ["*Code", "Status"]
+            "DefaultMode": "Hash"
           }
         }
         """;
@@ -75,9 +74,6 @@ public sealed class SqlToAiOptionsTests
 
         Assert.True(options.Anonymizer.Enabled);
         Assert.Equal("Hash", options.Anonymizer.DefaultMode);
-        Assert.Equal(2, options.Anonymizer.ExcludedColumns.Count);
-        Assert.Contains("*Code", options.Anonymizer.ExcludedColumns);
-        Assert.Contains("Status", options.Anonymizer.ExcludedColumns);
     }
 
     [Fact]

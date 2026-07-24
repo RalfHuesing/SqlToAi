@@ -13,13 +13,11 @@ public sealed class AnonymizationPolicyResolverTests
 
     private static AnonymizationPolicyResolver BuildResolver(
         SqlToAiOptions? options = null,
-        AnonymizerExclusionSet? legacyExclusions = null,
         bool centralExcluded = false)
     {
         options ??= new SqlToAiOptions();
-        var exclusionProvider = new FakeExclusionProvider(legacyExclusions ?? AnonymizerExclusionSet.Empty);
         var ruleProvider = new FakeRuleProvider(centralExcluded);
-        return new AnonymizationPolicyResolver(Options.Create(options), exclusionProvider, ruleProvider);
+        return new AnonymizationPolicyResolver(Options.Create(options), ruleProvider);
     }
 
     [Fact]
@@ -32,43 +30,6 @@ public sealed class AnonymizationPolicyResolverTests
         bool result = await resolver.WillAnonymizeAsync("Db", "Table", "Column", TestContext.Current.CancellationToken);
 
         Assert.False(result);
-    }
-
-    [Fact]
-    public async Task WillAnonymizeAsync_ShouldReturnFalse_WhenColumnMatchesGlobExclusion()
-    {
-        var options = new SqlToAiOptions();
-        options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
-        var resolver = BuildResolver(options);
-
-        bool result = await resolver.WillAnonymizeAsync("Db", "Table", "CustomerId", TestContext.Current.CancellationToken);
-
-        Assert.False(result);
-    }
-
-    [Fact]
-    public async Task WillAnonymizeAsync_ShouldReturnFalse_WhenLegacyExclusionMatches()
-    {
-        var legacy = new AnonymizerExclusionSet([new AnonymizerExclusionEntry(null, "FakeProjects", "ProjectName")]);
-        var resolver = BuildResolver(legacyExclusions: legacy);
-
-        bool result = await resolver.WillAnonymizeAsync("Db", "FakeProjects", "ProjectName", TestContext.Current.CancellationToken);
-
-        Assert.False(result);
-    }
-
-    [Fact]
-    public async Task WillAnonymizeAsync_ShouldReturnTrue_WhenLegacyExclusionIsScopedToADifferentSchema()
-    {
-        // AnonymizationPolicyResolver has no schema context at this call site (schema tools report
-        // on a bare table name ahead of any query) — a schema-scoped exclusion must therefore never
-        // apply here, which is the fail-safe "keep reporting anonymized" direction.
-        var legacy = new AnonymizerExclusionSet([new AnonymizerExclusionEntry("dbo", "FakeProjects", "ProjectName")]);
-        var resolver = BuildResolver(legacyExclusions: legacy);
-
-        bool result = await resolver.WillAnonymizeAsync("Db", "FakeProjects", "ProjectName", TestContext.Current.CancellationToken);
-
-        Assert.True(result);
     }
 
     [Fact]
@@ -126,12 +87,6 @@ public sealed class AnonymizationPolicyResolverTests
         var resolver = BuildResolver(options);
 
         Assert.True(resolver.IsTokenizationActive);
-    }
-
-    private sealed class FakeExclusionProvider(AnonymizerExclusionSet exclusions) : IAnonymizerExclusionProvider
-    {
-        public Task<AnonymizerExclusionSet> GetExclusionsAsync(string databaseName, CancellationToken cancellationToken = default)
-            => Task.FromResult(exclusions);
     }
 
     private sealed class FakeRuleProvider(bool excluded) : IAnonymizationRuleProvider

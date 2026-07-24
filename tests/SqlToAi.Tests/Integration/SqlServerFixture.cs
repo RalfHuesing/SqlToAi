@@ -16,15 +16,6 @@ namespace SqlToAi.Tests.Integration;
 /// Shared fixture for integration tests that exercise the real services against a live SQL Server.
 /// Reads configuration from <c>src/SqlToAi/appsettings.json</c> (the same file the runtime uses)
 /// and builds the real DI graph — no mocks, no test doubles.
-///
-/// Tests are tagged with <c>[Trait("Category", "Integration")]</c>. To run them in isolation:
-///   <c>dotnet test --filter "Category=Integration"</c>
-/// To run everything except integration tests:
-///   <c>dotnet test --filter "Category!=Integration"</c>
-///
-/// If the database is unreachable, every test in this collection is reported as failed with the
-/// underlying connection error — that is intentional, surfacing the misconfiguration loudly rather
-/// than silently skipping.
 /// </summary>
 public sealed class SqlServerFixture
 {
@@ -38,7 +29,6 @@ public sealed class SqlServerFixture
     public QueryExecutionService QueryExecutionService { get; }
     public QueryValidationService QueryValidationService { get; }
     public Anonymizer Anonymizer { get; }
-    public AnonymizerExclusionProvider AnonymizerExclusionProvider { get; }
     public AnonymizationRuleProvider AnonymizationRuleProvider { get; }
     public AnonymizationPolicyResolver AnonymizationPolicyResolver { get; }
     public TokenVault TokenVault { get; }
@@ -46,19 +36,12 @@ public sealed class SqlServerFixture
 
     public SqlServerFixture()
     {
-
-
-        // Resolve appsettings.json next to the running test assembly. The file is copied into
-        // the test output by the src project so the relative path is stable.
         string appsettingsPath = LocateAppsettings();
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Path.GetDirectoryName(appsettingsPath)!)
             .AddJsonFile(Path.GetFileName(appsettingsPath), optional: false, reloadOnChange: false)
             .Build();
 
-        // If the user (or CI) has set SQLTOAI_CONNECTION_STRING, that takes precedence — same
-        // behavior as the runtime. For local dev against the bundled appsettings.json no env var
-        // is required.
         Options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
         ConfigurationResolver.Resolve(Options);
 
@@ -66,23 +49,20 @@ public sealed class SqlServerFixture
         ConnectionFactory   = new SqlConnectionFactory(optionsWrapper);
         SecurityGuard       = new SecurityGuard(optionsWrapper);
         AccessLevelProvider = new AccessLevelProvider(ConnectionFactory, optionsWrapper, NullLogger<AccessLevelProvider>.Instance);
-        AnonymizerExclusionProvider = new AnonymizerExclusionProvider(ConnectionFactory, optionsWrapper, NullLogger<AnonymizerExclusionProvider>.Instance);
         AnonymizationRuleProvider = new AnonymizationRuleProvider(ConnectionFactory, optionsWrapper, NullLogger<AnonymizationRuleProvider>.Instance);
-        AnonymizationPolicyResolver = new AnonymizationPolicyResolver(optionsWrapper, AnonymizerExclusionProvider, AnonymizationRuleProvider);
+        AnonymizationPolicyResolver = new AnonymizationPolicyResolver(optionsWrapper, AnonymizationRuleProvider);
         ReadOnlyGuard       = new ReadOnlyGuard();
         MetadataProvider    = new MetadataProvider(ConnectionFactory, optionsWrapper, NullLogger<MetadataProvider>.Instance);
         SchemaService       = new SchemaService(ConnectionFactory, SecurityGuard, AccessLevelProvider, MetadataProvider, AnonymizationPolicyResolver, optionsWrapper, NullLogger<SchemaService>.Instance);
         TokenVault          = new TokenVault();
         QueryTokenResolver  = new QueryTokenResolver(TokenVault, optionsWrapper);
         Anonymizer          = new Anonymizer(optionsWrapper, TokenVault);
-        QueryExecutionService = new QueryExecutionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, new AnonymizationDependencies(Anonymizer, AnonymizerExclusionProvider, AnonymizationRuleProvider, QueryTokenResolver), optionsWrapper, NullLogger<QueryExecutionService>.Instance);
+        QueryExecutionService = new QueryExecutionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, new AnonymizationDependencies(Anonymizer, AnonymizationRuleProvider, QueryTokenResolver), optionsWrapper, NullLogger<QueryExecutionService>.Instance);
         QueryValidationService = new QueryValidationService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, optionsWrapper, NullLogger<QueryValidationService>.Instance);
     }
 
     private static string LocateAppsettings()
     {
-        // Walk up from the test bin directory to find src/SqlToAi/appsettings.json. This is robust
-        // regardless of whether the test runs from net10.0/ or from a different output layout.
         string? dir = AppContext.BaseDirectory;
         for (int i = 0; i < 12 && dir is not null; i++)
         {

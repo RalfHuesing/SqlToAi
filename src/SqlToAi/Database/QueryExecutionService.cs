@@ -25,7 +25,6 @@ namespace SqlToAi.Database;
 /// <param name="TokenResolver">Optional resolver that substitutes previously issued anonymization tokens back into their real values before a query executes (see <see cref="IQueryTokenResolver"/>).</param>
 public sealed record AnonymizationDependencies(
     IAnonymizer Anonymizer,
-    IAnonymizerExclusionProvider? ExclusionProvider = null,
     IAnonymizationRuleProvider? RuleProvider = null,
     IQueryTokenResolver? TokenResolver = null);
 
@@ -48,7 +47,6 @@ public sealed class QueryExecutionService : IQueryExecutionService
     private readonly IAccessLevelProvider _accessLevelProvider;
     private readonly IReadOnlyGuard _readOnlyGuard;
     private readonly IAnonymizer _anonymizer;
-    private readonly IAnonymizerExclusionProvider? _anonymizerExclusionProvider;
     private readonly IAnonymizationRuleProvider? _anonymizationRuleProvider;
     private readonly IQueryTokenResolver? _queryTokenResolver;
     private readonly QueryExecutionOptions _options;
@@ -71,7 +69,6 @@ public sealed class QueryExecutionService : IQueryExecutionService
         _accessLevelProvider = accessLevelProvider;
         _readOnlyGuard = readOnlyGuard;
         _anonymizer = anonymization.Anonymizer;
-        _anonymizerExclusionProvider = anonymization.ExclusionProvider;
         _anonymizationRuleProvider = anonymization.RuleProvider;
         _queryTokenResolver = anonymization.TokenResolver;
         _options = options.Value.QueryExecution;
@@ -316,7 +313,6 @@ public sealed class QueryExecutionService : IQueryExecutionService
     /// <summary>Bundles per-query anonymization context for passing between internal helpers.</summary>
     private sealed record AnonymizationContext(
         bool Anonymize,
-        AnonymizerExclusionSet? Exclusions,
         ColumnOrigin?[]? ColumnOrigins,
         bool[]? CentralExclusions,
         bool UseTokenization);
@@ -330,18 +326,15 @@ public sealed class QueryExecutionService : IQueryExecutionService
     {
         if (!anonymize)
         {
-            return new AnonymizationContext(false, null, null, null, false);
+            return new AnonymizationContext(false, null, null, false);
         }
 
-        AnonymizerExclusionSet? exclusions = _anonymizerExclusionProvider != null
-            ? await _anonymizerExclusionProvider.GetExclusionsAsync(databaseName, cancellationToken)
-            : null;
         var columnOrigins = GetColumnOrigins(reader);
         bool[]? centralExclusions = _anonymizationRuleProvider != null
             ? await ResolveCentralExclusionsAsync(databaseName, columnNames, columnOrigins, cancellationToken)
             : null;
 
-        return new AnonymizationContext(true, exclusions, columnOrigins, centralExclusions, _tokenizationOptions.IsUsable);
+        return new AnonymizationContext(true, columnOrigins, centralExclusions, _tokenizationOptions.IsUsable);
     }
 
     /// <summary>
@@ -402,7 +395,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
 
         ColumnOrigin? origin = anonCtx.ColumnOrigins != null && columnIndex < anonCtx.ColumnOrigins.Length ? anonCtx.ColumnOrigins[columnIndex] : null;
         string? tableName = origin?.TableName;
-        var columnContext = new AnonymizationColumnContext(tableName, origin?.ColumnName, origin?.SchemaName, anonCtx.Exclusions);
+        var columnContext = new AnonymizationColumnContext(tableName, origin?.ColumnName, origin?.SchemaName);
         string anonymizedValue = anonCtx.UseTokenization
             ? _anonymizer.Tokenize(strVal, columnContext)
             : _anonymizer.Anonymize(strVal, columnContext);

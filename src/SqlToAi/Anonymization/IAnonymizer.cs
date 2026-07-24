@@ -25,7 +25,7 @@ namespace SqlToAi.Anonymization;
 /// never a schema-scoped one — fail-safe in the "keep anonymizing" direction.
 /// </param>
 /// <param name="DbExclusions">The optional set of database-specific exclusions, keyed by <see cref="SchemaName"/>/<see cref="TableName"/>/<see cref="OriginColumnName"/>.</param>
-public sealed record AnonymizationColumnContext(string? TableName, string? OriginColumnName, string? SchemaName, AnonymizerExclusionSet? DbExclusions);
+public sealed record AnonymizationColumnContext(string? TableName, string? OriginColumnName, string? SchemaName);
 
 /// <summary>
 /// Handles on-the-fly string anonymization to protect PII (Personally Identifiable Information).

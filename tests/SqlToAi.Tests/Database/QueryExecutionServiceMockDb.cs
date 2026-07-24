@@ -30,16 +30,6 @@ internal sealed class SchemaScopedRuleProvider(string excludedSchema) : IAnonymi
         => Task.FromResult(string.Equals(schemaName, excludedSchema, StringComparison.OrdinalIgnoreCase));
 }
 
-/// <summary>
-/// Test double for <see cref="IAnonymizerExclusionProvider"/> returning a fixed, pre-built
-/// <see cref="AnonymizerExclusionSet"/> — lets tests exercise schema-scoped exclusion matching
-/// end-to-end through <c>QueryExecutionService</c> without a real database connection.
-/// </summary>
-internal sealed class FakeExclusionProvider(AnonymizerExclusionSet exclusions) : IAnonymizerExclusionProvider
-{
-    public Task<AnonymizerExclusionSet> GetExclusionsAsync(string databaseName, CancellationToken cancellationToken = default)
-        => Task.FromResult(exclusions);
-}
 
 /// <summary>
 /// Minimal <see cref="ILogger{T}"/> test double that captures the last logged message and

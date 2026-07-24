@@ -21,11 +21,11 @@ namespace SqlToAi.Tests.Database;
 public sealed class QueryExecutionServiceSchemaScopeTests
 {
     private static QueryExecutionService BuildSchemaScopedService(
-        SqlToAiOptions options, MockQueryConnectionFactory factory, IAnonymizationRuleProvider? ruleProvider = null, IAnonymizerExclusionProvider? exclusionProvider = null) =>
+        SqlToAiOptions options, MockQueryConnectionFactory factory, IAnonymizationRuleProvider? ruleProvider = null) =>
         new(
             factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
             new FakeReadOnlyGuard(true),
-            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault()), exclusionProvider, ruleProvider),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault()), ruleProvider),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
     [Fact]
@@ -54,59 +54,5 @@ public sealed class QueryExecutionServiceSchemaScopeTests
         Assert.True(archivResult.IsSuccess);
         Assert.DoesNotContain(archivValue, archivResult.Value.Data, StringComparison.Ordinal);
         Assert.True(archivResult.Value.WasAnonymized);
-    }
-
-    [Fact]
-    public async Task ExecuteQueryAsync_ShouldExcludeOnlyMatchingSchema_WhenDbExclusionIsSchemaScoped()
-    {
-        var options = new SqlToAiOptions();
-        options.Anonymizer.Enabled = true;
-        var exclusions = new AnonymizerExclusionSet([new AnonymizerExclusionEntry("dbo", "Kunden", "Email")]);
-        var exclusionProvider = new FakeExclusionProvider(exclusions);
-
-        const string dboValue = "dbo-clear-value";
-        var dboFactory = new MockQueryConnectionFactory(new MockQueryRowConfig(
-            dboValue, ColumnName: "Email", Origin: new MockSchemaOrigin(BaseSchemaName: "dbo", BaseTableName: "Kunden", BaseColumnName: "Email")));
-        var dboService = BuildSchemaScopedService(options, dboFactory, exclusionProvider: exclusionProvider);
-
-        var dboResult = await dboService.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Email FROM Kunden", null, TestContext.Current.CancellationToken);
-        Assert.True(dboResult.IsSuccess);
-        Assert.Contains(dboValue, dboResult.Value.Data, StringComparison.Ordinal);
-        Assert.False(dboResult.Value.WasAnonymized);
-
-        const string archivValue = "archiv-secret-value";
-        var archivFactory = new MockQueryConnectionFactory(new MockQueryRowConfig(
-            archivValue, ColumnName: "Email", Origin: new MockSchemaOrigin(BaseSchemaName: "Archiv", BaseTableName: "Kunden", BaseColumnName: "Email")));
-        var archivService = BuildSchemaScopedService(options, archivFactory, exclusionProvider: exclusionProvider);
-
-        var archivResult = await archivService.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Email FROM Kunden", null, TestContext.Current.CancellationToken);
-        Assert.True(archivResult.IsSuccess);
-        Assert.DoesNotContain(archivValue, archivResult.Value.Data, StringComparison.Ordinal);
-        Assert.True(archivResult.Value.WasAnonymized);
-    }
-
-    [Fact]
-    public async Task ExecuteQueryAsync_ShouldExcludeAllSchemas_WhenDbExclusionHasNoSchemaScope()
-    {
-        // Backward-compatibility regression: an exclusion with no schema qualifier (the historical
-        // configuration shape, still supported) must keep applying across every schema, exactly as
-        // before schema scoping existed.
-        var options = new SqlToAiOptions();
-        options.Anonymizer.Enabled = true;
-        var exclusions = new AnonymizerExclusionSet([new AnonymizerExclusionEntry(null, "Kunden", "Email")]);
-        var exclusionProvider = new FakeExclusionProvider(exclusions);
-
-        foreach (string schema in new[] { "dbo", "Archiv" })
-        {
-            string value = $"{schema}-value";
-            var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(
-                value, ColumnName: "Email", Origin: new MockSchemaOrigin(BaseSchemaName: schema, BaseTableName: "Kunden", BaseColumnName: "Email")));
-            var service = BuildSchemaScopedService(options, factory, exclusionProvider: exclusionProvider);
-
-            var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Email FROM Kunden", null, TestContext.Current.CancellationToken);
-            Assert.True(result.IsSuccess);
-            Assert.Contains(value, result.Value.Data, StringComparison.Ordinal);
-            Assert.False(result.Value.WasAnonymized);
-        }
     }
 }

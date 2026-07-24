@@ -38,7 +38,6 @@ public sealed class DatabasesOptions
     public List<string> Blocked { get; set; } = [];
     public int CacheTtlSeconds { get; set; } = 300;
     public string AccessCheckSql { get; set; } = string.Empty;
-    public string AnonymizerExclusionSql { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -58,18 +57,6 @@ public sealed class AnonymizerOptions
     /// <summary>Algorithm used for anonymization. One of <c>ScramblePattern</c> (default) or <c>Hash</c>.</summary>
     public string DefaultMode { get; set; } = "ScramblePattern";
 
-    /// <summary>
-    /// Glob patterns for column names that must NOT be anonymized (e.g. <c>*Id</c>, <c>*Code</c>,
-    /// <c>Status</c>). Use sparingly — anything not listed here is anonymized by default.
-    /// </summary>
-    public List<string> ExcludedColumns { get; set; } = [];
-
-    /// <summary>
-    /// Optional central table name containing table/column exemptions.
-    /// The table must contain the columns <c>TableName</c> and <c>ColumnName</c>.
-    /// </summary>
-    public string? ExclusionTableName { get; set; }
-
     /// <summary>Options for reversible, searchable tokenization (see <see cref="TokenizationOptions"/>).</summary>
     public TokenizationOptions Tokenization { get; set; } = new();
 }
@@ -86,8 +73,7 @@ public sealed class AnonymizerOptions
 /// value itself, only that two tokens refer to the same underlying row.
 /// <para>
 /// Which columns get anonymized at all is unaffected by this setting — that decision still runs
-/// entirely through the existing exclusion mechanisms (<see cref="AnonymizerOptions.ExcludedColumns"/>,
-/// <see cref="AnonymizerOptions.ExclusionTableName"/>, the central <c>AnonymizationRules</c> table).
+/// entirely through the central <c>AnonymizationRules</c> table.
 /// This setting only changes *how* an already-anonymized column is anonymized.
 /// </para>
 /// </summary>

@@ -59,27 +59,7 @@ public sealed partial class QueryExecutionServiceTests
         Assert.Empty(result.Value.AnonymizedColumns);
     }
 
-    [Fact]
-    public async Task ExecuteQueryAsync_ShouldNotReportAnonymization_WhenAllStringColumnsAreExcluded()
-    {
-        var options = new SqlToAiOptions();
-        options.Anonymizer.Enabled = true;
-        options.Anonymizer.ExcludedColumns = new List<string> { "Name" };
-        // baseColumnName matches the alias here (the common, non-aliased case) so the resolved
-        // origin equals "Name", same as before this test existed.
-        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("123-ABC", Origin: new MockSchemaOrigin(BaseColumnName: "Name")));
-        var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
-            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        // Since the column name is Name (which matches exclusion), it is not anonymized
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
-        Assert.True(result.IsSuccess);
-        Assert.Contains("123-ABC", result.Value.Data);
-        Assert.False(result.Value.WasAnonymized);
-        Assert.Empty(result.Value.AnonymizedColumns);
-    }
 
     [Fact]
     public async Task ExecuteQueryAsync_ShouldQualifyAnonymizedColumns_WithResolvedTableName()
@@ -120,87 +100,7 @@ public sealed partial class QueryExecutionServiceTests
         Assert.Empty(result.Value.AnonymizedColumns);
     }
 
-    // -------------------------------------------------------------------------
-    // Tests: alias-vs-origin exclusion decision (audit finding — see
-    // tasks/audit-2026-07-24/01-security-guardrails.md, Finding 1). Reproduces
-    // "SELECT SSN AS RecordId FROM Customers" with ExcludedColumns: ["*Id"].
-    // -------------------------------------------------------------------------
 
-    [Fact]
-    public async Task ExecuteQueryAsync_ShouldAnonymize_WhenOutputAliasMatchesExclusion_ButRealSourceColumnDoesNot()
-    {
-        const string realSsn = "123-45-6789";
-        var options = new SqlToAiOptions();
-        options.Anonymizer.Enabled = true;
-        options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
-        // The reader reports the alias "RecordId" (matches "*Id"), but the schema table's
-        // BaseColumnName says the real source column is "SSN" (does not match "*Id").
-        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(
-            realSsn, ColumnName: "RecordId", Origin: new MockSchemaOrigin(BaseTableName: "Customers", BaseColumnName: "SSN")));
-        var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
-            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
-
-        var result = await service.ExecuteQueryAsync(
-            TestConstants.DatabaseName, "SELECT SSN AS RecordId FROM Customers", null, TestContext.Current.CancellationToken);
-
-        Assert.True(result.IsSuccess);
-        Assert.DoesNotContain(realSsn, result.Value.Data, StringComparison.Ordinal);
-        Assert.True(result.Value.WasAnonymized);
-        Assert.Contains("Customers.RecordId", result.Value.AnonymizedColumns);
-    }
-
-    [Fact]
-    public async Task ExecuteQueryAsync_ShouldRespectExclusion_WhenAliasEqualsRealSourceColumnName()
-    {
-        // The common case: no aliasing, alias and resolved base column name are identical —
-        // existing exclusion behavior for "*Id"-style patterns must be unchanged.
-        const string original = "123";
-        var options = new SqlToAiOptions();
-        options.Anonymizer.Enabled = true;
-        options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
-        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(
-            original, ColumnName: "CustomerId", Origin: new MockSchemaOrigin(BaseTableName: "Customers", BaseColumnName: "CustomerId")));
-        var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
-            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
-
-        var result = await service.ExecuteQueryAsync(
-            TestConstants.DatabaseName, "SELECT CustomerId FROM Customers", null, TestContext.Current.CancellationToken);
-
-        Assert.True(result.IsSuccess);
-        Assert.Contains(original, result.Value.Data, StringComparison.Ordinal);
-        Assert.False(result.Value.WasAnonymized);
-        Assert.Empty(result.Value.AnonymizedColumns);
-    }
-
-    [Fact]
-    public async Task ExecuteQueryAsync_ShouldFailSafeAndAnonymize_WhenRealSourceColumnIsUnresolvable_EvenIfAliasMatchesExclusion()
-    {
-        // No schema table available at all (e.g. a computed/literal/aggregate expression, or a
-        // provider without schema-table support) — must never fall back to trusting the alias
-        // against the plain pattern list, even though the alias "RecordId" would match "*Id".
-        const string realValue = "SecretValue";
-        var options = new SqlToAiOptions();
-        options.Anonymizer.Enabled = true;
-        options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
-        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(
-            realValue, ColumnName: "RecordId", Origin: new MockSchemaOrigin(Available: false)));
-        var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
-            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
-
-        var result = await service.ExecuteQueryAsync(
-            TestConstants.DatabaseName, "SELECT SomeExpr AS RecordId FROM Customers", null, TestContext.Current.CancellationToken);
-
-        Assert.True(result.IsSuccess);
-        Assert.DoesNotContain(realValue, result.Value.Data, StringComparison.Ordinal);
-        Assert.True(result.Value.WasAnonymized);
-        Assert.Contains("RecordId", result.Value.AnonymizedColumns);
-    }
 
     // -------------------------------------------------------------------------
     // Tests: searchable tokenization (egress + ingress)
@@ -285,52 +185,7 @@ public sealed partial class QueryExecutionServiceTests
         Assert.Empty(result.Value.SearchableTokenColumns);
     }
 
-    [Fact]
-    public async Task ExecuteQueryAsync_ShouldRespectExistingExclusions_EvenWhenTokenizationEnabled()
-    {
-        // Exclusion mechanisms (ExcludedColumns here) still take precedence — tokenization only
-        // changes *how* an already-anonymized column is anonymized, never *whether* it is.
-        const string original = "Active";
-        var options = BuildTokenizationOptions();
-        options.Anonymizer.ExcludedColumns = new List<string> { "Status" };
-        var (service, _, _) = BuildTokenizingService(options, original, columnName: "Status");
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Status FROM Orders", null, TestContext.Current.CancellationToken);
-
-        Assert.True(result.IsSuccess);
-        Assert.Contains(original, result.Value.Data, StringComparison.Ordinal);
-        Assert.False(result.Value.WasAnonymized);
-        Assert.Empty(result.Value.SearchableTokenColumns);
-    }
-
-    [Fact]
-    public async Task ExecuteQueryAsync_ShouldStillTokenize_WhenOutputAliasMatchesExclusion_ButRealSourceColumnDoesNot()
-    {
-        // Mirrors the plain-Anonymize regression above, but for the tokenization path: a
-        // previously issued token gets resolved back to its real value by QueryTokenResolver
-        // before execution, and that resolved literal then flows through this same (alias-based)
-        // column as "SomeId" — the alias must not let the real IBAN escape in clear text either.
-        const string realIban = "DE89370400440532013000";
-        var options = BuildTokenizationOptions();
-        options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
-        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(
-            realIban, ColumnName: "SomeId", Origin: new MockSchemaOrigin(BaseTableName: "Accounts", BaseColumnName: "IBAN")));
-        var vault = new TokenVault();
-        var anonymizer = new Anonymizer(Options.Create(options), vault);
-        var resolver = new QueryTokenResolver(vault, Options.Create(options));
-        var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(anonymizer, TokenResolver: resolver),
-            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
-
-        var result = await service.ExecuteQueryAsync(
-            TestConstants.DatabaseName, "SELECT IBAN AS SomeId FROM Accounts", null, TestContext.Current.CancellationToken);
-
-        Assert.True(result.IsSuccess);
-        Assert.DoesNotContain(realIban, result.Value.Data, StringComparison.Ordinal);
-        Assert.True(result.Value.WasAnonymized);
-        Assert.Contains("Accounts.SomeId", result.Value.AnonymizedColumns);
-    }
 
     [Fact]
     public async Task ExecuteQueryAsync_ShouldResolveToken_BackToRealValue_BeforeExecution()
