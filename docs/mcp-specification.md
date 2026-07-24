@@ -87,6 +87,7 @@ Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server
     "ExclusionTableName": "dbo.AnonymizerExclusions"
   }
   ```
+  > **⚠️ Warnung zum Beispiel-Muster `*Id`:** Dieses Glob-Muster matcht rein anhand des Namens-Suffix `Id` — unabhängig von der fachlichen Bedeutung der Spalte. Neben technischen Primär-/Fremdschlüsseln (`KundeId`, `BestellungId`) erfasst es genauso fachliche, PII-tragende Bezeichner wie `SteuerId`, `PassportId`, `NationalId`, `SocialSecurityId` oder `TaxpayerId` und schließt diese ungewollt von der Anonymisierung aus. Vor der Übernahme dieses Beispiels sollten die tatsächlichen Spaltennamen des eigenen Schemas geprüft werden; existieren sensible `*Id`-Spalten, empfiehlt sich ein engeres Muster (z. B. nur `*_Id` als technische Konvention) oder eine Auflistung exakter Spaltennamen statt eines pauschalen `*Id`-Wildcards.
 * **Verhalten:**
   Spalten, die auf eines der Muster in `ExcludedColumns` passen, werden *nie* anonymisiert. Ebenso werden Spalten von der Anonymisierung ausgenommen, die über das datenbankspezifische `AnonymizerExclusionSql` oder die über `ExclusionTableName` definierte Tabelle als Ausnahme zurückgegeben werden. Alle anderen String-Spalten werden anonymisiert, sofern `Enabled: true` ist und das AccessLevel der Zieldatenbank `ReadOnlyAnonymized` ergibt.
 * **Zentrale Ausschluss-Tabelle (`ExclusionTableName`):**

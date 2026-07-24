@@ -87,7 +87,7 @@ Für `(StagingDB, Mitarbeiter, SSN)` matchen beide Regeln; Regel B gewinnt (200 
 
 ### [SEVERITY: Mittel] Dokumentiertes Beispiel-Muster `*Id` in `ExcludedColumns` schließt PII-tragende Spalten aus
 
-**Status:** ✅ Umsetzen (bestätigt — Doku-Präzisierung/Warnhinweis)
+**Status:** ✅ Erledigt (2026-07-24)
 
 **Datei:** src/SqlToAi/Anonymization/Anonymizer.cs:104-110 (`IsColumnExcluded`); src/SqlToAi/Anonymization/GlobPatternMatcher.cs; docs/mcp-specification.md (Abschnitt D, Beispiel-Konfiguration); tests/SqlToAi.Tests/Anonymization/AnonymizerTests.cs:47
 

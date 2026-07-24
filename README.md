@@ -128,6 +128,8 @@ The server picks credentials in this order (first match wins):
 }
 ```
 
+> **⚠️ Warning about the `*Id` example pattern:** `ExcludedColumns` entries like `"*Id"` are plain glob patterns matched purely against the column name suffix — they carry no notion of "technical key" vs. "business identifier". Besides ordinary technical primary/foreign keys (`CustomerId`, `OrderId`), `*Id` also matches business-meaningful, PII-carrying columns such as `SteuerId`, `PassportId`, `NationalId`, or `SocialSecurityId`, and would silently exempt them from anonymization. Before adopting this example as-is, review the actual column names in your schema; if sensitive identifier columns exist, use a narrower pattern (e.g. restrict to a strict `*_Id` technical naming convention) or list exact column names instead of a broad `*Id` wildcard.
+
 ---
 
 ## Getting Started
