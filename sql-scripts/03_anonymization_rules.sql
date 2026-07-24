@@ -10,11 +10,18 @@
 -- DatabasePattern > TablePattern > ColumnPattern. A column with no matching rule is anonymized
 -- by default (Anonymize = 1 behavior), so a database can be locked down to an allow-list by
 -- simply never adding a broad wildcard rule for it.
+-- [SchemaPattern] (optional, default '%' = "any schema") lets a rule be scoped to a single schema
+-- via the same LIKE-wildcard semantics as DatabasePattern/TablePattern/ColumnPattern, so a
+-- same-named table in a different schema (e.g. dbo.Kunden vs. Archiv.Kunden) never inherits a rule
+-- meant for another schema (see tasks/audit-2026-07-24/02-anonymisierung-tokenisierung.md, Finding
+-- "Ausschluss-/Regel-Abgleich ist schema-blind"). Existing rows keep '%' and therefore keep
+-- matching every schema, exactly as before this column existed.
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[AnonymizationRules]') AND type IN (N'U'))
 BEGIN
     CREATE TABLE [dbo].[AnonymizationRules] (
         [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         [DatabasePattern] NVARCHAR(255) NOT NULL DEFAULT '%',
+        [SchemaPattern] NVARCHAR(255) NOT NULL DEFAULT '%',
         [TablePattern] NVARCHAR(255) NOT NULL DEFAULT '%',
         [ColumnPattern] NVARCHAR(255) NOT NULL,
         [Anonymize] BIT NOT NULL,
@@ -23,6 +30,16 @@ BEGIN
         [CreatedAtUtc] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         [CreatedBy] NVARCHAR(128) NULL
     );
+END
+GO
+
+-- Migration for installations that already had this table before [SchemaPattern] existed. The
+-- DEFAULT '%' backfills every pre-existing row, so behavior is unchanged until an admin
+-- deliberately narrows a specific rule to one schema.
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[AnonymizationRules]') AND type IN (N'U'))
+   AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AnonymizationRules]') AND name = 'SchemaPattern')
+BEGIN
+    ALTER TABLE [dbo].[AnonymizationRules] ADD [SchemaPattern] NVARCHAR(255) NOT NULL DEFAULT '%';
 END
 GO
 

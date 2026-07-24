@@ -36,7 +36,7 @@ public sealed class Anonymizer : IAnonymizer
     /// <returns>The anonymized value, or the original value if anonymization is disabled or excluded.</returns>
     public string Anonymize(string columnName, string originalValue)
     {
-        return Anonymize(originalValue, new AnonymizationColumnContext(null, columnName, null));
+        return Anonymize(originalValue, new AnonymizationColumnContext(null, columnName, null, null));
     }
 
     /// <inheritdoc/>
@@ -56,7 +56,7 @@ public sealed class Anonymizer : IAnonymizer
 
     /// <inheritdoc/>
     public string Tokenize(string columnName, string originalValue) =>
-        Tokenize(originalValue, new AnonymizationColumnContext(null, columnName, null));
+        Tokenize(originalValue, new AnonymizationColumnContext(null, columnName, null, null));
 
     /// <inheritdoc/>
     public string Tokenize(string originalValue, AnonymizationColumnContext context)
@@ -87,7 +87,9 @@ public sealed class Anonymizer : IAnonymizer
     /// Both the exclusion-table lookup and the glob-pattern match are keyed off
     /// <see cref="AnonymizationColumnContext.OriginColumnName"/> — the query result's real source
     /// column — never off a query's output alias, so <c>SELECT SSN AS RecordId</c> cannot dodge an
-    /// <c>*Id</c> exclusion pattern meant for actual ID columns.
+    /// <c>*Id</c> exclusion pattern meant for actual ID columns. The exclusion-table lookup is also
+    /// schema-aware (<see cref="AnonymizationColumnContext.SchemaName"/>), so a same-named table in
+    /// a different schema never inherits an exclusion scoped to another schema.
     /// </summary>
     private bool IsColumnExcluded(AnonymizationColumnContext context)
     {
@@ -98,8 +100,7 @@ public sealed class Anonymizer : IAnonymizer
 
         if (context.DbExclusions != null && !string.IsNullOrEmpty(context.TableName) && !string.IsNullOrEmpty(context.OriginColumnName))
         {
-            string key = $"{context.TableName}.{context.OriginColumnName}";
-            if (context.DbExclusions.Contains(key))
+            if (context.DbExclusions.Contains(context.SchemaName, context.TableName, context.OriginColumnName))
             {
                 return true;
             }

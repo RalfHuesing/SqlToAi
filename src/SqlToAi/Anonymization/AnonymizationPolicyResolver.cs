@@ -43,13 +43,17 @@ public sealed class AnonymizationPolicyResolver : IAnonymizationPolicyResolver
             }
         }
 
+        // No schema context is available at this call site (schema tools report on a bare table
+        // name ahead of any query) — passing null/unknown here is the fail-safe direction: it only
+        // ever matches a schema-agnostic exclusion/rule, never a schema-scoped one, so this never
+        // over-reports "not anonymized" for a table it can't actually place in a schema.
         var legacyExclusions = await _exclusionProvider.GetExclusionsAsync(databaseName, cancellationToken);
-        if (legacyExclusions.Contains($"{tableName}.{columnName}"))
+        if (legacyExclusions.Contains(null, tableName, columnName))
         {
             return false;
         }
 
-        if (await _ruleProvider.IsExcludedAsync(databaseName, tableName, columnName, cancellationToken))
+        if (await _ruleProvider.IsExcludedAsync(databaseName, string.Empty, tableName, columnName, cancellationToken))
         {
             return false;
         }

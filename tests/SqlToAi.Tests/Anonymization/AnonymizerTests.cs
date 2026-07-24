@@ -147,16 +147,13 @@ public sealed class AnonymizerTests
         options.Anonymizer.ExcludedColumns = new List<string> { "Id" };
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
-        var dbExclusions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "FakeProjects.ProjectName"
-        };
+        var dbExclusions = new AnonymizerExclusionSet([new AnonymizerExclusionEntry(null, "FakeProjects", "ProjectName")]);
 
         // Act
         // 1. Matched database-specific exclusion -> should NOT be anonymized
-        var excludedVal = anonymizer.Anonymize("SecretProject", new AnonymizationColumnContext("FakeProjects", "ProjectName", dbExclusions));
+        var excludedVal = anonymizer.Anonymize("SecretProject", new AnonymizationColumnContext("FakeProjects", "ProjectName", null, dbExclusions));
         // 2. Not matched database-specific exclusion -> should be anonymized
-        var normalVal = anonymizer.Anonymize("SecretDescription", new AnonymizationColumnContext("FakeProjects", "Description", dbExclusions));
+        var normalVal = anonymizer.Anonymize("SecretDescription", new AnonymizationColumnContext("FakeProjects", "Description", null, dbExclusions));
 
         // Assert
         Assert.Equal("SecretProject", excludedVal);
@@ -283,9 +280,9 @@ public sealed class AnonymizerTests
     {
         var options = BuildTokenizationOptions();
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
-        var dbExclusions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "FakeProjects.ProjectName" };
+        var dbExclusions = new AnonymizerExclusionSet([new AnonymizerExclusionEntry(null, "FakeProjects", "ProjectName")]);
 
-        var result = anonymizer.Tokenize("SecretProject", new AnonymizationColumnContext("FakeProjects", "ProjectName", dbExclusions));
+        var result = anonymizer.Tokenize("SecretProject", new AnonymizationColumnContext("FakeProjects", "ProjectName", null, dbExclusions));
 
         Assert.Equal("SecretProject", result);
     }
@@ -305,7 +302,7 @@ public sealed class AnonymizerTests
         options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
-        var result = anonymizer.Anonymize("123-45-6789", new AnonymizationColumnContext("Customers", "SSN", null));
+        var result = anonymizer.Anonymize("123-45-6789", new AnonymizationColumnContext("Customers", "SSN", null, null));
 
         Assert.NotEqual("123-45-6789", result);
     }
@@ -317,7 +314,7 @@ public sealed class AnonymizerTests
         options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
-        var result = anonymizer.Tokenize("123-45-6789", new AnonymizationColumnContext("Customers", "SSN", null));
+        var result = anonymizer.Tokenize("123-45-6789", new AnonymizationColumnContext("Customers", "SSN", null, null));
 
         Assert.NotEqual("123-45-6789", result);
     }
@@ -332,7 +329,7 @@ public sealed class AnonymizerTests
         options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
-        var result = anonymizer.Anonymize("123", new AnonymizationColumnContext("Customers", "CustomerId", null));
+        var result = anonymizer.Anonymize("123", new AnonymizationColumnContext("Customers", "CustomerId", null, null));
 
         Assert.Equal("123", result);
     }
@@ -348,7 +345,7 @@ public sealed class AnonymizerTests
         options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
-        var result = anonymizer.Anonymize("SecretValue", new AnonymizationColumnContext("Customers", null, null));
+        var result = anonymizer.Anonymize("SecretValue", new AnonymizationColumnContext("Customers", null, null, null));
 
         Assert.NotEqual("SecretValue", result);
     }
@@ -360,7 +357,7 @@ public sealed class AnonymizerTests
         options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
-        var result = anonymizer.Tokenize("SecretValue", new AnonymizationColumnContext("Customers", null, null));
+        var result = anonymizer.Tokenize("SecretValue", new AnonymizationColumnContext("Customers", null, null, null));
 
         Assert.NotEqual("SecretValue", result);
     }
@@ -373,12 +370,52 @@ public sealed class AnonymizerTests
         var options = new SqlToAiOptions();
         options.Anonymizer.Enabled = true;
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
-        var dbExclusions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Customers.SSN" };
+        var dbExclusions = new AnonymizerExclusionSet([new AnonymizerExclusionEntry(null, "Customers", "SSN")]);
 
         // Alias "RecordId" does not appear in dbExclusions, but the real origin "SSN" does.
-        var result = anonymizer.Anonymize("123-45-6789", new AnonymizationColumnContext("Customers", "SSN", dbExclusions));
+        var result = anonymizer.Anonymize("123-45-6789", new AnonymizationColumnContext("Customers", "SSN", null, dbExclusions));
 
         Assert.Equal("123-45-6789", result);
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests: schema-scoped database exclusions (audit finding — see
+    // tasks/audit-2026-07-24/02-anonymisierung-tokenisierung.md, Finding "Ausschluss-/Regel-Abgleich
+    // ist schema-blind — gleichnamige Tabelle in anderem Schema erbt fremde Freigabe")
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Anonymize_ShouldRespectSchemaScopedDbExclusion_ForMatchingSchemaOnly()
+    {
+        var options = new SqlToAiOptions();
+        options.Anonymizer.Enabled = true;
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
+        var dbExclusions = new AnonymizerExclusionSet([new AnonymizerExclusionEntry("dbo", "Kunden", "Email")]);
+
+        var dboResult = anonymizer.Anonymize("dbo-clear@example.com", new AnonymizationColumnContext("Kunden", "Email", "dbo", dbExclusions));
+        var archivResult = anonymizer.Anonymize("archiv-secret@example.com", new AnonymizationColumnContext("Kunden", "Email", "Archiv", dbExclusions));
+
+        // The exclusion is scoped to schema "dbo" only; the same-named table in schema "Archiv"
+        // must still be anonymized.
+        Assert.Equal("dbo-clear@example.com", dboResult);
+        Assert.NotEqual("archiv-secret@example.com", archivResult);
+    }
+
+    [Fact]
+    public void Anonymize_ShouldRespectDbExclusion_AcrossEverySchema_WhenNoSchemaScopeIsSet()
+    {
+        // Backward-compatibility regression: an exclusion with no schema qualifier (the historical
+        // configuration shape) must keep applying across every schema.
+        var options = new SqlToAiOptions();
+        options.Anonymizer.Enabled = true;
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
+        var dbExclusions = new AnonymizerExclusionSet([new AnonymizerExclusionEntry(null, "Kunden", "Email")]);
+
+        var dboResult = anonymizer.Anonymize("dbo-value", new AnonymizationColumnContext("Kunden", "Email", "dbo", dbExclusions));
+        var archivResult = anonymizer.Anonymize("archiv-value", new AnonymizationColumnContext("Kunden", "Email", "Archiv", dbExclusions));
+
+        Assert.Equal("dbo-value", dboResult);
+        Assert.Equal("archiv-value", archivResult);
     }
 
     [Fact]

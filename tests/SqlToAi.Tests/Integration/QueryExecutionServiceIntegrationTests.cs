@@ -301,4 +301,98 @@ public sealed class QueryExecutionServiceIntegrationTests
         Assert.Contains("UnanonymizedProjectName", result.Value.Data);
         Assert.DoesNotContain("ThisIsSecretDescription", result.Value.Data);
     }
+
+    // -------------------------------------------------------------------------
+    // Regression test: tasks/audit-2026-07-24/02-anonymisierung-tokenisierung.md, Finding
+    // "Ausschluss-/Regel-Abgleich ist schema-blind — gleichnamige Tabelle in anderem Schema erbt
+    // fremde Freigabe". Two real tables with the identical name in different schemas — an
+    // exclusion scoped to one schema must never leak into the other against a live SQL Server.
+    // -------------------------------------------------------------------------
+
+    private const string SchemaScopeTestSchema = "AuditSchemaScopeTest";
+    private const string SchemaScopeTestTable = "AuditSchemaScopeKunden";
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldNotLeakAcrossSchemas_WhenExclusionScopedToOneSchema()
+    {
+        // 1. Arrange: dbo.<table> (exclusion scoped to it, testing data) and
+        // AuditSchemaScopeTest.<table> (same table name, no exclusion, real-looking data).
+        using (var connection = _fx.ConnectionFactory.CreateConnection(_db))
+        {
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+
+            await connection.ExecuteAsync($@"
+                IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{SchemaScopeTestSchema}')
+                BEGIN
+                    EXEC('CREATE SCHEMA [{SchemaScopeTestSchema}]');
+                END");
+
+            await connection.ExecuteAsync($@"
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[{SchemaScopeTestTable}]') AND type = N'U')
+                BEGIN
+                    CREATE TABLE [dbo].[{SchemaScopeTestTable}] ([Email] NVARCHAR(255));
+                END");
+
+            await connection.ExecuteAsync($@"
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[{SchemaScopeTestSchema}].[{SchemaScopeTestTable}]') AND type = N'U')
+                BEGIN
+                    CREATE TABLE [{SchemaScopeTestSchema}].[{SchemaScopeTestTable}] ([Email] NVARCHAR(255));
+                END");
+
+            await connection.ExecuteAsync(@"
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[AnonymizerExclusions]') AND type in (N'U'))
+                BEGIN
+                    CREATE TABLE [dbo].[AnonymizerExclusions] (
+                        [TableName] NVARCHAR(255) NOT NULL,
+                        [ColumnName] NVARCHAR(255) NOT NULL,
+                        [SchemaName] NVARCHAR(255) NULL,
+                        CONSTRAINT [PK_AnonymizerExclusions] PRIMARY KEY CLUSTERED ([TableName] ASC, [ColumnName] ASC)
+                    );
+                END
+                ELSE IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AnonymizerExclusions]') AND name = 'SchemaName')
+                BEGIN
+                    ALTER TABLE [dbo].[AnonymizerExclusions] ADD [SchemaName] NVARCHAR(255) NULL;
+                END");
+
+            await connection.ExecuteAsync($@"
+                DELETE FROM [dbo].[AnonymizerExclusions] WHERE [TableName] = '{SchemaScopeTestTable}' AND [ColumnName] = 'Email';
+                INSERT INTO [dbo].[AnonymizerExclusions] ([TableName], [ColumnName], [SchemaName])
+                VALUES ('{SchemaScopeTestTable}', 'Email', 'dbo');");
+
+            await connection.ExecuteAsync($"INSERT INTO [dbo].[{SchemaScopeTestTable}] (Email) VALUES ('dbo-clear@example.com')");
+            await connection.ExecuteAsync($"INSERT INTO [{SchemaScopeTestSchema}].[{SchemaScopeTestTable}] (Email) VALUES ('archiv-secret@example.com')");
+        }
+
+        var options = CloneOptions();
+        options.Anonymizer.ExclusionTableName = "dbo.AnonymizerExclusions";
+        var customAccessProvider = new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized);
+        var service = BuildExecutionServiceWithOptions(options, customAccessProvider);
+
+        try
+        {
+            // 2. Act
+            var dboResult = await service.ExecuteQueryAsync(
+                _db, $"SELECT Email FROM dbo.{SchemaScopeTestTable}", null, TestContext.Current.CancellationToken);
+            var otherSchemaResult = await service.ExecuteQueryAsync(
+                _db, $"SELECT Email FROM {SchemaScopeTestSchema}.{SchemaScopeTestTable}", null, TestContext.Current.CancellationToken);
+
+            // 3. Assert
+            Assert.True(dboResult.IsSuccess, IntegrationAssertions.FormatFailure(dboResult));
+            Assert.True(otherSchemaResult.IsSuccess, IntegrationAssertions.FormatFailure(otherSchemaResult));
+
+            // The exclusion scoped to dbo.<table>.Email exempts only the dbo copy...
+            Assert.Contains("dbo-clear@example.com", dboResult.Value.Data);
+            // ...and must never leak into the same-named table in the other schema.
+            Assert.DoesNotContain("archiv-secret@example.com", otherSchemaResult.Value.Data);
+        }
+        finally
+        {
+            // 4. Clean up
+            using var connection = _fx.ConnectionFactory.CreateConnection(_db);
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await connection.ExecuteAsync($"DELETE FROM [dbo].[AnonymizerExclusions] WHERE [TableName] = '{SchemaScopeTestTable}' AND [ColumnName] = 'Email'");
+            await connection.ExecuteAsync($"DROP TABLE IF EXISTS [dbo].[{SchemaScopeTestTable}]");
+            await connection.ExecuteAsync($"DROP TABLE IF EXISTS [{SchemaScopeTestSchema}].[{SchemaScopeTestTable}]");
+        }
+    }
 }

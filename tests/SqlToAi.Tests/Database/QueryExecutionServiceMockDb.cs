@@ -14,8 +14,33 @@ namespace SqlToAi.Tests.Database;
 
 internal sealed class AlwaysExcludeRuleProvider : IAnonymizationRuleProvider
 {
-    public Task<bool> IsExcludedAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
+    public Task<bool> IsExcludedAsync(string databaseName, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
         => Task.FromResult(true);
+}
+
+/// <summary>
+/// Test double for <see cref="IAnonymizationRuleProvider"/> that excludes (shows in clear text)
+/// only when the resolved schema equals <see cref="ExcludedSchema"/> (case-insensitive) — used to
+/// verify that <c>QueryExecutionService</c> actually threads the resolved <c>BaseSchemaName</c>
+/// through to the rule provider, instead of collapsing same-named tables in different schemas into
+/// one decision (see tasks/audit-2026-07-24/02-anonymisierung-tokenisierung.md, Finding
+/// "Ausschluss-/Regel-Abgleich ist schema-blind").
+/// </summary>
+internal sealed class SchemaScopedRuleProvider(string excludedSchema) : IAnonymizationRuleProvider
+{
+    public Task<bool> IsExcludedAsync(string databaseName, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => Task.FromResult(string.Equals(schemaName, excludedSchema, StringComparison.OrdinalIgnoreCase));
+}
+
+/// <summary>
+/// Test double for <see cref="IAnonymizerExclusionProvider"/> returning a fixed, pre-built
+/// <see cref="AnonymizerExclusionSet"/> — lets tests exercise schema-scoped exclusion matching
+/// end-to-end through <c>QueryExecutionService</c> without a real database connection.
+/// </summary>
+internal sealed class FakeExclusionProvider(AnonymizerExclusionSet exclusions) : IAnonymizerExclusionProvider
+{
+    public Task<AnonymizerExclusionSet> GetExclusionsAsync(string databaseName, CancellationToken cancellationToken = default)
+        => Task.FromResult(exclusions);
 }
 
 /// <summary>
@@ -59,12 +84,13 @@ internal sealed class FakeReadOnlyGuard(bool safe) : IReadOnlyGuard
 // -------------------------------------------------------------------------
 
 /// <summary>
-/// Schema-table origin metadata (<c>BaseTableName</c>/<c>BaseColumnName</c>) a mock reader reports
-/// for column 0, or "unavailable" (<see cref="Available"/> false) to simulate a provider without
-/// schema-table support. Bundled into its own record (see AiNetLinter <c>MaxConstructorDependencies</c>)
-/// so the mock DB constructors stay within the project's parameter-count limit.
+/// Schema-table origin metadata (<c>BaseSchemaName</c>/<c>BaseTableName</c>/<c>BaseColumnName</c>)
+/// a mock reader reports for column 0, or "unavailable" (<see cref="Available"/> false) to simulate
+/// a provider without schema-table support. Bundled into its own record (see AiNetLinter
+/// <c>MaxConstructorDependencies</c>) so the mock DB constructors stay within the project's
+/// parameter-count limit.
 /// </summary>
-internal sealed record MockSchemaOrigin(string? BaseTableName = null, string? BaseColumnName = null, bool Available = true);
+internal sealed record MockSchemaOrigin(string? BaseTableName = null, string? BaseColumnName = null, bool Available = true, string? BaseSchemaName = null);
 
 /// <summary>Bundles all per-test mock DB configuration into one parameter object.</summary>
 internal sealed record MockQueryRowConfig(
@@ -230,14 +256,14 @@ internal sealed class MockQueryReader(MockQueryRowConfig config) : DbDataReader
     public override int Depth => 0;
 
     /// <summary>
-    /// Reports a BaseTableName/BaseColumnName for column 0 when configured, so tests can exercise
-    /// both the "TableName.ColumnName" qualification path and the alias-vs-origin exclusion
-    /// decision in <c>QueryExecutionService.AnonymizeCell</c> / <c>GetColumnOrigins</c>. An
-    /// unavailable origin simulates a provider without schema-table support by returning null.
+    /// Reports a BaseSchemaName/BaseTableName/BaseColumnName for column 0 when configured, so tests
+    /// can exercise both the "TableName.ColumnName" qualification path and the alias-vs-origin
+    /// exclusion decision in <c>QueryExecutionService.AnonymizeCell</c> / <c>GetColumnOrigins</c>.
+    /// An unavailable origin simulates a provider without schema-table support by returning null.
     /// </summary>
     public override DataTable? GetSchemaTable()
     {
-        if (!_origin.Available || (_origin.BaseTableName is null && _origin.BaseColumnName is null))
+        if (!_origin.Available || (_origin.BaseTableName is null && _origin.BaseColumnName is null && _origin.BaseSchemaName is null))
         {
             return null;
         }
@@ -246,10 +272,12 @@ internal sealed class MockQueryReader(MockQueryRowConfig config) : DbDataReader
         table.Columns.Add("ColumnOrdinal", typeof(int));
         table.Columns.Add("BaseTableName", typeof(string));
         table.Columns.Add("BaseColumnName", typeof(string));
+        table.Columns.Add("BaseSchemaName", typeof(string));
         DataRow row = table.NewRow();
         row["ColumnOrdinal"] = 0;
         row["BaseTableName"] = (object?)_origin.BaseTableName ?? DBNull.Value;
         row["BaseColumnName"] = (object?)_origin.BaseColumnName ?? DBNull.Value;
+        row["BaseSchemaName"] = (object?)_origin.BaseSchemaName ?? DBNull.Value;
         table.Rows.Add(row);
         return table;
     }

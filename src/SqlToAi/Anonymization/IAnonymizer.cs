@@ -16,8 +16,16 @@ namespace SqlToAi.Anonymization;
 /// the plain <c>AnonymizerOptions.ExcludedColumns</c> glob-pattern list in that case, no matter
 /// what the alias itself looks like.
 /// </param>
-/// <param name="DbExclusions">The optional set of database-specific exclusions ("TableName.ColumnName"), keyed by <see cref="TableName"/> and <see cref="OriginColumnName"/>.</param>
-public sealed record AnonymizationColumnContext(string? TableName, string? OriginColumnName, HashSet<string>? DbExclusions);
+/// <param name="SchemaName">
+/// The resolved base schema name, or null/empty if unknown. Lets a database-specific exclusion be
+/// scoped to a single schema, so a same-named table in a different schema never inherits an
+/// exclusion meant for another schema (see
+/// tasks/audit-2026-07-24/02-anonymisierung-tokenisierung.md, Finding "Ausschluss-/Regel-Abgleich
+/// ist schema-blind"). A null/empty value only ever satisfies a schema-agnostic exclusion entry,
+/// never a schema-scoped one — fail-safe in the "keep anonymizing" direction.
+/// </param>
+/// <param name="DbExclusions">The optional set of database-specific exclusions, keyed by <see cref="SchemaName"/>/<see cref="TableName"/>/<see cref="OriginColumnName"/>.</param>
+public sealed record AnonymizationColumnContext(string? TableName, string? OriginColumnName, string? SchemaName, AnonymizerExclusionSet? DbExclusions);
 
 /// <summary>
 /// Handles on-the-fly string anonymization to protect PII (Personally Identifiable Information).

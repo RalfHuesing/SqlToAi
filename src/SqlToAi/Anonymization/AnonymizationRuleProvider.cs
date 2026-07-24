@@ -1,6 +1,7 @@
 #nullable enable
 
 using System.Collections.Concurrent;
+using System.Data.Common;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -25,7 +26,7 @@ public sealed record RuleCacheEntry(IReadOnlyList<AnonymizationRule> Rules, Date
 /// <summary>
 /// Implements <see cref="IAnonymizationRuleProvider"/> by loading the full central rule set from
 /// a dedicated (possibly separate-server) database and resolving the most specific matching rule
-/// per (database, table, column) using SQL <c>LIKE</c>-style wildcard patterns.
+/// per (database, schema, table, column) using SQL <c>LIKE</c>-style wildcard patterns.
 /// </summary>
 public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
 {
@@ -48,7 +49,7 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
     }
 
     /// <inheritdoc/>
-    public async Task<bool> IsExcludedAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
+    public async Task<bool> IsExcludedAsync(string databaseName, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
     {
         if (!_options.AnonymizationRules.Enabled || string.IsNullOrWhiteSpace(columnName))
         {
@@ -56,7 +57,8 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
         }
 
         var rules = await GetActiveRulesAsync(cancellationToken);
-        AnonymizationRule? bestMatch = FindMostSpecificMatch(rules, databaseName ?? string.Empty, tableName ?? string.Empty, columnName);
+        AnonymizationRule? bestMatch = FindMostSpecificMatch(
+            rules, databaseName ?? string.Empty, schemaName ?? string.Empty, tableName ?? string.Empty, columnName);
         return bestMatch is not null && !bestMatch.Anonymize;
     }
 
@@ -114,11 +116,15 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
                 return [];
             }
 
-            string sql = $"SELECT [DatabasePattern], [TablePattern], [ColumnPattern], [Anonymize] FROM {safeTableName} WHERE [IsActive] = 1";
+            bool hasSchemaPattern = await HasSchemaPatternColumnAsync(connection, tableName, cancellationToken);
+            string columnList = hasSchemaPattern
+                ? "[DatabasePattern], [SchemaPattern], [TablePattern], [ColumnPattern], [Anonymize]"
+                : "[DatabasePattern], [TablePattern], [ColumnPattern], [Anonymize]";
+            string sql = $"SELECT {columnList} FROM {safeTableName} WHERE [IsActive] = 1";
             var rows = await connection.QueryAsync<RuleRow>(
                 new CommandDefinition(sql, cancellationToken: cancellationToken, commandTimeout: _options.AnonymizationRules.CommandTimeoutSeconds));
 
-            return rows.Select(r => new AnonymizationRule(r.DatabasePattern, r.TablePattern, r.ColumnPattern, r.Anonymize)).ToList();
+            return rows.Select(r => new AnonymizationRule(r.DatabasePattern, r.SchemaPattern, r.TablePattern, r.ColumnPattern, r.Anonymize)).ToList();
         }
         catch (Exception ex)
         {
@@ -127,8 +133,35 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
         }
     }
 
+    /// <summary>
+    /// Detects, without ever throwing, whether the physical rule table already has the optional
+    /// <c>SchemaPattern</c> column — so a rule set that hasn't run the migration adding it keeps
+    /// working with zero-config schema-agnostic matching (<see cref="RuleRow.SchemaPattern"/>'s
+    /// default <c>%</c>), exactly like before this column existed.
+    /// </summary>
+    private async Task<bool> HasSchemaPatternColumnAsync(DbConnection connection, string tableName, CancellationToken cancellationToken)
+    {
+        try
+        {
+            const string checkSql = "SELECT CASE WHEN COL_LENGTH(@TableName, 'SchemaPattern') IS NOT NULL THEN 1 ELSE 0 END";
+            return await connection.QueryFirstOrDefaultAsync<bool>(
+                new CommandDefinition(checkSql, new { TableName = tableName }, cancellationToken: cancellationToken, commandTimeout: _options.AnonymizationRules.CommandTimeoutSeconds));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to check for optional SchemaPattern column on rule table {TableName}.", tableName);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Picks the most specific active rule matching all four dimensions. The schema dimension is
+    /// weighted between database and table (see the score below) — item 7 of the audit remediation
+    /// restructures this weighted-sum scoring shape; this change only makes sure a schema dimension
+    /// exists and is matched, without redesigning the formula itself.
+    /// </summary>
     private static AnonymizationRule? FindMostSpecificMatch(
-        IReadOnlyList<AnonymizationRule> rules, string databaseName, string tableName, string columnName)
+        IReadOnlyList<AnonymizationRule> rules, string databaseName, string schemaName, string tableName, string columnName)
     {
         AnonymizationRule? best = null;
         int bestScore = -1;
@@ -136,13 +169,15 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
         foreach (var rule in rules)
         {
             if (!LikePatternMatcher.IsMatch(databaseName, rule.DatabasePattern) ||
+                !LikePatternMatcher.IsMatch(schemaName, rule.SchemaPattern) ||
                 !LikePatternMatcher.IsMatch(tableName, rule.TablePattern) ||
                 !LikePatternMatcher.IsMatch(columnName, rule.ColumnPattern))
             {
                 continue;
             }
 
-            int score = (LikePatternMatcher.SpecificityScore(rule.DatabasePattern) * 100)
+            int score = (LikePatternMatcher.SpecificityScore(rule.DatabasePattern) * 1000)
+                      + (LikePatternMatcher.SpecificityScore(rule.SchemaPattern) * 100)
                       + (LikePatternMatcher.SpecificityScore(rule.TablePattern) * 10)
                       + LikePatternMatcher.SpecificityScore(rule.ColumnPattern);
 
@@ -159,6 +194,7 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
     private sealed class RuleRow
     {
         public string DatabasePattern { get; init; } = "%";
+        public string SchemaPattern { get; init; } = "%";
         public string TablePattern { get; init; } = "%";
         public string ColumnPattern { get; init; } = string.Empty;
         public bool Anonymize { get; init; }

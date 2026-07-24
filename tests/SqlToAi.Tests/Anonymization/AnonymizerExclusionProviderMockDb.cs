@@ -8,17 +8,18 @@ namespace SqlToAi.Tests.Anonymization;
 
 #pragma warning disable CS8765 // Nullability of parameter doesn't match overridden member
 
-internal sealed record RuleRowData(string DatabasePattern, string TablePattern, string ColumnPattern, bool Anonymize, string SchemaPattern = "%");
+/// <summary>One row of mock exclusion data: table/column, and an optional 3rd schema column.</summary>
+internal sealed record ExclusionRow(string Table, string Column, string? Schema = null);
 
 /// <summary>Bundles the mock connection's two independent boolean behaviors into one parameter object.</summary>
-internal sealed record MockConnectionFlags(bool ThrowException = false, bool HasSchemaPatternColumn = false);
+internal sealed record ExclusionMockFlags(bool ThrowException = false, bool HasSchemaColumn = false);
 
-internal sealed class DummyConnectionFactory : IDatabaseConnectionFactory
+internal sealed class ExclusionDummyConnectionFactory : IDatabaseConnectionFactory
 {
     private readonly DbConnection? _connectionToReturn;
     public int ConnectionCreatedCount { get; private set; }
 
-    public DummyConnectionFactory(DbConnection? connectionToReturn = null)
+    public ExclusionDummyConnectionFactory(DbConnection? connectionToReturn = null)
     {
         _connectionToReturn = connectionToReturn;
     }
@@ -26,25 +27,28 @@ internal sealed class DummyConnectionFactory : IDatabaseConnectionFactory
     public DbConnection CreateConnection(string? databaseName = null)
     {
         ConnectionCreatedCount++;
-        return _connectionToReturn ?? new MockConnection([]);
+        return _connectionToReturn ?? new ExclusionMockConnection([]);
     }
 }
 
-internal sealed class MockConnection : DbConnection
+internal sealed class ExclusionMockConnection : DbConnection
 {
-    private readonly List<RuleRowData> _rows;
-    private readonly MockConnectionFlags _flags;
+    private readonly List<ExclusionRow> _rows;
+    private readonly ExclusionMockFlags _flags;
     private readonly string? _simulatedTableName;
+    private readonly int _fieldCount;
     private string _connectionString = "";
 
-    public MockConnection(
-        List<RuleRowData> rows,
-        MockConnectionFlags? flags = null,
-        string? simulatedTableName = "dbo.AnonymizationRules")
+    public ExclusionMockConnection(
+        List<ExclusionRow> rows,
+        ExclusionMockFlags? flags = null,
+        string? simulatedTableName = "dbo.MyExclusions",
+        int fieldCount = 2)
     {
         _rows = rows;
-        _flags = flags ?? new MockConnectionFlags();
+        _flags = flags ?? new ExclusionMockFlags();
         _simulatedTableName = simulatedTableName;
+        _fieldCount = fieldCount;
     }
 
     [System.Diagnostics.CodeAnalysis.AllowNull]
@@ -64,23 +68,31 @@ internal sealed class MockConnection : DbConnection
     public override void Open() { }
     public override Task OpenAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    protected override DbCommand CreateDbCommand() => new MockCommand(_rows, _flags, _simulatedTableName);
+    protected override DbCommand CreateDbCommand()
+    {
+        return new ExclusionMockCommand(_rows, _flags, _simulatedTableName, _fieldCount);
+    }
 
-    protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel) => throw new NotImplementedException();
+    protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
+    {
+        throw new NotImplementedException();
+    }
 }
 
-internal sealed class MockCommand : DbCommand
+internal sealed class ExclusionMockCommand : DbCommand
 {
-    private readonly List<RuleRowData> _rows;
-    private readonly MockConnectionFlags _flags;
+    private readonly List<ExclusionRow> _rows;
+    private readonly ExclusionMockFlags _flags;
     private readonly string? _simulatedTableName;
+    private readonly int _fieldCount;
     private DbConnection? _dbConnection;
 
-    public MockCommand(List<RuleRowData> rows, MockConnectionFlags flags, string? simulatedTableName)
+    public ExclusionMockCommand(List<ExclusionRow> rows, ExclusionMockFlags flags, string? simulatedTableName, int fieldCount)
     {
         _rows = rows;
         _flags = flags;
         _simulatedTableName = simulatedTableName;
+        _fieldCount = fieldCount;
     }
 
     public override string CommandText { get; set; } = "";
@@ -94,7 +106,7 @@ internal sealed class MockCommand : DbCommand
         set => _dbConnection = value;
     }
 
-    private readonly MockParameterCollection _parameters = new();
+    private readonly ExclusionMockParameterCollection _parameters = new();
     protected override DbParameterCollection DbParameterCollection => _parameters;
     protected override DbTransaction? DbTransaction { get; set; }
     public override UpdateRowSource UpdatedRowSource { get; set; } = UpdateRowSource.None;
@@ -111,34 +123,40 @@ internal sealed class MockCommand : DbCommand
         }
         if (CommandText.Contains("OBJECT_ID", StringComparison.Ordinal))
         {
-            return new SingleValueDataReader(_simulatedTableName);
+            return new ExclusionSingleValueDataReader(_simulatedTableName);
         }
         if (CommandText.Contains("COL_LENGTH", StringComparison.Ordinal))
         {
-            return new BoolValueDataReader(_flags.HasSchemaPatternColumn);
+            return new ExclusionBoolValueDataReader(_flags.HasSchemaColumn);
         }
-        bool includeSchemaPattern = CommandText.Contains("SchemaPattern", StringComparison.Ordinal);
-        return new RuleDataReader(_rows, includeSchemaPattern);
+        // A 3-column row set is only ever returned when the caller actually asked for the
+        // SchemaName column (either the custom SQL text names it, or the table path detected
+        // it via COL_LENGTH) — mirrors the real provider's positional column-count contract.
+        bool includeSchemaColumn = _fieldCount >= 3 || CommandText.Contains("SchemaName", StringComparison.Ordinal);
+        return new ExclusionMockDataReader(_rows, includeSchemaColumn ? 3 : 2);
     }
 
-    protected override DbParameter CreateDbParameter() => new MockParameter();
+    protected override DbParameter CreateDbParameter()
+    {
+        return new ExclusionMockParameter();
+    }
 
     public override void Prepare() { }
 }
 
-internal sealed class RuleDataReader : DbDataReader
+internal sealed class ExclusionMockDataReader : DbDataReader
 {
-    private readonly List<RuleRowData> _rows;
-    private readonly bool _includeSchemaPattern;
+    private readonly List<ExclusionRow> _rows;
+    private readonly int _fieldCount;
     private int _readIndex = -1;
 
-    public RuleDataReader(List<RuleRowData> rows, bool includeSchemaPattern = false)
+    public ExclusionMockDataReader(List<ExclusionRow> rows, int fieldCount)
     {
         _rows = rows;
-        _includeSchemaPattern = includeSchemaPattern;
+        _fieldCount = fieldCount;
     }
 
-    public override int FieldCount => _includeSchemaPattern ? 5 : 4;
+    public override int FieldCount => _fieldCount;
     public override int Depth => 0;
     public override bool IsClosed => false;
     public override int RecordsAffected => -1;
@@ -157,95 +175,83 @@ internal sealed class RuleDataReader : DbDataReader
         return false;
     }
 
-    public override Task<bool> ReadAsync(CancellationToken cancellationToken) => Task.FromResult(Read());
+    public override Task<bool> ReadAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(Read());
+    }
+
     public override bool NextResult() => false;
 
-    /// <summary>Maps a physical ordinal (0-based, in the actually-selected column list) to its name.</summary>
-    public override string GetName(int ordinal)
+    public override string GetName(int ordinal) => ordinal switch
     {
-        if (!_includeSchemaPattern)
-        {
-            return ordinal switch
-            {
-                0 => "DatabasePattern",
-                1 => "TablePattern",
-                2 => "ColumnPattern",
-                _ => "Anonymize"
-            };
-        }
-        return ordinal switch
-        {
-            0 => "DatabasePattern",
-            1 => "SchemaPattern",
-            2 => "TablePattern",
-            3 => "ColumnPattern",
-            _ => "Anonymize"
-        };
-    }
+        0 => "TableName",
+        1 => "ColumnName",
+        _ => "SchemaName"
+    };
 
     public override int GetOrdinal(string name)
     {
-        for (int i = 0; i < FieldCount; i++)
-        {
-            if (string.Equals(GetName(i), name, StringComparison.OrdinalIgnoreCase))
-            {
-                return i;
-            }
-        }
-        return -1;
+        if (string.Equals(name, "ColumnName", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (string.Equals(name, "SchemaName", StringComparison.OrdinalIgnoreCase)) return 2;
+        return 0;
     }
 
     public override object GetValue(int ordinal)
     {
-        var row = _rows[_readIndex];
-        string columnName = GetName(ordinal);
-        return columnName switch
+        if (_readIndex < 0 || _readIndex >= _rows.Count)
         {
-            "DatabasePattern" => row.DatabasePattern,
-            "SchemaPattern" => row.SchemaPattern,
-            "TablePattern" => row.TablePattern,
-            "ColumnPattern" => row.ColumnPattern,
-            _ => row.Anonymize
+            throw new InvalidOperationException("No data available.");
+        }
+        var row = _rows[_readIndex];
+        return ordinal switch
+        {
+            0 => row.Table,
+            1 => row.Column,
+            _ => (object?)row.Schema ?? DBNull.Value
         };
     }
 
-    public override bool GetBoolean(int ordinal) => (bool)GetValue(ordinal);
+    public override bool GetBoolean(int ordinal) => false;
     public override byte GetByte(int ordinal) => 0;
     public override long GetBytes(int ordinal, long dataOffset, byte[]? buffer, int bufferOffset, int length) => 0;
     public override char GetChar(int ordinal) => '\0';
     public override long GetChars(int ordinal, long dataOffset, char[]? buffer, int bufferOffset, int length) => 0;
-    public override string GetDataTypeName(int ordinal) => GetName(ordinal) == "Anonymize" ? "bit" : "nvarchar";
+    public override string GetDataTypeName(int ordinal) => "varchar";
     public override DateTime GetDateTime(int ordinal) => DateTime.MinValue;
     public override decimal GetDecimal(int ordinal) => 0;
     public override double GetDouble(int ordinal) => 0;
-    public override Type GetFieldType(int ordinal) => GetName(ordinal) == "Anonymize" ? typeof(bool) : typeof(string);
+    public override Type GetFieldType(int ordinal) => typeof(string);
     public override float GetFloat(int ordinal) => 0;
     public override Guid GetGuid(int ordinal) => Guid.Empty;
     public override short GetInt16(int ordinal) => 0;
     public override int GetInt32(int ordinal) => 0;
     public override long GetInt64(int ordinal) => 0;
-    public override string GetString(int ordinal) => GetValue(ordinal).ToString() ?? "";
+    public override string GetString(int ordinal) => GetValue(ordinal)?.ToString() ?? "";
 
     public override int GetValues(object[] values)
     {
-        for (int i = 0; i < FieldCount; i++)
+        int count = Math.Min(_fieldCount, values.Length);
+        for (int i = 0; i < count; i++)
         {
             values[i] = GetValue(i);
         }
-        return FieldCount;
+        return count;
     }
 
-    public override bool IsDBNull(int ordinal) => false;
+    public override bool IsDBNull(int ordinal) => ordinal == 2 && _rows[_readIndex].Schema is null;
 
-    public override System.Collections.IEnumerator GetEnumerator() => throw new NotImplementedException();
+    public override System.Collections.IEnumerator GetEnumerator()
+    {
+        throw new NotImplementedException();
+    }
 }
 
-internal sealed class SingleValueDataReader : DbDataReader
+internal sealed class ExclusionSingleValueDataReader : DbDataReader
 {
     private readonly string? _value;
     private int _readIndex = -1;
 
-    public SingleValueDataReader(string? value)
+    public ExclusionSingleValueDataReader(string? value)
     {
         _value = value;
     }
@@ -299,16 +305,19 @@ internal sealed class SingleValueDataReader : DbDataReader
         return 1;
     }
 
-    public override System.Collections.IEnumerator GetEnumerator() => throw new NotImplementedException();
+    public override System.Collections.IEnumerator GetEnumerator()
+    {
+        throw new NotImplementedException();
+    }
 }
 
 /// <summary>Single-row, single-column reader for the <c>COL_LENGTH</c>-based schema-column existence check.</summary>
-internal sealed class BoolValueDataReader : DbDataReader
+internal sealed class ExclusionBoolValueDataReader : DbDataReader
 {
     private readonly bool _value;
     private int _readIndex = -1;
 
-    public BoolValueDataReader(bool value)
+    public ExclusionBoolValueDataReader(bool value)
     {
         _value = value;
     }
@@ -362,10 +371,13 @@ internal sealed class BoolValueDataReader : DbDataReader
         return 1;
     }
 
-    public override System.Collections.IEnumerator GetEnumerator() => throw new NotImplementedException();
+    public override System.Collections.IEnumerator GetEnumerator()
+    {
+        throw new NotImplementedException();
+    }
 }
 
-internal sealed class MockParameterCollection : DbParameterCollection
+internal sealed class ExclusionMockParameterCollection : DbParameterCollection
 {
     private readonly List<DbParameter> _parameters = new();
 
@@ -397,7 +409,7 @@ internal sealed class MockParameterCollection : DbParameterCollection
     public override int IndexOf(string parameterName) => throw new NotImplementedException();
 }
 
-internal sealed class MockParameter : DbParameter
+internal sealed class ExclusionMockParameter : DbParameter
 {
     public override DbType DbType { get; set; }
     public override ParameterDirection Direction { get; set; }

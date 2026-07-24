@@ -20,7 +20,7 @@ Reihenfolge = Abarbeitungsreihenfolge (nicht identisch mit der Nummerierung unte
 - [x] 3. Rohe Fehlermeldung an KI filtern
 - [x] 4. QueryValidationService Unit-Tests
 - [x] 5. sql_validate_query Guard nachrüsten
-- [ ] 6. Schema-blindes Ausschluss-/Regel-Matching
+- [x] 6. Schema-blindes Ausschluss-/Regel-Matching
 - [ ] 7. Regel-Präzedenz-Scoring
 - [ ] 8. AccessLevelProvider numerische Tests
 - [ ] 17. Gemeinsamer Test-Fake-Baustein

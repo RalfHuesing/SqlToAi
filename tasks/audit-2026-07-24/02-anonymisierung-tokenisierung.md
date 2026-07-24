@@ -49,7 +49,7 @@ Das Szenario ist nicht exotisch: Typkonflikte, abgelaufene/falsch kopierte Token
 
 ### [SEVERITY: Hoch] Ausschluss-/Regel-Abgleich ist schema-blind — gleichnamige Tabelle in anderem Schema erbt fremde Freigabe
 
-**Status:** ✅ Umsetzen (bestätigt)
+**Status:** ✅ Erledigt (2026-07-24)
 
 **Datei:** src/SqlToAi/Database/QueryExecutionService.cs:362-390 (`GetBaseTableNames`), :295-305 (`ResolveCentralExclusionsAsync`); src/SqlToAi/Anonymization/AnonymizerExclusionProvider.cs:167-186 (`ParseExclusionRows`); sql-scripts/02_anonymizer_exclusions.sql; sql-scripts/03_anonymization_rules.sql
 
