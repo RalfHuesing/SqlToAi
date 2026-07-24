@@ -1,0 +1,85 @@
+# Audit: Code-Qualität & Architektur
+
+## Zusammenfassung
+
+Die Architektur ist grundsätzlich gesund: klare Modulgrenzen (Anonymization/Cli/Configuration/Database/Domain/Mcp/Metadata/Security), durchgängig `sealed`, `#nullable enable`, Result-Pattern an den Tool-Grenzen, keine Datei über dem 500-Zeilen-Limit, keine groben Linter-Verstöße bei Methodenlänge/Komplexität. Das eigentliche Problem ist nicht Regelverstoß, sondern **Duplikation**: derselbe SQL-Tokenizer-Zustandsautomat existiert dreifach, derselbe Glob-Pattern-Matcher zweifach, dieselbe Markdown-Tabellen-Renderfunktion dreifach, dasselbe "gecachter Wert mit TTL"-Muster dreimal, und in den Tests ein hand-geschriebener ADO.NET-Fake (DbConnection/DbCommand/DbParameter/DbDataReader) mindestens viermal fast identisch. Eine Konsolidierung dieser Stellen würde mehrere hundert Zeilen einsparen, ohne die Sicherheitsgarantien anzutasten.
+
+## Teil A: Linter-Regelverstöße
+
+### [Niedrig] Hartkodierter TTL-Fallback-Wert `300` statt Options-Default
+**Status:** ✅ Erledigt sich mit DRY-4 (generischer `TtlCache`) — siehe unten, kein separater Fix nötig.
+
+**Datei:** `src/SqlToAi/Anonymization/AnonymizerExclusionProvider.cs:70`, `src/SqlToAi/Anonymization/AnonymizationRuleProvider.cs:74`, `src/SqlToAi/Security/AccessLevelProvider.cs:65`
+**Regel:** "Keine hartkodierten Werte" (SqlToAiRichtlinien.mdc §4) — Defaults dürfen nur als Property-Initializer in der jeweiligen `*Options`-Klasse stehen.
+**Problem:** Alle drei Provider berechnen die TTL identisch:
+```csharp
+var ttl = _options.Databases.CacheTtlSeconds > 0 ? _options.Databases.CacheTtlSeconds : 300;
+```
+bzw. mit `_options.AnonymizationRules.CacheTtlSeconds`. Der Fallback-Wert `300` ist redundant: `DatabasesOptions.CacheTtlSeconds` (Configuration/SqlToAiOptions.cs:41) und `AnonymizationRulesOptions.CacheTtlSeconds` (Configuration/SqlToAiOptions.cs:158) haben bereits `= 300` als Property-Initializer. Der `> 0 ? … : 300`-Ausdruck ist toter defensiver Code, der den Options-Default an drei Stellen im Produktionscode dupliziert — genau das, was die Regel verbieten soll.
+**Empfehlung:** Ternary entfernen, direkt `_options.Databases.CacheTtlSeconds` verwenden (der Options-Default deckt den Fall bereits ab). Falls ein Schutz gegen versehentlich auf `0`/negativ gesetzte Config gewünscht ist, gehört diese Validierung zentral in `ConfigurationResolver` oder eine `Validate()`-Methode auf der Options-Klasse, nicht dreifach im Call-Code.
+
+### [Niedrig] Keine echten Schwellenwert-Verstöße gefunden
+Datei-Längen (max. 491 Zeilen in `QueryExecutionService.cs`, Grenze 500), Methodenlängen, Parameterzahlen (max. 5 in `AnonymizationDependencies`-Record als Parameter-Object bereits korrekt ausgelagert, siehe `QueryExecutionService.cs:25-29`), zyklomatische/kognitive Komplexität wurden für alle größeren Dateien (`QueryExecutionService`, `SchemaService`, `DetailSchemaRenderer`, `TableSchemaRenderer`, `McpHost`, `ToolDispatcher`, `AppSettingsMigrator`) einzeln geprüft — keine Methode überschreitet 60 Zeilen substanziell, Verzweigungen sind konsequent in private Helper extrahiert (z. B. `QueryExecutionService.Transition`/`TransitionFromNormal`, `McpHost.DispatchMessageAsync`). Keine leeren `catch`-Blöcke, kein `dynamic`, kein `.Result`/`.Wait()`, kein `async void` außerhalb von Event-Handlern gefunden. Sealed-Pflicht wird eingehalten. Namespace-zu-Verzeichnis-Mapping stimmt durchgängig.
+
+## Teil B: DRY & Strukturvereinfachung
+
+### [Impact: Hoch] Drei fast identische SQL-Zeichen-Zustandsautomaten
+**Status:** ✅ Umsetzen (bestätigt)
+
+**Betroffene Dateien:** `src/SqlToAi/Database/QueryExecutionService.cs:406-490` (`ContainsMultipleStatements`/`Transition`/`TransitionFromNormal`, State-Enum `Normal/LineComment/BlockComment/SingleQuote/Bracket`), `src/SqlToAi/Security/ReadOnlyGuard.cs:49-137` (`StripCommentsAndStringLiterals`/`ProcessChar`/`TransitionFromNormalState`, gleiches State-Enum ohne `Bracket`), `src/SqlToAi/Database/SqlLiteralScanner.cs:16-103` (`GetLiteralContentRanges`/`Transition`/`TransitionFromNormal`, identisches State-Enum mit `Bracket`)
+**Beobachtung:** Alle drei Klassen parsen SQL Zeichen für Zeichen mit einem State-Machine-Muster, das Kommentare (`--`, `/* */`), String-Literale (`'...'`, inkl. escaped `''`) und teilweise Bracket-Identifier (`[...]`) erkennt. Die `Transition`/`TransitionFromNormal`-Methoden sind mechanisch nahezu Zeile-für-Zeile identisch (gleiche Fallunterscheidung, gleiche `i++`-Skip-Logik für zweistellige Marker). `SqlLiteralScanner.cs:11-14` dokumentiert explizit, dass die Duplizierung bewusst in Kauf genommen wurde, um den bereits getesteten, sicherheitskritischen Multi-Statement-Detector nicht anzufassen — ein nachvollziehbares Motiv, das aber nur für die *Konsumlogik* gilt (was mit jedem State passiert), nicht für den mechanischen Scan selbst.
+**Vorschlag:** Einen gemeinsamen, internen Tokenizer-Primitiv extrahieren (z. B. `internal static class SqlCharScanner` mit einer Methode, die pro Zeichen `(State, Start, IsBoundary)`-Events liefert oder ein `IEnumerable<SqlSpan>` mit `Kind` (Normal/Comment/StringLiteral/Bracket) zurückgibt), auf dem alle drei Call-Sites ihre bestehende, unveränderte Business-Logik (Semikolon-Zählung, Content-Blanking, Range-Erfassung) aufsetzen. Die bestehenden Tests (`SqlLiteralScannerTests.cs`, `ReadOnlyGuardTests.cs`, Multi-Statement-Tests in `QueryExecutionServiceTests.cs`) bleiben unverändert grün, da sich nur die Mechanik, nicht das beobachtbare Verhalten ändert. Geschätzte Einsparung: ca. 150-180 Zeilen bei gleichzeitig nur noch einer Stelle, an der ein Parsing-Bug behoben werden muss.
+
+### [Impact: Hoch] Vierfach dupliziertes Fake-ADO.NET in den Tests
+**Status:** ✅ Erledigt (2026-07-24)
+
+**Betroffene Dateien:** `tests/SqlToAi.Tests/Database/QueryExecutionServiceMockDb.cs` (`MockQueryConnection`, `MockQueryCommand`, `MockQueryReader`, `MockQueryParameterCollectionAdapter`, `MockQueryParameter`), `tests/SqlToAi.Tests/Database/SchemaServiceMockDb.cs` (`MockSchemaConnection`, `MockSchemaCommand`, `MockParameterCollectionAdapter`, `MockParameter`, `MockDataTableReader`), `tests/SqlToAi.Tests/Anonymization/AnonymizationRuleProviderMockDb.cs` (`MockConnection`, `MockCommand`, eigene Parameter-Collection), `tests/SqlToAi.Tests/Metadata/MetadataProviderMocks.cs` (`MockMetadataConnection`, `MockMetadataCommand`, `MockParameterCollection`)
+**Beobachtung:** Jede dieser vier Dateien implementiert unabhängig voneinander einen kompletten ADO.NET-Fake-Stack: `DbConnection` (immer dieselben Properties `ConnectionString`/`Database`/`DataSource`/`ServerVersion`/`State`, dieselben No-Op-`Open`/`Close`/`ChangeDatabase`), `DbCommand`, `DbParameterCollection` (mit vollständigem `Add`/`AddRange`/`Clear`/`Contains`/`IndexOf`/`Insert`/`Remove`/`RemoveAt`/`GetParameter`/`SetParameter`/`CopyTo`/`GetEnumerator` — Zeile für Zeile identisch z. B. in `SchemaServiceMockDb.cs:187-250` vs. `QueryExecutionServiceMockDb.cs:201-225`), `DbParameter` und einen `DbDataReader`. Insgesamt über 700 Zeilen reiner ADO.NET-Verdrahtungscode, der nichts Testspezifisches enthält — nur die jeweilige `ExecuteDbDataReader`/`ExecuteScalar`-Dispatch-Logik unterscheidet sich pro Testklasse.
+**Vorschlag:** Einen gemeinsamen Test-Support-Baustein anlegen (z. B. `tests/SqlToAi.Tests/TestSupport/FakeDb*.cs`): eine generische `FakeDbConnection`/`FakeDbCommand`/`FakeDbParameterCollection`/`FakeDbParameter` sowie einen wiederverwendbaren, tabellenbasierten Reader (das bereits vorhandene `MockDataTableReader` aus `SchemaServiceMockDb.cs:268-361` ist bereits generisch genug als Basis). Jede Testklasse liefert dann nur noch ihre spezifische Dispatch-Funktion (`CommandText` → Zeilen) statt die komplette ADO.NET-Oberfläche neu zu implementieren. Geschätzte Einsparung: 400-500 Zeilen bei gleichzeitig einem einzigen Ort, an dem ein fehlendes `DbDataReader`-Override künftig ergänzt werden muss (aktuell müsste ein neues benötigtes Override viermal nachgezogen werden).
+
+### [Impact: Mittel] `RenderMarkdownTable` dreifach identisch kopiert
+**Status:** ✅ Umsetzen (bestätigt)
+
+**Betroffene Dateien:** `src/SqlToAi/Database/SchemaService.cs:350-360`, `src/SqlToAi/Database/DetailSchemaRenderer.cs:334-344`, `src/SqlToAi/Database/TableSchemaRenderer.cs:281-291`
+**Beobachtung:** Alle drei Klassen enthalten eine textuell identische private `RenderMarkdownTable(string[] headers, List<string[]> rows)`-Methode (Header-Zeile, Trennzeile, Zeilen mit `|`-Escaping). Reines Copy-Paste ohne jede Abweichung.
+**Vorschlag:** In eine gemeinsame `internal static class MarkdownTableRenderer` im `Database`-Namespace extrahieren; alle drei Aufrufer referenzieren dieselbe Methode. Spart ~20 Zeilen direkt und verhindert künftiges Auseinanderlaufen (z. B. wenn das Escaping einmal angepasst wird, aber nur an zwei von drei Stellen).
+
+### [Impact: Mittel] "Gecachter Wert mit TTL"-Muster dreimal separat implementiert
+**Status:** ✅ Umsetzen (bestätigt — erledigt nebenbei auch den Teil-A-Fund zum hartkodierten `300`-Fallback)
+
+**Betroffene Dateien:** `src/SqlToAi/Anonymization/AnonymizerExclusionProvider.cs:24-28,54-75` (`ExclusionCheckResult`/`ConcurrentDictionary<string,…>`), `src/SqlToAi/Anonymization/AnonymizationRuleProvider.cs:19-23,63-78` (`RuleCacheEntry`), `src/SqlToAi/Security/AccessLevelProvider.cs:47-70` (`AccessCheckResult`, siehe `src/SqlToAi/Domain/AccessCheckResult.cs`)
+**Beobachtung:** Alle drei Provider folgen exakt demselben Ablauf: `ConcurrentDictionary<string, TCacheEntry>` als Feld, ein `record TCacheEntry(TValue Value, DateTime ExpireTime)` mit `IsExpired(DateTime)`, dann in der Get-Methode `TryGetValue` → falls nicht abgelaufen zurückgeben, sonst neu laden und mit `currentTime.AddSeconds(ttl)` neu cachen. `AnonymizationRuleProvider` cached sogar nur unter einem konstanten Schlüssel (`CacheKey = "all-rules"`), ist also im Kern ein Spezialfall desselben generischen Musters mit Cardinality 1.
+**Vorschlag:** Einen generischen `internal sealed class TtlCache<TKey, TValue>` (z. B. in `SqlToAi.Domain` oder einem neuen `SqlToAi.Caching`-Ordner) mit `Task<TValue> GetOrLoadAsync(TKey key, Func<Task<TValue>> loader, TimeSpan ttl, CancellationToken ct)` bauen, der intern `ConcurrentDictionary<TKey, (TValue Value, DateTime Expire)>` kapselt. Die drei Provider reduzieren sich dann auf ihre eigentliche fachliche Lade-Logik (SQL-Query ausführen, Regeln matchen) plus einen Einzeiler-Aufruf des generischen Caches. Bonus: räumt automatisch auch den Teil-A-Fund zum hartkodierten `300`-Fallback mit auf, wenn die TTL-Auflösung zentral im Cache-Wrapper (oder in den Options selbst) landet statt dreimal im Call-Code.
+
+### [Impact: Mittel] Sechs strukturell identische Delegationsmethoden in `SchemaService`
+**Status:** ✅ Umsetzen (bestätigt)
+
+**Betroffene Dateien:** `src/SqlToAi/Database/SchemaService.cs:218-348` (`GetSchemaForeignKeysAsync`, `GetSchemaIndexesAsync`, `GetSchemaConstraintsAsync`, `GetTriggerDefinitionAsync`, `GetObjectReferencesAsync`, `GetRoutineParametersAsync`)
+**Beobachtung:** Jede der sechs Methoden hat exakt dasselbe Skelett: `VerifyDatabaseAccessAsync` → bei Fehler zurückgeben → `try` → Connection öffnen → eine `DetailSchemaRenderer.XyzAsync(...)`-Methode aufrufen → `catch (Exception ex)` mit fast identischem Log-Text (`"Failed to retrieve … for … in database {DatabaseName}."`) → `SqlToAiError.QueryError(ex.Message)`. Nur der aufgerufene Renderer und die Log-Message unterscheiden sich.
+**Vorschlag:** Einen privaten Helfer `ExecuteDetailQueryAsync(string databaseName, string paramName, Func<DbConnection, CancellationToken, Task<Result<string>>> query, string operationName, CancellationToken ct)` extrahieren, der Access-Check, Connection-Handling, Try/Catch und Logging einmal kapselt; die sechs öffentlichen Methoden werden dann Einzeiler, die nur noch den passenden `DetailSchemaRenderer`-Aufruf als Lambda übergeben. Reduziert ~130 Zeilen auf ~40 und macht eine siebte künftige Detail-Query (z. B. für Partitionierung) zu einer Ein-Zeilen-Ergänzung statt einer weiteren 15-Zeilen-Kopie. Passend dazu ließe sich auch die Objekttyp-Prüfung in `DetailSchemaRenderer.cs` (die `ValidateTableOrViewAsync`, Zeile 21-37, wird für FKs/Indexes/Constraints geteilt, aber `GetObjectReferencesAsync` Zeile 244-255 und `GetRoutineParametersAsync` Zeile 286-297 dupliziert dieselbe `SELECT RTRIM(type) FROM sys.objects …`-Abfrage mit jeweils eigener erlaubter Typenliste und eigenem Error-Factory erneut inline) auf einen gemeinsamen `ValidateObjectTypeAsync(connection, name, allowedTypes, errorFactory, ct)` konsolidieren.
+
+### [Impact: Niedrig] Glob-Pattern-Matching zweimal implementiert, Modul-Grenze verwischt
+**Status:** ✅ Umsetzen (bestätigt)
+
+**Betroffene Dateien:** `src/SqlToAi/Anonymization/GlobPatternMatcher.cs:19-38`, `src/SqlToAi/Security/SecurityGuard.cs:60-80` (`MatchesPattern`)
+**Beobachtung:** `SecurityGuard.MatchesPattern` (Security-Modul) reimplementiert exakt denselben Glob-zu-Regex-Algorithmus (`Regex.Escape` + `\*`→`.*`, `\?`→`.`, 200ms Timeout, `RegexMatchTimeoutException`-Fallback `false`) wie `GlobPatternMatcher.IsMatch` (Anonymization-Modul, aktuell `internal`). Zwei unabhängige Implementierungen derselben Sicherheitslogik bedeuten: ein Bugfix (z. B. Escaping-Edge-Case) muss an zwei Stellen gepflegt werden, und es besteht das Risiko, dass sie unbemerkt auseinanderlaufen.
+**Vorschlag:** `GlobPatternMatcher` als generisches String-Matching-Utility erkennen (es hat nichts Anonymisierungsspezifisches) und in einen neutralen Ort verschieben, z. B. `SqlToAi.Domain` oder einen neuen `SqlToAi.Text`-Namespace, als `public`. `SecurityGuard` ruft dann dieselbe Methode auf statt sie zu duplizieren. Das ist zugleich ein Beispiel für Punkt 5 der Aufgabenstellung: die aktuelle Platzierung in `Anonymization` verrät fälschlich modul-spezifisches Wissen, das eigentlich modulübergreifend gebraucht wird.
+
+### [Impact: Niedrig] `ToolRegistry` — sechs Tool-Definitionen mit identischem Property/Database-Schema
+**Status:** ⏸️ Nicht zur Entscheidung vorgelegt (Report selbst stuft es als niedrige Priorität ein, reine Datenwiederholung ohne Logik-Risiko) — optional, bei Gelegenheit.
+
+**Betroffene Dateien:** `src/SqlToAi/Mcp/ToolRegistry.cs:114-203` (`BuildGetSchemaForeignKeys`, `BuildGetSchemaIndexes`, `BuildGetSchemaConstraints`, `BuildGetObjectReferences`, `BuildGetRoutineParameters` und Teile von `BuildGetSchema`)
+**Beobachtung:** Fünf der zwölf Tool-Builder erzeugen dasselbe Schema-Fragment (`ArgObjectName` + `ArgDatabase`, beide `Required`). Das ist bewusst als "ein Verfahren pro Tool" gehalten (Kommentar Zeile 25 begründet das mit minimalen Diffs), aber die Wiederholung ist rein mechanisch.
+**Vorschlag:** Niedrige Priorität, da die Duplikation Daten (keine Logik) betrifft und die Datei unter dem Zeilenlimit liegt. Falls dennoch angegangen: einen `ObjectAndDbSchema(string objectDescription)`-Helfer wie die bestehenden `StringParam`/`NoArgs`-Helfer (Zeile 225-241) ergänzen. `ToolDispatcher` selbst (Mcp/ToolDispatcher.cs) ist dagegen bereits gut faktorisiert — das Dictionary-basierte Dispatching mit gemeinsamem `CallAsync<T>`-Helfer (Zeile 200-224) ist ein positives Beispiel für genau das datengetriebene Muster, das die Aufgabenstellung für den Tool-Layer vorschlägt; hier besteht kein Handlungsbedarf.
+
+### Kein Handlungsbedarf: Interfaces und Modulgrenzen
+Die DI-Interfaces (`ISchemaService`, `IQueryExecutionService`, `IAnonymizer`, `IAccessLevelProvider` usw.) sind keine Ceremony — jedes hat mindestens eine Fake-/Mock-Implementierung in `tests/SqlToAi.Tests/**` (z. B. `FakeAccessLevelProvider`, `FakeSecurityGuard`, `AlwaysExcludeRuleProvider` in `QueryExecutionServiceMockDb.cs:14-33`), die Abstraktion trägt sich also durch echten Testbedarf. Die Modul-Zuordnung (Anonymization/Cli/Configuration/Database/Domain/Mcp/Metadata/Security) ist überwiegend korrekt; einzige Unschärfe ist der oben genannte `GlobPatternMatcher`-Fall.
+
+## Positive Beobachtungen
+
+- Konsequente Verwendung von `Result`/`Result<T>` an allen Service-Grenzen, keine Exceptions als Kontrollfluss für erwartbare Fehlerfälle.
+- Der Fehlerkatalog (`SqlToAiError`) ist zentral und vollständig auf `mcp-specification.md`-Codes abgebildet.
+- `AnonymizationDependencies` (Record in `QueryExecutionService.cs:25-29`) ist ein sauberes Beispiel für das vom Linter geforderte Parameter-Object bei >4 Konstruktorparametern.
+- `ToolDispatcher`s Dictionary-basiertes Dispatching mit gemeinsamem `CallAsync<T>`-Helfer ist bereits das datengetriebene Muster, das man sich für den Tool-Layer wünscht.
+- Sicherheitskritische Logik (Read-Only-Guard, Access-Level-Fail-Safes, Tokenisierung) ist durchgängig mit erklärenden Kommentaren versehen, die die Fail-safe-Richtung explizit begründen (z. B. `AccessLevelProvider.QueryAccessLevelAsync`, `Anonymizer.IsColumnExcluded`).
+- Keine einzige Datei überschreitet das 500-Zeilen-Limit; die größte (`QueryExecutionService.cs`, 491 Zeilen) bleibt trotz hoher Verantwortung gut in private Helfer gegliedert.

@@ -23,7 +23,7 @@ Reihenfolge = Abarbeitungsreihenfolge (nicht identisch mit der Nummerierung unte
 - [x] 6. Schema-blindes Ausschluss-/Regel-Matching
 - [x] 7. Regel-Präzedenz-Scoring
 - [x] 8. AccessLevelProvider numerische Tests
-- [ ] 17. Gemeinsamer Test-Fake-Baustein
+- [x] 17. Gemeinsamer Test-Fake-Baustein
 - [ ] 9. Doku *Id-Beispiel
 - [ ] 10. Totes Config-Paar entfernen
 - [ ] 11. Fehlercodes 0105/0106 implementieren

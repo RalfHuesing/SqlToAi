@@ -1,6 +1,5 @@
 #nullable enable
 
-using System.Data;
 using System.Data.Common;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -8,10 +7,9 @@ using SqlToAi.Configuration;
 using SqlToAi.Database;
 using SqlToAi.Domain;
 using SqlToAi.Security;
+using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Database;
-
-#pragma warning disable CS8765 // Nullability of parameter doesn't match overridden member
 
 /// <summary>
 /// Unit tests for <see cref="QueryValidationService"/>, covering the guard clauses
@@ -198,94 +196,40 @@ public sealed class QueryValidationServiceTests
 }
 
 // -------------------------------------------------------------------------
-// Minimal DbConnection/DbTransaction/DbCommand fakes for QueryValidationService.
-// Unlike QueryExecutionService, this service never reads rows — it only issues
-// ExecuteNonQueryAsync calls (SET PARSEONLY ON / the query itself / SET PARSEONLY OFF) inside a
-// transaction it always rolls back — so no data-reader plumbing is needed here.
+// Minimal DbConnection/DbTransaction/DbCommand fakes for QueryValidationService, built on the
+// shared TestSupport plumbing. Unlike QueryExecutionService, this service never reads rows — it
+// only issues ExecuteNonQueryAsync calls (SET PARSEONLY ON / the query itself / SET PARSEONLY OFF)
+// inside a transaction it always rolls back — so no data-reader dispatch is needed here.
 // -------------------------------------------------------------------------
 
 internal sealed class ValidationMockConnectionFactory(Exception? throwOnExecute = null) : IDatabaseConnectionFactory
 {
     /// <summary>The most recently created connection — lets tests inspect its transaction.</summary>
-    public ValidationMockConnection? LastConnection { get; private set; }
+    public FakeDbConnection? LastConnection { get; private set; }
 
     public DbConnection CreateConnection(string? databaseName)
     {
-        LastConnection = new ValidationMockConnection(throwOnExecute);
+        LastConnection = BuildConnection(throwOnExecute);
         return LastConnection;
     }
 
     public DbConnection CreateConnection() => CreateConnection(null);
-}
 
-internal sealed class ValidationMockConnection(Exception? throwOnExecute) : DbConnection
-{
-    private ConnectionState _state = ConnectionState.Closed;
+    private static FakeDbConnection BuildConnection(Exception? executeException) =>
+        new(
+            conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(ExecuteNonQuery: _ => ExecuteNonQuery(executeException))),
+            new FakeDbConnectionOptions(
+                Database: TestConstants.DatabaseName,
+                DataSource: "mock",
+                ServerVersion: "16.0",
+                BeginTransaction: (transactionConnection, _) => new FakeDbTransaction(transactionConnection)));
 
-    public override string ConnectionString { get; set; } = string.Empty;
-    public override string Database => TestConstants.DatabaseName;
-    public override string DataSource => "mock";
-    public override string ServerVersion => "16.0";
-    public override ConnectionState State => _state;
-
-    /// <summary>The most recently started transaction — lets tests inspect commit/rollback calls.</summary>
-    public ValidationMockTransaction? LastTransaction { get; private set; }
-
-    public override void Open() => _state = ConnectionState.Open;
-    public override Task OpenAsync(CancellationToken cancellationToken) { _state = ConnectionState.Open; return Task.CompletedTask; }
-
-    protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
+    private static int ExecuteNonQuery(Exception? executeException)
     {
-        LastTransaction = new ValidationMockTransaction(this);
-        return LastTransaction;
-    }
-
-    protected override DbCommand CreateDbCommand() => new ValidationMockCommand(this, throwOnExecute);
-
-    public override void ChangeDatabase(string databaseName) { }
-    public override void Close() => _state = ConnectionState.Closed;
-}
-
-internal sealed class ValidationMockTransaction(DbConnection connection) : DbTransaction
-{
-    public int CommitCount { get; private set; }
-    public int RollbackCount { get; private set; }
-
-    protected override DbConnection DbConnection => connection;
-    public override IsolationLevel IsolationLevel => IsolationLevel.ReadCommitted;
-    public override void Commit() => CommitCount++;
-    public override void Rollback() => RollbackCount++;
-}
-
-internal sealed class ValidationMockCommand(DbConnection connection, Exception? throwOnExecute) : DbCommand
-{
-    private readonly MockQueryParameterCollectionAdapter _parameters = new();
-
-    public override string CommandText { get; set; } = string.Empty;
-    public override int CommandTimeout { get; set; }
-    public override CommandType CommandType { get; set; }
-    public override bool DesignTimeVisible { get; set; }
-    public override UpdateRowSource UpdatedRowSource { get; set; }
-    protected override DbConnection? DbConnection { get; set; } = connection;
-    protected override DbParameterCollection DbParameterCollection => _parameters;
-    protected override DbTransaction? DbTransaction { get; set; }
-
-    public override void Cancel() { }
-
-    public override int ExecuteNonQuery()
-    {
-        if (throwOnExecute != null)
+        if (executeException != null)
         {
-            throw throwOnExecute;
+            throw executeException;
         }
         return 0;
     }
-
-    public override object? ExecuteScalar() => null;
-
-    protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior) =>
-        throw new NotSupportedException("QueryValidationService never opens a data reader.");
-
-    protected override DbParameter CreateDbParameter() => new MockQueryParameter();
-    public override void Prepare() { }
 }
