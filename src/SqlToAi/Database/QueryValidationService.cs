@@ -16,11 +16,11 @@ namespace SqlToAi.Database;
 /// </summary>
 public sealed class QueryValidationService : IQueryValidationService
 {
-    private static readonly Action<ILogger, string, Exception?> LogValidationFailed =
-        LoggerMessage.Define<string>(
+    private static readonly Action<ILogger, string, string, Exception?> LogValidationFailed =
+        LoggerMessage.Define<string, string>(
             LogLevel.Warning,
             new EventId(1, "ValidationFailed"),
-            "Query validation failed for database {Database}.");
+            "Query validation failed for database {Database}. Query: {Query}");
 
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly ISecurityGuard _securityGuard;
@@ -91,7 +91,7 @@ public sealed class QueryValidationService : IQueryValidationService
         }
         catch (Exception ex)
         {
-            LogValidationFailed(_logger, databaseName, ex);
+            LogValidationFailed(_logger, databaseName, query, ex);
             return SqlToAiError.QueryError(ex.Message);
         }
     }

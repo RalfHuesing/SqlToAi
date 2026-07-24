@@ -36,11 +36,11 @@ public sealed record AnonymizationDependencies(
 /// </summary>
 public sealed class QueryExecutionService : IQueryExecutionService
 {
-    private static readonly Action<ILogger, string, Exception?> LogQueryFailed =
-        LoggerMessage.Define<string>(
+    private static readonly Action<ILogger, string, string, Exception?> LogQueryFailed =
+        LoggerMessage.Define<string, string>(
             LogLevel.Error,
             new EventId(1, "QueryFailed"),
-            "Query execution failed for database {Database}.");
+            "Query execution failed for database {Database}. Query: {Query}");
 
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly ISecurityGuard _securityGuard;
@@ -189,7 +189,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
         }
         catch (Exception ex)
         {
-            LogQueryFailed(_logger, databaseName, ex);
+            LogQueryFailed(_logger, databaseName, query, ex);
             return SqlToAiError.QueryError(ex.Message);
         }
     }
