@@ -97,7 +97,7 @@ Zwei Leck-Pfade:
 ---
 
 ### [SEVERITY: Hoch — Verdacht, nicht vollständig verifiziert] `sql_validate_query` besitzt keinen ReadOnlyGuard- und keinen Multi-Statement-Schutz
-**Status:** ✅ Umsetzen (bestätigt — defensiv nachrüsten, unabhängig vom Verifikationsstand)
+**Status:** ✅ Erledigt (2026-07-24)
 
 **Datei:** src/SqlToAi/Database/QueryValidationService.cs:47-97, 99-122
 

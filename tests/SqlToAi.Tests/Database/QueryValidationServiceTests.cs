@@ -32,7 +32,8 @@ public sealed class QueryValidationServiceTests
         IDatabaseConnectionFactory? factory = null,
         bool isAllowed = true,
         AccessLevel accessLevel = AccessLevel.ReadOnly,
-        SqlToAiOptions? options = null)
+        SqlToAiOptions? options = null,
+        IReadOnlyGuard? readOnlyGuard = null)
     {
         options ??= new SqlToAiOptions();
         factory ??= new ValidationMockConnectionFactory();
@@ -40,6 +41,7 @@ public sealed class QueryValidationServiceTests
             factory,
             new FakeSecurityGuard(isAllowed),
             new FakeAccessLevelProvider(accessLevel),
+            readOnlyGuard ?? new ReadOnlyGuard(),
             Options.Create(options),
             NullLogger<QueryValidationService>.Instance);
     }
@@ -86,6 +88,80 @@ public sealed class QueryValidationServiceTests
         var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests: read-only guard (audit finding 4) — mirrors QueryExecutionService's layer 4.
+    // sql_validate_query previously had no guard at all and relied solely on the unverified
+    // assumption that SET PARSEONLY ON prevents any statement from actually executing.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ValidateQueryAsync_ShouldFail_WhenQueryIsMutating_AndAccessLevelIsNotReadWrite()
+    {
+        var factory = new ValidationMockConnectionFactory();
+        var service = BuildService(factory: factory, accessLevel: AccessLevel.ReadOnly);
+
+        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "DELETE FROM Foo", TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
+        // The guard must reject before ever touching the database — no connection was created.
+        Assert.Null(factory.LastConnection);
+    }
+
+    [Fact]
+    public async Task ValidateQueryAsync_ShouldNotBlock_MutatingQuery_WhenAccessLevelIsReadWrite()
+    {
+        // ReadWrite bypasses the guard here exactly as it does in QueryExecutionService — this
+        // service still never commits, so the query only ever runs under SET PARSEONLY inside a
+        // transaction that always gets rolled back.
+        var factory = new ValidationMockConnectionFactory();
+        var service = BuildService(factory: factory, accessLevel: AccessLevel.ReadWrite);
+
+        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "DELETE FROM Foo", TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
+        Assert.NotNull(factory.LastConnection);
+        Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);
+        Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
+    }
+
+    [Theory]
+    [InlineData("sp_executesql N'DELETE FROM Foo'")]
+    [InlineData("EXEC sp_executesql N'DELETE FROM dbo.Foo; COMMIT'")]
+    [InlineData("sys.sp_executesql N'DELETE FROM Foo'")]
+    public async Task ValidateQueryAsync_ShouldReject_SpExecuteSql_BeforeTouchingDatabase(string query)
+    {
+        // The real ReadOnlyGuard (not a fake) proves the production regex itself closes the
+        // sp_executesql bypass (audit finding 2) for this tool too, not just QueryExecutionService.
+        var factory = new ValidationMockConnectionFactory();
+        var service = BuildService(factory: factory, accessLevel: AccessLevel.ReadOnly, readOnlyGuard: new ReadOnlyGuard());
+
+        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, query, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
+        Assert.Null(factory.LastConnection);
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests: multi-statement detection (audit finding 4) — always enforced, write-allowed or not.
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(AccessLevel.ReadOnly)]
+    [InlineData(AccessLevel.ReadWrite)]
+    public async Task ValidateQueryAsync_ShouldFail_WhenMultipleStatements_RegardlessOfAccessLevel(AccessLevel accessLevel)
+    {
+        var factory = new ValidationMockConnectionFactory();
+        var service = BuildService(factory: factory, accessLevel: accessLevel);
+
+        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "SELECT 1; SELECT 2", TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, result.Error.Code);
+        Assert.Null(factory.LastConnection);
     }
 
     // -------------------------------------------------------------------------

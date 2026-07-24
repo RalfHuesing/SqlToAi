@@ -76,7 +76,7 @@ public sealed class SqlServerFixture
         QueryTokenResolver  = new QueryTokenResolver(TokenVault, optionsWrapper);
         Anonymizer          = new Anonymizer(optionsWrapper, TokenVault);
         QueryExecutionService = new QueryExecutionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, new AnonymizationDependencies(Anonymizer, AnonymizerExclusionProvider, AnonymizationRuleProvider, QueryTokenResolver), optionsWrapper, NullLogger<QueryExecutionService>.Instance);
-        QueryValidationService = new QueryValidationService(ConnectionFactory, SecurityGuard, AccessLevelProvider, optionsWrapper, NullLogger<QueryValidationService>.Instance);
+        QueryValidationService = new QueryValidationService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, optionsWrapper, NullLogger<QueryValidationService>.Instance);
     }
 
     private static string LocateAppsettings()

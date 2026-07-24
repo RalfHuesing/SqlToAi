@@ -19,7 +19,7 @@ Reihenfolge = Abarbeitungsreihenfolge (nicht identisch mit der Nummerierung unte
 - [x] 2. sp_executesql + COMMIT Guard-Bypass
 - [x] 3. Rohe Fehlermeldung an KI filtern
 - [x] 4. QueryValidationService Unit-Tests
-- [ ] 5. sql_validate_query Guard nachrüsten
+- [x] 5. sql_validate_query Guard nachrüsten
 - [ ] 6. Schema-blindes Ausschluss-/Regel-Matching
 - [ ] 7. Regel-Präzedenz-Scoring
 - [ ] 8. AccessLevelProvider numerische Tests

@@ -1,6 +1,8 @@
 #nullable enable
 
+using SqlToAi.Database;
 using SqlToAi.Domain;
+using SqlToAi.Security;
 
 namespace SqlToAi.Tests.Integration;
 
@@ -60,5 +62,39 @@ public sealed class QueryValidationServiceIntegrationTests
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
+    }
+
+    [Fact]
+    public async Task ValidateQueryAsync_ShouldBlock_SpExecuteSqlEmbeddedCommitExploit_BeforeTouchingParseonly()
+    {
+        // Same exploit string as QueryExecutionServiceIntegrationTests' equivalent test (audit
+        // finding 2), sent through sql_validate_query instead: sp_executesql with an embedded
+        // COMMIT, against a database forced to a non-ReadWrite AccessLevel via a fake provider
+        // while still using the real 'Agent' SQL login from appsettings.json. Proves the
+        // read-only guard added for audit finding 4 rejects this before the query ever reaches
+        // SET PARSEONLY, closing the gap where this tool's safety previously rested solely on
+        // unverified PARSEONLY semantics.
+        var customAccessProvider = new FakeAccessLevelProvider(AccessLevel.ReadOnly);
+        var service = new QueryValidationService(
+            _fx.ConnectionFactory,
+            _fx.SecurityGuard,
+            customAccessProvider,
+            _fx.ReadOnlyGuard,
+            Microsoft.Extensions.Options.Options.Create(_fx.Options),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryValidationService>.Instance);
+
+        var result = await service.ValidateQueryAsync(
+            _db,
+            "sp_executesql N'DELETE FROM dbo.FakeProjects; COMMIT'",
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure, IntegrationAssertions.FormatFailure(result));
+        Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
+    }
+
+    private sealed class FakeAccessLevelProvider(AccessLevel level) : IAccessLevelProvider
+    {
+        public Task<AccessLevel> GetAccessLevelAsync(string databaseName, CancellationToken cancellationToken = default)
+            => Task.FromResult(level);
     }
 }
