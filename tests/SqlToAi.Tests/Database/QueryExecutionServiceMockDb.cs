@@ -37,34 +37,38 @@ internal sealed class FakeReadOnlyGuard(bool safe) : IReadOnlyGuard
 // Connection factory / reader mock
 // -------------------------------------------------------------------------
 
-internal sealed class MockQueryConnectionFactory : IDatabaseConnectionFactory
-{
-    private readonly string? _stringValue;
-    private readonly int _rowCount;
-    private readonly string? _baseTableName;
-    private readonly string _columnName;
+/// <summary>
+/// Schema-table origin metadata (<c>BaseTableName</c>/<c>BaseColumnName</c>) a mock reader reports
+/// for column 0, or "unavailable" (<see cref="Available"/> false) to simulate a provider without
+/// schema-table support. Bundled into its own record (see AiNetLinter <c>MaxConstructorDependencies</c>)
+/// so the mock DB constructors stay within the project's parameter-count limit.
+/// </summary>
+internal sealed record MockSchemaOrigin(string? BaseTableName = null, string? BaseColumnName = null, bool Available = true);
 
-    public MockQueryConnectionFactory(string? stringValue = null, int rowCount = 1, string? baseTableName = null, string columnName = "Name")
-    {
-        _stringValue = stringValue;
-        _rowCount = rowCount;
-        _baseTableName = baseTableName;
-        _columnName = columnName;
-    }
+/// <summary>Bundles all per-test mock DB configuration into one parameter object.</summary>
+internal sealed record MockQueryRowConfig(
+    string? StringValue = null,
+    int RowCount = 1,
+    string ColumnName = "Name",
+    MockSchemaOrigin? Origin = null);
+
+internal sealed class MockQueryConnectionFactory(MockQueryRowConfig? config = null) : IDatabaseConnectionFactory
+{
+    private readonly MockQueryRowConfig _config = config ?? new MockQueryRowConfig();
 
     /// <summary>The most recently created connection — lets tests inspect its transaction.</summary>
     public MockQueryConnection? LastConnection { get; private set; }
 
     public DbConnection CreateConnection(string? databaseName)
     {
-        LastConnection = new MockQueryConnection(_stringValue, _rowCount, _baseTableName, _columnName);
+        LastConnection = new MockQueryConnection(_config);
         return LastConnection;
     }
 
     public DbConnection CreateConnection() => CreateConnection((string?)null);
 }
 
-internal sealed class MockQueryConnection(string? stringValue, int rowCount, string? baseTableName = null, string columnName = "Name") : DbConnection
+internal sealed class MockQueryConnection(MockQueryRowConfig config) : DbConnection
 {
     private ConnectionState _state = ConnectionState.Closed;
 
@@ -91,7 +95,7 @@ internal sealed class MockQueryConnection(string? stringValue, int rowCount, str
 
     protected override DbCommand CreateDbCommand()
     {
-        LastCommand = new MockQueryCommand(this, stringValue, rowCount, baseTableName, columnName);
+        LastCommand = new MockQueryCommand(this, config);
         return LastCommand;
     }
 
@@ -110,7 +114,7 @@ internal sealed class MockQueryTransaction(DbConnection connection) : DbTransact
     public override void Rollback() => RollbackCount++;
 }
 
-internal sealed class MockQueryCommand(DbConnection connection, string? stringValue, int rowCount, string? baseTableName = null, string columnName = "Name") : DbCommand
+internal sealed class MockQueryCommand(DbConnection connection, MockQueryRowConfig config) : DbCommand
 {
     private readonly MockQueryParameterCollectionAdapter _parameters = new();
 
@@ -128,29 +132,35 @@ internal sealed class MockQueryCommand(DbConnection connection, string? stringVa
     public override object? ExecuteScalar() => 1;
 
     protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
-        => new MockQueryReader(stringValue, rowCount, baseTableName, columnName);
+        => new MockQueryReader(config);
 
     protected override DbParameter CreateDbParameter() => new MockQueryParameter();
     public override void Prepare() { }
 }
 
-internal sealed class MockQueryReader(string? stringValue, int totalRows, string? baseTableName = null, string columnName = "Name") : DbDataReader
+internal sealed class MockQueryReader(MockQueryRowConfig config) : DbDataReader
 {
     private int _rowIndex = -1;
+    private readonly string? _stringValue = config.StringValue;
+    private readonly int _totalRows = config.RowCount;
+    private readonly string _columnName = config.ColumnName;
+    private readonly MockSchemaOrigin _origin = config.Origin ?? new MockSchemaOrigin();
 
     public override int FieldCount => 1;
-    public override bool HasRows => totalRows > 0;
+    public override bool HasRows => _totalRows > 0;
     public override bool IsClosed => false;
     public override int RecordsAffected => 0;
     public override int Depth => 0;
 
     /// <summary>
-    /// Reports a BaseTableName for column 0 when configured, so tests can exercise the
-    /// TableName.ColumnName qualification path in <c>QueryExecutionService.AnonymizeCell</c>.
+    /// Reports a BaseTableName/BaseColumnName for column 0 when configured, so tests can exercise
+    /// both the "TableName.ColumnName" qualification path and the alias-vs-origin exclusion
+    /// decision in <c>QueryExecutionService.AnonymizeCell</c> / <c>GetColumnOrigins</c>. An
+    /// unavailable origin simulates a provider without schema-table support by returning null.
     /// </summary>
     public override DataTable? GetSchemaTable()
     {
-        if (baseTableName is null)
+        if (!_origin.Available || (_origin.BaseTableName is null && _origin.BaseColumnName is null))
         {
             return null;
         }
@@ -158,9 +168,11 @@ internal sealed class MockQueryReader(string? stringValue, int totalRows, string
         var table = new DataTable();
         table.Columns.Add("ColumnOrdinal", typeof(int));
         table.Columns.Add("BaseTableName", typeof(string));
+        table.Columns.Add("BaseColumnName", typeof(string));
         DataRow row = table.NewRow();
         row["ColumnOrdinal"] = 0;
-        row["BaseTableName"] = baseTableName;
+        row["BaseTableName"] = (object?)_origin.BaseTableName ?? DBNull.Value;
+        row["BaseColumnName"] = (object?)_origin.BaseColumnName ?? DBNull.Value;
         table.Rows.Add(row);
         return table;
     }
@@ -168,14 +180,14 @@ internal sealed class MockQueryReader(string? stringValue, int totalRows, string
     public override object this[int ordinal] => GetValue(ordinal);
     public override object this[string name] => GetValue(GetOrdinal(name));
 
-    public override bool Read() { _rowIndex++; return _rowIndex < totalRows; }
+    public override bool Read() { _rowIndex++; return _rowIndex < _totalRows; }
     public override Task<bool> ReadAsync(CancellationToken cancellationToken) => Task.FromResult(Read());
     public override bool NextResult() => false;
 
-    public override string GetName(int ordinal) => columnName;
+    public override string GetName(int ordinal) => _columnName;
     public override int GetOrdinal(string name) => 0;
-    public override object GetValue(int ordinal) => (object?)stringValue ?? "Val";
-    public override bool IsDBNull(int ordinal) => stringValue is null && ordinal == 0;
+    public override object GetValue(int ordinal) => (object?)_stringValue ?? "Val";
+    public override bool IsDBNull(int ordinal) => _stringValue is null && ordinal == 0;
     public override string GetDataTypeName(int ordinal) => "varchar";
     public override Type GetFieldType(int ordinal) => typeof(string);
     public override int GetValues(object[] values) { if (values.Length > 0) values[0] = GetValue(0); return 1; }

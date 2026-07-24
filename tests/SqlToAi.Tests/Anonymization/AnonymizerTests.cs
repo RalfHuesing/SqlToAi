@@ -154,9 +154,9 @@ public sealed class AnonymizerTests
 
         // Act
         // 1. Matched database-specific exclusion -> should NOT be anonymized
-        var excludedVal = anonymizer.Anonymize("ProjectName", "SecretProject", "FakeProjects", dbExclusions);
+        var excludedVal = anonymizer.Anonymize("SecretProject", new AnonymizationColumnContext("FakeProjects", "ProjectName", dbExclusions));
         // 2. Not matched database-specific exclusion -> should be anonymized
-        var normalVal = anonymizer.Anonymize("Description", "SecretDescription", "FakeProjects", dbExclusions);
+        var normalVal = anonymizer.Anonymize("SecretDescription", new AnonymizationColumnContext("FakeProjects", "Description", dbExclusions));
 
         // Assert
         Assert.Equal("SecretProject", excludedVal);
@@ -285,9 +285,100 @@ public sealed class AnonymizerTests
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
         var dbExclusions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "FakeProjects.ProjectName" };
 
-        var result = anonymizer.Tokenize("ProjectName", "SecretProject", "FakeProjects", dbExclusions);
+        var result = anonymizer.Tokenize("SecretProject", new AnonymizationColumnContext("FakeProjects", "ProjectName", dbExclusions));
 
         Assert.Equal("SecretProject", result);
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests: alias-vs-origin exclusion decision (audit finding — see
+    // tasks/audit-2026-07-24/01-security-guardrails.md, Finding 1)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Anonymize_ShouldAnonymize_WhenAliasMatchesExclusionPattern_ButOriginColumnDoesNot()
+    {
+        // "SELECT SSN AS RecordId" — the alias "RecordId" matches "*Id", but the real source
+        // column is "SSN", which does not. Must still be anonymized despite the alias.
+        var options = new SqlToAiOptions();
+        options.Anonymizer.Enabled = true;
+        options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
+
+        var result = anonymizer.Anonymize("123-45-6789", new AnonymizationColumnContext("Customers", "SSN", null));
+
+        Assert.NotEqual("123-45-6789", result);
+    }
+
+    [Fact]
+    public void Tokenize_ShouldTokenize_WhenAliasMatchesExclusionPattern_ButOriginColumnDoesNot()
+    {
+        var options = BuildTokenizationOptions();
+        options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
+
+        var result = anonymizer.Tokenize("123-45-6789", new AnonymizationColumnContext("Customers", "SSN", null));
+
+        Assert.NotEqual("123-45-6789", result);
+    }
+
+    [Fact]
+    public void Anonymize_ShouldRespectExclusion_WhenAliasAndOriginColumnNameMatch()
+    {
+        // The common case (no aliasing): alias and resolved origin column name are identical —
+        // existing exclusion behavior must be unchanged.
+        var options = new SqlToAiOptions();
+        options.Anonymizer.Enabled = true;
+        options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
+
+        var result = anonymizer.Anonymize("123", new AnonymizationColumnContext("Customers", "CustomerId", null));
+
+        Assert.Equal("123", result);
+    }
+
+    [Fact]
+    public void Anonymize_ShouldNotExclude_WhenOriginColumnIsUnresolvable_EvenIfAliasWouldMatch()
+    {
+        // Fail-safe: when the real origin cannot be determined (e.g. a computed/literal/aggregate
+        // expression, or a provider without schema-table support), the column must never be
+        // excluded via the plain pattern list just because its alias happens to match.
+        var options = new SqlToAiOptions();
+        options.Anonymizer.Enabled = true;
+        options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
+
+        var result = anonymizer.Anonymize("SecretValue", new AnonymizationColumnContext("Customers", null, null));
+
+        Assert.NotEqual("SecretValue", result);
+    }
+
+    [Fact]
+    public void Tokenize_ShouldNotExclude_WhenOriginColumnIsUnresolvable_EvenIfAliasWouldMatch()
+    {
+        var options = BuildTokenizationOptions();
+        options.Anonymizer.ExcludedColumns = new List<string> { "*Id" };
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
+
+        var result = anonymizer.Tokenize("SecretValue", new AnonymizationColumnContext("Customers", null, null));
+
+        Assert.NotEqual("SecretValue", result);
+    }
+
+    [Fact]
+    public void Anonymize_ShouldRespectDbExclusion_ByOriginColumnName_NotAlias()
+    {
+        // The database-specific exclusion table is keyed by the real column name too — an alias
+        // must not let a non-excluded column masquerade as an excluded one, nor vice versa.
+        var options = new SqlToAiOptions();
+        options.Anonymizer.Enabled = true;
+        var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
+        var dbExclusions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Customers.SSN" };
+
+        // Alias "RecordId" does not appear in dbExclusions, but the real origin "SSN" does.
+        var result = anonymizer.Anonymize("123-45-6789", new AnonymizationColumnContext("Customers", "SSN", dbExclusions));
+
+        Assert.Equal("123-45-6789", result);
     }
 
     [Fact]

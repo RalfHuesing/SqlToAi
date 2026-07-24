@@ -121,7 +121,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
 
         // 5. Single-statement validation — always enforced, write-allowed or not, to keep
         //    the blast radius of a single call limited to one statement.
-        if (ContainsMultipleStatements(query))
+        if (SqlMultiStatementDetector.ContainsMultipleStatements(query))
         {
             return SqlToAiError.MultipleStatementsForbidden();
         }
@@ -257,11 +257,19 @@ public sealed class QueryExecutionService : IQueryExecutionService
         }
     }
 
+    /// <summary>
+    /// The real source of an output column, resolved once per ordinal via the reader's schema
+    /// table (<c>BaseTableName</c>/<c>BaseColumnName</c>) — never the query's output alias. Either
+    /// part is null when the provider can't resolve it (e.g. unsupported provider, or a
+    /// computed/literal/aggregate expression with no traceable source column).
+    /// </summary>
+    private sealed record ColumnOrigin(string? TableName, string? ColumnName);
+
     /// <summary>Bundles per-query anonymization context for passing between internal helpers.</summary>
     private sealed record AnonymizationContext(
         bool Anonymize,
         HashSet<string>? Exclusions,
-        string?[]? BaseTableNames,
+        ColumnOrigin?[]? ColumnOrigins,
         bool[]? CentralExclusions,
         bool UseTokenization);
 
@@ -280,12 +288,12 @@ public sealed class QueryExecutionService : IQueryExecutionService
         HashSet<string>? exclusions = _anonymizerExclusionProvider != null
             ? await _anonymizerExclusionProvider.GetExclusionsAsync(databaseName, cancellationToken)
             : null;
-        var baseTableNames = GetBaseTableNames(reader);
+        var columnOrigins = GetColumnOrigins(reader);
         bool[]? centralExclusions = _anonymizationRuleProvider != null
-            ? await ResolveCentralExclusionsAsync(databaseName, columnNames, baseTableNames, cancellationToken)
+            ? await ResolveCentralExclusionsAsync(databaseName, columnNames, columnOrigins, cancellationToken)
             : null;
 
-        return new AnonymizationContext(true, exclusions, baseTableNames, centralExclusions, _tokenizationOptions.IsUsable);
+        return new AnonymizationContext(true, exclusions, columnOrigins, centralExclusions, _tokenizationOptions.IsUsable);
     }
 
     /// <summary>
@@ -293,12 +301,12 @@ public sealed class QueryExecutionService : IQueryExecutionService
     /// row), so a 1000-row result only pays for N rule lookups instead of N × rowCount.
     /// </summary>
     private async Task<bool[]> ResolveCentralExclusionsAsync(
-        string databaseName, string[] columnNames, string?[] baseTableNames, CancellationToken cancellationToken)
+        string databaseName, string[] columnNames, ColumnOrigin?[] columnOrigins, CancellationToken cancellationToken)
     {
         var result = new bool[columnNames.Length];
         for (int i = 0; i < columnNames.Length; i++)
         {
-            string tableName = i < baseTableNames.Length ? baseTableNames[i] ?? string.Empty : string.Empty;
+            string tableName = i < columnOrigins.Length ? columnOrigins[i]?.TableName ?? string.Empty : string.Empty;
             result[i] = await _anonymizationRuleProvider!.IsExcludedAsync(databaseName, tableName, columnNames[i], cancellationToken);
         }
         return result;
@@ -340,15 +348,20 @@ public sealed class QueryExecutionService : IQueryExecutionService
             return raw;
         }
 
-        string? tableName = anonCtx.BaseTableNames != null && columnIndex < anonCtx.BaseTableNames.Length ? anonCtx.BaseTableNames[columnIndex] : null;
+        ColumnOrigin? origin = anonCtx.ColumnOrigins != null && columnIndex < anonCtx.ColumnOrigins.Length ? anonCtx.ColumnOrigins[columnIndex] : null;
+        string? tableName = origin?.TableName;
+        var columnContext = new AnonymizationColumnContext(tableName, origin?.ColumnName, anonCtx.Exclusions);
         string anonymizedValue = anonCtx.UseTokenization
-            ? _anonymizer.Tokenize(columnName, strVal, tableName, anonCtx.Exclusions)
-            : _anonymizer.Anonymize(columnName, strVal, tableName, anonCtx.Exclusions);
+            ? _anonymizer.Tokenize(strVal, columnContext)
+            : _anonymizer.Anonymize(strVal, columnContext);
 
         if (anonymizedValue != strVal)
         {
             // Qualify with the resolved base table when known, so the LLM (and the human it
             // reports to) can act on a concrete "TableName.ColumnName" instead of a bare alias.
+            // Deliberately reports the alias (columnName), not the resolved origin column, since
+            // the alias is the JSON key the AI actually sees in the result — only the exclusion
+            // *decision* above is origin-based, not this display name.
             string qualifiedName = string.IsNullOrEmpty(tableName) ? columnName : $"{tableName}.{columnName}";
             tracker.RecordAnonymizedColumn(qualifiedName, anonCtx.UseTokenization);
         }
@@ -359,34 +372,63 @@ public sealed class QueryExecutionService : IQueryExecutionService
     private static bool IsFlagSet(bool[]? flags, int index) =>
         flags != null && index < flags.Length && flags[index];
 
-    private static string?[] GetBaseTableNames(DbDataReader reader)
+    /// <summary>
+    /// Resolves each output column's real source (base table + base column) via the reader's
+    /// schema table, so the anonymization exclusion decision can be based on where a value
+    /// actually comes from instead of the query's output alias (e.g. <c>SELECT SSN AS RecordId</c>
+    /// must never be judged by the alias <c>RecordId</c>). Tolerates providers where
+    /// <see cref="DbDataReader.GetSchemaTable"/> is unavailable or incomplete — any column whose
+    /// origin can't be determined simply gets a null <see cref="ColumnOrigin"/>, which the
+    /// anonymizer then treats fail-safe (never excluded via the plain pattern list).
+    /// </summary>
+    private static ColumnOrigin?[] GetColumnOrigins(DbDataReader reader)
     {
-        var names = new string?[reader.FieldCount];
+        var origins = new ColumnOrigin?[reader.FieldCount];
         try
         {
             var schemaTable = reader.GetSchemaTable();
             if (schemaTable != null)
             {
-                bool hasOrdinal = schemaTable.Columns.Contains("ColumnOrdinal");
-                bool hasBaseTable = schemaTable.Columns.Contains("BaseTableName");
-
-                for (int i = 0; i < schemaTable.Rows.Count; i++)
-                {
-                    var row = schemaTable.Rows[i];
-                    int ordinal = hasOrdinal ? Convert.ToInt32(row["ColumnOrdinal"], System.Globalization.CultureInfo.InvariantCulture) : i;
-
-                    if (ordinal >= 0 && ordinal < names.Length && hasBaseTable)
-                    {
-                        names[ordinal] = row["BaseTableName"]?.ToString();
-                    }
-                }
+                PopulateColumnOrigins(schemaTable, origins);
             }
         }
         catch (Exception ignored)
         {
             _ = ignored; // Safe fallback: schema table not available for this provider
         }
-        return names;
+        return origins;
+    }
+
+    private static void PopulateColumnOrigins(DataTable schemaTable, ColumnOrigin?[] origins)
+    {
+        bool hasOrdinal = schemaTable.Columns.Contains("ColumnOrdinal");
+        bool hasBaseTable = schemaTable.Columns.Contains("BaseTableName");
+        bool hasBaseColumn = schemaTable.Columns.Contains("BaseColumnName");
+
+        for (int i = 0; i < schemaTable.Rows.Count; i++)
+        {
+            var row = schemaTable.Rows[i];
+            int ordinal = hasOrdinal ? Convert.ToInt32(row["ColumnOrdinal"], System.Globalization.CultureInfo.InvariantCulture) : i;
+            if (ordinal < 0 || ordinal >= origins.Length)
+            {
+                continue;
+            }
+
+            origins[ordinal] = new ColumnOrigin(
+                ReadOriginValue(row, "BaseTableName", hasBaseTable),
+                ReadOriginValue(row, "BaseColumnName", hasBaseColumn));
+        }
+    }
+
+    /// <summary>Reads a normalized (null-if-empty) schema table value, or null when the column itself is unavailable.</summary>
+    private static string? ReadOriginValue(DataRow row, string columnName, bool columnAvailable)
+    {
+        if (!columnAvailable)
+        {
+            return null;
+        }
+        string? value = row[columnName]?.ToString();
+        return string.IsNullOrEmpty(value) ? null : value;
     }
 
     private static string[] GetColumnNames(DbDataReader reader)
@@ -397,95 +439,5 @@ public sealed class QueryExecutionService : IQueryExecutionService
             names[i] = reader.GetName(i);
         }
         return names;
-    }
-
-    /// <summary>
-    /// Detects multiple SQL statements by scanning for semicolons outside
-    /// string literals (<c>'...'</c>), bracket identifiers (<c>[...]</c>), and comments (<c>--</c>, <c>/* */</c>).
-    /// </summary>
-    private enum SqlParserState
-    {
-        Normal,
-        LineComment,
-        BlockComment,
-        SingleQuote,
-        Bracket
-    }
-
-    private static bool ContainsMultipleStatements(string query)
-    {
-        var state = SqlParserState.Normal;
-        ReadOnlySpan<char> span = query.AsSpan();
-
-        for (int i = 0; i < span.Length; i++)
-        {
-            char c = span[i];
-            char next = i + 1 < span.Length ? span[i + 1] : '\0';
-
-            state = Transition(state, c, next, ref i);
-
-            if (state == SqlParserState.Normal && c == ';')
-            {
-                // Allow trailing semicolon at end (after trimming whitespace)
-                string remaining = query[(i + 1)..].TrimEnd();
-                if (remaining.Length > 0)
-                {
-                    return true; // text after semicolon → second statement
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private static SqlParserState Transition(SqlParserState state, char c, char next, ref int i)
-    {
-        switch (state)
-        {
-            case SqlParserState.LineComment:
-                if (c == '\n') return SqlParserState.Normal;
-                return SqlParserState.LineComment;
-
-            case SqlParserState.BlockComment:
-                if (c == '*' && next == '/')
-                {
-                    i++; // skip '/'
-                    return SqlParserState.Normal;
-                }
-                return SqlParserState.BlockComment;
-
-            case SqlParserState.SingleQuote:
-                if (c == '\'' && next == '\'')
-                {
-                    i++; // escaped quote
-                    return SqlParserState.SingleQuote;
-                }
-                if (c == '\'') return SqlParserState.Normal;
-                return SqlParserState.SingleQuote;
-
-            case SqlParserState.Bracket:
-                if (c == ']') return SqlParserState.Normal;
-                return SqlParserState.Bracket;
-
-            default:
-                return TransitionFromNormal(c, next, ref i);
-        }
-    }
-
-    private static SqlParserState TransitionFromNormal(char c, char next, ref int i)
-    {
-        if (c == '-' && next == '-')
-        {
-            i++;
-            return SqlParserState.LineComment;
-        }
-        if (c == '/' && next == '*')
-        {
-            i++;
-            return SqlParserState.BlockComment;
-        }
-        if (c == '\'') return SqlParserState.SingleQuote;
-        if (c == '[') return SqlParserState.Bracket;
-        return SqlParserState.Normal;
     }
 }

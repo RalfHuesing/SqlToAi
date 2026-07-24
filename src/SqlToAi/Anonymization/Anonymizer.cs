@@ -36,13 +36,13 @@ public sealed class Anonymizer : IAnonymizer
     /// <returns>The anonymized value, or the original value if anonymization is disabled or excluded.</returns>
     public string Anonymize(string columnName, string originalValue)
     {
-        return Anonymize(columnName, originalValue, null, null);
+        return Anonymize(originalValue, new AnonymizationColumnContext(null, columnName, null));
     }
 
     /// <inheritdoc/>
-    public string Anonymize(string columnName, string originalValue, string? tableName, HashSet<string>? dbExclusions)
+    public string Anonymize(string originalValue, AnonymizationColumnContext context)
     {
-        if (string.IsNullOrEmpty(originalValue) || IsColumnExcluded(columnName, tableName, dbExclusions))
+        if (string.IsNullOrEmpty(originalValue) || IsColumnExcluded(context))
         {
             return originalValue;
         }
@@ -56,12 +56,12 @@ public sealed class Anonymizer : IAnonymizer
 
     /// <inheritdoc/>
     public string Tokenize(string columnName, string originalValue) =>
-        Tokenize(columnName, originalValue, null, null);
+        Tokenize(originalValue, new AnonymizationColumnContext(null, columnName, null));
 
     /// <inheritdoc/>
-    public string Tokenize(string columnName, string originalValue, string? tableName, HashSet<string>? dbExclusions)
+    public string Tokenize(string originalValue, AnonymizationColumnContext context)
     {
-        if (string.IsNullOrEmpty(originalValue) || IsColumnExcluded(columnName, tableName, dbExclusions))
+        if (string.IsNullOrEmpty(originalValue) || IsColumnExcluded(context))
         {
             return originalValue;
         }
@@ -80,30 +80,43 @@ public sealed class Anonymizer : IAnonymizer
     }
 
     /// <summary>
-    /// The single exclusion decision shared by <see cref="Anonymize(string, string, string?, HashSet{string}?)"/>
-    /// and <see cref="Tokenize(string, string, string?, HashSet{string}?)"/>, so tokenization can never
+    /// The single exclusion decision shared by <see cref="Anonymize(string, AnonymizationColumnContext)"/>
+    /// and <see cref="Tokenize(string, AnonymizationColumnContext)"/>, so tokenization can never
     /// bypass an exclusion that regular masking would honor: the master switch, the database-specific
     /// exclusion table, and the <see cref="AnonymizerOptions.ExcludedColumns"/> glob patterns.
+    /// Both the exclusion-table lookup and the glob-pattern match are keyed off
+    /// <see cref="AnonymizationColumnContext.OriginColumnName"/> — the query result's real source
+    /// column — never off a query's output alias, so <c>SELECT SSN AS RecordId</c> cannot dodge an
+    /// <c>*Id</c> exclusion pattern meant for actual ID columns.
     /// </summary>
-    private bool IsColumnExcluded(string columnName, string? tableName, HashSet<string>? dbExclusions)
+    private bool IsColumnExcluded(AnonymizationColumnContext context)
     {
         if (!_options.Anonymizer.Enabled)
         {
             return true;
         }
 
-        if (dbExclusions != null && !string.IsNullOrEmpty(tableName))
+        if (context.DbExclusions != null && !string.IsNullOrEmpty(context.TableName) && !string.IsNullOrEmpty(context.OriginColumnName))
         {
-            string key = $"{tableName}.{columnName}";
-            if (dbExclusions.Contains(key))
+            string key = $"{context.TableName}.{context.OriginColumnName}";
+            if (context.DbExclusions.Contains(key))
             {
                 return true;
             }
         }
 
+        if (string.IsNullOrEmpty(context.OriginColumnName))
+        {
+            // Fail-safe: the column's real origin could not be resolved (e.g. a computed,
+            // literal, or aggregate expression with no traceable source column). Never trust an
+            // alias against the plain pattern list in that case — treat it as not excluded so it
+            // still gets anonymized/tokenized.
+            return false;
+        }
+
         foreach (string excludedPattern in _options.Anonymizer.ExcludedColumns)
         {
-            if (GlobPatternMatcher.IsMatch(columnName, excludedPattern))
+            if (GlobPatternMatcher.IsMatch(context.OriginColumnName, excludedPattern))
             {
                 return true;
             }
