@@ -66,11 +66,14 @@ public sealed class AiNetLinterTests
         }
 
         // 6. Step 2: Run rules synchronization (only if validation succeeded)
+        Directory.CreateDirectory(Path.GetDirectoryName(targetRulesFile)!);
+
         var syncArgs = new[]
         {
             "--config", $"\"{configPath}\"",
             "--path", $"\"{solutionRoot}\"",
-            "--sync-cursor-rules"
+            "--sync-cursor-rules",
+            "--cursor-rules-path", $"\"{targetRulesFile}\""
         };
 
         var (syncExitCode, syncStdout, syncStderr) = await RunLinterProcessAsync(
@@ -81,12 +84,6 @@ public sealed class AiNetLinterTests
             Assert.Fail($"AiNetLinter rules synchronization failed with exit code {syncExitCode}.\r\nErrors:\r\n{syncStderr}\r\n{syncStdout}");
         }
 
-        string generatedRulesFile = Path.Combine(solutionRoot, ".cursor", "rules", "AiNetLinter.mdc");
-        Assert.True(File.Exists(generatedRulesFile), $"Generated rules file was not found at: {generatedRulesFile}");
-
-        // Copy to the target rules file location (.agents/rules/AiNetLinter.mdc)
-        Directory.CreateDirectory(Path.GetDirectoryName(targetRulesFile)!);
-        File.Copy(generatedRulesFile, targetRulesFile, overwrite: true);
         Assert.True(File.Exists(targetRulesFile), $"Rules file was not found at target location: {targetRulesFile}");
     }
 

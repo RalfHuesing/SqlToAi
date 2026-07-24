@@ -73,30 +73,17 @@ Für jede Datenbank außer solchen mit Access Level `ReadWrite` (Abschnitt B) wi
 ---
 
 ### D. Per-DB String-Anonymisierung (AccessLevel-gesteuert)
-Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server String-Werte im Arbeitsspeicher, bevor sie an den KI-Agenten übertragen werden. Die Entscheidung *ob* anonymisiert wird, fällt pro Datenbank am `AccessLevel` (siehe Abschnitt B): Liefert `AccessCheckSql` `ReadOnlyAnonymized`/`2`, wird jede zurückgegebene String-Spalte anonymisiert; bei `ReadOnly`/`3` (Klartext) nicht. Ein separater Muster-Block zur Pauschal-Aktivierung existiert nicht mehr — pauschal wird *jede* nicht ausgeschlossene String-Spalte anonymisiert, sobald das AccessLevel es verlangt.
+Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server String-Werte im Arbeitsspeicher, bevor sie an den KI-Agenten übertragen werden. Die Entscheidung *ob* anonymisiert wird, fällt pro Datenbank am `AccessLevel` (siehe Abschnitt B): Liefert `AccessCheckSql` `ReadOnlyAnonymized`/`2`, wird jede zurückgegebene String-Spalte anonymisiert; bei `ReadOnly`/`3` (Klartext) nicht.
 
 * **Konfiguration:**
   ```json
-  "Databases": {
-    "AnonymizerExclusionSql": "SELECT TableName, ColumnName FROM dbo.AnonymizerExclusions"
-  },
   "Anonymizer": {
     "Enabled": true,
-    "DefaultMode": "ScramblePattern",
-    "ExcludedColumns": ["*Id", "Id", "*Code", "*Type", "Status", "State", "Category"],
-    "ExclusionTableName": "dbo.AnonymizerExclusions"
+    "DefaultMode": "ScramblePattern"
   }
   ```
-  > **⚠️ Warnung zum Beispiel-Muster `*Id`:** Dieses Glob-Muster matcht rein anhand des Namens-Suffix `Id` — unabhängig von der fachlichen Bedeutung der Spalte. Neben technischen Primär-/Fremdschlüsseln (`KundeId`, `BestellungId`) erfasst es genauso fachliche, PII-tragende Bezeichner wie `SteuerId`, `PassportId`, `NationalId`, `SocialSecurityId` oder `TaxpayerId` und schließt diese ungewollt von der Anonymisierung aus. Vor der Übernahme dieses Beispiels sollten die tatsächlichen Spaltennamen des eigenen Schemas geprüft werden; existieren sensible `*Id`-Spalten, empfiehlt sich ein engeres Muster (z. B. nur `*_Id` als technische Konvention) oder eine Auflistung exakter Spaltennamen statt eines pauschalen `*Id`-Wildcards.
 * **Verhalten:**
-  Spalten, die auf eines der Muster in `ExcludedColumns` passen, werden *nie* anonymisiert. Ebenso werden Spalten von der Anonymisierung ausgenommen, die über das datenbankspezifische `AnonymizerExclusionSql` oder die über `ExclusionTableName` definierte Tabelle als Ausnahme zurückgegeben werden. Alle anderen String-Spalten werden anonymisiert, sofern `Enabled: true` ist und das AccessLevel der Zieldatenbank `ReadOnlyAnonymized` ergibt.
-* **Zentrale Ausschluss-Tabelle (`ExclusionTableName`):**
-  Über diese Option kann optional und zentral ein Tabellenname definiert werden. Wenn diese Tabelle in der jeweiligen Zieldatenbank vorhanden ist, liest der Server automatisch alle Ausnahmen aus ihr aus.
-  - **Existenzprüfung:** Der Server prüft die Existenz der Tabelle per `OBJECT_ID` in SQL Server, um Fehler bei nicht vorhandener Tabelle zu vermeiden.
-  - **Erwartete Struktur:** Die Tabelle muss mindestens die Spalten `TableName` und `ColumnName` besitzen.
-  - **Resilienz:** Ist die Tabelle in einer Datenbank nicht vorhanden oder schlägt die Abfrage fehl, wird dies stillschweigend ignoriert und der Server fällt auf die übrigen Ausschluss-Mechanismen zurück.
-* **Datenbank-spezifische Ausnahmen (`AnonymizerExclusionSql`):**
-  Über diese Option kann eine SQL-Abfrage definiert werden, die in der jeweiligen Datenbank ausgeführt wird (Unterstützung für SQL-Dateipfade analog zu `AccessCheckSql` ist gegeben). Die Abfrage muss zwei Spalten zurückgeben: die erste enthält den Tabellennamen (z. B. `Kunden`), die zweite den Spaltennamen (z. B. `Name`). Die entsprechenden Felder bleiben bei Abfrageergebnissen im Klartext.
+  Jede String-Spalte wird anonymisiert, sofern `Enabled: true` ist und das AccessLevel der Zieldatenbank `ReadOnlyAnonymized` ergibt, es sei denn, eine passende Regel in `AnonymizationRules` schließt die Spalte explizit von der Anonymisierung aus (`Anonymize=0`, siehe Abschnitt E).
 * **Algorithmen:**
   * **ScramblePattern:** Erhält das strukturelle Muster des Strings. Großbuchstaben werden durch ein zufälliges `'X'`, Kleinbuchstaben durch `'x'` und Ziffern durch `'9'` ersetzt (z. B. `Max.Mustermann@mail.de` $\rightarrow$ `Xxx.Xxxxxxxxxx@xxxx.xx`). E-Mail-Adressen, Postleitzahlen und Telefonnummern bleiben für die KI strukturell erkennbar, enthalten aber keinerlei PII mehr.
   * **Hash (Consistency-Hashing):** Generiert einen eindeutigen, reproduzierbaren SHA-256-Hash-Wert pro Text. Dadurch bleiben Relationen und Gruppen (z. B. gleiche Kundennamen in verschiedenen Tabellen) für das LLM logisch verknüpfbar.
@@ -104,9 +91,9 @@ Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server
 
 ---
 
-### E. Zentrale, datenbankübergreifende Anonymisierungsregeln (`AnonymizationRules`, optional)
+### E. Zentrale Anonymisierungsregeln (`AnonymizationRules`, optional)
 
-Die Abschnitte `ExclusionTableName`/`AnonymizerExclusionSql` oben leben *in* der jeweiligen Kundendatenbank — praktisch für eine einzelne DB, aber unpraktisch, wenn ein Kunden-Backup eingespielt wird (die Ausnahmen werden dabei mit überschrieben) oder wenn dieselbe Regel für viele, unterschiedlich benannte Kundendatenbanken gelten soll. `AnonymizationRules` löst das, indem die Regeln in einer eigenen, unabhängig konfigurierbaren Datenbank liegen (Server/Datenbank/Zugangsdaten getrennt von der Kundenverbindung — analog zu `MetadataProvider`).
+Sämtliche Anonymisierungs-Regeln und -Ausschlüsse werden zentral über die `AnonymizationRules`-Konfiguration gesteuert (Server/Datenbank/Zugangsdaten getrennt von der Kundenverbindung — analog zu `MetadataProvider`).
 
 * **Konfiguration:**
   ```json
@@ -132,21 +119,20 @@ Die Abschnitte `ExclusionTableName`/`AnonymizerExclusionSql` oben leben *in* der
   | `ColumnPattern` | `NVARCHAR` | `LIKE`-Muster für den Spaltennamen. |
   | `Anonymize` | `BIT` | `0` = Spalte im Klartext zeigen, `1` = anonymisieren. |
   | `IsActive` | `BIT` | Regel temporär deaktivieren, ohne sie zu löschen. |
-  | `Comment` | `NVARCHAR` | Freitext-Begründung (empfohlen, da die Regel jetzt kundenübergreifend wirkt). |
+  | `Comment` | `NVARCHAR` | Freitext-Begründung (empfohlen, da die Regel kundenübergreifend wirkt). |
 
 * **Auflösung (spezifischste Regel gewinnt):** Für ein konkretes (Datenbank, Tabelle, Spalte)-Tripel werden alle aktiven Regeln ausgewertet, deren Muster passen. Jedes Muster erhält einen Spezifitäts-Score (`2` = exakter Text, `1` = Teil-Wildcard wie `Kunde%Gruppe`, `0` = reiner Platzhalter `%`), gewichtet `DatabasePattern` > `TablePattern` > `ColumnPattern`. Die Regel mit dem höchsten Gesamt-Score gewinnt; bei keinem Treffer bleibt es beim Standardverhalten (anonymisieren). Damit lassen sich beide Kernszenarien ohne Sonderfall abbilden:
   * *Tabelle öffnen, eine Spalte davon ausnehmen:* Regel `(%, FakeConsultants, %, Anonymize=0)` plus eine spezifischere Regel `(%, FakeConsultants, FullName, Anonymize=1)` — `FullName` bleibt anonymisiert, alle anderen Spalten der Tabelle nicht.
   * *Datenbank nur als Allow-List:* Für eine hochsensible Datenbank wird schlicht keine breite `%`-Regel angelegt — nur einzelne, explizite `Anonymize=0`-Regeln pro freigegebener Spalte. Alles andere bleibt beim Default (anonymisieren).
-* **Zusammenspiel mit den bestehenden Mechanismen:** `AnonymizationRules` ist ein zusätzlicher, additiver Ausschluss-Kanal neben `ExclusionTableName`/`AnonymizerExclusionSql` — eine Spalte gilt als ausgenommen, sobald *einer* der Mechanismen sie freigibt. In der Praxis nutzt eine Installation typischerweise nur einen der beiden Wege.
-* **Caching:** Anders als die Exclusion-Provider oben (die pro Kundendatenbank cachen) lädt `AnonymizationRules` das komplette Regelwerk einmal pro `CacheTtlSeconds` — unabhängig davon, welche Kundendatenbank gerade abgefragt wird.
+* **Caching:** `AnonymizationRules` lädt das komplette Regelwerk einmal pro `CacheTtlSeconds` — unabhängig davon, welche Kundendatenbank gerade abgefragt wird.
 
 ---
 
 ### F. Reversible, durchsuchbare Tokenisierung (`Anonymizer.Tokenization`, optional)
 
-Normale Anonymisierung (Abschnitt D) ist bewusst eine Einbahnstraße: Der Server maskiert einen Wert beim Herausgeben, kann ihn aber nicht zurückrechnen. Bei vielen Datenbanken mit hunderten Tabellen kann das zu restriktiv sein — die KI soll denselben Wert über mehrere Tabellen hinweg wiederfinden können (`WHERE`, `JOIN`, `LIKE`, Bereichsvergleiche), ohne den Klartext je zu sehen. `Tokenization` löst das durch reversible, schlüssel-basierte Tokens statt Scramble/Hash.
+Normale Anonymisierung (Abschnitt D) ist bewusst eine Einbahnstraße: Der Server maskiert einen Wert beim Herausgeben, kann ihn aber nicht zurückrechnen. Bei vielen Datenbanken mit hunderten Tabellen kann das zu restriktiv sein — die KI soll denselben Wert über mehere Tabellen hinweg wiederfinden können (`WHERE`, `JOIN`, `LIKE`, Bereichsvergleiche), ohne den Klartext je zu sehen. `Tokenization` löst das durch reversible, schlüssel-basierte Tokens statt Scramble/Hash.
 
-* **Globaler Modus-Schalter, kein Pro-Spalten-Opt-in:** `Tokenization.Enabled` funktioniert genau wie `DefaultMode` — ist es aktiv (und nutzbar, siehe unten), wird *jede* Spalte, die ohnehin anonymisiert würde, tokenisiert statt maskiert. Es gibt bewusst keine Spalten-Allowlist zu pflegen: bei zig Datenbanken mit hunderten Tabellen wäre eine solche Liste weder handhabbar noch würde sie gepflegt. *Ob* eine Spalte überhaupt anonymisiert wird, entscheiden ausschließlich die bestehenden Ausschluss-Mechanismen (`ExcludedColumns`, `ExclusionTableName`/`AnonymizerExclusionSql`, die zentrale `AnonymizationRules`-Tabelle mit `Anonymize=0`, siehe Abschnitt E) — `Tokenization` ändert nur *wie* eine bereits anonymisierte Spalte anonymisiert wird.
+* **Globaler Modus-Schalter, kein Pro-Spalten-Opt-in:** `Tokenization.Enabled` funktioniert genau wie `DefaultMode` — ist es aktiv (und nutzbar, siehe unten), wird *jede* Spalte, die ohnehin anonymisiert würde, tokenisiert statt maskiert. Es gibt bewusst keine Spalten-Allowlist zu pflegen. *Ob* eine Spalte überhaupt anonymisiert wird, entscheiden ausschließlich die `AnonymizationRules` (mit `Anonymize=0`, siehe Abschnitt E) — `Tokenization` ändert nur *wie* eine bereits anonymisierte Spalte anonymisiert wird.
 * **Funktionsweise:**
   1. **Ausgabe (Egress):** Für jede anonymisierte Spalte berechnet der Server `Token = HMAC-SHA256(Secret, Wert)` (Base64Url-kodiert, umschlossen von `Prefix`/`Suffix`) statt Scramble/Hash. Derselbe Wert ergibt immer dasselbe Token — Korrelation über Tabellen hinweg bleibt möglich, ohne dass die KI den Wert kennt. Der Server merkt sich `Token → Wert` in einem In-Memory-Vault für die Laufzeit des Prozesses.
   2. **Eingabe (Ingress):** Bevor eine Abfrage gegen `sql_execute_query` ausgeführt wird, durchsucht der Server jedes String-Literal (niemals Kommentare, `[...]`-Bezeichner oder SQL-Schlüsselwörter) nach dem Token-Muster. Ein erkanntes, im Vault bekanntes Token wird durch den Realwert ersetzt — SQL Server sieht danach eine ganz normale Abfrage gegen echte Daten. Ein unbekanntes (geratenes/gefälschtes) Token bleibt unverändert stehen; das Prädikat findet dann schlicht keine Treffer, statt einen Fehler zu werfen.
