@@ -67,7 +67,7 @@ Eine Kundendatenbank enthält `dbo.Kunden` (Testtabelle, Inhalte bewusst nicht s
 
 ### [SEVERITY: Hoch] Regel-Präzedenz gewichtet Datenbank- vor Spalten-Spezifität — breite DB-Regel kann gezielten Spalten-Schutz aushebeln
 
-**Status:** ✅ Umsetzen (bestätigt — Scoring auf Tupel-Vergleich umstellen statt gewichteter Summe)
+**Status:** ✅ Erledigt (2026-07-24) — Pareto-Dominanz-Vergleich mit "schützende Regel gewinnt bei Gleichstand"-Tiebreak statt gewichteter Summe (reine lexikografische Tupel-Ordnung hätte das Problem nicht gelöst).
 
 **Datei:** src/SqlToAi/Anonymization/AnonymizationRuleProvider.cs:130-157 (`FindMostSpecificMatch`); docs/mcp-specification.md:136
 

@@ -185,4 +185,100 @@ public sealed class AnonymizationRuleProviderTests
         Assert.True(dboExcluded);
         Assert.True(archivExcluded);
     }
+
+    // -------------------------------------------------------------------------
+    // Rule-precedence scoring (audit finding — see
+    // tasks/audit-2026-07-24/02-anonymisierung-tokenisierung.md, Finding "Regel-Präzedenz gewichtet
+    // Datenbank- vor Spalten-Spezifität — breite DB-Regel kann gezielten Spalten-Schutz aushebeln").
+    // The old weighted-sum scoring (DB*1000 + Schema*100 + Table*10 + Column) let a rule that was
+    // merely specific about the database dominate a rule that was exactly specific about the column.
+    // Pareto-dominance ranking with a protective tie-break replaces it.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task IsExcludedAsync_ShouldKeepColumnProtected_WhenIncomparableWithBroadDatabaseRule()
+    {
+        // Exact reproduction of the audit's Finding 3 scenario:
+        // Rule A: DB=%, Schema=%, Table=%, Column=SSN, Anonymize=true   -> meant to protect SSN everywhere.
+        // Rule B: DB=StagingDB, Schema=%, Table=%, Column=%, Anonymize=false -> meant to unlock one staging DB broadly.
+        // Neither dominates the other (A is more specific in Column, B is more specific in Database).
+        // Under the old weighted sum, B won (2000 > 2) and SSN leaked in StagingDB. The fix must
+        // prefer the protective rule A when rules are genuinely incomparable.
+        var options = BuildOptions();
+        var rows = new List<RuleRowData>
+        {
+            new("%", "%", "SSN", true),
+            new("StagingDB", "%", "%", false),
+        };
+        var factory = new DummyConnectionFactory(new MockConnection(rows));
+        var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
+
+        bool excluded = await provider.IsExcludedAsync("StagingDB", "dbo", "Mitarbeiter", "SSN", TestContext.Current.CancellationToken);
+
+        Assert.False(excluded); // must stay anonymized -> NOT excluded, despite the broad StagingDB rule
+    }
+
+    [Fact]
+    public async Task IsExcludedAsync_ShouldPickMoreSpecificRule_WhenOneDominatesInEveryDimension()
+    {
+        // Unambiguous case: the FullName-specific rule is at least as specific as the wildcard rule
+        // in every dimension and strictly more specific in Column, so it dominates and must win,
+        // exactly as it did under the old weighted-sum scoring (no regression for the clear-cut case).
+        var options = BuildOptions();
+        var rows = new List<RuleRowData>
+        {
+            new("%", "FakeConsultants", "%", false),
+            new("%", "FakeConsultants", "FullName", true),
+        };
+        var factory = new DummyConnectionFactory(new MockConnection(rows));
+        var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
+
+        bool nameExcluded = await provider.IsExcludedAsync("AnyDb", string.Empty, "FakeConsultants", "FullName", TestContext.Current.CancellationToken);
+
+        Assert.False(nameExcluded); // the dominating, more specific rule wins -> stays anonymized
+    }
+
+    [Fact]
+    public async Task IsExcludedAsync_ShouldTieBreakDeterministically_WhenBothIncomparableRulesAreProtective()
+    {
+        // Two mutually non-dominated rules, both protective (Anonymize=true): rule C is exact on
+        // Column but wildcard on Database, rule D is exact on Database but wildcard on Column.
+        // Neither dominates and the "prefer protective" tie-break can't discriminate (both are
+        // protective), so the deterministic last-resort weighted-sum tie-break decides. Its exact
+        // choice carries no security meaning; this test only pins down that the pick is stable and
+        // does not crash. Rule D's weighted sum (2000) exceeds rule C's (2), so D wins.
+        var options = BuildOptions();
+        var rows = new List<RuleRowData>
+        {
+            new("%", "%", "Foo", true),
+            new("SpecificDb", "%", "%", true),
+        };
+        var factory = new DummyConnectionFactory(new MockConnection(rows));
+        var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
+
+        bool excludedFoo = await provider.IsExcludedAsync("SpecificDb", "dbo", "AnyTable", "Foo", TestContext.Current.CancellationToken);
+
+        Assert.False(excludedFoo); // both candidates are protective, so either pick keeps it anonymized
+    }
+
+    [Fact]
+    public async Task IsExcludedAsync_ShouldTieBreakDeterministically_WhenBothIncomparableRulesArePermissive()
+    {
+        // Same shape as above, but both rules are permissive (Anonymize=false). Neither dominates,
+        // and there is no protective rule to prefer, so the deterministic weighted-sum tie-break
+        // decides between two equally-permissive candidates. The exact winner has no security
+        // meaning (both would unblock the column); this only asserts a stable, non-crashing result.
+        var options = BuildOptions();
+        var rows = new List<RuleRowData>
+        {
+            new("%", "%", "Foo", false),
+            new("SpecificDb", "%", "%", false),
+        };
+        var factory = new DummyConnectionFactory(new MockConnection(rows));
+        var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
+
+        bool excludedFoo = await provider.IsExcludedAsync("SpecificDb", "dbo", "AnyTable", "Foo", TestContext.Current.CancellationToken);
+
+        Assert.True(excludedFoo); // both candidates are permissive, so either pick allows raw output
+    }
 }

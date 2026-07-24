@@ -155,41 +155,158 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
     }
 
     /// <summary>
-    /// Picks the most specific active rule matching all four dimensions. The schema dimension is
-    /// weighted between database and table (see the score below) — item 7 of the audit remediation
-    /// restructures this weighted-sum scoring shape; this change only makes sure a schema dimension
-    /// exists and is matched, without redesigning the formula itself.
+    /// Picks the most specific active rule matching all four dimensions.
     /// </summary>
+    /// <remarks>
+    /// Item 7 of the audit remediation (tasks/audit-2026-07-24/02-anonymisierung-tokenisierung.md,
+    /// Finding "Regel-Präzedenz gewichtet Datenbank- vor Spalten-Spezifität — breite DB-Regel kann
+    /// gezielten Spalten-Schutz aushebeln") replaced the previous weighted-sum scoring
+    /// (<c>DB*1000 + Schema*100 + Table*10 + Column</c>) with a Pareto-dominance comparison across
+    /// the four per-dimension <see cref="LikePatternMatcher.SpecificityScore"/> values. The old
+    /// weighted sum let a rule that was merely specific about the database dominate a rule that was
+    /// exactly specific about the column, even when the column rule was meant as a universal,
+    /// cross-database protection (e.g. an "SSN everywhere" rule losing to a "this one staging DB,
+    /// wide open" rule purely because DB outweighs column in the sum). A plain lexicographic tuple
+    /// comparison <c>(DB, Schema, Table, Column)</c> has the same flaw — DB still trumps every other
+    /// dimension regardless of value — so it was rejected too.
+    /// <para>
+    /// Instead: a rule X <b>dominates</b> rule Y if X's score is <c>&gt;=</c> Y's in all four
+    /// dimensions and strictly <c>&gt;</c> in at least one. Rules that no other matching rule
+    /// dominates are "Pareto-maximal". If exactly one such rule exists, it wins outright — this is
+    /// the unambiguous case and behaves the same as before (a rule that is more specific everywhere
+    /// still wins). If several rules are mutually non-dominated — genuinely incomparable, like an
+    /// all-databases/exact-column rule versus an exact-database/all-columns rule — the protective
+    /// ones (<see cref="AnonymizationRule.Anonymize"/> <c>== true</c>) are preferred over the
+    /// permissive ones, per audit option (a): when two configured intents genuinely conflict and
+    /// neither is objectively more specific, protecting data is the fail-safe default. Only if that
+    /// still leaves more than one candidate (e.g. two incomparable rules that are both protective, or
+    /// both permissive) does the old weighted-sum total break the remaining tie — purely as an
+    /// arbitrary-but-stable last resort with no security meaning of its own, just to avoid depending
+    /// on list/dictionary iteration order.
+    /// </para>
+    /// </remarks>
     private static AnonymizationRule? FindMostSpecificMatch(
         IReadOnlyList<AnonymizationRule> rules, string databaseName, string schemaName, string tableName, string columnName)
     {
-        AnonymizationRule? best = null;
-        int bestScore = -1;
+        var matches = GetMatchingRulesWithScores(rules, databaseName, schemaName, tableName, columnName);
+        if (matches.Count == 0)
+        {
+            return null;
+        }
+
+        var nonDominated = GetNonDominated(matches);
+        if (nonDominated.Count == 1)
+        {
+            return nonDominated[0].Rule;
+        }
+
+        var protectiveCandidates = nonDominated.Where(m => m.Rule.Anonymize).ToList();
+        var tieBreakCandidates = protectiveCandidates.Count > 0 ? protectiveCandidates : nonDominated;
+
+        // Last-resort deterministic tie-break: several rules remain genuinely incomparable even
+        // after preferring protective ones (e.g. two incomparable rules that are both protective, or
+        // both permissive). The old weighted-sum total has no particular security meaning here — it
+        // is only used to guarantee a stable, repeatable pick instead of relying on list order.
+        return tieBreakCandidates.Count == 1
+            ? tieBreakCandidates[0].Rule
+            : tieBreakCandidates.OrderByDescending(m => WeightedScore(m.Scores)).First().Rule;
+    }
+
+    /// <summary>
+    /// Filters to active rules whose four patterns all match, paired with their per-dimension
+    /// <see cref="LikePatternMatcher.SpecificityScore"/> tuple.
+    /// </summary>
+    private static List<(AnonymizationRule Rule, int[] Scores)> GetMatchingRulesWithScores(
+        IReadOnlyList<AnonymizationRule> rules, string databaseName, string schemaName, string tableName, string columnName)
+    {
+        var matches = new List<(AnonymizationRule Rule, int[] Scores)>();
 
         foreach (var rule in rules)
         {
-            if (!LikePatternMatcher.IsMatch(databaseName, rule.DatabasePattern) ||
-                !LikePatternMatcher.IsMatch(schemaName, rule.SchemaPattern) ||
-                !LikePatternMatcher.IsMatch(tableName, rule.TablePattern) ||
-                !LikePatternMatcher.IsMatch(columnName, rule.ColumnPattern))
+            if (!IsFullMatch(rule, databaseName, schemaName, tableName, columnName))
             {
                 continue;
             }
 
-            int score = (LikePatternMatcher.SpecificityScore(rule.DatabasePattern) * 1000)
-                      + (LikePatternMatcher.SpecificityScore(rule.SchemaPattern) * 100)
-                      + (LikePatternMatcher.SpecificityScore(rule.TablePattern) * 10)
-                      + LikePatternMatcher.SpecificityScore(rule.ColumnPattern);
+            int[] scores =
+            [
+                LikePatternMatcher.SpecificityScore(rule.DatabasePattern),
+                LikePatternMatcher.SpecificityScore(rule.SchemaPattern),
+                LikePatternMatcher.SpecificityScore(rule.TablePattern),
+                LikePatternMatcher.SpecificityScore(rule.ColumnPattern),
+            ];
+            matches.Add((rule, scores));
+        }
 
-            if (score > bestScore)
+        return matches;
+    }
+
+    private static bool IsFullMatch(AnonymizationRule rule, string databaseName, string schemaName, string tableName, string columnName) =>
+        LikePatternMatcher.IsMatch(databaseName, rule.DatabasePattern) &&
+        LikePatternMatcher.IsMatch(schemaName, rule.SchemaPattern) &&
+        LikePatternMatcher.IsMatch(tableName, rule.TablePattern) &&
+        LikePatternMatcher.IsMatch(columnName, rule.ColumnPattern);
+
+    /// <summary>
+    /// Returns the Pareto-maximal ("non-dominated") subset of <paramref name="matches"/> — the
+    /// rules that no other matching rule dominates in every dimension (see <see cref="Dominates"/>).
+    /// </summary>
+    private static List<(AnonymizationRule Rule, int[] Scores)> GetNonDominated(
+        List<(AnonymizationRule Rule, int[] Scores)> matches)
+    {
+        var nonDominated = new List<(AnonymizationRule Rule, int[] Scores)>();
+        for (int i = 0; i < matches.Count; i++)
+        {
+            if (!IsDominatedByAnother(matches, i))
             {
-                bestScore = score;
-                best = rule;
+                nonDominated.Add(matches[i]);
             }
         }
 
-        return best;
+        return nonDominated;
     }
+
+    private static bool IsDominatedByAnother(List<(AnonymizationRule Rule, int[] Scores)> matches, int index)
+    {
+        for (int j = 0; j < matches.Count; j++)
+        {
+            if (j != index && Dominates(matches[j].Scores, matches[index].Scores))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Returns whether <paramref name="x"/> Pareto-dominates <paramref name="y"/>: at least as
+    /// specific in every dimension and strictly more specific in at least one.
+    /// </summary>
+    private static bool Dominates(int[] x, int[] y)
+    {
+        bool strictlyGreaterInSomeDimension = false;
+        for (int i = 0; i < x.Length; i++)
+        {
+            if (x[i] < y[i])
+            {
+                return false;
+            }
+            if (x[i] > y[i])
+            {
+                strictlyGreaterInSomeDimension = true;
+            }
+        }
+        return strictlyGreaterInSomeDimension;
+    }
+
+    /// <summary>
+    /// The old weighted-sum score, kept only as the deterministic last-resort tie-break between
+    /// mutually non-dominated rules that are equally (non-)protective (see
+    /// <see cref="FindMostSpecificMatch"/>). Not used to rank comparable rules anymore.
+    /// </summary>
+    private static int WeightedScore(int[] scores) =>
+        (scores[0] * 1000) + (scores[1] * 100) + (scores[2] * 10) + scores[3];
 
     private sealed class RuleRow
     {
