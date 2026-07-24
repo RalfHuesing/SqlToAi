@@ -225,7 +225,8 @@ public sealed class QueryExecutionService : IQueryExecutionService
             // verbatim would leak the exact real values tokenization exists to hide. A
             // non-anonymized database has no such secrecy promise, so ex.Message keeps its
             // full diagnostic value there, unchanged.
-            return SqlToAiError.QueryError(anonymize ? BuildAnonymizedQueryErrorMessage(ex) : ex.Message);
+            string? anonymizedMessage = anonymize ? BuildAnonymizedQueryErrorMessage(ex) : null;
+            return SqlToAiErrorMapper.MapException(ex, anonymizedMessage);
         }
     }
 

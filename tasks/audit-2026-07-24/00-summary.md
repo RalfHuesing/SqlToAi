@@ -26,7 +26,7 @@ Reihenfolge = Abarbeitungsreihenfolge (nicht identisch mit der Nummerierung unte
 - [x] 17. Gemeinsamer Test-Fake-Baustein
 - [x] 9. Doku *Id-Beispiel
 - [x] 10. Totes Config-Paar entfernen
-- [ ] 11. Fehlercodes 0105/0106 implementieren
+- [x] 11. Fehlercodes 0105/0106 implementieren
 - [ ] 12. Glob/SecurityGuard Wildcard-Tests
 - [ ] 13. .bak Secret-Maskierung
 - [ ] 14. Cache-TTL Doku-Hinweis

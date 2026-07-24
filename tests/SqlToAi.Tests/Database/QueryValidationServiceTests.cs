@@ -193,6 +193,32 @@ public sealed class QueryValidationServiceTests
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);
         Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
     }
+
+    [Fact]
+    public async Task ValidateQueryAsync_ShouldReturnTimeout_WhenExecutionTimesOut()
+    {
+        var timeoutException = new TimeoutException("Operation timed out.");
+        var factory = new ValidationMockConnectionFactory(throwOnExecute: timeoutException);
+        var service = BuildService(factory: factory);
+
+        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.TimeoutCode, result.Error.Code);
+    }
+
+    [Fact]
+    public async Task ValidateQueryAsync_ShouldReturnInfrastructureError_WhenSocketExceptionOccurs()
+    {
+        var socketException = new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionRefused);
+        var factory = new ValidationMockConnectionFactory(throwOnExecute: socketException);
+        var service = BuildService(factory: factory);
+
+        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.InfrastructureErrorCode, result.Error.Code);
+    }
 }
 
 // -------------------------------------------------------------------------

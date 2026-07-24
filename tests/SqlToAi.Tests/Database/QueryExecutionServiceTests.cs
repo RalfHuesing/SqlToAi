@@ -318,6 +318,38 @@ public sealed partial class QueryExecutionServiceTests
         Assert.Equal(3, lineCount);
     }
 
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldReturnTimeout_WhenTimeoutExceptionOccurs()
+    {
+        var options = new SqlToAiOptions();
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(ThrowOnExecute: new TimeoutException("Execution timed out")));
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.TimeoutCode, result.Error.Code);
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldReturnInfrastructureError_WhenSocketExceptionOccurs()
+    {
+        var options = new SqlToAiOptions();
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(ThrowOnExecute: new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionRefused)));
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.InfrastructureErrorCode, result.Error.Code);
+    }
+
     // Anonymization and tokenization tests continue in the second partial-class file:
     // see QueryExecutionServiceAnonymizationTests.cs.
 }

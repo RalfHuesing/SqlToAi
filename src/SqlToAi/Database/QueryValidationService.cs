@@ -115,7 +115,7 @@ public sealed class QueryValidationService : IQueryValidationService
         catch (Exception ex)
         {
             LogValidationFailed(_logger, databaseName, query, ex);
-            return SqlToAiError.QueryError(ex.Message);
+            return SqlToAiErrorMapper.MapException(ex);
         }
     }
 
