@@ -17,7 +17,7 @@ Reihenfolge = Abarbeitungsreihenfolge (nicht identisch mit der Nummerierung unte
 
 - [x] 1. Alias-Leak bei Anonymisierung/Tokenisierung
 - [x] 2. sp_executesql + COMMIT Guard-Bypass
-- [ ] 3. Rohe Fehlermeldung an KI filtern
+- [x] 3. Rohe Fehlermeldung an KI filtern
 - [ ] 4. QueryValidationService Unit-Tests
 - [ ] 5. sql_validate_query Guard nachrüsten
 - [ ] 6. Schema-blindes Ausschluss-/Regel-Matching

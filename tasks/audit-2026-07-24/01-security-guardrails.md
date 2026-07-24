@@ -65,9 +65,9 @@ Die zweite Verteidigungslinie (immer Rollback außer bei `AccessLevel.ReadWrite`
 ---
 
 ### [SEVERITY: Kritisch] Detokenisierte Klartextwerte leaken über Fehlerpfad (Error-Log und direkte KI-Antwort)
-**Status:** ⚠️ Geteilte Entscheidung:
-- **Log-Datei-Pfad:** ⛔ Won't-Fix — **bewusst so gewollt.** Begründung des Nutzers: Als Admin hat man ohnehin Zugriff auf den SQL Server; die Klartext-Query im Log wird benötigt, um gemeldete Fehler verifizieren zu können. Bleibt unverändert bestehen.
-- **KI-Antwort-Pfad (`ex.Message` an die KI):** ✅ Umsetzen — die rohe Fehlermeldung darf trotzdem nicht ungefiltert an die KI zurückgehen, da genau das die Tokenisierung/Anonymisierung an ihrer Zielgruppe (der KI) vorbei aushebelt. Log bleibt wie gehabt unverändert.
+**Status:** ⚠️ Geteilte Entscheidung — umgesetzt:
+- **Log-Datei-Pfad:** ⛔ Won't-Fix — bewusst so gewollt (unverändert, siehe Begründung unten).
+- **KI-Antwort-Pfad (`ex.Message` an die KI):** ✅ Erledigt (2026-07-24) — Fehlermeldung an die KI wird bei aktiver Anonymisierung generalisiert, Log bleibt unverändert.
 
 **Datei:** src/SqlToAi/Database/QueryExecutionService.cs:139-145, 147-195 (insbesondere Zeile 192 `LogQueryFailed`), src/SqlToAi/Domain/SqlToAiError.cs:29-30 (`QueryError`)
 

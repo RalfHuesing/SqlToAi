@@ -403,4 +403,77 @@ public sealed partial class QueryExecutionServiceTests
             $"SELECT * FROM Accounts WHERE IBAN = '{iban}'",
             factory.LastConnection?.LastCommand?.CommandText);
     }
+
+    // -------------------------------------------------------------------------
+    // Tests: filtering the raw exception message returned to the AI on execution
+    // failure (audit finding — see tasks/audit-2026-07-24/01-security-guardrails.md and
+    // 02-anonymisierung-tokenisierung.md, "Detokenisierte Klartextwerte leaken über
+    // Fehlerpfad"). The log file deliberately still gets the full, untouched message — only
+    // what goes back to the AI as the tool's error response changes, and only when the
+    // database is anonymized/tokenized.
+    // -------------------------------------------------------------------------
+
+    private const string SensitiveMarker = "secret-value-xyz";
+
+    private static InvalidOperationException BuildSensitiveException() =>
+        new($"Conversion failed when converting the varchar value '{SensitiveMarker}' to data type int.");
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldNotLeakRawExceptionMessage_ToAi_WhenAnonymizedAndExecutionThrows()
+    {
+        var options = new SqlToAiOptions();
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(ThrowOnExecute: BuildSensitiveException()));
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE AccountRef = '1'", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
+        Assert.DoesNotContain(SensitiveMarker, result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(AccessLevel.ReadOnly)]
+    [InlineData(AccessLevel.ReadWrite)]
+    public async Task ExecuteQueryAsync_ShouldKeepRawExceptionMessage_ToAi_WhenNotAnonymizedAndExecutionThrows(AccessLevel accessLevel)
+    {
+        var options = new SqlToAiOptions();
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(ThrowOnExecute: BuildSensitiveException()));
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(accessLevel),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE AccountRef = '1'", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
+        Assert.Contains(SensitiveMarker, result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldStillLogFullExceptionMessage_EvenWhenAnonymizedAndFilteredFromAiResponse()
+    {
+        // The owner's explicit, deliberate decision: the log file path is unchanged and must
+        // keep receiving the full, untouched exception — only the AI-facing message is filtered.
+        var options = new SqlToAiOptions();
+        var sensitiveException = BuildSensitiveException();
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(ThrowOnExecute: sensitiveException));
+        var logger = new CapturingLogger<QueryExecutionService>();
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            Options.Create(options), logger);
+
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE AccountRef = '1'", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.DoesNotContain(SensitiveMarker, result.Error.Message, StringComparison.Ordinal);
+        // ...but the logger still received the exact same exception, untouched.
+        Assert.Same(sensitiveException, logger.LastException);
+        Assert.Contains(SensitiveMarker, logger.LastException?.Message, StringComparison.Ordinal);
+    }
 }

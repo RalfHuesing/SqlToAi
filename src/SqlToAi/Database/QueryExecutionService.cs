@@ -4,6 +4,7 @@ using System.Data;
 using System.Data.Common;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
@@ -210,10 +211,35 @@ public sealed class QueryExecutionService : IQueryExecutionService
         }
         catch (Exception ex)
         {
+            // The log always gets the full, untouched exception message (and the already
+            // detokenized query) — the admin has direct SQL Server access anyway and needs the
+            // real values to verify reported errors. This is a deliberate, accepted design
+            // choice and must never change (see audit-2026-07-24/01-security-guardrails.md,
+            // Finding "Detokenisierte Klartextwerte leaken über Fehlerpfad").
             LogQueryFailed(_logger, databaseName, query, ex);
-            return SqlToAiError.QueryError(ex.Message);
+
+            // What goes back to the AI is different: for an anonymized/tokenized database,
+            // `query` may contain a value that was just detokenized back to its real, cleartext
+            // form (see ResolveTokens above), and SQL Server routinely quotes the offending
+            // literal verbatim in ex.Message (e.g. type-conversion errors) — returning that
+            // verbatim would leak the exact real values tokenization exists to hide. A
+            // non-anonymized database has no such secrecy promise, so ex.Message keeps its
+            // full diagnostic value there, unchanged.
+            return SqlToAiError.QueryError(anonymize ? BuildAnonymizedQueryErrorMessage(ex) : ex.Message);
         }
     }
+
+    /// <summary>
+    /// Builds a generic, non-quoting error message for an anonymized/tokenized database's query
+    /// failure — deliberately never includes <c>ex.Message</c>'s free text, since SQL Server
+    /// routinely embeds the offending literal value directly in it for common errors (e.g.
+    /// type-conversion failures), which for a just-detokenized query could be a real PII value.
+    /// </summary>
+    private static string BuildAnonymizedQueryErrorMessage(Exception ex) => ex switch
+    {
+        SqlException sqlEx => $"(SQL error {sqlEx.Number}) the query failed during execution. Check syntax and column types; see server-side logs for details.",
+        _ => "the query failed during execution.",
+    };
 
     // -------------------------------------------------------------------------
     // Private helpers

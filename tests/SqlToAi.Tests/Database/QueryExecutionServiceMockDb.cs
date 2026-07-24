@@ -2,6 +2,7 @@
 
 using System.Data;
 using System.Data.Common;
+using Microsoft.Extensions.Logging;
 using SqlToAi.Anonymization;
 using SqlToAi.Database;
 using SqlToAi.Domain;
@@ -15,6 +16,26 @@ internal sealed class AlwaysExcludeRuleProvider : IAnonymizationRuleProvider
 {
     public Task<bool> IsExcludedAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
         => Task.FromResult(true);
+}
+
+/// <summary>
+/// Minimal <see cref="ILogger{T}"/> test double that captures the last logged message and
+/// exception, so tests can assert what actually reaches the log — independent of what (if
+/// anything) is filtered before being returned to the AI as the tool's error response.
+/// </summary>
+internal sealed class CapturingLogger<T> : ILogger<T>
+{
+    public string? LastMessage { get; private set; }
+    public Exception? LastException { get; private set; }
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+        LastMessage = formatter(state, exception);
+        LastException = exception;
+    }
 }
 
 internal sealed class FakeSecurityGuard(bool allowed) : ISecurityGuard
@@ -52,7 +73,8 @@ internal sealed record MockQueryRowConfig(
     string ColumnName = "Name",
     MockSchemaOrigin? Origin = null,
     MockTranCountSequence? TranCountSequence = null,
-    bool ThrowOnRollback = false);
+    bool ThrowOnRollback = false,
+    Exception? ThrowOnExecute = null);
 
 /// <summary>
 /// Simulates a sequence of <c>SELECT @@TRANCOUNT</c> probe results, for testing
@@ -182,6 +204,10 @@ internal sealed class MockQueryCommand(DbConnection connection, MockQueryRowConf
     protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
     {
         ((MockQueryConnection)DbConnection!).RecordExecutedCommand(this);
+        if (config.ThrowOnExecute != null)
+        {
+            throw config.ThrowOnExecute;
+        }
         return new MockQueryReader(config);
     }
 
