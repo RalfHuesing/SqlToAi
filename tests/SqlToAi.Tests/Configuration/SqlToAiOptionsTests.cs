@@ -28,7 +28,6 @@ public sealed class SqlToAiOptionsTests
         Assert.NotNull(options.Anonymizer);
         Assert.NotNull(options.MetadataProvider);
 
-        Assert.True(options.SqlServer.EnforceSafetyCheck);
         Assert.False(options.SqlServer.IntegratedSecurity);
         Assert.False(options.MetadataProvider.IntegratedSecurity);
         Assert.True(options.Anonymizer.Enabled);
@@ -87,7 +86,6 @@ public sealed class SqlToAiOptionsTests
         // Arrange
         var options = new SqlToAiOptions();
         options.Databases.AccessCheckSql = "SELECT CASE WHEN DB_NAME() = 'OLDemoReweAbfD910' THEN 'ReadWrite' ELSE 'None' END";
-        options.SqlServer.SafetyCheckSql = "SELECT 1";
         options.MetadataProvider.TableMetadataQuery = "SELECT * FROM tables";
         options.MetadataProvider.ColumnMetadataQuery = "SELECT * FROM columns";
 
@@ -96,7 +94,6 @@ public sealed class SqlToAiOptionsTests
 
         // Assert
         Assert.Equal("SELECT CASE WHEN DB_NAME() = 'OLDemoReweAbfD910' THEN 'ReadWrite' ELSE 'None' END", options.Databases.AccessCheckSql);
-        Assert.Equal("SELECT 1", options.SqlServer.SafetyCheckSql);
         Assert.Equal("SELECT * FROM tables", options.MetadataProvider.TableMetadataQuery);
         Assert.Equal("SELECT * FROM columns", options.MetadataProvider.ColumnMetadataQuery);
     }

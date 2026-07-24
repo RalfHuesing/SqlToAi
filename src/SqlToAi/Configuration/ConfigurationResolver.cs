@@ -34,7 +34,6 @@ public static class ConfigurationResolver
             options.SqlServer.Server = Expand(options.SqlServer.Server);
             options.SqlServer.UserId = Expand(options.SqlServer.UserId);
             options.SqlServer.Password = Expand(options.SqlServer.Password);
-            options.SqlServer.SafetyCheckSql = Expand(options.SqlServer.SafetyCheckSql);
         }
 
         if (options.Databases != null)
@@ -84,10 +83,6 @@ public static class ConfigurationResolver
 
     private static void ResolveSqlFiles(SqlToAiOptions options)
     {
-        if (options.SqlServer != null)
-        {
-            options.SqlServer.SafetyCheckSql = ResolveValue(options.SqlServer.SafetyCheckSql);
-        }
 
         if (options.Databases != null)
         {

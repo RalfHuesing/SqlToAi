@@ -27,8 +27,6 @@ public sealed class SqlServerOptions
     public bool IntegratedSecurity { get; set; }
     public List<string> ExcludedDatabases { get; set; } = [];
     public int CommandTimeoutSeconds { get; set; } = 30;
-    public bool EnforceSafetyCheck { get; set; } = true;
-    public string SafetyCheckSql { get; set; } = string.Empty;
 }
 
 /// <summary>
