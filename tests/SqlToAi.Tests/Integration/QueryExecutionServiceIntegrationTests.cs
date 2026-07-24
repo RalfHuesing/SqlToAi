@@ -75,6 +75,49 @@ public sealed class QueryExecutionServiceIntegrationTests
     }
 
     [Fact]
+    public async Task ExecuteQueryAsync_ShouldBlock_SpExecuteSqlEmbeddedCommitExploit_AndNotMutateData()
+    {
+        // Reproduces the exact documented bypass (audit finding 2) end-to-end against the real
+        // SQL Server: sp_executesql with an embedded COMMIT, sent against a database forced to a
+        // non-ReadWrite AccessLevel while still using the real 'Agent' SQL login from
+        // appsettings.json — which, per AccessCheckSql, genuinely has DELETE rights on DemoDB
+        // (ReadWrite is only withheld here by our own AccessLevelProvider override, not by
+        // underlying SQL permissions) — exactly the "shared login controlled via AccessCheckSql"
+        // scenario the finding describes. Proves both that the call is rejected AND that no row
+        // was actually deleted.
+        var customAccessProvider = new FakeAccessLevelProvider(AccessLevel.ReadOnly);
+        var service = new QueryExecutionService(
+            _fx.ConnectionFactory,
+            _fx.SecurityGuard,
+            customAccessProvider,
+            _fx.ReadOnlyGuard,
+            new AnonymizationDependencies(_fx.Anonymizer),
+            Microsoft.Extensions.Options.Options.Create(_fx.Options),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryExecutionService>.Instance);
+
+        long countBefore = await CountFakeProjectsAsync();
+
+        var result = await service.ExecuteQueryAsync(
+            _db,
+            "sp_executesql N'DELETE FROM dbo.FakeProjects; COMMIT'",
+            null,
+            TestContext.Current.CancellationToken);
+
+        long countAfter = await CountFakeProjectsAsync();
+
+        Assert.True(result.IsFailure, IntegrationAssertions.FormatFailure(result));
+        Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
+        Assert.Equal(countBefore, countAfter);
+    }
+
+    private async Task<long> CountFakeProjectsAsync()
+    {
+        using var connection = _fx.ConnectionFactory.CreateConnection(_db);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        return await connection.ExecuteScalarAsync<long>("SELECT COUNT(*) FROM dbo.FakeProjects");
+    }
+
+    [Fact]
     public async Task ExecuteQueryAsync_ShouldBlock_MultiStatement()
     {
         var result = await _fx.QueryExecutionService.ExecuteQueryAsync(

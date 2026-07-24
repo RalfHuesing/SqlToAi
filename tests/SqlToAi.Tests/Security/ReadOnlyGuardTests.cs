@@ -55,6 +55,17 @@ public sealed class ReadOnlyGuardTests
     [InlineData("SELECT * INTO NewTable FROM OldTable")]
     [InlineData("INSERT INTO Logs VALUES (1) -- comment")]
     [InlineData("/* comment */ DELETE FROM Logs")]
+    // sp_executesql bypass (audit finding 2): one contiguous token, so "exec" never appears as
+    // its own bounded match inside it, and T-SQL allows it as a batch's sole statement with no
+    // EXEC/EXECUTE prefix at all — must be rejected outright, regardless of prefix/case/schema
+    // qualifier, and regardless of what the dynamic SQL literal argument contains.
+    [InlineData("sp_executesql N'SELECT 1'")]
+    [InlineData("EXEC sp_executesql N'SELECT 1'")]
+    [InlineData("EXECUTE sp_executesql N'SELECT 1'")]
+    [InlineData("sys.sp_executesql N'SELECT 1'")]
+    [InlineData("SP_EXECUTESQL N'SELECT 1'")]
+    [InlineData("Sp_ExecuteSql N'SELECT 1'")]
+    [InlineData("sp_executesql N'DELETE FROM dbo.Customers; COMMIT'")]
     public void IsQuerySafe_ShouldReturnFalse_ForMutatingQueries(string query)
     {
         // Arrange

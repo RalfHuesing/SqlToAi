@@ -158,10 +158,15 @@ public sealed class QueryExecutionService : IQueryExecutionService
             await connection.OpenAsync(cancellationToken);
 
             using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+            int baselineTranCount = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, cancellationToken);
+
             Result<QueryExecutionResult> result;
+            bool tranCountChanged;
             try
             {
                 result = await ExecuteAndSerializeAsync(connection, transaction, query, effectiveLimit, anonymize, databaseName, cancellationToken);
+                int tranCountAfterExecution = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, cancellationToken);
+                tranCountChanged = tranCountAfterExecution != baselineTranCount;
             }
             catch
             {
@@ -170,11 +175,27 @@ public sealed class QueryExecutionService : IQueryExecutionService
                 throw;
             }
 
+            // A statement that itself alters the ambient transaction's state (e.g. an embedded
+            // COMMIT deep inside dynamic SQL) breaks the isolation guarantee the whole
+            // rollback-by-default design rests on — the result can no longer be trusted,
+            // regardless of what keyword caused it, so it must never reach the caller.
+            if (!writeAllowed && tranCountChanged)
+            {
+                return await TransactionIntegrityGuard.RejectViolationAsync(_logger, databaseName, transaction, cancellationToken);
+            }
+
             // Only a write-allowed database persists changes; everything else stays a dry run
             // (guarantees zero side-effects even for accidental DML that slips through).
             if (writeAllowed)
             {
-                await transaction.CommitAsync(cancellationToken);
+                // If the trancount already changed, the transaction is already gone (e.g.
+                // committed by the statement itself) — nothing left to commit on a fully
+                // authorized database; calling Commit again would only throw a confusing
+                // "no transaction" error.
+                if (!tranCountChanged)
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                }
             }
             else
             {

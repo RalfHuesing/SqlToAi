@@ -10,8 +10,15 @@ namespace SqlToAi.Security;
 /// </summary>
 public sealed class ReadOnlyGuard : IReadOnlyGuard
 {
+    // sp_executesql is listed explicitly (not just "exec"/"execute"): it is one contiguous
+    // token (the underscore counts as a word character, so "exec" never appears inside it as
+    // its own bounded match), and T-SQL allows invoking it as a batch's sole statement with no
+    // EXEC/EXECUTE prefix at all. There is no safe way to inspect what the dynamic SQL string
+    // argument actually contains without recursively re-parsing it, so any use of
+    // sp_executesql/sys.sp_executesql is treated as inherently mutating-adjacent and rejected
+    // outright — a deliberate blanket block, not a partial allow-list.
     private static readonly Regex MutatingKeywordsRegex = new(
-        @"\b(insert|update|delete|drop|alter|truncate|create|merge|grant|revoke|reconfigure|checkpoint|backup|restore|dbcc|exec|execute|into)\b",
+        @"\b(insert|update|delete|drop|alter|truncate|create|merge|grant|revoke|reconfigure|checkpoint|backup|restore|dbcc|exec|execute|sp_executesql|into)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled,
         TimeSpan.FromMilliseconds(200));
 

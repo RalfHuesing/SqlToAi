@@ -50,7 +50,28 @@ internal sealed record MockQueryRowConfig(
     string? StringValue = null,
     int RowCount = 1,
     string ColumnName = "Name",
-    MockSchemaOrigin? Origin = null);
+    MockSchemaOrigin? Origin = null,
+    MockTranCountSequence? TranCountSequence = null,
+    bool ThrowOnRollback = false);
+
+/// <summary>
+/// Simulates a sequence of <c>SELECT @@TRANCOUNT</c> probe results, for testing
+/// <c>QueryExecutionService</c>'s layer-2 transaction-tampering detection (see
+/// <see cref="TransactionIntegrityGuard"/>) without needing an actual mutating keyword. Each call
+/// to <see cref="Next"/> returns the next configured value; once exhausted, the last value
+/// repeats (only two calls — baseline and post-execution — are expected per query).
+/// </summary>
+internal sealed class MockTranCountSequence(params int[] values)
+{
+    private int _index;
+
+    public int Next()
+    {
+        int value = values[Math.Min(_index, values.Length - 1)];
+        _index++;
+        return value;
+    }
+}
 
 internal sealed class MockQueryConnectionFactory(MockQueryRowConfig? config = null) : IDatabaseConnectionFactory
 {
@@ -89,21 +110,26 @@ internal sealed class MockQueryConnection(MockQueryRowConfig config) : DbConnect
 
     protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
     {
-        LastTransaction = new MockQueryTransaction(this);
+        LastTransaction = new MockQueryTransaction(this, config);
         return LastTransaction;
     }
 
-    protected override DbCommand CreateDbCommand()
-    {
-        LastCommand = new MockQueryCommand(this, config);
-        return LastCommand;
-    }
+    protected override DbCommand CreateDbCommand() => new MockQueryCommand(this, config);
+
+    /// <summary>
+    /// Records the command actually run through a data reader (the real query) — deliberately
+    /// NOT every command created on this connection, so an incidental <c>SELECT @@TRANCOUNT</c>
+    /// probe (see <see cref="TransactionIntegrityGuard"/>), which only ever calls
+    /// <c>ExecuteScalar</c>, never overwrites <see cref="LastCommand"/> and existing assertions
+    /// on the resolved query text keep working unchanged.
+    /// </summary>
+    internal void RecordExecutedCommand(MockQueryCommand command) => LastCommand = command;
 
     public override void ChangeDatabase(string databaseName) { }
     public override void Close() => _state = ConnectionState.Closed;
 }
 
-internal sealed class MockQueryTransaction(DbConnection connection) : DbTransaction
+internal sealed class MockQueryTransaction(DbConnection connection, MockQueryRowConfig config) : DbTransaction
 {
     public int CommitCount { get; private set; }
     public int RollbackCount { get; private set; }
@@ -111,7 +137,18 @@ internal sealed class MockQueryTransaction(DbConnection connection) : DbTransact
     protected override DbConnection DbConnection => connection;
     public override IsolationLevel IsolationLevel => IsolationLevel.ReadCommitted;
     public override void Commit() => CommitCount++;
-    public override void Rollback() => RollbackCount++;
+
+    public override void Rollback()
+    {
+        RollbackCount++;
+        if (config.ThrowOnRollback)
+        {
+            // Simulates the real-world case where the underlying transaction is already gone
+            // (e.g. committed server-side by the statement itself) by the time our code tries
+            // to roll it back defensively.
+            throw new InvalidOperationException("This transaction has already completed; it is no longer usable.");
+        }
+    }
 }
 
 internal sealed class MockQueryCommand(DbConnection connection, MockQueryRowConfig config) : DbCommand
@@ -129,10 +166,24 @@ internal sealed class MockQueryCommand(DbConnection connection, MockQueryRowConf
 
     public override void Cancel() { }
     public override int ExecuteNonQuery() => 0;
-    public override object? ExecuteScalar() => 1;
+
+    /// <summary>
+    /// Returns 1 by default (preserving prior behavior for every unconfigured test). When a
+    /// <see cref="MockQueryRowConfig.TranCountSequence"/> is configured and the command text is
+    /// the <c>SELECT @@TRANCOUNT</c> probe issued by <see cref="TransactionIntegrityGuard"/>,
+    /// returns the next simulated value instead — letting tests drive the layer-2
+    /// transaction-tampering detection without any real mutating keyword.
+    /// </summary>
+    public override object? ExecuteScalar() =>
+        config.TranCountSequence != null && CommandText.Contains("@@TRANCOUNT", StringComparison.OrdinalIgnoreCase)
+            ? config.TranCountSequence.Next()
+            : 1;
 
     protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
-        => new MockQueryReader(config);
+    {
+        ((MockQueryConnection)DbConnection!).RecordExecutedCommand(this);
+        return new MockQueryReader(config);
+    }
 
     protected override DbParameter CreateDbParameter() => new MockQueryParameter();
     public override void Prepare() { }

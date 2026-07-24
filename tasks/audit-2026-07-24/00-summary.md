@@ -16,7 +16,7 @@ Jedes Finding trägt dort zusätzlich einen **Status**-Vermerk (✅ Umsetzen / �
 Reihenfolge = Abarbeitungsreihenfolge (nicht identisch mit der Nummerierung unten, siehe Zuordnung).
 
 - [x] 1. Alias-Leak bei Anonymisierung/Tokenisierung
-- [ ] 2. sp_executesql + COMMIT Guard-Bypass
+- [x] 2. sp_executesql + COMMIT Guard-Bypass
 - [ ] 3. Rohe Fehlermeldung an KI filtern
 - [ ] 4. QueryValidationService Unit-Tests
 - [ ] 5. sql_validate_query Guard nachrüsten

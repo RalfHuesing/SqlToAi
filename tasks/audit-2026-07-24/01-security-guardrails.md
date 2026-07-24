@@ -39,7 +39,7 @@ Das exakt gleiche Muster funktioniert auch für bereits ausgegebene Tokens: Da `
 ---
 
 ### [SEVERITY: Kritisch] Mehrstufiger Schreibschutz durch `sp_executesql` + eingebettetes `COMMIT` gleichzeitig umgehbar
-**Status:** ✅ Umsetzen (bestätigt)
+**Status:** ✅ Erledigt (2026-07-24)
 
 **Datei:** src/SqlToAi/Security/ReadOnlyGuard.cs:13-16, src/SqlToAi/Database/QueryExecutionService.cs:415-439 (ContainsMultipleStatements), src/SqlToAi/Database/QueryExecutionService.cs:147-195 (ExecuteQueryInTransactionAsync)
 
