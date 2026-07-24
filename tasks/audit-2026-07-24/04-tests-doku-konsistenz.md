@@ -23,7 +23,7 @@ Die Sicherheitskern-Klassen (`ReadOnlyGuard`, `SecurityGuard`, `SqlLiteralScanne
 **Empfehlung:** Einen CI-Workflow ergänzen, der bei jedem Push/PR mindestens `dotnet test --filter "Category!=Integration"` ausführt (die Integration-Tests benötigen einen echten SQL Server und können optional in einem separaten, manuell/nightly getriggerten Job mit Testcontainer/lokaler Instanz laufen).
 
 ### [SEVERITY: Hoch] AccessLevelProvider — numerische AccessLevel-Werte, Fallback-Spalte und "keine Zeile"-Pfad ungetestet
-**Status:** ✅ Umsetzen (bestätigt)
+**Status:** ✅ Erledigt (2026-07-24)
 
 **Datei/Klasse:** `src/SqlToAi/Security/AccessLevelProvider.cs`, Methode `ParseAccessLevel` (Zeile 138–168) und `QueryAccessLevelAsync` (Zeile 72–104)
 **Fehlende Abdeckung:** `tests/SqlToAi.Tests/Security/AccessLevelProviderTests.cs` deckt nur drei Fälle ab: leeres `AccessCheckSql` (→ `ReadOnlyAnonymized`), String-Rückgabe `"ReadOnly"` mit Cache/TTL, und eine geworfene Exception (→ `None`). Ungetestet bleiben: (1) der numerische Zweig `int.TryParse` in `ParseAccessLevel` (Werte `0`–`4` sowie ein außerhalb der Switch-Range liegender Wert wie `99`, der laut Code auf `AccessLevel.None` fallen soll); (2) der Fallback-Pfad in `ParseResult` (Zeile 123–127), wenn die Ergebniszeile *keine* Spalte namens `AccessLevel` besitzt, sondern nur eine beliebig benannte Einzelspalte; (3) der Zweig, in dem `QueryFirstOrDefaultAsync` `null` liefert (keine Zeile zurückgegeben) → Warn-Log + `AccessLevel.None` (Zeile 91–95); (4) ein nicht parsbarer String-Wert (weder Zahl noch gültiger Enum-Name) → `AccessLevel.None` (Zeile 167).

@@ -22,7 +22,7 @@ Reihenfolge = Abarbeitungsreihenfolge (nicht identisch mit der Nummerierung unte
 - [x] 5. sql_validate_query Guard nachrüsten
 - [x] 6. Schema-blindes Ausschluss-/Regel-Matching
 - [x] 7. Regel-Präzedenz-Scoring
-- [ ] 8. AccessLevelProvider numerische Tests
+- [x] 8. AccessLevelProvider numerische Tests
 - [ ] 17. Gemeinsamer Test-Fake-Baustein
 - [ ] 9. Doku *Id-Beispiel
 - [ ] 10. Totes Config-Paar entfernen

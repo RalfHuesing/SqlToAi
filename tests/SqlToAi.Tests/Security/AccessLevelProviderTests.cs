@@ -88,6 +88,107 @@ public sealed class AccessLevelProviderTests
         Assert.Equal(AccessLevel.None, level);
     }
 
+    [Theory]
+    [InlineData("0", AccessLevel.None)]
+    [InlineData("1", AccessLevel.SchemaOnly)]
+    [InlineData("2", AccessLevel.ReadOnlyAnonymized)]
+    [InlineData("3", AccessLevel.ReadOnly)]
+    [InlineData("4", AccessLevel.ReadWrite)]
+    public async Task GetAccessLevelAsync_ShouldMapNumericAccessLevel_ToCorrespondingEnum(string numericValue, AccessLevel expected)
+    {
+        // Arrange — AccessCheckSql's numeric contract (0-4) is documented in
+        // docs/mcp-specification.md and must map to the exact enum values below.
+        var options = new SqlToAiOptions();
+        options.Databases.AccessCheckSql = $"SELECT {numericValue} AS AccessLevel";
+
+        var mockConn = new MockConnection(numericValue);
+        var mockFactory = new DummyConnectionFactory(mockConn);
+        var provider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
+
+        // Act
+        var level = await provider.GetAccessLevelAsync(TestConstants.DatabaseName, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(expected, level);
+    }
+
+    [Theory]
+    [InlineData("99")]
+    [InlineData("-1")]
+    public async Task GetAccessLevelAsync_ShouldReturnNone_WhenNumericAccessLevelIsOutOfRange(string numericValue)
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.Databases.AccessCheckSql = $"SELECT {numericValue} AS AccessLevel";
+
+        var mockConn = new MockConnection(numericValue);
+        var mockFactory = new DummyConnectionFactory(mockConn);
+        var provider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
+
+        // Act
+        var level = await provider.GetAccessLevelAsync(TestConstants.DatabaseName, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(AccessLevel.None, level);
+    }
+
+    [Theory]
+    [InlineData("3", AccessLevel.ReadOnly)]
+    [InlineData("ReadWrite", AccessLevel.ReadWrite)]
+    public async Task GetAccessLevelAsync_ShouldUseSingleColumnFallback_WhenColumnIsNotNamedAccessLevel(string columnValue, AccessLevel expected)
+    {
+        // Arrange — the probe query returns exactly one column, but it is not named
+        // "AccessLevel". ParseResult must still fall back to that single column's value.
+        var options = new SqlToAiOptions();
+        options.Databases.AccessCheckSql = $"SELECT {columnValue} AS Result";
+
+        var mockConn = new MockConnection(columnValue, columnName: "Result");
+        var mockFactory = new DummyConnectionFactory(mockConn);
+        var provider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
+
+        // Act
+        var level = await provider.GetAccessLevelAsync(TestConstants.DatabaseName, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(expected, level);
+    }
+
+    [Fact]
+    public async Task GetAccessLevelAsync_ShouldReturnNone_WhenQueryReturnsNoRows()
+    {
+        // Arrange — AccessCheckSql executes without error but yields zero rows.
+        var options = new SqlToAiOptions();
+        options.Databases.AccessCheckSql = "SELECT AccessLevel FROM dbo.NonExistentSignal WHERE 1 = 0";
+
+        var mockConn = new MockConnection("ReadOnly", hasRows: false);
+        var mockFactory = new DummyConnectionFactory(mockConn);
+        var provider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
+
+        // Act
+        var level = await provider.GetAccessLevelAsync(TestConstants.DatabaseName, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(AccessLevel.None, level);
+    }
+
+    [Fact]
+    public async Task GetAccessLevelAsync_ShouldReturnNone_WhenValueIsUnparsableString()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.Databases.AccessCheckSql = "SELECT 'foo' AS AccessLevel";
+
+        var mockConn = new MockConnection("foo");
+        var mockFactory = new DummyConnectionFactory(mockConn);
+        var provider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
+
+        // Act
+        var level = await provider.GetAccessLevelAsync(TestConstants.DatabaseName, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(AccessLevel.None, level);
+    }
+
     // Helper classes for mocking ADO.NET connections
     private sealed class DummyConnectionFactory : IDatabaseConnectionFactory
     {
@@ -110,12 +211,16 @@ public sealed class AccessLevelProviderTests
     {
         private readonly string _returnedValue;
         private readonly bool _throwException;
+        private readonly string _columnName;
+        private readonly bool _hasRows;
         private string _connectionString = "";
 
-        public MockConnection(string returnedValue, bool throwException = false)
+        public MockConnection(string returnedValue, bool throwException = false, string columnName = "AccessLevel", bool hasRows = true)
         {
             _returnedValue = returnedValue;
             _throwException = throwException;
+            _columnName = columnName;
+            _hasRows = hasRows;
         }
 
         [System.Diagnostics.CodeAnalysis.AllowNull]
@@ -137,7 +242,7 @@ public sealed class AccessLevelProviderTests
 
         protected override DbCommand CreateDbCommand()
         {
-            return new MockCommand(_returnedValue, _throwException);
+            return new MockCommand(_returnedValue, _throwException, _columnName, _hasRows);
         }
 
         protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
@@ -150,12 +255,16 @@ public sealed class AccessLevelProviderTests
     {
         private readonly string _returnedValue;
         private readonly bool _throwException;
+        private readonly string _columnName;
+        private readonly bool _hasRows;
         private DbConnection? _dbConnection;
 
-        public MockCommand(string returnedValue, bool throwException)
+        public MockCommand(string returnedValue, bool throwException, string columnName = "AccessLevel", bool hasRows = true)
         {
             _returnedValue = returnedValue;
             _throwException = throwException;
+            _columnName = columnName;
+            _hasRows = hasRows;
         }
 
         public override string CommandText { get; set; } = "";
@@ -183,7 +292,7 @@ public sealed class AccessLevelProviderTests
             {
                 throw new InvalidOperationException("Connection failed simulated.");
             }
-            return new MockDataReader(_returnedValue);
+            return new MockDataReader(_returnedValue, _columnName, _hasRows);
         }
 
         protected override DbParameter CreateDbParameter()
@@ -197,25 +306,29 @@ public sealed class AccessLevelProviderTests
     private sealed class MockDataReader : DbDataReader
     {
         private readonly string _value;
+        private readonly string _columnName;
+        private readonly bool _hasRows;
         private int _readCount;
 
-        public MockDataReader(string value)
+        public MockDataReader(string value, string columnName = "AccessLevel", bool hasRows = true)
         {
             _value = value;
+            _columnName = columnName;
+            _hasRows = hasRows;
         }
 
         public override int FieldCount => 1;
         public override int Depth => 0;
         public override bool IsClosed => false;
         public override int RecordsAffected => -1;
-        public override bool HasRows => _readCount == 0;
+        public override bool HasRows => _hasRows && _readCount == 0;
 
         public override object this[int ordinal] => GetValue(ordinal);
         public override object this[string name] => GetValue(GetOrdinal(name));
 
         public override bool Read()
         {
-            if (_readCount == 0)
+            if (_hasRows && _readCount == 0)
             {
                 _readCount++;
                 return true;
@@ -230,7 +343,7 @@ public sealed class AccessLevelProviderTests
 
         public override bool NextResult() => false;
 
-        public override string GetName(int ordinal) => "AccessLevel";
+        public override string GetName(int ordinal) => _columnName;
         public override int GetOrdinal(string name) => 0;
         public override object GetValue(int ordinal) => _value;
 
