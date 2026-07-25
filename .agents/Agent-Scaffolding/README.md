@@ -21,13 +21,42 @@ eigene Geschwister-Ordner dazu, wenn Bedarf entsteht.
 
 ## Einbindung in ein Projekt
 
-Dieses Repo wird nicht kopiert, sondern in Zielprojekte eingebunden
-(z. B. als Git-Submodule) — Änderungen an einem Ort, für alle Projekte
-verfügbar. Projekt-spezifische Konventionen (Coding-Rules, Architektur-
-Leitplanken) bleiben **im jeweiligen Projekt** (typischerweise unter
-`.agents/rules/`) und wandern nicht hierher — die Dateien in diesem Repo
-sind bewusst projekt-unabhängig.
+Dieses Repo — **https://github.com/RalfHuesing/Agent-Scaffolding** —
+wird nicht kopiert, sondern per `git subtree` in Zielprojekte
+eingebunden: Änderungen an einem Ort, für alle Projekte verfügbar,
+sobald dort nachgezogen wird. Projekt-spezifische Konventionen
+(Coding-Rules, Architektur-Leitplanken) bleiben **im jeweiligen Projekt**
+(typischerweise unter `.agents/rules/`) und wandern nicht hierher — die
+Dateien in diesem Repo sind bewusst projekt-unabhängig.
 
 Wo genau du dieses Repo innerhalb eines Projekts platzierst (`.agents/
-dev-loop/`, `tools/agent-scaffolding/`, …), ist egal — alle Verweise
-zwischen den Dateien hier sind relativ zueinander formuliert.
+Agent-Scaffolding/`, `tools/agent-scaffolding/`, …), ist egal — alle
+Verweise zwischen den Dateien hier sind relativ zueinander formuliert.
+`--prefix` in den Befehlen unten entsprechend anpassen.
+
+**Wichtig:** `git subtree` synct nicht automatisch — jede Aktion unten
+musst du explizit anstoßen, in jedem Zielprojekt einzeln.
+
+### Erstmalig einbinden
+
+```bash
+git subtree add --prefix=.agents/Agent-Scaffolding \
+  https://github.com/RalfHuesing/Agent-Scaffolding main --squash
+```
+
+### Updates reinholen
+
+```bash
+git subtree pull --prefix=.agents/Agent-Scaffolding \
+  https://github.com/RalfHuesing/Agent-Scaffolding main --squash
+```
+
+### Lokale Änderungen zurück in dieses Repo pushen
+
+Selten nötig — nur falls direkt im eingebundenen Ordner eines
+Zielprojekts editiert wurde, statt hier zentral:
+
+```bash
+git subtree push --prefix=.agents/Agent-Scaffolding \
+  https://github.com/RalfHuesing/Agent-Scaffolding main
+```
