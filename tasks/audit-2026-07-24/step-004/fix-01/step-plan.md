@@ -1,5 +1,5 @@
 ---
-status: open
+status: done (pending audit)
 type: step-plan
 task: audit-2026-07-24
 step: 004/fix-01
