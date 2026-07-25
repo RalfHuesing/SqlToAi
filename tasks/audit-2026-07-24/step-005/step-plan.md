@@ -1,5 +1,5 @@
 ---
-status: done (pending audit)
+status: done
 type: step-plan
 task: audit-2026-07-24
 step: 005
@@ -9,6 +9,8 @@ created_at: 2026-07-25T18:30:00+02:00
 coded_by: coder
 coded_at: 2026-07-25T20:55:00+02:00
 commit_code: 52c62a9
+reviewed_at: 2026-07-25T21:10:00+02:00
+verdict: approved
 related_to:
   - tasks/audit-2026-07-24/03-code-qualitaet-architektur.md (DRY-Impact Mittel #2 + Teil-A-Fund hartkodiertes `300`)
   - tasks/audit-2026-07-24/00-summary.md (Punkt 19)

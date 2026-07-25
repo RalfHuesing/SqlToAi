@@ -2,9 +2,9 @@
 status: executing
 task: audit-2026-07-24
 started_at: 2026-07-25T18:23:30+02:00
-last_updated: 2026-07-25T20:35:00+02:00
+last_updated: 2026-07-25T21:10:00+02:00
 iteration_count: 0
-current_step: step-005
+current_step: step-006
 ---
 
 
@@ -14,9 +14,9 @@ current_step: step-005
 
 - **Task-Status:** `executing` (wiederaufgenommen nach Stopp)
 - **Iterationen:** 0 / 3 (Loop-Guard)
-- **Aktueller Schritt:** `step-005` (Punkt 19: generischer `TtlCache<TKey, TValue>`)
+- **Aktueller Schritt:** `step-006` (Punkt 20: `ExecuteDetailQueryAsync`-Helper in `SchemaService`)
 - **Gestartet:** 2026-07-25T18:23:30+02:00
-- **Zuletzt aktualisiert:** 2026-07-25T20:35:00+02:00
+- **Zuletzt aktualisiert:** 2026-07-25T21:10:00+02:00
 
 ## Steps
 
@@ -26,8 +26,8 @@ current_step: step-005
 | step-002 | done | Punkt 13: `.bak`-Backup Secret-Maskierung | ✅ | ✅ | `bc3778a` |
 | step-003 | done | Phase-3-Cluster: Cache-TTL-Hinweis + README-Grenzen + Demo-Passwort-Kommentar (Punkte 14+15+16) | ✅ | ✅ | `2cfedb5` |
 | step-004 | done | Punkt 18: gemeinsamer `SqlCharScanner` | ✅ | ⚠️ issues → fix-01 → fix-01 done (audit skipped) | `9b4482a` |
-| step-005 | in_progress | Punkt 19: generischer `TtlCache<TKey, TValue>` | - | - | - |
-| step-006 | open | Punkt 20: `ExecuteDetailQueryAsync`-Helper in `SchemaService` | - | - | - |
+| step-005 | done | Punkt 19: generischer `TtlCache<TKey, TValue>` | ✅ | ✅ | `52c62a9` |
+| step-006 | in_progress | Punkt 20: `ExecuteDetailQueryAsync`-Helper in `SchemaService` | - | - | - |
 | step-007 | open | Punkt 21: `MarkdownTableRenderer` konsolidieren | - | - | - |
 | step-008 | open | Punkt 22: `GlobMatcher` in `SqlToAi.Domain` (Rest nach `bcef6a9`) | - | - | - |
 
@@ -56,6 +56,9 @@ current_step: step-005
 - 2026-07-25T22:45:00+02:00 — step-004/fix-01: coder fertig, commit `9b4482a` (Bracket-Pass-Through) + `bbc9041` (Doku). 383/383 Tests grün. Amend auf Refactor-Commit `16cab0f` war bereits vor Coder-Sitzung erfolgt
 - 2026-07-25T20:33:00+02:00 — **Auditer für step-004/fix-01 auf Wunsch des Nutzers übersprungen** (User-Antwort: "weiter mit step5"). Sicherheitsregression Findings #1 + Coverage-Lücke Findings #3 sind durch den Coder formal adressiert, aber nicht durch einen Auditer unabhängig verifiziert. Wird im task-summary.md transparent dokumentiert. Fix-01-Status: `done (audit skipped per user request)`.
 - 2026-07-25T20:35:00+02:00 — step-004 → done (3 Steps offen: 005-008)
+- 2026-07-25T20:55:00+02:00 — step-005: coder fertig, commit `52c62a9` (TtlCache-Refactor), commit `2bc2818` (Doku). 388/388 Tests grün (+5 TtlCacheTests). `AccessCheckResult` + `RuleCacheEntry` ersatzlos entfernt (Konsumenten-Check sauber). 300-Fallbacks entfernt.
+- 2026-07-25T21:10:00+02:00 — step-005: auditer-Verdict `approved` (Plan-Erfüllung, Rules, Logik ok; Concurrency 1:1 erhalten; Baseline-Hashes verifiziert; 5 Beobachtungen ohne Issues)
+- 2026-07-25T21:10:00+02:00 — step-005 → done (2 Steps offen: 006-008)
 
 ## Config
 
