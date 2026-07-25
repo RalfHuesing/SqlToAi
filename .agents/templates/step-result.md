@@ -2,10 +2,15 @@
 status: done
 type: step-result
 task: <TASK-NAME>
-step: <NNN>
+step: <NNN>              # im Fix-Modus: <NNN>/fix-<XX>
 coded_by: coder
+coded_by_model: <Modell-ID, z. B. claude-sonnet-5>
+coded_by_model_knowledge_cutoff: <z. B. 2026-01>
 coded_at: <ISO-8601>
-commit_hash: <SHA>
+code_commit_hash: <SHA>  # Commit mit Code+Tests (Coder-Skill Schritt 5)
+# Hinweis: den Commit, der DIESE Datei enthält (Coder-Skill Schritt 7),
+# kann diese Datei denknotwendig nicht selbst zitieren — bei Bedarf per
+# `git log --follow -- <Pfad-dieser-Datei>` nachschlagen.
 status_after: done  # done | blocked
 ---
 
@@ -25,7 +30,7 @@ status_after: done  # done | blocked
 
 ## Commit
 
-- **Hash:** `<SHA>`
+- **Code-Commit-Hash:** `<SHA>`
 - **Message:**
   ```
   <konventioneller Commit-Subject>
@@ -34,6 +39,9 @@ status_after: done  # done | blocked
   ```
 - **Branch:** <aktueller Branch>
 - **Push:** nein (lokal)
+- **Doku-Commit:** separater, zweiter Commit für diese Datei +
+  `step-plan.md`-Status (siehe Coder-Skill Schritt 7) — dessen Hash steht
+  nicht hier drin (Selbstbezug), sondern in `git log`.
 
 ## Build-Output
 

@@ -58,7 +58,7 @@ Fehlen Anker, fragt der Planer nach oder blockiert mit `blocked`.
 | **Orchestrator** | Mavis (root-session) | Führt Loop aus, ruft Subagents, pflegt Task-State |
 | **Planer** | Subagent | Liest Aufgabe + Anker, generiert/aktualisiert Steps |
 | **Coder** | Subagent | Setzt genau einen Step um, schreibt `result.md`, committet |
-| **Auditer** | Subagent | Prüft letzten Coder-Output, legt ggf. Folge-Step an |
+| **Auditer** | Subagent | Prüft letzten Coder-Output, legt ggf. Fix-Step an |
 
 Die drei Subagent-Rollen (Planer/Coder/Auditer) werden vom Orchestrator per
 `task`-Tool mit jeweils eigenem System-Prompt gestartet (siehe
@@ -73,19 +73,57 @@ Die drei Subagent-Rollen (Planer/Coder/Auditer) werden vom Orchestrator per
 - Pro Step: `tasks/<name>/step-NNN/step-plan.md` mit Status `open`
 
 ### 5.2 Loop (pro Step)
-Reihenfolge: **Coder → Auditer → (ggf. neuer Step) → nächster Step**
+Reihenfolge: **Coder → Auditer → (ggf. Fix-Step) → nächster Step**
 
 Für jeden `open` Step in der Reihenfolge:
 1. Orchestrator setzt Step auf `in_progress`
 2. Orchestrator ruft Coder mit Step-Plan als Input
-3. Coder implementiert, schreibt `step-NNN/result.md`, committet
+3. Coder implementiert, schreibt `step-NNN/step-result.md`, committet
 4. Orchestrator setzt Step auf `done (pending audit)`
 5. Orchestrator ruft Auditer mit Step-Plan + Result als Input
-6. Auditer prüft, schreibt `step-NNN/review.md`:
-   - **OK** → Orchestrator setzt Step auf `done`
-   - **Issues** → Auditer legt neuen `step-(N+1)` an mit Status `open`,
-     alter Step wird auf `done (superseded by step-(N+1))` gesetzt
-   - **Blocker** → Auditer markiert Step als `blocked`, Loop pausiert
+6. Auditer prüft, schreibt `step-NNN/step-review.md`:
+   - **approved** → Orchestrator setzt Step auf `done`
+   - **issues** → Orchestrator legt einen **Fix-Step** an: `step-NNN/fix-XX/`
+     (`XX` = nächste freie Nummer *innerhalb* dieses Steps, Start `01`)
+     mit Status `open`. Äußerer Step wird auf `done (fix-XX pending)`
+     gesetzt. Der Fix-Step durchläuft denselben Zyklus (Planer im
+     Fix-Modus → Coder → Auditer) — siehe §5.2.1.
+   - **blocked** → Auditer markiert Step als `blocked`, Loop pausiert
+
+### 5.2.1 Fix-Steps (Nachbesserung innerhalb eines Steps)
+
+Ein `issues`-Verdict erzeugt **keinen neuen Top-Level-Step**, sondern einen
+Fix-Step *innerhalb* des betroffenen Steps: `step-NNN/fix-XX/`, mit
+denselben drei Dateien (`step-plan.md`, `step-result.md`, `step-review.md`)
+wie ein normaler Step.
+
+**Warum ein eigener Namensraum statt `step-(N+1)`:** Der Planer legt zu
+Beginn i. d. R. **alle** Steps des Tasks auf einmal an — ein Step pro
+unabhängigem Arbeitspunkt. `step-(N+1)` ist zu diesem Zeitpunkt fast immer
+bereits durch ein anderes, unabhängiges Thema belegt — eine Kollision im
+Namensraum ist bei Batch-Planung der Normalfall, keine Ausnahme.
+Fix-Steps in einem eigenen Unterordner sind strukturell kollisionsfrei.
+
+Ablauf:
+1. Orchestrator ermittelt die nächste freie `fix-XX` unter `step-NNN/`
+   (höchste vorhandene + 1, Start bei `01`).
+2. Orchestrator ruft den **Planer im Fix-Modus** auf (siehe
+   `.agents/skills/planer/SKILL.md`): Input ist der `step-review.md`-
+   Befund (Abschnitt „Findings"), nicht die gesamte Aufgaben-Doku. Output:
+   `step-NNN/fix-XX/step-plan.md`.
+3. Danach normaler Coder → Auditer-Zyklus, Ergebnisse landen in
+   `step-NNN/fix-XX/step-result.md` / `step-review.md`.
+4. `approved` → gesamter `step-NNN` (inkl. aller Fix-Runden) geht auf
+   `done`. `issues` → nächste `fix-XX`, sofern Budget nicht erschöpft
+   (§7.5). `blocked` → wie gehabt, Loop pausiert.
+
+Ein Fix-Step betrifft ausschließlich den Scope des ursprünglichen
+Findings — keine Ausweitung auf andere Teile des Steps oder des Tasks.
+
+Findet der **globale 360°-Audit** (§5.3) am Ende einen komplett neuen,
+keinem bestehenden Step zuordenbaren Punkt, ist das kein Fix-Step, sondern
+ein echter neuer Top-Level-Step — nummeriert als höchste vorhandene
+`step-NNN` + 1, nicht als Folge des zuletzt geprüften Steps.
 
 ### 5.3 Globaler 360°-Audit (am Ende)
 Nachdem alle Steps `done` sind:
@@ -125,10 +163,25 @@ Planer balanciert zwischen „in einem Commit commitbar", „in einer
 Review-Runde prüfbar" und „kleiner als die Gesamtaufgabe".
 
 ### 7.3 Git-Strategie
-- Pro Step ein eigener Commit auf dem **aktuellen Branch** (kein
-  hartcodierter Branch — der Nutzer arbeitet, wo er arbeitet)
+- Alles auf dem **aktuellen Branch** (kein hartcodierter Branch — der
+  Nutzer arbeitet, wo er arbeitet)
 - Conventional Commits, deutsche Imperativ-Form
-- Pro Step: Code + Tests + Doku in **einem** Commit
+- **Task-Doku wird mitcommittet, nicht nur auf der Platte belassen** —
+  jeder Step hinterlässt eine nachvollziehbare Commit-Historie seiner
+  Zustände. Pro Step entstehen dabei mehrere kleine Commits statt einem
+  großen:
+  1. **Code-Commit** (Coder): Code + Tests + ggf. Produkt-Doku
+  2. **Doku-Commit** (Coder): `step-plan.md`-Status + `step-result.md`
+  3. **Planungs-Commit** (Orchestrator): neue `step-plan.md`-Datei(en)
+     nach jedem Planer-Aufruf
+  4. **Review-Commit** (Orchestrator): `step-review.md` +
+     Status-Update in `step-plan.md` nach jedem Auditer-Aufruf
+
+  Grund für mehrere statt eines Commits: `step-result.md` referenziert
+  den Hash des Code-Commits — der kann erst *nach* dem Code-Commit
+  bekannt sein, ein einziger gemeinsamer Commit wäre also nur per
+  nachträglichem Amend möglich, was hier bewusst vermieden wird (siehe
+  `.agents/skills/coder/SKILL.md` Schritt 5-7).
 - **Kein Push durch den Workflow** — der Nutzer pusht selbst, wenn er
   bereit ist. Der Workflow macht nur lokale Commits.
 
@@ -143,16 +196,25 @@ Der Planer leitet Build-/Test-Commands **aus dem Projekt** ab:
 Coder und Auditer nutzen diese Commands. Sie sind **nicht** im Workflow
 hartcodiert.
 
-### 7.5 Loop-Guard
-- **Max 3 Iterationen** pro Task (= max 3 Coder-Aufrufe, die einen
-  Folge-Step nach sich ziehen). Ein direkter `approved` zählt nicht
-  gegen das Limit.
-- Bei Erreichen: Task-State auf `aborted`, alle offenen Steps im Summary
-  gelistet, Nutzer entscheidet.
-- Grund: Endlos-Loops verhindern. Bei 3 Folge-Iterations ohne Lösung
-  stimmt meist die Aufgaben-Definition oder der Ansatz nicht.
-- Konfigurierbar pro Task via `tasks/<name>/config.md` (Feld
-  `max_iterations`).
+### 7.5 Loop-Guard (Fix-Budget)
+- **Max 3 Fix-Runden pro Step** (`step-NNN/fix-01` .. `fix-03`). Der
+  Guard ist bewusst **pro Step**, nicht pro Task: Der Planer legt mehrere
+  unabhängige Steps auf einmal an, und dass mehrere davon je einmal
+  nachgebessert werden müssen, ist normal und kein Alarmsignal. Ein
+  einzelner Step, der auch nach 3 Fix-Runden nicht grün wird, ist das
+  eigentliche Alarmsignal.
+- Bei Erreichen des Limits für einen Step: dieser Step → `blocked` (wie
+  in §8 beschrieben — der Loop pausiert, Nutzer klärt).
+- **Zusätzlicher Task-weiter Not-Anker:** Bei insgesamt mehr als
+  `max_total_fix_rounds` (Default 12) Fix-Runden über alle Steps des
+  Tasks hinweg → gesamter Task auf `aborted`, unabhängig vom Status der
+  Einzel-Steps. Schutz gegen systemische Probleme (z. B. eine falsche
+  Tech-Stack-Notiz), die sich durch viele Steps zieht.
+- Grund für Budget generell: Endlos-Loops verhindern. Wenn ein Step auch
+  nach 3 Fix-Runden nicht grün wird, stimmt meist der Step-Scope oder der
+  Ansatz nicht.
+- Konfigurierbar pro Task via `tasks/<name>/config.md` (Felder
+  `max_fix_rounds_per_step`, Default 3; `max_total_fix_rounds`, Default 12).
 
 ## 8. Edge-Cases & Failure-Modes
 
@@ -160,7 +222,7 @@ hartcodiert.
 |---|---|
 | Coder schreibt kein `result.md` | Step bleibt auf `in_progress`, nach Timeout → `blocked` |
 | Coder committet nicht | result.md fehlt Commit-Hash → `blocked` |
-| Auditer findet Code-Verstoß gegen `.agents/rules` | Folge-Step mit konkretem Fix-Plan |
+| Auditer findet Code-Verstoß gegen `.agents/rules` | Fix-Step mit konkretem Fix-Plan |
 | Auditer will größeren Umbau vorschlagen | **Nicht erlaubt** — Auditer blockt mit `blocked`, Nutzer entscheidet |
 | Build/Test schlägt fehl | Coder fixt im selben Step; falls nicht möglich → `blocked` |
 | Planer erkennt: Aufgabe zu vage | Blockt sofort mit Begründung |
@@ -173,9 +235,13 @@ Am Ende eines erfolgreichen Loops existieren:
 - `tasks/<name>/task-summary.md` — was gemacht wurde, Status, offene Punkte
 - `tasks/<name>/task-state.md` — finale History
 - `tasks/<name>/step-NNN/step-plan.md` — was geplant war
-- `tasks/<name>/step-NNN/result.md` — was gemacht wurde
-- `tasks/<name>/step-NNN/review.md` — was auditiert wurde
-- N Commits in Git, einer pro Step (lokal, nicht gepusht)
+- `tasks/<name>/step-NNN/step-result.md` — was gemacht wurde
+- `tasks/<name>/step-NNN/step-review.md` — was auditiert wurde
+- `tasks/<name>/step-NNN/fix-XX/…` — sofern nachgebessert wurde, dieselben
+  drei Dateien pro Fix-Runde
+- Mehrere Commits in Git pro Step (Code, Doku, Planung, Review — siehe
+  §7.3), alle lokal, nicht gepusht — zusammen eine vollständige,
+  lesbare Historie aller Step-Zustände und Fix-Runden
 
 ## 10. Wartung & Versionierung
 

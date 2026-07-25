@@ -2,8 +2,10 @@
 status: done
 type: step-review
 task: <TASK-NAME>
-step: <NNN>
+step: <NNN>              # im Fix-Modus: <NNN>/fix-<XX>
 reviewed_by: auditer
+reviewed_by_model: <Modell-ID, z. B. claude-sonnet-5>
+reviewed_by_model_knowledge_cutoff: <z. B. 2026-01>
 reviewed_at: <ISO-8601>
 verdict: approved  # approved | issues | blocked
 ---
@@ -13,7 +15,7 @@ verdict: approved  # approved | issues | blocked
 ## Verdict
 
 - [x] **approved** — alle drei Prüfebenen ok
-- [ ] **issues** — Folge-Step `step-<N+1>` angelegt mit Fix-Plan
+- [ ] **issues** — Fix-Step `step-<NNN>/fix-<XX>` angelegt mit Fix-Plan
 - [ ] **blocked** — Nutzer-Entscheidung nötig (siehe Frage unten)
 
 ## Geprüft

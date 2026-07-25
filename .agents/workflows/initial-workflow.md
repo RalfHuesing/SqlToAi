@@ -81,11 +81,34 @@ das hält das Setup portabel. Stattdessen:
 Rufe Rollen **sequenziell** auf, nie parallel — Coder braucht den
 fertigen Step-Plan, Auditer braucht das fertige Coder-Ergebnis.
 
-## Schritt 3 — Planer aufrufen (Initial oder Folge-Step)
+### Commit-Verantwortung (Übersicht)
+
+Task-Dokumentation (`step-plan.md`, `step-result.md`, `step-review.md`,
+`task-state.md`) wird **committet**, nicht nur auf der Platte
+liegengelassen — so entsteht eine echte Git-Historie der Step-Zustände
+und Fix-Runden. Wer committet was:
+
+| Was | Wer | Wann |
+|---|---|---|
+| Code + Tests (+ Produkt-Doku) | **Coder** (Skill Schritt 5) | direkt nach erfolgreichem Build/Test |
+| `step-plan.md` (Status) + `step-result.md` | **Coder** (Skill Schritt 7) | direkt danach, referenziert den Code-Commit-Hash |
+| Neue `step-plan.md`-Dateien vom Planer | **Orchestrator (du)** | direkt nach jedem Planer-Aufruf (Schritt 3) |
+| `step-review.md` + Status-Update in `step-plan.md` | **Orchestrator (du)** | direkt nach jedem Auditer-Aufruf (Schritt 4) |
+
+Planer und Auditer committen selbst **nichts** — das ist bewusst so
+(siehe deren Skills). Du als Orchestrator committest also an zwei
+Stellen im Loop selbst; `git add` dabei immer **gezielt** auf die
+betroffenen Task-Dateien, nie breit (`-A`/`.`).
+
+## Schritt 3 — Planer aufrufen (Initial oder Fix-Modus)
 
 Gemäß `task-loop.md` §5.1 / `.agents/skills/planer/SKILL.md`. Nach Rückkehr:
-- Trage alle neuen `step-NNN` in die Steps-Tabelle von `task-state.md` ein
-  (Status `open`).
+- Trage alle neuen `step-NNN` (bzw. `step-NNN/fix-XX` im Fix-Modus) in die
+  Steps-Tabelle von `task-state.md` ein (Status `open`).
+- **Committe die neuen `step-plan.md`-Dateien** — ein Commit pro
+  Planer-Aufruf (auch wenn dabei mehrere Steps auf einmal entstanden
+  sind). Message z. B. `docs(task): plane step-001..008 für audit-2026-07-24`
+  bzw. im Fix-Modus `docs(task): plane fix-XX für step-NNN`.
 - Falls der Planer blockiert hat: Status `blocked`, Nutzer informieren,
   Loop pausiert hier.
 
@@ -95,33 +118,58 @@ Wiederhole für jeden `open`-Step in Reihenfolge (Details: `task-loop.md`
 §5.2):
 
 1. Setze Step auf `in_progress` in `task-state.md`, `current_step` aktualisieren.
-2. Rufe **Coder** auf (Schritt 2) mit dem Step-Plan als Auftrag.
+2. Rufe **Coder** auf (Schritt 2) mit dem Step-Plan als Auftrag. Der Coder
+   macht dabei selbst zwei Commits (Code + Doku, siehe Tabelle oben) — du
+   committest hier nichts.
 3. Werte Ergebnis aus:
    - `step-result.md` mit Status `done (pending audit)` → weiter zu 4.
    - Status `blocked` → `task-state.md` auf `blocked`, Nutzer informieren,
      **Loop stoppt hier** (nicht automatisch weitermachen).
 4. Rufe **Auditer** auf (Modus `step`) mit Step-Plan + Result.
-5. Werte Verdict aus:
-   - `approved` → Step auf `done`, kurze Statusmeldung an Nutzer, nächster Step.
-   - `issues` → alter Step `done (superseded by step-(N+1))`, rufe Planer
-     für den neuen Folge-Step auf (Schritt 3), dann weiter im Loop.
-     **Prüfe Loop-Guard** (§5 unten) bevor du fortfährst.
-   - `blocked` → `task-state.md` auf `blocked`, Nutzer informieren, Loop
-     stoppt hier.
+5. Werte Verdict aus und **committe** `step-review.md` + das Status-Update
+   in `step-plan.md` (ein Commit, machst du selbst — siehe Tabelle oben):
+   - `approved` → Step-Status `done`. Commit-Message z. B.
+     `chore(task): step-NNN Review dokumentieren (Verdict: approved)`.
+     Kurze Statusmeldung an Nutzer, weiter zum nächsten Step.
+   - `issues` → **Fix-Step statt neuer Top-Level-Step** (siehe
+     `task-loop.md` §5.2.1):
+     1. Ermittle die nächste freie `fix-XX` unter `step-NNN/` (höchste
+        vorhandene + 1, Start `01`).
+     2. **Prüfe zuerst das Fix-Budget** (Schritt 5 unten). Limit erreicht
+        → Step-Status `blocked` statt neuen Fix-Step anzulegen, committe
+        das, Loop stoppt hier für diesen Step.
+     3. Sonst: Step-Status `done (fix-XX pending)`, committe Review +
+        Status-Update (Message z. B. `chore(task): step-NNN Review
+        dokumentieren (Verdict: issues, → fix-XX)`).
+     4. Rufe Planer im **Fix-Modus** auf (Schritt 3) mit `fix-XX` als
+        Zielpfad. Danach normaler Coder → Auditer-Zyklus für
+        `step-NNN/fix-XX/` — wieder ab Punkt 2 dieses Schritts, nur eine
+        Ebene tiefer. Rekursiv bis `approved` oder Budget/Blocker greift.
+   - `blocked` → Step-Status `blocked`, committe Review + Status-Update,
+     Nutzer informieren, Loop stoppt hier.
 6. Kurze Statusmeldung an den Nutzer nach **jedem** Step-Abschluss (nicht
-   erst am Ende) — Format: *"step-NNN: <Titel> → `approved`/`issues`/
-   `blocked`. Commit `<hash>`."*
+   erst am Ende) — Format: *"step-NNN[/fix-XX]: <Titel> → `approved`/
+   `issues`/`blocked`. Commit `<hash>`."*
 
-Wenn keine `open`-Steps mehr übrig sind: weiter zu Schritt 5.
+Wenn keine `open`-Steps mehr übrig sind: weiter zu Schritt 6.
 
-## Schritt 5 — Loop-Guard
+## Schritt 5 — Fix-Budget (Loop-Guard)
 
-Max. 3 Folge-Iterationen pro Task (= max. 3 `issues`-Verdicts, die einen
-neuen Step nach sich ziehen; `approved` zählt nicht). Zähler steht in
-`task-state.md` (`iteration_count`).
+- **Pro Step: max. 3 Fix-Runden** (`fix-01`..`fix-03`, konfigurierbar via
+  `max_fix_rounds_per_step` in `task-state.md`). Zähler = Anzahl
+  vorhandener `fix-XX`-Ordner unter dem jeweiligen `step-NNN/`; zusätzlich
+  in `task-state.md` je Step-Zeile mitführen (Spalte „Fix-Runden").
+- Bei Erreichen des Limits für einen Step: **nur dieser eine Step** →
+  `blocked` (siehe Schritt 4, `issues`-Zweig, Unterpunkt 2). Der Guard ist
+  bewusst pro Step — mehrere unabhängige Steps, die je einmal
+  nachgebessert werden, sind normal, kein Alarmsignal.
+- **Task-weiter Not-Anker:** Summe aller Fix-Runden über alle Steps in
+  `task-state.md`-Frontmatter (`total_fix_rounds`) mitzählen. Bei
+  Überschreiten von `max_total_fix_rounds` (Default 12): gesamter Task →
+  `aborted`, unabhängig vom Status der Einzel-Steps — Schutz gegen
+  systemische Probleme (z. B. eine falsche Tech-Stack-Notiz).
 
-Bei Erreichen des Limits:
-- Status auf `aborted`.
+Bei Task-Abbruch (`aborted`):
 - Alle noch offenen/blockierten Punkte in `task-summary.md` auflisten.
 - Nutzer informieren, Loop stoppt.
 
@@ -146,14 +194,16 @@ Zusammenfassung an den Nutzer:
 
 ## Was du (Orchestrator) NICHT tun darfst
 
-- **Selbst keinen Code schreiben oder committen.** Das machen ausschließlich
-  Coder-Subagenten.
+- **Selbst keinen Code schreiben.** Das macht ausschließlich der
+  Coder-Subagent. Du selbst committest nur Task-Dokumentation
+  (Planer-Output, Review + Status-Updates — siehe „Commit-Verantwortung"
+  oben), nie Produktcode.
 - **Keine Rolle überspringen.** Auch ein trivialer Step läuft durch
   Coder → Auditer, nicht direkt "durchgewunken".
 - **Keinen Push.** Genau wie die Subagenten — nur lokale Commits.
 - **Bei `blocked` nicht selbst entscheiden und weitermachen.** Nutzer-
   Entscheidungen sind Nutzer-Entscheidungen.
-- **Loop-Guard nicht umgehen**, auch wenn "der nächste Fix sicher der
+- **Fix-Budget nicht umgehen**, auch wenn "der nächste Fix sicher der
   letzte ist".
 
 ---

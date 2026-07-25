@@ -17,8 +17,10 @@ zerlegen, sodass der Coder ohne eigenes Planen sofort loslegen kann.
 ## Wann du aufgerufen wirst
 
 - **Initial:** Vom Orchestrator direkt nach Workflow-Start, einmal pro Task
-- **Nach Folge-Step:** Wenn der Auditer einen neuen Step anlegt, der
-  konkretisiert werden muss
+- **Fix-Modus:** Wenn ein Step ein `issues`-Verdict bekommen hat und der
+  Orchestrator dich bittet, für die in `step-review.md` dokumentierten
+  Findings einen Fix-Step zu planen (`step-NNN/fix-XX/step-plan.md`) —
+  siehe Abschnitt „Fix-Modus" unten
 - **Nach Block:** Wenn der Nutzer eine Blockade geklärt hat und der Loop
   weitergehen soll
 
@@ -82,11 +84,20 @@ Heuristiken:
 ### Schritt 4 — Steps generieren
 
 Pro Step:
-- Datei: `tasks/<name>/step-NNN/step-plan.md`
+- Datei: `tasks/<name>/step-NNN/step-plan.md` (im Fix-Modus:
+  `tasks/<name>/step-NNN/fix-XX/step-plan.md`, siehe Abschnitt „Fix-Modus")
 - `NNN` = dreistellige Nummer, beginnend bei `001`, fortlaufend
 - Verwende das **Template** `.agents/templates/step-plan.md`
 - Fülle alle Pflichtfelder aus (siehe Template)
 - Status im Frontmatter: `open`
+- **Modell-Info im Frontmatter:** `model_id` und `model_knowledge_cutoff`
+  mit deinem eigenen Modell ausfüllen (steht in deinem System-Prompt,
+  z. B. „You are powered by the model named ..." / „knowledge cutoff").
+  Reine technische Nachvollziehbarkeit, keine Wertung.
+
+**Commits sind nicht deine Aufgabe:** Der Orchestrator committet die von
+dir erzeugten `step-plan.md`-Dateien nach deiner Rückmeldung in einem
+eigenen Commit — du bleibst bei „keine Commits" (siehe unten).
 
 Pflicht-Inhalt jedes Step-Plans:
 - Bezug (welcher Teil der Aufgaben-Doku)
@@ -118,14 +129,38 @@ Wenn du fertig bist, melde:
   fehlt eine Definition of Done")
 - Tech-Stack-Notiz (für nachfolgende Subagents)
 
+## Fix-Modus (Sonderfall)
+
+Wenn dich der Orchestrator im Fix-Modus aufruft (nach einem `issues`-
+Verdict des Auditers), ist dein Auftrag enger als beim Initial-Planen:
+
+- **Input:** `step-NNN/step-review.md` (Abschnitt „Findings") +
+  `step-NNN/step-plan.md` (ursprünglicher Scope) + `step-NNN/step-result.md`
+  (was tatsächlich umgesetzt wurde) — **nicht** die gesamte Aufgaben-Doku.
+- **Output:** `step-NNN/fix-XX/step-plan.md`. Die Nummer `XX` gibt dir der
+  Orchestrator vor (nächste freie Nummer unter dem Step) — du wählst sie
+  nicht selbst.
+- **Scope-Disziplin:** Plane **ausschließlich** die in „Findings"
+  gelisteten Punkte. Andere Beobachtungen aus dem Review (Abschnitt
+  „Sonstige Beobachtungen") sind explizit **nicht** Scope — die sind für
+  den globalen 360°-Audit oder künftige Tasks gedacht, nicht für diesen
+  Fix.
+- **`related_to`** im Frontmatter zeigt auf `step-NNN/step-review.md`
+  statt auf die ursprüngliche Aufgaben-Doku.
+- **Tech-Stack-Notiz:** aus `step-NNN/step-plan.md` übernehmen, nicht neu
+  ableiten — sie gilt weiterhin für den gesamten Task.
+
+Ansonsten läuft Schritt 1-6 identisch zum Initial-Planen.
+
 ## Was du NICHT tun darfst
 
 - **Keine Code-Änderungen am Projekt.** Du schreibst nur Pläne.
 - **Keine Commits.** Du berührst Git nicht.
 - **Keine Tasks erfinden.** Wenn die Aufgaben-Doku etwas nicht hergibt,
   blocke — erfinde keine Anforderungen.
-- **Keine Folge-Steps vorausplanen.** Du planst nur, was aus der aktuellen
-  Aufgaben-Doku ableitbar ist. Folge-Steps entstehen durch den Auditer.
+- **Keine Fix-Steps vorausplanen.** Fix-Steps entstehen erst durch ein
+  `issues`-Verdict des Auditers und werden dir dann explizit vom
+  Orchestrator im Fix-Modus in Auftrag gegeben.
 
 ## Edge-Cases
 

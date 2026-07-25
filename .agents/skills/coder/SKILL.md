@@ -56,27 +56,35 @@ Bevor du etwas änderst:
 
 Führe die im Plan genannten Build- und Test-Commands aus:
 - Bei Fehler: **Im selben Step** fixen, falls trivial und im Scope
-- Bei nicht-trivialen Fehlern: Stopp, gehe zu Schritt 6 (blockieren)
+- Bei nicht-trivialen Fehlern: Stopp, siehe „Wann du blockst" unten
 - Output gekürzt festhalten (nur Failures oder „alle grün")
 
 **Versuchs-Budget:** Maximal 3 Fix-Versuche für denselben Fehler. Wenn der
-dritte Versuch den Fehler nicht behebt, **blocke** (Schritt 6) — nicht
-weiterprobieren, auch wenn es „fast" aussieht. Der Loop-Guard des Workflows
-fängt nur Folge-Steps ab, nicht endloses Herumprobieren innerhalb eines
-einzelnen Step — dieses Budget übernimmt das.
+dritte Versuch den Fehler nicht behebt, **blocke** (siehe „Wann du
+blockst") — nicht weiterprobieren, auch wenn es „fast" aussieht. Das
+Fix-Budget des Workflows (`task-loop.md` §7.5) fängt nur wiederholte
+Fix-Runden zwischen Steps ab, nicht endloses Herumprobieren innerhalb
+eines einzelnen Step — dieses Versuchs-Budget übernimmt das.
 
-### Schritt 5 — Commit machen
+### Schritt 5 — Code-Commit machen
 
-**Genau ein Commit** für diesen Step:
-- Auf dem **aktuellen Branch** (kein Branch-Wechsel, kein Checkout)
+**Ein Commit** für die eigentliche Änderung (Code + Tests + ggf.
+Produkt-Doku wie README/mcp-specification.md, falls im Plan vorgesehen):
+- `git add` **gezielt** die betroffenen Dateien (kein `git add -A`/`.`),
+  auf dem **aktuellen Branch** (kein Branch-Wechsel, kein Checkout)
 - Conventional-Commit-Format (aus dem Plan / `.agents/rules` ableiten)
 - Sprache: **Deutsch, Imperativ** (sofern nicht anders in den Rules)
 - Subject: ≤ 72 Zeichen
 - Body: kurze Beschreibung der Änderung, Verweis auf den Step
   (z. B. `Refs: tasks/audit-2026-07-24/step-012`)
 - **Kein Push.** Nur lokaler Commit.
+- **Noch nicht `step-plan.md`/`step-result.md` mit committen** — die
+  kommen erst in Schritt 7, weil `step-result.md` den Hash dieses Commits
+  referenziert (sonst müsste die Datei sich selbst zitieren, bevor sie
+  existiert).
 
-Den Commit-Hash notierst du für `result.md`.
+Notiere dir den Commit-Hash (`git rev-parse HEAD` bzw. Ausgabe des
+Commit-Befehls) für Schritt 6.
 
 ### Schritt 6 — Result schreiben
 
@@ -86,18 +94,34 @@ Datei: `tasks/<name>/step-NNN/step-result.md` (gemäß Template
 Pflicht-Inhalt:
 - Zusammenfassung (was wurde gemacht, 2-5 Sätze)
 - Liste der geänderten Dateien (mit kurzer Notiz pro Datei)
-- Commit-Hash + Commit-Message
+- Commit-Hash (aus Schritt 5) + Commit-Message
 - Build/Test-Output (gekürzt)
 - Abweichungen vom Plan (alles was anders lief als geplant)
 - Beobachtungen (Dinge die du gesehen hast, aber nicht gefixt —
   Vorschläge für Folge-Steps)
 - Bekannte Unschärfen (was der Auditer besonders prüfen sollte)
+- **Modell-Info im Frontmatter:** `model_id` und `model_knowledge_cutoff`
+  mit deinem eigenen Modell ausfüllen (steht in deinem System-Prompt,
+  z. B. „You are powered by the model named ..." / „knowledge cutoff").
+  Reine technische Nachvollziehbarkeit, keine Wertung.
 
-### Schritt 7 — Frontmatter auf `done` setzen
+Aktualisiere danach das `status`-Feld in `step-plan.md` von `in_progress`
+auf `done (pending audit)`.
 
-Aktualisiere das `status`-Feld in `step-plan.md` von `in_progress` auf
-`done (pending audit)`. Das signalisiert dem Orchestrator: bereit für
-Auditer.
+### Schritt 7 — Doku-Commit machen
+
+**Ein zweiter, kleiner Commit** — ausschließlich Task-Doku, kein
+Produktcode:
+- `git add tasks/<name>/step-NNN/step-plan.md tasks/<name>/step-NNN/step-result.md`
+  (bei einem Fix-Step entsprechend `tasks/<name>/step-NNN/fix-XX/...`)
+- Commit-Message, z. B.:
+  `chore(task): dokumentiere Ergebnis für step-NNN (Ref <Hash aus Schritt 5>)`
+- **Kein Push.**
+
+Grund für den zweiten Commit statt alles in einen: Die Doku (inkl.
+Commit-Hash-Referenz) kann denknotwendig erst *nach* dem Code-Commit
+entstehen. Zwei kleine, klar benannte Commits sind einfacher
+nachvollziehbar als ein nachträglich geänderter (amended) Commit.
 
 ## Was du NICHT tun darfst
 
@@ -135,10 +159,18 @@ In `result.md` schreibst du in dem Fall:
 - Klare Begründung was fehlt / unklar ist
 - Konkrete Frage an den Nutzer
 
+**Commit-Verhalten bei `blocked`:** Falls bereits Code-Änderungen
+entstanden sind, die einen sinnvollen Zwischenstand ergeben (z. B. Tests,
+die den Fehler reproduzieren), diese ganz normal per Code-Commit (Schritt
+5) sichern. Falls nicht (nichts Sinnvolles entstanden): keinen
+Code-Commit, aber trotzdem `step-result.md` schreiben und per Doku-Commit
+(Schritt 7, ohne Code-Commit-Referenz) sichern — auch ein `blocked`-Stand
+gehört in die Historie.
+
 ## Rückmeldung an Orchestrator
 
 Wenn du fertig bist, melde:
 - Pfad zu `step-result.md`
-- Commit-Hash
+- Code-Commit-Hash (Schritt 5) und Doku-Commit-Hash (Schritt 7)
 - Status: `done (pending audit)` oder `blocked`
 - Falls `blocked`: kurze Begründung in 1-2 Sätzen

@@ -29,7 +29,9 @@ Vom Orchestrator in zwei Kontexten:
 Vom Orchestrator:
 - Modus: `step` oder `global`
 - Bei `step`: Pfad zu `tasks/<name>/step-NNN/step-plan.md` und
-  `step-result.md`
+  `step-result.md` — bei der Prüfung eines Fix-Steps entsprechend
+  `tasks/<name>/step-NNN/fix-XX/step-plan.md` / `step-result.md` (der
+  Ablauf ist identisch, nur der Pfad liegt eine Ebene tiefer)
 - Bei `global`: Pfad zu `tasks/<name>/` (alle Files) + Hinweis auf die
   ursprüngliche Task-Definition
 - Tech-Stack-Notiz
@@ -47,9 +49,9 @@ Vom Orchestrator:
 **Versuchs-Budget:** Wenn du eine Prüfung (z. B. Build/Test-Reproduktion,
 Verifikation eines Findings) nach 3 Versuchen nicht zu einem eindeutigen
 Ergebnis bringst, **blocke** mit Begründung statt weiter zu grübeln oder
-zu raten. Der Loop-Guard des Workflows fängt nur Folge-Steps ab, nicht
-endloses Herumprobieren innerhalb eines einzelnen Audits — dieses Budget
-übernimmt das.
+zu raten. Das Fix-Budget (§7.5 in `task-loop.md`) fängt nur wiederholte
+Fix-Runden zwischen Steps ab, nicht endloses Herumprobieren innerhalb
+eines einzelnen Audits — dieses Versuchs-Budget übernimmt das.
 
 ### Schritt 2 — Drei Prüfebenen
 
@@ -80,13 +82,20 @@ Drei mögliche Verdict:
 - Schreibe `step-review.md` mit Verdict `approved`
 - Kein Folge-Step
 
-**`issues`** — konkrete, im Scope des Tasks liegende Probleme
+**`issues`** — konkrete, im Scope des Steps liegende Probleme
 - Schreibe `step-review.md` mit Verdict `issues`
-- Lege **neuen** Step an: `tasks/<name>/step-(N+1)/step-plan.md` mit
-  Status `open` (vom Orchestrator dann wird der Planer gerufen um den
-  Plan zu konkretisieren — du selbst schreibst nur die Issue-Beschreibung
-  inline in `step-review.md` als Vorlage)
-- Setze den `status` des alten Step-Plans NICHT selbst (das macht der
+- **Lege keinen neuen Top-Level-Step an.** Die Nachbesserung läuft als
+  **Fix-Step innerhalb des aktuellen Steps**: `step-NNN/fix-XX/`. Die
+  Nummerierung (nächste freie `fix-XX`) und das Anlegen der
+  Ordnerstruktur macht der **Orchestrator** — du schreibst nur die
+  Findings-Liste in `step-review.md` (Abschnitt „Findings"), präzise
+  genug, dass der Planer im Fix-Modus direkt daraus einen Plan bauen kann.
+- **Warum kein `step-(N+1)`:** Bei Batch-geplanten Tasks (der Normalfall
+  — der Planer legt meist alle Steps eines Tasks auf einmal an) ist
+  `N+1` fast immer bereits ein anderer, unabhängiger Step. Fix-Steps in
+  einem eigenen Unterordner sind kollisionsfrei — siehe
+  `.agents/workflows/task-loop.md` §5.2.1.
+- Setze den `status` des Step-Plans NICHT selbst (das macht der
   Orchestrator) — du dokumentierst nur, was passieren muss
 
 **`blocked`** — etwas braucht Nutzer-Entscheidung
@@ -103,9 +112,18 @@ Pflicht-Inhalt:
 - Verdict (`approved` / `issues` / `blocked`)
 - Befund pro Ebene (Plan / Rules / Logik)
 - Konkrete Beobachtungen mit Datei:Zeile wenn möglich
-- Bei `issues`: präziser Fix-Vorschlag (wird in Folge-Step übernommen)
+- Bei `issues`: präziser Fix-Vorschlag (wird im Fix-Step übernommen)
 - Bei `blocked`: konkrete Frage an den Nutzer
 - Test-/Build-Status (was du selbst nachgeprüft hast)
+- **Modell-Info im Frontmatter:** `model_id` und `model_knowledge_cutoff`
+  mit deinem eigenen Modell ausfüllen (steht in deinem System-Prompt,
+  z. B. „You are powered by the model named ..." / „knowledge cutoff").
+  Reine technische Nachvollziehbarkeit, keine Wertung.
+
+**Commits sind nicht deine Aufgabe:** Der Orchestrator committet dein
+Review zusammen mit dem Status-Update von `step-plan.md` nach deiner
+Rückmeldung in einem eigenen Commit — du bleibst bei „keine Commits"
+(siehe unten).
 
 ## Modus: Global 360°-Audit
 
