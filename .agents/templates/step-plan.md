@@ -4,6 +4,7 @@ type: step-plan
 task: <TASK-NAME>
 step: <NNN>              # im Fix-Modus: <NNN>/fix-<XX>
 title: "<Titel des Steps>"
+estimated_risk: <low|medium|high>  # Einschätzung des Planers, siehe SKILL.md. Aktuell rein informativ, keine automatische Konsequenz.
 created_by: planer
 created_by_model: <Modell-ID, z. B. claude-sonnet-5>
 created_by_model_knowledge_cutoff: <z. B. 2026-01>

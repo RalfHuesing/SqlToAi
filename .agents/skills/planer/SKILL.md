@@ -81,6 +81,27 @@ Heuristiken:
 - **Kleine Doku-Findings, die nichts miteinander zu tun haben:**
   Trennen, weil sie verschiedene Dateien betreffen
 
+### Schritt 3a — Risiko einschätzen (`estimated_risk`)
+
+Trag zusätzlich pro Step ein `estimated_risk: low|medium|high` ins
+Frontmatter ein — **relativ zu den anderen Steps desselben Tasks**, nicht
+absolut. Du hast als Einziger den Überblick über den gesamten Task und
+kannst Steps gegeneinander einordnen (genau das tust du ohnehin schon,
+wenn du die Bearbeitungsreihenfolge nach Phasen/Risiko sortierst).
+
+Grobe Kriterien:
+- **low:** reine Doku/Config-Änderung, kein Verhalten ändert sich, oder
+  isolierte neue Tests ohne Produktionscode-Änderung.
+- **medium:** lokal begrenzte Code-Änderung, ein Modul/eine Klasse
+  betroffen, überschaubare Seiteneffekte.
+- **high:** sicherheits-/datenschutzrelevant, mehrere Call-Sites
+  betroffen, oder ein Refactor an zentraler/geteilter Logik (z. B. an
+  einer Stelle, die mehrere andere Komponenten mit Verhalten versorgt).
+
+**Wichtig:** Dieses Feld ist aktuell **rein informativ** — es löst noch
+keine automatische Verhaltensänderung bei Coder oder Auditer aus. Schätz
+trotzdem sorgfältig ein, nicht nur pro forma.
+
 ### Schritt 4 — Steps generieren
 
 Pro Step:
