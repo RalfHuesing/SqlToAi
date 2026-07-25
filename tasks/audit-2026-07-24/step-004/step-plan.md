@@ -1,11 +1,13 @@
 ---
-status: done (pending audit)
+status: done (fix-01 pending)
 type: step-plan
 task: audit-2026-07-24
 step: 004
 title: "Punkt 18 — Gemeinsamer SQL-Char-Scanner als interne Primitive extrahieren"
 created_by: planer
 created_at: 2026-07-25T18:30:00+02:00
+reviewed_at: 2026-07-25T22:15:00+02:00
+verdict: issues
 related_to:
   - tasks/audit-2026-07-24/03-code-qualitaet-architektur.md (DRY-Impact Hoch #1)
   - tasks/audit-2026-07-24/00-summary.md (Punkt 18)

@@ -25,7 +25,7 @@ current_step: step-004
 | step-001 | done | Punkt 12: Wildcard-Tests für `SecurityGuard` (+ Bewertung der Aufgaben-Doku, Tech-Stack-Notiz) | ✅ | ✅ | `5367a87` |
 | step-002 | done | Punkt 13: `.bak`-Backup Secret-Maskierung | ✅ | ✅ | `bc3778a` |
 | step-003 | done | Phase-3-Cluster: Cache-TTL-Hinweis + README-Grenzen + Demo-Passwort-Kommentar (Punkte 14+15+16) | ✅ | ✅ | `2cfedb5` |
-| step-004 | in_progress | Punkt 18: gemeinsamer `SqlCharScanner` | - | - | - |
+| step-004 | done (fix-01 pending) | Punkt 18: gemeinsamer `SqlCharScanner` | ✅ | ⚠️ issues → fix-01 | `bcdce979` |
 | step-005 | open | Punkt 19: generischer `TtlCache<TKey, TValue>` | - | - | - |
 | step-006 | open | Punkt 20: `ExecuteDetailQueryAsync`-Helper in `SchemaService` | - | - | - |
 | step-007 | open | Punkt 21: `MarkdownTableRenderer` konsolidieren | - | - | - |
@@ -50,6 +50,9 @@ current_step: step-004
 - 2026-07-25T19:24:00+02:00 — **Wiederaufnahme** durch Nutzer (initial-workflow.md). Status → `executing`, current_step = `step-003` (Auditer-Aufruf wird nachgeholt)
 - 2026-07-25T20:30:00+02:00 — step-003: auditer-Verdict `approved` (alle 3 Ebenen ok, Punkt 14 unabhängig via `git diff 2b5f677^ 2b5f677` als bitidentisch verifiziert, Build 0/0, Tests 366/366 grün)
 - 2026-07-25T20:30:00+02:00 — step-003 → done (4 Steps offen: 004-008)
+- 2026-07-25T21:30:00+02:00 — step-004: coder fertig, commit `bcdce979` (Refactor), commit `3a8aa23` (Doku). 375/375 Tests grün (+9 neue SqlCharScanner-Tests)
+- 2026-07-25T22:15:00+02:00 — step-004: auditer-Verdict `issues` — Bracket-Inhalt wird in ReadOnlyGuard.StripCommentsAndStringLiterals ausgeblendet → Sicherheitsrelevante Verhaltensdivergenz (`SELECT [insert] FROM t` jetzt `IsQuerySafe=true` statt `false`). Fix-Step `fix-01` nötig.
+- 2026-07-25T22:15:00+02:00 — step-004 → `done (fix-01 pending)` (3 Steps offen: 005-008)
 
 ## Config
 
