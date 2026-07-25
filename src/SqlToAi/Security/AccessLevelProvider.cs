@@ -1,6 +1,5 @@
 #nullable enable
 
-using System.Collections.Concurrent;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -20,7 +19,7 @@ public sealed class AccessLevelProvider : IAccessLevelProvider
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly SqlToAiOptions _options;
     private readonly ILogger<AccessLevelProvider> _logger;
-    private readonly ConcurrentDictionary<string, AccessCheckResult> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly TtlCache<string, AccessLevel> _cache = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AccessLevelProvider"/> class.
@@ -51,22 +50,11 @@ public sealed class AccessLevelProvider : IAccessLevelProvider
             return AccessLevel.None;
         }
 
-        var currentTime = DateTime.UtcNow;
-
-        if (_cache.TryGetValue(databaseName, out var cachedResult) && !cachedResult.IsExpired(currentTime))
-        {
-            return cachedResult.Level;
-        }
-
-        // Calculate new access level
-        AccessLevel level = await QueryAccessLevelAsync(databaseName, cancellationToken);
-
-        // Cache the result
-        var ttl = _options.Databases.CacheTtlSeconds > 0 ? _options.Databases.CacheTtlSeconds : 300;
-        var expireTime = currentTime.AddSeconds(ttl);
-        _cache[databaseName] = new AccessCheckResult(level, expireTime);
-
-        return level;
+        return await _cache.GetOrLoadAsync(
+            databaseName,
+            ct => QueryAccessLevelAsync(databaseName, ct),
+            TimeSpan.FromSeconds(_options.Databases.CacheTtlSeconds),
+            cancellationToken);
     }
 
     private async Task<AccessLevel> QueryAccessLevelAsync(string databaseName, CancellationToken cancellationToken)

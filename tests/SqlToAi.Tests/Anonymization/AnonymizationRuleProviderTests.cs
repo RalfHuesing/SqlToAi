@@ -8,7 +8,6 @@ using SqlToAi.Configuration;
 namespace SqlToAi.Tests.Anonymization;
 
 // @covers SqlToAi.Anonymization.AnonymizationRuleProvider
-// @covers SqlToAi.Anonymization.RuleCacheEntry
 // @covers SqlToAi.Anonymization.AnonymizationRule
 public sealed class AnonymizationRuleProviderTests
 {

@@ -1,27 +1,16 @@
 #nullable enable
 
-using System.Collections.Concurrent;
 using System.Data.Common;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
 using SqlToAi.Database;
+using SqlToAi.Domain;
 
 namespace SqlToAi.Anonymization;
 
 #pragma warning disable CA1848 // Use the LoggerMessage delegates
-
-/// <summary>
-/// Cache-backed container for the full central rule set, reloaded as a whole once per TTL —
-/// unlike <see cref="ExclusionCheckResult"/>, this is not keyed per customer database, since
-/// the rule table lives in its own dedicated database independent of any customer connection.
-/// </summary>
-public sealed record RuleCacheEntry(IReadOnlyList<AnonymizationRule> Rules, DateTime ExpireTime)
-{
-    /// <summary>Checks whether this cache entry has passed its TTL.</summary>
-    public bool IsExpired(DateTime currentTime) => currentTime >= ExpireTime;
-}
 
 /// <summary>
 /// Implements <see cref="IAnonymizationRuleProvider"/> by loading the full central rule set from
@@ -35,7 +24,7 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly SqlToAiOptions _options;
     private readonly ILogger<AnonymizationRuleProvider> _logger;
-    private readonly ConcurrentDictionary<string, RuleCacheEntry> _cache = new(StringComparer.Ordinal);
+    private readonly TtlCache<string, IReadOnlyList<AnonymizationRule>> _cache = new();
 
     /// <summary>Initializes a new instance of the <see cref="AnonymizationRuleProvider"/> class.</summary>
     public AnonymizationRuleProvider(
@@ -64,19 +53,11 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
 
     private async Task<IReadOnlyList<AnonymizationRule>> GetActiveRulesAsync(CancellationToken cancellationToken)
     {
-        var currentTime = DateTime.UtcNow;
-
-        if (_cache.TryGetValue(CacheKey, out var cached) && !cached.IsExpired(currentTime))
-        {
-            return cached.Rules;
-        }
-
-        var rules = await LoadActiveRulesAsync(cancellationToken);
-
-        int ttl = _options.AnonymizationRules.CacheTtlSeconds > 0 ? _options.AnonymizationRules.CacheTtlSeconds : 300;
-        _cache[CacheKey] = new RuleCacheEntry(rules, currentTime.AddSeconds(ttl));
-
-        return rules;
+        return await _cache.GetOrLoadAsync(
+            CacheKey,
+            LoadActiveRulesAsync,
+            TimeSpan.FromSeconds(_options.AnonymizationRules.CacheTtlSeconds),
+            cancellationToken);
     }
 
     private async Task<IReadOnlyList<AnonymizationRule>> LoadActiveRulesAsync(CancellationToken cancellationToken)

@@ -14,7 +14,6 @@ namespace SqlToAi.Tests.Security;
 #pragma warning disable CS8765 // Nullability of parameter doesn't match overridden member
 
 // @covers SqlToAi.Security.AccessLevelProvider
-// @covers SqlToAi.Domain.AccessCheckResult
 public sealed class AccessLevelProviderTests
 {
     private static readonly Type TargetType = typeof(AccessLevelProvider);
