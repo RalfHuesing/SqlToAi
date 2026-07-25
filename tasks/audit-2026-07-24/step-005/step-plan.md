@@ -1,11 +1,14 @@
 ---
-status: open
+status: done (pending audit)
 type: step-plan
 task: audit-2026-07-24
 step: 005
 title: "Punkt 19 — Generischen TtlCache<TKey, TValue> extrahieren und in AccessLevelProvider + AnonymizationRuleProvider einsetzen"
 created_by: planer
 created_at: 2026-07-25T18:30:00+02:00
+coded_by: coder
+coded_at: 2026-07-25T20:55:00+02:00
+commit_code: 52c62a9
 related_to:
   - tasks/audit-2026-07-24/03-code-qualitaet-architektur.md (DRY-Impact Mittel #2 + Teil-A-Fund hartkodiertes `300`)
   - tasks/audit-2026-07-24/00-summary.md (Punkt 19)
