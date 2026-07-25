@@ -2,6 +2,7 @@
 
 using System.Text;
 using System.Text.RegularExpressions;
+using SqlToAi.Database;
 
 namespace SqlToAi.Security;
 
@@ -53,92 +54,26 @@ public sealed class ReadOnlyGuard : IReadOnlyGuard
     /// mistaken for the mutating keyword DELETE. Quotes are replaced with a single space
     /// (not removed) so tokens on either side never merge into an unrelated word.
     /// </summary>
-    private enum SqlParserState
-    {
-        Normal,
-        LineComment,
-        BlockComment,
-        SingleQuote
-    }
-
     private static string StripCommentsAndStringLiterals(string sql)
     {
         var sb = new StringBuilder(sql.Length);
-        var state = SqlParserState.Normal;
-        ReadOnlySpan<char> span = sql.AsSpan();
-
-        for (int i = 0; i < span.Length; i++)
+        foreach (var ev in SqlCharScanner.Scan(sql))
         {
-            char c = span[i];
-            char next = i + 1 < span.Length ? span[i + 1] : '\0';
-
-            state = ProcessChar(state, c, next, sb, ref i);
+            // Original-Logik: Zeichen in 'Normal' durchreichen, in 'SingleQuote' (nur das
+            // '\'' selbst) durch Whitespace ersetzen. Andere States (Comments, Bracket) werden
+            // implizit übersprungen. Im Gegensatz zur vorherigen Inline-Implementierung werden
+            // Bracket-Inhalte jetzt ebenfalls ausgeblendet — semantisch ohne Auswirkung, da der
+            // Regex auf Mutating-Keywords in echten Identifiern eh nicht greift.
+            if (ev.State == SqlCharState.Normal)
+            {
+                sb.Append(ev.Character);
+            }
+            else if (ev.State == SqlCharState.SingleQuote && ev.Character == '\'')
+            {
+                sb.Append(' ');
+            }
         }
 
         return sb.ToString();
-    }
-
-    private static SqlParserState ProcessChar(
-        SqlParserState state,
-        char c,
-        char next,
-        StringBuilder sb,
-        ref int i)
-    {
-        switch (state)
-        {
-            case SqlParserState.LineComment:
-                if (c == '\n')
-                {
-                    sb.Append(c);
-                    return SqlParserState.Normal;
-                }
-                return SqlParserState.LineComment;
-
-            case SqlParserState.BlockComment:
-                if (c == '*' && next == '/')
-                {
-                    i++;
-                    return SqlParserState.Normal;
-                }
-                return SqlParserState.BlockComment;
-
-            case SqlParserState.SingleQuote:
-                if (c == '\'' && next == '\'')
-                {
-                    i++; // escaped '' inside literal
-                    return SqlParserState.SingleQuote;
-                }
-                if (c == '\'')
-                {
-                    sb.Append(' ');
-                    return SqlParserState.Normal;
-                }
-                return SqlParserState.SingleQuote;
-
-            default:
-                return TransitionFromNormalState(c, next, sb, ref i);
-        }
-    }
-
-    private static SqlParserState TransitionFromNormalState(char c, char next, StringBuilder sb, ref int i)
-    {
-        if (c == '-' && next == '-')
-        {
-            i++;
-            return SqlParserState.LineComment;
-        }
-        if (c == '/' && next == '*')
-        {
-            i++;
-            return SqlParserState.BlockComment;
-        }
-        if (c == '\'')
-        {
-            sb.Append(' ');
-            return SqlParserState.SingleQuote;
-        }
-        sb.Append(c);
-        return SqlParserState.Normal;
     }
 }
