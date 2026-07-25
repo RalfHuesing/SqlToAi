@@ -198,6 +198,32 @@ Review-Runde prüfbar" und „kleiner als die Gesamtaufgabe".
   `.agents/skills/coder/SKILL.md` Schritt 5-7).
 - **Kein Push durch den Workflow** — der Nutzer pusht selbst, wenn er
   bereit ist. Der Workflow macht nur lokale Commits.
+- **Git-Historie ist geschriebene Vergangenheit — nach einem Commit wird
+  er nie wieder verändert.** Das gilt absolut, für jeden Commit,
+  unabhängig davon, wie unwichtig er wirkt, wie unpassend platziert er
+  aussieht, wie lang sein Subject ist, oder ob er schon von anderen
+  Dateien per Hash referenziert wird. **Ausnahmslos verboten:**
+  `git commit --amend`, `git rebase` (auch `-i`), `git reset --hard` auf
+  bereits committete Commits, `git filter-branch`/`filter-repo`,
+  Force-Push. Das gilt für **jede** Rolle, insbesondere den
+  Orchestrator selbst — nicht nur für den Coder (dessen spezifisches
+  „kein Amend fürs Code-Ergebnis" oben ist nur ein Sonderfall dieser
+  allgemeinen Regel, nicht deren ganzer Umfang).
+  - **Fällt auf, dass etwas vergessen wurde** (z. B. Task-Doku, die vor
+    Einführung einer neuen Regel liegen geblieben ist): einfach **jetzt**
+    committen, an der aktuellen `HEAD`-Position, mit einer ehrlichen
+    Commit-Message, die das als Nachtrag kennzeichnet (z. B.
+    `chore(task): Nachtrag — vor Doku-Commit-Regel liegen gebliebene
+    Step-Dateien committen`).
+  - **Nie versuchen, die Historie so aussehen zu lassen, als wäre der
+    Commit schon immer an der „richtigen" chronologischen Stelle
+    gewesen.** Ein Rebase zu diesem Zweck schreibt jeden nachfolgenden
+    Commit-Hash um — auch wenn der Inhalt dabei unverändert bleibt,
+    werden dadurch alle bereits geschriebenen Commit-Hash-Referenzen in
+    `step-result.md`/`step-review.md`/`task-state.md` ungültig
+    (verwaiste, nicht mehr erreichbare Hashes), und Zeitstempel/
+    Reihenfolge werden für jeden, der die Historie später liest,
+    unzuverlässig.
 
 ### 7.4 Build/Test-Erkennung
 Der Planer leitet Build-/Test-Commands **aus dem Projekt** ab:

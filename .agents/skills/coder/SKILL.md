@@ -133,6 +133,11 @@ nachvollziehbar als ein nachträglich geänderter (amended) Commit.
 - **Keine Annahmen über nicht dokumentierte Anforderungen.** Wenn der
   Plan etwas nicht hergibt: blocken, nicht raten.
 - **Kein Push.**
+- **Git-Historie niemals umschreiben** — kein `git rebase`, kein
+  `git commit --amend` (auch nicht nur, um ein zu langes Commit-Subject
+  zu kürzen), kein `git reset --hard` auf bereits committete Commits.
+  Fällt dir nach dem eigentlichen Commit noch etwas ein: ein neuer,
+  zusätzlicher Commit, nie ein Rewrite des alten.
 - **Keine Änderung am Step-Plan-Inhalt.** Du darfst nur den `status`-
   Header setzen, nicht den Inhalt umschreiben.
 - **Keine Änderung an anderen Steps.** Du fasst nur `step-NNN/`

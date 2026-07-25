@@ -226,6 +226,15 @@ Zusammenfassung an den Nutzer:
   Entscheidungen sind Nutzer-Entscheidungen.
 - **Fix-Budget nicht umgehen**, auch wenn "der nächste Fix sicher der
   letzte ist".
+- **Git-Historie niemals umschreiben** (`rebase`, `amend`, `reset --hard`
+  auf bereits committete Commits, Force-Push) — auch nicht, um
+  liegengebliebene Task-Doku nachträglich „an der richtigen
+  chronologischen Stelle" einzufügen. Ordentlich aussehende Historie ist
+  **kein** Grund, das zu rechtfertigen — siehe `task-loop.md` §7.3 für
+  die volle Begründung. Fällt dir etwas Vergessenes auf: **jetzt** an
+  `HEAD` nachcommitten, mit einer Commit-Message, die das ehrlich als
+  Nachtrag benennt. Diese Regel gilt für dich genauso wie für den Coder
+  — du bist nicht ausgenommen, nur weil du selbst „nur Doku" committest.
 
 ---
 
