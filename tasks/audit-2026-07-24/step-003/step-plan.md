@@ -1,11 +1,13 @@
 ---
-status: done (pending audit)
+status: done
 type: step-plan
 task: audit-2026-07-24
 step: 003
 title: "Punkte 14 + 15 + 16 — Doku & Config-Hygiene (Cache-TTL-Invalidierung, README-Grenzen, Demo-Passwort-Kommentar)"
 created_by: planer
 created_at: 2026-07-25T18:30:00+02:00
+reviewed_at: 2026-07-25T20:30:00+02:00
+verdict: approved
 related_to:
   - tasks/audit-2026-07-24/01-security-guardrails.md (Info-1, Info-2)
   - tasks/audit-2026-07-24/02-anonymisierung-tokenisierung.md (Niedrig-1, Info-1, Info-2)

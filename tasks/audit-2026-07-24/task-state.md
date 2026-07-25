@@ -1,22 +1,22 @@
 ---
-status: blocked
+status: executing
 task: audit-2026-07-24
 started_at: 2026-07-25T18:23:30+02:00
-last_updated: 2026-07-25T20:10:00+02:00
+last_updated: 2026-07-25T20:30:00+02:00
 iteration_count: 0
-current_step: step-003
-blocked_reason: "Vom Nutzer explizit gestoppt nach step-003. Auditer für step-003 nicht ausgeführt. Wiederaufnahme möglich: Status auf 'executing', current_step = step-004, dann Schritt 4 fortsetzen."
+current_step: step-004
 ---
+
 
 # Task State: audit-2026-07-24
 
 ## Übersicht
 
-- **Task-Status:** `blocked` (vom Nutzer gestoppt nach step-003)
+- **Task-Status:** `executing` (wiederaufgenommen nach Stopp)
 - **Iterationen:** 0 / 3 (Loop-Guard)
-- **Aktueller Schritt:** `step-003` (vom Coder fertig, **nicht** auditiert)
+- **Aktueller Schritt:** `step-004` (Punkt 18: gemeinsamer `SqlCharScanner`)
 - **Gestartet:** 2026-07-25T18:23:30+02:00
-- **Zuletzt aktualisiert:** 2026-07-25T20:10:00+02:00
+- **Zuletzt aktualisiert:** 2026-07-25T20:30:00+02:00
 
 ## Steps
 
@@ -24,8 +24,8 @@ blocked_reason: "Vom Nutzer explizit gestoppt nach step-003. Auditer für step-0
 |------|--------|-------|-------|----------|--------|
 | step-001 | done | Punkt 12: Wildcard-Tests für `SecurityGuard` (+ Bewertung der Aufgaben-Doku, Tech-Stack-Notiz) | ✅ | ✅ | `5367a87` |
 | step-002 | done | Punkt 13: `.bak`-Backup Secret-Maskierung | ✅ | ✅ | `bc3778a` |
-| step-003 | done (pending audit) | Phase-3-Cluster: Cache-TTL-Hinweis + README-Grenzen + Demo-Passwort-Kommentar (Punkte 14+15+16) | ✅ | ⏸️ gestoppt | `2cfedb5` |
-| step-004 | open | Punkt 18: gemeinsamer `SqlCharScanner` | - | - | - |
+| step-003 | done | Phase-3-Cluster: Cache-TTL-Hinweis + README-Grenzen + Demo-Passwort-Kommentar (Punkte 14+15+16) | ✅ | ✅ | `2cfedb5` |
+| step-004 | in_progress | Punkt 18: gemeinsamer `SqlCharScanner` | - | - | - |
 | step-005 | open | Punkt 19: generischer `TtlCache<TKey, TValue>` | - | - | - |
 | step-006 | open | Punkt 20: `ExecuteDetailQueryAsync`-Helper in `SchemaService` | - | - | - |
 | step-007 | open | Punkt 21: `MarkdownTableRenderer` konsolidieren | - | - | - |
@@ -47,6 +47,9 @@ blocked_reason: "Vom Nutzer explizit gestoppt nach step-003. Auditer für step-0
 - 2026-07-25T20:10:00+02:00 — step-003: coder fertig, commit `2cfedb5` (README + appsettings.json). Punkt 14 bereits in `2b5f677` enthalten, dort aber unter falschem Subject — bitidentischer Inhalt
 - 2026-07-25T20:10:00+02:00 — **Vom Nutzer gestoppt.** Auditer für step-003 nicht ausgeführt, step-003 bleibt auf `done (pending audit)`
 - 2026-07-25T20:10:00+02:00 — Task → `blocked` (5 Steps offen: 004-008)
+- 2026-07-25T19:24:00+02:00 — **Wiederaufnahme** durch Nutzer (initial-workflow.md). Status → `executing`, current_step = `step-003` (Auditer-Aufruf wird nachgeholt)
+- 2026-07-25T20:30:00+02:00 — step-003: auditer-Verdict `approved` (alle 3 Ebenen ok, Punkt 14 unabhängig via `git diff 2b5f677^ 2b5f677` als bitidentisch verifiziert, Build 0/0, Tests 366/366 grün)
+- 2026-07-25T20:30:00+02:00 — step-003 → done (4 Steps offen: 004-008)
 
 ## Config
 
