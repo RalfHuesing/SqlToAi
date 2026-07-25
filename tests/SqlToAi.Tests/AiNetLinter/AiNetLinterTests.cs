@@ -72,8 +72,8 @@ public sealed class AiNetLinterTests
         {
             "--config", $"\"{configPath}\"",
             "--path", $"\"{solutionRoot}\"",
-            "--sync-cursor-rules",
-            "--cursor-rules-path", $"\"{targetRulesFile}\""
+            "--sync-agent-rules",
+            "--agent-rules-path", $"\"{targetRulesFile}\""
         };
 
         var (syncExitCode, syncStdout, syncStderr) = await RunLinterProcessAsync(
