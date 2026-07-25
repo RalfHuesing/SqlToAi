@@ -190,12 +190,117 @@ public sealed class AppSettingsMigrator
         return changes;
     }
 
-    private static string CreateBackupFile(string targetFilePath, List<string> logs)
+    private const string MaskedPasswordPlaceholder = "***MASKED-BY-MIGRATOR***";
+
+    internal static string CreateBackupFile(string targetFilePath, List<string> logs)
     {
         string backupPath = targetFilePath + ".bak";
+        try
+        {
+            string originalJson = File.ReadAllText(targetFilePath);
+            using JsonDocument document = JsonDocument.Parse(originalJson);
+            using MemoryStream stream = new();
+            using (Utf8JsonWriter writer = new(stream, new JsonWriterOptions
+            {
+                Indented = true,
+                Encoder = JsonOptions.Encoder
+            }))
+            {
+                if (WriteMaskedElement(writer, document.RootElement))
+                {
+                    writer.Flush();
+                    string maskedJson = Encoding.UTF8.GetString(stream.ToArray());
+                    File.WriteAllText(backupPath, maskedJson, new UTF8Encoding(false));
+                    logs.Add($"Saved backup configuration to '{backupPath}' (Password field masked).");
+                    return backupPath;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logs.Add($"Warning: Could not mask Password field in backup file '{backupPath}': {ex.Message}. Falling back to 1:1 copy.");
+        }
+
         File.Copy(targetFilePath, backupPath, overwrite: true);
         logs.Add($"Saved backup configuration to '{backupPath}'.");
         return backupPath;
+    }
+
+    private static bool WriteMaskedElement(Utf8JsonWriter writer, JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                return WriteMaskedObject(writer, element);
+            case JsonValueKind.Array:
+                return WriteMaskedArray(writer, element);
+            default:
+                element.WriteTo(writer);
+                return false;
+        }
+    }
+
+    private static bool WriteMaskedObject(Utf8JsonWriter writer, JsonElement element)
+    {
+        bool masked = false;
+        writer.WriteStartObject();
+        foreach (JsonProperty property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, "Password", StringComparison.OrdinalIgnoreCase)
+                && ShouldMaskPasswordValue(property.Value))
+            {
+                writer.WriteString(property.Name, MaskedPasswordPlaceholder);
+                masked = true;
+            }
+            else
+            {
+                writer.WritePropertyName(property.Name);
+                if (WriteMaskedElement(writer, property.Value))
+                {
+                    masked = true;
+                }
+            }
+        }
+        writer.WriteEndObject();
+        return masked;
+    }
+
+    private static bool WriteMaskedArray(Utf8JsonWriter writer, JsonElement element)
+    {
+        bool masked = false;
+        writer.WriteStartArray();
+        foreach (JsonElement item in element.EnumerateArray())
+        {
+            if (WriteMaskedElement(writer, item))
+            {
+                masked = true;
+            }
+        }
+        writer.WriteEndArray();
+        return masked;
+    }
+
+    private static bool ShouldMaskPasswordValue(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Null)
+        {
+            return false;
+        }
+        if (value.ValueKind == JsonValueKind.String)
+        {
+            string? text = value.GetString();
+            if (text is null)
+            {
+                return true;
+            }
+            return !IsEnvironmentVariableReference(text);
+        }
+        return true;
+    }
+
+    private static bool IsEnvironmentVariableReference(string value)
+    {
+        return value.StartsWith('%') && value.EndsWith('%');
     }
 
     private static void SaveUpdatedJson(string targetFilePath, JsonObject targetObj)

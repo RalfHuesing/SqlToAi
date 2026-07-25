@@ -1,6 +1,7 @@
 #nullable enable
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -213,5 +214,120 @@ public sealed class AppSettingsMigratorTests : IDisposable
         string updatedText = File.ReadAllText(targetFilePath);
         Assert.Contains("'OLDemoReweAbfD'", updatedText);
         Assert.DoesNotContain("\\u0027", updatedText);
+    }
+
+    [Fact]
+    public void CreateBackupFile_ShouldMaskPassword_WhenPlaintextPresent()
+    {
+        // Arrange
+        string targetFilePath = Path.Combine(_tempDirectory, "appsettings.json");
+        string userJsonText = """
+        {
+          "SqlToAi": {
+            "SqlServer": {
+              "Server": "my-server",
+              "UserId": "Agent",
+              "Password": "Agent!"
+            }
+          }
+        }
+        """;
+        File.WriteAllText(targetFilePath, userJsonText, Encoding.UTF8);
+        var logs = new List<string>();
+
+        // Act
+        string backupPath = AppSettingsMigrator.CreateBackupFile(targetFilePath, logs);
+
+        // Assert
+        Assert.True(File.Exists(backupPath));
+        string backupText = File.ReadAllText(backupPath);
+        JsonNode? root = JsonNode.Parse(backupText);
+        Assert.NotNull(root);
+
+        // Password field is replaced with the static placeholder
+        Assert.Equal("***MASKED-BY-MIGRATOR***", root!["SqlToAi"]!["SqlServer"]!["Password"]!.GetValue<string>());
+
+        // Original plaintext is no longer present anywhere in the backup
+        Assert.DoesNotContain("Agent!", backupText);
+
+        // Log entry signals that masking happened
+        Assert.Contains(logs, l => l.Contains("Password field masked"));
+    }
+
+    [Fact]
+    public void CreateBackupFile_ShouldNotMaskPassword_WhenEnvironmentVariableReferenced()
+    {
+        // Arrange
+        string targetFilePath = Path.Combine(_tempDirectory, "appsettings.json");
+        string userJsonText = """
+        {
+          "SqlToAi": {
+            "SqlServer": {
+              "Server": "my-server",
+              "Password": "%SQLTOAI_PASSWORD%"
+            }
+          }
+        }
+        """;
+        File.WriteAllText(targetFilePath, userJsonText, Encoding.UTF8);
+        var logs = new List<string>();
+
+        // Act
+        string backupPath = AppSettingsMigrator.CreateBackupFile(targetFilePath, logs);
+
+        // Assert
+        Assert.True(File.Exists(backupPath));
+        string backupText = File.ReadAllText(backupPath);
+        JsonNode? root = JsonNode.Parse(backupText);
+        Assert.NotNull(root);
+
+        // Env-var reference is preserved verbatim
+        Assert.Equal("%SQLTOAI_PASSWORD%", root!["SqlToAi"]!["SqlServer"]!["Password"]!.GetValue<string>());
+
+        // Backup is byte-identical to the original (1:1 copy path)
+        Assert.Equal(userJsonText, backupText);
+    }
+
+    [Fact]
+    public void CreateBackupFile_ShouldLeaveOtherFieldsUnchanged()
+    {
+        // Arrange
+        string targetFilePath = Path.Combine(_tempDirectory, "appsettings.json");
+        string userJsonText = """
+        {
+          "SqlToAi": {
+            "SqlServer": {
+              "Server": "my-server",
+              "UserId": "Agent",
+              "Password": "PlainPassword123",
+              "CacheTtlSeconds": 300
+            }
+          }
+        }
+        """;
+        File.WriteAllText(targetFilePath, userJsonText, Encoding.UTF8);
+        var logs = new List<string>();
+
+        // Act
+        string backupPath = AppSettingsMigrator.CreateBackupFile(targetFilePath, logs);
+
+        // Assert
+        string backupText = File.ReadAllText(backupPath);
+        JsonNode? original = JsonNode.Parse(userJsonText);
+        JsonNode? backup = JsonNode.Parse(backupText);
+        Assert.NotNull(original);
+        Assert.NotNull(backup);
+
+        JsonObject origSqlServer = original!["SqlToAi"]!["SqlServer"]!.AsObject();
+        JsonObject backupSqlServer = backup!["SqlToAi"]!["SqlServer"]!.AsObject();
+
+        // Non-Password fields are byte-identical to the source
+        Assert.Equal(origSqlServer["Server"]!.GetValue<string>(), backupSqlServer["Server"]!.GetValue<string>());
+        Assert.Equal(origSqlServer["UserId"]!.GetValue<string>(), backupSqlServer["UserId"]!.GetValue<string>());
+        Assert.Equal(origSqlServer["CacheTtlSeconds"]!.GetValue<int>(), backupSqlServer["CacheTtlSeconds"]!.GetValue<int>());
+
+        // Only the Password field changed
+        Assert.Equal("***MASKED-BY-MIGRATOR***", backupSqlServer["Password"]!.GetValue<string>());
+        Assert.NotEqual(origSqlServer["Password"]!.GetValue<string>(), backupSqlServer["Password"]!.GetValue<string>());
     }
 }
