@@ -54,4 +54,28 @@ public sealed class SecurityGuardTests
         Assert.False(guard.IsDatabaseAllowed("msdb"));
         Assert.False(guard.IsDatabaseAllowed("HR_Payroll"));
     }
+
+    [Theory]
+    [InlineData("Demo_A", "Demo_?", true)] // single-char wildcard matches exactly one character
+    [InlineData("Demo_App", "Demo_??", false)] // '?' matches one character, so 'Demo_??' is 7 chars vs 8-char text
+    [InlineData("MyServer.1", "MyServer.1", true)] // exact match including regex metacharacters
+    [InlineData("MyServer.", "MyServer?", true)] // '?' substitutes the '.' (one char)
+    [InlineData("MyServer.1", "MyServer.1*", true)] // '*' after a metacharacter
+    [InlineData("MyServerX1", "MyServer.1", false)] // '.' must be escaped as literal
+    [InlineData("demo_a", "DEMO_?", true)] // case-insensitive matching
+    [InlineData("Demo_App", "Demo_App?", false)] // '?' requires at least one trailing character
+    [InlineData("Demo_App", "Demo_App*", true)] // '*' matches zero or more trailing characters
+    public void MatchesPattern_ShouldEvaluateGlobWildcardsCaseInsensitively(string text, string pattern, bool expected)
+    {
+        Assert.Equal(expected, SecurityGuard.MatchesPattern(text, pattern));
+    }
+
+    [Theory]
+    [InlineData("", "Demo_*")] // empty text never matches a non-empty pattern
+    [InlineData("Demo_App", "")] // empty pattern is rejected by the guard
+    [InlineData("", "")] // both empty -> no match
+    public void MatchesPattern_ShouldReturnFalse_OnTimeoutOrEmptyInput(string text, string pattern)
+    {
+        Assert.False(SecurityGuard.MatchesPattern(text, pattern));
+    }
 }

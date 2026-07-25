@@ -57,7 +57,7 @@ public sealed class SecurityGuard : ISecurityGuard
         return false;
     }
 
-    private static bool MatchesPattern(string text, string pattern)
+    internal static bool MatchesPattern(string text, string pattern)
     {
         if (string.IsNullOrEmpty(pattern))
         {
