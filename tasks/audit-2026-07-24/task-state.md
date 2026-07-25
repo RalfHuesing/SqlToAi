@@ -1,10 +1,11 @@
 ---
-status: executing
+status: done
 task: audit-2026-07-24
 started_at: 2026-07-25T18:23:30+02:00
-last_updated: 2026-07-25T22:00:00+02:00
+completed_at: 2026-07-25T22:35:00+02:00
+last_updated: 2026-07-25T22:35:00+02:00
 iteration_count: 0
-current_step: step-008
+final_verdict: done
 ---
 
 
@@ -12,11 +13,10 @@ current_step: step-008
 
 ## Übersicht
 
-- **Task-Status:** `executing` (wiederaufgenommen nach Stopp)
+- **Task-Status:** `done` (globaler 360°-Auditer-Verdict: `done`)
 - **Iterationen:** 0 / 3 (Loop-Guard)
-- **Aktueller Schritt:** `step-008` (Punkt 22: `GlobMatcher` in `SqlToAi.Domain`)
 - **Gestartet:** 2026-07-25T18:23:30+02:00
-- **Zuletzt aktualisiert:** 2026-07-25T22:00:00+02:00
+- **Abgeschlossen:** 2026-07-25T22:35:00+02:00
 
 ## Steps
 
