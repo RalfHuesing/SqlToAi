@@ -2,9 +2,9 @@
 status: executing
 task: audit-2026-07-24
 started_at: 2026-07-25T18:23:30+02:00
-last_updated: 2026-07-25T21:10:00+02:00
+last_updated: 2026-07-25T21:40:00+02:00
 iteration_count: 0
-current_step: step-006
+current_step: step-007
 ---
 
 
@@ -14,9 +14,9 @@ current_step: step-006
 
 - **Task-Status:** `executing` (wiederaufgenommen nach Stopp)
 - **Iterationen:** 0 / 3 (Loop-Guard)
-- **Aktueller Schritt:** `step-006` (Punkt 20: `ExecuteDetailQueryAsync`-Helper in `SchemaService`)
+- **Aktueller Schritt:** `step-007` (Punkt 21: `MarkdownTableRenderer` konsolidieren)
 - **Gestartet:** 2026-07-25T18:23:30+02:00
-- **Zuletzt aktualisiert:** 2026-07-25T21:10:00+02:00
+- **Zuletzt aktualisiert:** 2026-07-25T21:40:00+02:00
 
 ## Steps
 
@@ -27,8 +27,8 @@ current_step: step-006
 | step-003 | done | Phase-3-Cluster: Cache-TTL-Hinweis + README-Grenzen + Demo-Passwort-Kommentar (Punkte 14+15+16) | ✅ | ✅ | `2cfedb5` |
 | step-004 | done | Punkt 18: gemeinsamer `SqlCharScanner` | ✅ | ⚠️ issues → fix-01 → fix-01 done (audit skipped) | `9b4482a` |
 | step-005 | done | Punkt 19: generischer `TtlCache<TKey, TValue>` | ✅ | ✅ | `52c62a9` |
-| step-006 | in_progress | Punkt 20: `ExecuteDetailQueryAsync`-Helper in `SchemaService` | - | - | - |
-| step-007 | open | Punkt 21: `MarkdownTableRenderer` konsolidieren | - | - | - |
+| step-006 | done | Punkt 20: `ExecuteDetailQueryAsync`-Helper in `SchemaService` | ✅ | ✅ | `31d77a9` |
+| step-007 | in_progress | Punkt 21: `MarkdownTableRenderer` konsolidieren | - | - | - |
 | step-008 | open | Punkt 22: `GlobMatcher` in `SqlToAi.Domain` (Rest nach `bcef6a9`) | - | - | - |
 
 ## History
@@ -59,6 +59,9 @@ current_step: step-006
 - 2026-07-25T20:55:00+02:00 — step-005: coder fertig, commit `52c62a9` (TtlCache-Refactor), commit `2bc2818` (Doku). 388/388 Tests grün (+5 TtlCacheTests). `AccessCheckResult` + `RuleCacheEntry` ersatzlos entfernt (Konsumenten-Check sauber). 300-Fallbacks entfernt.
 - 2026-07-25T21:10:00+02:00 — step-005: auditer-Verdict `approved` (Plan-Erfüllung, Rules, Logik ok; Concurrency 1:1 erhalten; Baseline-Hashes verifiziert; 5 Beobachtungen ohne Issues)
 - 2026-07-25T21:10:00+02:00 — step-005 → done (2 Steps offen: 006-008)
+- 2026-07-25T21:10:00+02:00 — step-006: coder fertig, commit `31d77a9` (Helper extrahiert, 6 Methoden zu Einzeilern), commit `cbd7467` (Doku). 389/389 Tests grün (+1 Helper-Test). Linter-Parameterzahl OK. Baseline automatisch aktualisiert.
+- 2026-07-25T21:40:00+02:00 — step-006: auditer-Verdict `approved` (Plan-Erfüllung, Rules, Logik ok; Access-Check vor Connection verifiziert; Log-Wortlaut-Drift akzeptabel; 1 Buchführungsungenauigkeit im Commit-Body als Beobachtung)
+- 2026-07-25T21:40:00+02:00 — step-006 → done (1 Step offen: 007-008)
 
 ## Config
 
