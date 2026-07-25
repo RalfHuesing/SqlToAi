@@ -21,9 +21,11 @@ Ab jetzt bist du der **Orchestrator** für diesen Task (Rolle definiert in
 Handlungsanweisung — `task-loop.md` ist die Referenz/Spezifikation dahinter,
 lies sie vollständig, bevor du loslegst.
 
-Diese Datei ist bewusst **tool-agnostisch** formuliert (kein bestimmtes
-Coding-Tool vorausgesetzt). Ein Abschnitt am Ende gibt Hinweise für die
-konkrete Umsetzung in Claude Code.
+Diese Datei ist bewusst **tool-agnostisch** formuliert — kein bestimmtes
+Coding-Agent-Tool vorausgesetzt, funktioniert unverändert mit jedem
+Werkzeug, das Subagenten/Sub-Konversationen mit isoliertem Kontext
+starten kann. Ein Abschnitt am Ende hält die wenigen Punkte fest, die
+du beim jeweils verwendeten Werkzeug konkret nachschlagen musst.
 
 ## Schritt 0 — Eingabe validieren
 
@@ -75,9 +77,9 @@ Prüfe, ob `<task-dir>/task-state.md` existiert.
 > Commit-Reihenfolge, verlorene Änderungen), kein Effizienzgewinn. Du
 > startest jeden Subagenten **synchron/im Vordergrund** und wartest sein
 > vollständiges Ergebnis ab, bevor du irgendetwas anderes tust (siehe
-> „Hinweise für Claude Code" unten für die konkrete technische Umsetzung
-> — dort ist das Vergessen des richtigen Parameters der einzige Weg, wie
-> diese Regel unbemerkt gebrochen werden könnte).
+> „Werkzeug-Hinweis" unten für die konkrete technische Umsetzung — dort
+> ist das Vergessen der richtigen Einstellung der einzige Weg, wie diese
+> Regel unbemerkt gebrochen werden könnte).
 
 Für Planer/Coder/Auditer gibt es **keine vorregistrierten Subagent-Typen** —
 das hält das Setup portabel. Stattdessen:
@@ -89,9 +91,9 @@ das hält das Setup portabel. Stattdessen:
    zu den relevanten Dateien (Aufgaben-Doku, Step-Plan/-Result, Tech-Stack-
    Notiz).
 3. Starte damit eine neue, unabhängige Subagent-Konversation **synchron**
-   (siehe Hinweise für Claude Code unten). Der Subagent bekommt **nur**
-   diesen Prompt als Kontext — nicht deinen bisherigen Gesprächsverlauf.
-   Du wartest, bis dieser eine Aufruf vollständig zurückkommt.
+   (siehe „Werkzeug-Hinweis" unten). Der Subagent bekommt **nur** diesen
+   Prompt als Kontext — nicht deinen bisherigen Gesprächsverlauf. Du
+   wartest, bis dieser eine Aufruf vollständig zurückkommt.
 4. Erst danach: Werte das Ergebnis aus (Dateien, die der Subagent
    geschrieben haben soll, plus seine Abschlussmeldung), aktualisiere
    `task-state.md` entsprechend, committe was zu committen ist — dann
@@ -227,26 +229,27 @@ Zusammenfassung an den Nutzer:
 
 ---
 
-## Hinweise für Claude Code (konkrete Umsetzung)
+## Werkzeug-Hinweis (allgemein, für jedes Agent-Tool)
 
-Diese Sektion ist implementierungsspezifisch — für andere Tools sinngemäß
-übertragen.
+Wie genau ein Subagent bei dir technisch gestartet wird (eigenständiger
+Agent-Aufruf, Sub-Task, neue Session, separater Prozess, …), hängt vom
+jeweils verwendeten Werkzeug ab und wird hier bewusst offengelassen.
+Zwei Eigenschaften sind aber **werkzeugunabhängig Pflicht** (siehe
+Warnkasten in Schritt 2):
 
-- Subagent-Aufrufe (Schritt 2): Agent-Tool nutzen, `subagent_type`
-  `general-purpose` (oder `claude`), **kein** eigener registrierter Typ pro
-  Rolle nötig — der Skill-Inhalt geht komplett in den `prompt`.
-- **Bei jedem einzelnen Agent-Aufruf explizit `run_in_background: false`
-  setzen.** Das Agent-Tool ist **standardmäßig asynchron** (Hintergrund),
-  wenn das Flag fehlt — ohne dieses Flag wartest du strukturell **nicht**
-  auf das Ergebnis, egal was Schritt 2 vorschreibt. Das ist der einzige
-  Mechanismus, der die Sequenzialitäts-Regel aus Schritt 2 tatsächlich
-  durchsetzt; alles andere ist Text, dem du folgen musst. Vor jedem
-  Subagent-Aufruf kurz prüfen: „Habe ich `run_in_background: false`
-  gesetzt?"
-- Für Status-Updates an den Nutzer reicht normaler Chat-Text nach jedem
-  Step — kein Cron/Push nötig, außer der Nutzer bittet explizit um
-  unbeaufsichtigten/geplanten Lauf.
-- `task-state.md` ist die einzige verbindliche Zustands-Quelle (nicht das
-  interne Task-Tool der Session) — bei Bedarf zusätzlich lokale Tasks für
-  die eigene Übersicht führen, aber `task-state.md` bleibt führend und wird
-  bei jedem Schritt aktualisiert.
+1. **Isolierter Kontext** — der Subagent bekommt nur den von dir gebauten
+   Prompt, nicht deinen bisherigen Gesprächsverlauf.
+2. **Synchrones Warten** — du wartest das vollständige Ergebnis ab, bevor
+   du irgendetwas anderes tust. Startet dein Werkzeug Subagenten
+   standardmäßig asynchron/im Hintergrund, musst du das für jeden
+   einzelnen Aufruf explizit auf synchron/blockierend umstellen — sonst
+   ist die Sequenzialitäts-Regel aus Schritt 2 nur Text, dem strukturell
+   niemand folgt. Prüfe das vor jedem Subagent-Aufruf kurz bewusst.
+
+Weitere werkzeugunabhängige Punkte:
+- Für Status-Updates an den Nutzer reicht eine kurze Textmeldung nach
+  jedem Step — kein automatisiertes Scheduling nötig, außer der Nutzer
+  bittet explizit um einen unbeaufsichtigten/geplanten Lauf.
+- `task-state.md` ist die einzige verbindliche Zustands-Quelle für den
+  Task (nicht ein internes Task-/To-do-Feature deines Werkzeugs, falls
+  vorhanden) — sie wird bei jedem Schritt aktualisiert und committet.
