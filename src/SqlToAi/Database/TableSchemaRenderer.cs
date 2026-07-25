@@ -141,7 +141,7 @@ internal sealed class TableSchemaRenderer
             columnDescs.TryGetValue(col.ColumnName, out string? desc);
             renderedRows.Add([col.ColumnName, type, nullable, keyStr, anonymized, desc ?? ""]);
         }
-        sb.AppendLine(RenderMarkdownTable(headers, renderedRows));
+        sb.AppendLine(MarkdownTableRenderer.Render(headers, renderedRows));
     }
 
     private static string FormatAnonymizedState(ColumnAnonymizationState state) => state switch
@@ -165,7 +165,7 @@ internal sealed class TableSchemaRenderer
             t.IsDelete == 1 ? "✓" : "",
             t.IsDisabled == 1 ? "Disabled" : "Active"
         }).ToList();
-        sb.AppendLine(RenderMarkdownTable(trigHeaders, trigRows));
+        sb.AppendLine(MarkdownTableRenderer.Render(trigHeaders, trigRows));
     }
 
     private static async Task AppendDiscoveryIndexAsync(StringBuilder sb, DbConnection connection, string tableName, List<TriggerRow> triggers, CancellationToken cancellationToken)
@@ -276,18 +276,6 @@ internal sealed class TableSchemaRenderer
             return $"{type}({precision},{scale})";
         }
         return type;
-    }
-
-    private static string RenderMarkdownTable(string[] headers, List<string[]> rows)
-    {
-        var sb = new StringBuilder();
-        sb.Append("| ").Append(string.Join(" | ", headers)).AppendLine(" |");
-        sb.Append("| ").Append(string.Join(" | ", headers.Select(_ => "---"))).AppendLine(" |");
-        foreach (var row in rows)
-        {
-            sb.Append("| ").Append(string.Join(" | ", row.Select(r => r?.Replace("|", "\\|") ?? ""))).AppendLine(" |");
-        }
-        return sb.ToString();
     }
 
     private sealed class ColumnRow

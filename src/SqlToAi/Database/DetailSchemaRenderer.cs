@@ -1,7 +1,6 @@
 #nullable enable
 
 using System.Data.Common;
-using System.Text;
 using Dapper;
 using SqlToAi.Domain;
 
@@ -86,7 +85,7 @@ internal static class DetailSchemaRenderer
             return $"No foreign keys found for table '{tableName}' in database '{databaseName}'.";
         }
 
-        return $"# Foreign Keys for `{tableName}`\n\n" + RenderMarkdownTable(["FK Name", "Source Column", "Dir", "Reference Column"], renderedRows);
+        return $"# Foreign Keys for `{tableName}`\n\n" + MarkdownTableRenderer.Render(["FK Name", "Source Column", "Dir", "Reference Column"], renderedRows);
     }
 
     /// <summary>
@@ -159,7 +158,7 @@ internal static class DetailSchemaRenderer
             return $"No indexes found for table '{tableName}' in database '{databaseName}'.";
         }
 
-        return $"# Indexes for `{tableName}`\n\n" + RenderMarkdownTable(["Index Name", "Type", "Property", "Keys", "Included Columns"], renderedRows);
+        return $"# Indexes for `{tableName}`\n\n" + MarkdownTableRenderer.Render(["Index Name", "Type", "Property", "Keys", "Included Columns"], renderedRows);
     }
 
     public static async Task<Result<string>> GetSchemaConstraintsAsync(DbConnection connection, string tableName, string databaseName, CancellationToken cancellationToken)
@@ -213,7 +212,7 @@ internal static class DetailSchemaRenderer
             return $"No default or check constraints found for table '{tableName}' in database '{databaseName}'.";
         }
 
-        return $"# Constraints for `{tableName}`\n\n" + RenderMarkdownTable(["Constraint Name", "Column", "Type", "Definition"], renderedRows);
+        return $"# Constraints for `{tableName}`\n\n" + MarkdownTableRenderer.Render(["Constraint Name", "Column", "Type", "Definition"], renderedRows);
     }
 
     public static async Task<Result<string>> GetTriggerDefinitionAsync(DbConnection connection, string tableName, string triggerName, string databaseName, CancellationToken cancellationToken)
@@ -277,7 +276,7 @@ internal static class DetailSchemaRenderer
             return $"No objects reference '{objectName}' in database '{databaseName}'.";
         }
 
-        return $"# Referencing Entities for `{objectName}`\n\n" + RenderMarkdownTable(["Schema", "Entity Name", "Type"], renderedRows);
+        return $"# Referencing Entities for `{objectName}`\n\n" + MarkdownTableRenderer.Render(["Schema", "Entity Name", "Type"], renderedRows);
     }
 
     public static async Task<Result<string>> GetRoutineParametersAsync(DbConnection connection, string routineName, string databaseName, CancellationToken cancellationToken)
@@ -328,19 +327,7 @@ internal static class DetailSchemaRenderer
             return $"Routine '{routineName}' accepts no parameters.";
         }
 
-        return $"# Parameters for Routine `{routineName}`\n\n" + RenderMarkdownTable(["Parameter Name", "Type", "Length", "Output"], renderedRows);
-    }
-
-    private static string RenderMarkdownTable(string[] headers, List<string[]> rows)
-    {
-        var sb = new StringBuilder();
-        sb.Append("| ").Append(string.Join(" | ", headers)).AppendLine(" |");
-        sb.Append("| ").Append(string.Join(" | ", headers.Select(_ => "---"))).AppendLine(" |");
-        foreach (var row in rows)
-        {
-            sb.Append("| ").Append(string.Join(" | ", row.Select(r => r?.Replace("|", "\\|") ?? ""))).AppendLine(" |");
-        }
-        return sb.ToString();
+        return $"# Parameters for Routine `{routineName}`\n\n" + MarkdownTableRenderer.Render(["Parameter Name", "Type", "Length", "Output"], renderedRows);
     }
 
     private sealed class ForeignKeyRow

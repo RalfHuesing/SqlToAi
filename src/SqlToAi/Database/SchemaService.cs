@@ -1,7 +1,6 @@
 #nullable enable
 
 using System.Data.Common;
-using System.Text;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -164,7 +163,7 @@ public sealed class SchemaService : ISchemaService
                 return $"No objects found matching '{searchTerm}' in database '{databaseName}'.";
             }
 
-            return RenderMarkdownTable(["Schema", "Name", "Type"], renderedRows);
+            return MarkdownTableRenderer.Render(["Schema", "Name", "Type"], renderedRows);
         }
         catch (Exception ex)
         {
@@ -274,18 +273,6 @@ public sealed class SchemaService : ISchemaService
             _logger.LogError(ex, "Failed to retrieve {Operation} for {ObjectName} in database {DatabaseName}.", operationName, objectName, databaseName);
             return SqlToAiError.QueryError(ex.Message);
         }
-    }
-
-    private static string RenderMarkdownTable(string[] headers, List<string[]> rows)
-    {
-        var sb = new StringBuilder();
-        sb.Append("| ").Append(string.Join(" | ", headers)).AppendLine(" |");
-        sb.Append("| ").Append(string.Join(" | ", headers.Select(_ => "---"))).AppendLine(" |");
-        foreach (var row in rows)
-        {
-            sb.Append("| ").Append(string.Join(" | ", row.Select(r => r?.Replace("|", "\\|") ?? ""))).AppendLine(" |");
-        }
-        return sb.ToString();
     }
 
     private sealed class ObjectRow
