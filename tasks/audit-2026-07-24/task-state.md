@@ -2,9 +2,9 @@
 status: executing
 task: audit-2026-07-24
 started_at: 2026-07-25T18:23:30+02:00
-last_updated: 2026-07-25T20:30:00+02:00
+last_updated: 2026-07-25T20:35:00+02:00
 iteration_count: 0
-current_step: step-004
+current_step: step-005
 ---
 
 
@@ -14,9 +14,9 @@ current_step: step-004
 
 - **Task-Status:** `executing` (wiederaufgenommen nach Stopp)
 - **Iterationen:** 0 / 3 (Loop-Guard)
-- **Aktueller Schritt:** `step-004` (Punkt 18: gemeinsamer `SqlCharScanner`)
+- **Aktueller Schritt:** `step-005` (Punkt 19: generischer `TtlCache<TKey, TValue>`)
 - **Gestartet:** 2026-07-25T18:23:30+02:00
-- **Zuletzt aktualisiert:** 2026-07-25T20:30:00+02:00
+- **Zuletzt aktualisiert:** 2026-07-25T20:35:00+02:00
 
 ## Steps
 
@@ -25,8 +25,8 @@ current_step: step-004
 | step-001 | done | Punkt 12: Wildcard-Tests für `SecurityGuard` (+ Bewertung der Aufgaben-Doku, Tech-Stack-Notiz) | ✅ | ✅ | `5367a87` |
 | step-002 | done | Punkt 13: `.bak`-Backup Secret-Maskierung | ✅ | ✅ | `bc3778a` |
 | step-003 | done | Phase-3-Cluster: Cache-TTL-Hinweis + README-Grenzen + Demo-Passwort-Kommentar (Punkte 14+15+16) | ✅ | ✅ | `2cfedb5` |
-| step-004 | done (fix-01 pending) | Punkt 18: gemeinsamer `SqlCharScanner` | ✅ | ⚠️ issues → fix-01 | `bcdce979` |
-| step-005 | open | Punkt 19: generischer `TtlCache<TKey, TValue>` | - | - | - |
+| step-004 | done | Punkt 18: gemeinsamer `SqlCharScanner` | ✅ | ⚠️ issues → fix-01 → fix-01 done (audit skipped) | `9b4482a` |
+| step-005 | in_progress | Punkt 19: generischer `TtlCache<TKey, TValue>` | - | - | - |
 | step-006 | open | Punkt 20: `ExecuteDetailQueryAsync`-Helper in `SchemaService` | - | - | - |
 | step-007 | open | Punkt 21: `MarkdownTableRenderer` konsolidieren | - | - | - |
 | step-008 | open | Punkt 22: `GlobMatcher` in `SqlToAi.Domain` (Rest nach `bcef6a9`) | - | - | - |
@@ -53,6 +53,9 @@ current_step: step-004
 - 2026-07-25T21:30:00+02:00 — step-004: coder fertig, commit `bcdce979` (Refactor), commit `3a8aa23` (Doku). 375/375 Tests grün (+9 neue SqlCharScanner-Tests)
 - 2026-07-25T22:15:00+02:00 — step-004: auditer-Verdict `issues` — Bracket-Inhalt wird in ReadOnlyGuard.StripCommentsAndStringLiterals ausgeblendet → Sicherheitsrelevante Verhaltensdivergenz (`SELECT [insert] FROM t` jetzt `IsQuerySafe=true` statt `false`). Fix-Step `fix-01` nötig.
 - 2026-07-25T22:15:00+02:00 — step-004 → `done (fix-01 pending)` (3 Steps offen: 005-008)
+- 2026-07-25T22:45:00+02:00 — step-004/fix-01: coder fertig, commit `9b4482a` (Bracket-Pass-Through) + `bbc9041` (Doku). 383/383 Tests grün. Amend auf Refactor-Commit `16cab0f` war bereits vor Coder-Sitzung erfolgt
+- 2026-07-25T20:33:00+02:00 — **Auditer für step-004/fix-01 auf Wunsch des Nutzers übersprungen** (User-Antwort: "weiter mit step5"). Sicherheitsregression Findings #1 + Coverage-Lücke Findings #3 sind durch den Coder formal adressiert, aber nicht durch einen Auditer unabhängig verifiziert. Wird im task-summary.md transparent dokumentiert. Fix-01-Status: `done (audit skipped per user request)`.
+- 2026-07-25T20:35:00+02:00 — step-004 → done (3 Steps offen: 005-008)
 
 ## Config
 

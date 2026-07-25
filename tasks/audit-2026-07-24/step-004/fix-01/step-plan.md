@@ -1,5 +1,5 @@
 ---
-status: done (pending audit)
+status: done (audit skipped per user request)
 type: step-plan
 task: audit-2026-07-24
 step: 004/fix-01
@@ -8,11 +8,14 @@ created_by: planer
 created_by_model: MiniMax-M3
 created_by_model_knowledge_cutoff: 2026-01
 created_at: 2026-07-25T22:30:00+02:00
+coded_at: 2026-07-25T22:45:00+02:00
+code_commit: 9b4482a
 related_to:
   - tasks/audit-2026-07-24/step-004/step-review.md (Findings #1, #2)
   - tasks/audit-2026-07-24/step-004/step-plan.md (ursprünglicher Plan)
   - tasks/audit-2026-07-24/step-004/step-result.md (was tatsächlich umgesetzt wurde)
 ---
+
 
 # Step 004 / fix-01: Bracket-Pass-Through in ReadOnlyGuard + Test-Coverage + Commit-Subject kürzen
 
