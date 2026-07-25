@@ -1,11 +1,14 @@
 ---
-status: open
+status: done (pending audit)
 type: step-plan
 task: audit-2026-07-24
 step: 008
 title: "Punkt 22 — Glob-Matcher in SqlToAi.Domain extrahieren und SecurityGuard darauf umstellen"
 created_by: planer
 created_at: 2026-07-25T18:30:00+02:00
+coded_by: coder
+coded_at: 2026-07-25T22:30:00+02:00
+code_commit: 6f12998
 related_to:
   - tasks/audit-2026-07-24/03-code-qualitaet-architektur.md (DRY-Impact Niedrig #1)
   - tasks/audit-2026-07-24/00-summary.md (Punkt 22 — Rest nach Commit bcef6a9)
