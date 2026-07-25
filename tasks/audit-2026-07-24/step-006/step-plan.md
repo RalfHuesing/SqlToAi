@@ -1,11 +1,14 @@
 ---
-status: open
+status: done (pending audit)
 type: step-plan
 task: audit-2026-07-24
 step: 006
 title: "Punkt 20 — ExecuteDetailQueryAsync-Helper in SchemaService extrahieren"
 created_by: planer
 created_at: 2026-07-25T18:30:00+02:00
+coded_by: coder
+coded_at: 2026-07-25T21:10:00+02:00
+code_commit_hash: 31d77a9057f0e59e706e39e4f87634e9d728218a
 related_to:
   - tasks/audit-2026-07-24/03-code-qualitaet-architektur.md (DRY-Impact Mittel #4)
   - tasks/audit-2026-07-24/00-summary.md (Punkt 20)
