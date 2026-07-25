@@ -2,6 +2,7 @@
 
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
+using SqlToAi.Domain;
 using SqlToAi.Security;
 
 namespace SqlToAi.Tests.Security;
@@ -67,7 +68,7 @@ public sealed class SecurityGuardTests
     [InlineData("Demo_App", "Demo_App*", true)] // '*' matches zero or more trailing characters
     public void MatchesPattern_ShouldEvaluateGlobWildcardsCaseInsensitively(string text, string pattern, bool expected)
     {
-        Assert.Equal(expected, SecurityGuard.MatchesPattern(text, pattern));
+        Assert.Equal(expected, GlobMatcher.IsMatch(text, pattern));
     }
 
     [Theory]
@@ -76,6 +77,6 @@ public sealed class SecurityGuardTests
     [InlineData("", "")] // both empty -> no match
     public void MatchesPattern_ShouldReturnFalse_OnTimeoutOrEmptyInput(string text, string pattern)
     {
-        Assert.False(SecurityGuard.MatchesPattern(text, pattern));
+        Assert.False(GlobMatcher.IsMatch(text, pattern));
     }
 }

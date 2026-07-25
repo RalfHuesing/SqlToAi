@@ -1,8 +1,8 @@
 #nullable enable
 
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
+using SqlToAi.Domain;
 
 namespace SqlToAi.Security;
 
@@ -49,33 +49,11 @@ public sealed class SecurityGuard : ISecurityGuard
     {
         foreach (string pattern in patterns)
         {
-            if (MatchesPattern(databaseName, pattern))
+            if (GlobMatcher.IsMatch(databaseName, pattern))
             {
                 return true;
             }
         }
         return false;
-    }
-
-    internal static bool MatchesPattern(string text, string pattern)
-    {
-        if (string.IsNullOrEmpty(pattern))
-        {
-            return false;
-        }
-
-        // Convert wildcard glob pattern (* and ?) to Regex equivalent
-        string regexPattern = "^" + Regex.Escape(pattern)
-            .Replace("\\*", ".*")
-            .Replace("\\?", ".") + "$";
-
-        try
-        {
-            return Regex.IsMatch(text, regexPattern, RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(200));
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            return false;
-        }
     }
 }
