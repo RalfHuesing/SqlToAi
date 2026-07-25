@@ -1,11 +1,15 @@
 ---
-status: done (pending audit)
+status: done
 type: step-plan
 task: audit-2026-07-24
 step: 007
 title: "Punkt 21 — RenderMarkdownTable in gemeinsame MarkdownTableRenderer konsolidieren"
 created_by: planer
 created_at: 2026-07-25T18:30:00+02:00
+coded_at: 2026-07-25T21:50:00+02:00
+code_commit_hash: 085cb4a026c9957225675456894b80cff5e0b517
+reviewed_at: 2026-07-25T22:00:00+02:00
+verdict: approved
 related_to:
   - tasks/audit-2026-07-24/03-code-qualitaet-architektur.md (DRY-Impact Mittel #1)
   - tasks/audit-2026-07-24/00-summary.md (Punkt 21)

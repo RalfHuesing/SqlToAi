@@ -2,9 +2,9 @@
 status: executing
 task: audit-2026-07-24
 started_at: 2026-07-25T18:23:30+02:00
-last_updated: 2026-07-25T21:40:00+02:00
+last_updated: 2026-07-25T22:00:00+02:00
 iteration_count: 0
-current_step: step-007
+current_step: step-008
 ---
 
 
@@ -14,9 +14,9 @@ current_step: step-007
 
 - **Task-Status:** `executing` (wiederaufgenommen nach Stopp)
 - **Iterationen:** 0 / 3 (Loop-Guard)
-- **Aktueller Schritt:** `step-007` (Punkt 21: `MarkdownTableRenderer` konsolidieren)
+- **Aktueller Schritt:** `step-008` (Punkt 22: `GlobMatcher` in `SqlToAi.Domain`)
 - **Gestartet:** 2026-07-25T18:23:30+02:00
-- **Zuletzt aktualisiert:** 2026-07-25T21:40:00+02:00
+- **Zuletzt aktualisiert:** 2026-07-25T22:00:00+02:00
 
 ## Steps
 
@@ -28,8 +28,8 @@ current_step: step-007
 | step-004 | done | Punkt 18: gemeinsamer `SqlCharScanner` | ✅ | ⚠️ issues → fix-01 → fix-01 done (audit skipped) | `9b4482a` |
 | step-005 | done | Punkt 19: generischer `TtlCache<TKey, TValue>` | ✅ | ✅ | `52c62a9` |
 | step-006 | done | Punkt 20: `ExecuteDetailQueryAsync`-Helper in `SchemaService` | ✅ | ✅ | `31d77a9` |
-| step-007 | in_progress | Punkt 21: `MarkdownTableRenderer` konsolidieren | - | - | - |
-| step-008 | open | Punkt 22: `GlobMatcher` in `SqlToAi.Domain` (Rest nach `bcef6a9`) | - | - | - |
+| step-007 | done | Punkt 21: `MarkdownTableRenderer` konsolidieren | ✅ | ✅ | `085cb4a` |
+| step-008 | in_progress | Punkt 22: `GlobMatcher` in `SqlToAi.Domain` (Rest nach `bcef6a9`) | - | - | - |
 
 ## History
 
@@ -62,6 +62,9 @@ current_step: step-007
 - 2026-07-25T21:10:00+02:00 — step-006: coder fertig, commit `31d77a9` (Helper extrahiert, 6 Methoden zu Einzeilern), commit `cbd7467` (Doku). 389/389 Tests grün (+1 Helper-Test). Linter-Parameterzahl OK. Baseline automatisch aktualisiert.
 - 2026-07-25T21:40:00+02:00 — step-006: auditer-Verdict `approved` (Plan-Erfüllung, Rules, Logik ok; Access-Check vor Connection verifiziert; Log-Wortlaut-Drift akzeptabel; 1 Buchführungsungenauigkeit im Commit-Body als Beobachtung)
 - 2026-07-25T21:40:00+02:00 — step-006 → done (1 Step offen: 007-008)
+- 2026-07-25T21:50:00+02:00 — step-007: coder fertig, commit `085cb4a` (MarkdownTableRenderer extrahiert, 8 Aufrufe umgestellt), commit `1a92d07` (Doku). 393/393 Tests grün (+4 MarkdownTableRendererTests). Bit-Identität per SHA-256 verifiziert (alle drei Originale: `675ce12b...`). Baseline automatisch aktualisiert.
+- 2026-07-25T22:00:00+02:00 — step-007: auditer-Verdict `approved` (Plan-Erfüllung, Rules, Logik ok; 5 Baseline-Hashes verifiziert; 34 bestehende Tests unverändert grün)
+- 2026-07-25T22:00:00+02:00 — step-007 → done (0 Steps offen: 008 + globaler Audit)
 
 ## Config
 
