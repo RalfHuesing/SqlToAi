@@ -24,7 +24,10 @@ Für triviale Einzeländerungen ist er Overkill — die direkt im Editor machen.
 1. **Verzeichnis anlegen:** `tasks/<kurzname>/` (z. B. `tasks/audit-2026-07-24/`)
 2. **Aufgabe dokumentieren:** Eine oder mehrere Markdown-Dateien, die die
    Aufgabe so konkret wie möglich beschreiben (siehe Abschnitt 6 für
-   Mindestanforderungen).
+   Mindestanforderungen). Existiert noch keine ausgereifte Aufgaben-Doku,
+   nur eine grobe Idee: erst `.agents/workflows/konzept-workflow.md`
+   nutzen, um sie im Dialog zu `konzept.md` zu schärfen — dessen
+   Exit-Kriterium ist genau Abschnitt 6 hier.
 3. **Workflow starten:** Im Mavis-Root sagen:
    > „Starte Workflow `task-loop` für `tasks/<kurzname>/`."
 4. **Warten / Beobachten:** Der Orchestrator meldet sich regelmäßig
