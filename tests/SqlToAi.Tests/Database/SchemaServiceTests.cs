@@ -452,4 +452,30 @@ public sealed class SchemaServiceTests
         Assert.Contains("Column250", result.Value);
     }
 
+    [Fact]
+    public async Task ExecuteDetailQueryAsync_ShouldPropagateAccessFailure_WithoutOpeningConnection()
+    {
+        // Arrange — restrict Allowed to a database the test will NOT use, so the
+        // static whitelist check inside VerifyDatabaseAccessAsync fails. This guarantees
+        // the helper short-circuits before any CreateConnection call.
+        var options = new SqlToAiOptions();
+        options.Databases.Allowed = ["SalesDb"];
+
+        var mockFactory = new DummyConnectionFactory();
+        var securityGuard = new SecurityGuard(Options.Create(options));
+        var accessLevelProvider = new AccessLevelProvider(mockFactory, Options.Create(options), NullLogger<AccessLevelProvider>.Instance);
+        var metadataProvider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var policyResolver = new AlwaysAllowPolicyResolver();
+
+        var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
+
+        // Act — call any of the six detail methods with a blocked database name
+        var result = await service.GetSchemaForeignKeysAsync("BlockedDb", "dbo.Orders", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
+        Assert.Equal(0, mockFactory.ConnectionCreatedCount);
+    }
+
 }

@@ -215,7 +215,47 @@ public sealed class SchemaService : ISchemaService
         }
     }
 
-    public async Task<Result<string>> GetSchemaForeignKeysAsync(string databaseName, string tableName, CancellationToken cancellationToken = default)
+    public Task<Result<string>> GetSchemaForeignKeysAsync(string databaseName, string tableName, CancellationToken cancellationToken = default) =>
+        ExecuteDetailQueryAsync(databaseName, tableName, "foreign keys",
+            (connection, ct) => DetailSchemaRenderer.GetSchemaForeignKeysAsync(connection, tableName, databaseName, ct),
+            cancellationToken);
+
+    public Task<Result<string>> GetSchemaIndexesAsync(string databaseName, string tableName, CancellationToken cancellationToken = default) =>
+        ExecuteDetailQueryAsync(databaseName, tableName, "indexes",
+            (connection, ct) => DetailSchemaRenderer.GetSchemaIndexesAsync(connection, tableName, databaseName, ct),
+            cancellationToken);
+
+    public Task<Result<string>> GetSchemaConstraintsAsync(string databaseName, string tableName, CancellationToken cancellationToken = default) =>
+        ExecuteDetailQueryAsync(databaseName, tableName, "constraints",
+            (connection, ct) => DetailSchemaRenderer.GetSchemaConstraintsAsync(connection, tableName, databaseName, ct),
+            cancellationToken);
+
+    public Task<Result<string>> GetTriggerDefinitionAsync(string databaseName, string tableName, string triggerName, CancellationToken cancellationToken = default) =>
+        ExecuteDetailQueryAsync(databaseName, triggerName, "trigger DDL",
+            (connection, ct) => DetailSchemaRenderer.GetTriggerDefinitionAsync(connection, tableName, triggerName, databaseName, ct),
+            cancellationToken);
+
+    public Task<Result<string>> GetObjectReferencesAsync(string databaseName, string objectName, CancellationToken cancellationToken = default) =>
+        ExecuteDetailQueryAsync(databaseName, objectName, "referencing entities",
+            (connection, ct) => DetailSchemaRenderer.GetObjectReferencesAsync(connection, objectName, databaseName, ct),
+            cancellationToken);
+
+    public Task<Result<string>> GetRoutineParametersAsync(string databaseName, string routineName, CancellationToken cancellationToken = default) =>
+        ExecuteDetailQueryAsync(databaseName, routineName, "routine parameters",
+            (connection, ct) => DetailSchemaRenderer.GetRoutineParametersAsync(connection, routineName, databaseName, ct),
+            cancellationToken);
+
+    /// <summary>
+    /// Common skeleton for the six detail-query delegations: verify access, open a connection,
+    /// run a single DetailSchemaRenderer call inside a try/catch, log and translate any
+    /// exception to <see cref="SqlToAiError.QueryError"/>.
+    /// </summary>
+    private async Task<Result<string>> ExecuteDetailQueryAsync(
+        string databaseName,
+        string objectName,
+        string operationName,
+        Func<DbConnection, CancellationToken, Task<Result<string>>> query,
+        CancellationToken cancellationToken)
     {
         var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
         if (accessCheck.IsFailure)
@@ -227,122 +267,11 @@ public sealed class SchemaService : ISchemaService
         {
             using var connection = _connectionFactory.CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
-
-            return await DetailSchemaRenderer.GetSchemaForeignKeysAsync(connection, tableName, databaseName, cancellationToken);
+            return await query(connection, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve foreign keys for table {TableName} in database {DatabaseName}.", tableName, databaseName);
-            return SqlToAiError.QueryError(ex.Message);
-        }
-    }
-
-    public async Task<Result<string>> GetSchemaIndexesAsync(string databaseName, string tableName, CancellationToken cancellationToken = default)
-    {
-        var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
-        if (accessCheck.IsFailure)
-        {
-            return accessCheck.Error;
-        }
-
-        try
-        {
-            using var connection = _connectionFactory.CreateConnection(databaseName);
-            await connection.OpenAsync(cancellationToken);
-
-            return await DetailSchemaRenderer.GetSchemaIndexesAsync(connection, tableName, databaseName, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve indexes for table {TableName} in database {DatabaseName}.", tableName, databaseName);
-            return SqlToAiError.QueryError(ex.Message);
-        }
-    }
-
-    public async Task<Result<string>> GetSchemaConstraintsAsync(string databaseName, string tableName, CancellationToken cancellationToken = default)
-    {
-        var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
-        if (accessCheck.IsFailure)
-        {
-            return accessCheck.Error;
-        }
-
-        try
-        {
-            using var connection = _connectionFactory.CreateConnection(databaseName);
-            await connection.OpenAsync(cancellationToken);
-
-            return await DetailSchemaRenderer.GetSchemaConstraintsAsync(connection, tableName, databaseName, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve constraints for table {TableName} in database {DatabaseName}.", tableName, databaseName);
-            return SqlToAiError.QueryError(ex.Message);
-        }
-    }
-
-    public async Task<Result<string>> GetTriggerDefinitionAsync(string databaseName, string tableName, string triggerName, CancellationToken cancellationToken = default)
-    {
-        var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
-        if (accessCheck.IsFailure)
-        {
-            return accessCheck.Error;
-        }
-
-        try
-        {
-            using var connection = _connectionFactory.CreateConnection(databaseName);
-            await connection.OpenAsync(cancellationToken);
-
-            return await DetailSchemaRenderer.GetTriggerDefinitionAsync(connection, tableName, triggerName, databaseName, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve trigger DDL for {TriggerName} in database {DatabaseName}.", triggerName, databaseName);
-            return SqlToAiError.QueryError(ex.Message);
-        }
-    }
-
-    public async Task<Result<string>> GetObjectReferencesAsync(string databaseName, string objectName, CancellationToken cancellationToken = default)
-    {
-        var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
-        if (accessCheck.IsFailure)
-        {
-            return accessCheck.Error;
-        }
-
-        try
-        {
-            using var connection = _connectionFactory.CreateConnection(databaseName);
-            await connection.OpenAsync(cancellationToken);
-
-            return await DetailSchemaRenderer.GetObjectReferencesAsync(connection, objectName, databaseName, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve referencing entities for {ObjectName} in database {DatabaseName}.", objectName, databaseName);
-            return SqlToAiError.QueryError(ex.Message);
-        }
-    }
-
-    public async Task<Result<string>> GetRoutineParametersAsync(string databaseName, string routineName, CancellationToken cancellationToken = default)
-    {
-        var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
-        if (accessCheck.IsFailure)
-        {
-            return accessCheck.Error;
-        }
-
-        try
-        {
-            using var connection = _connectionFactory.CreateConnection(databaseName);
-            await connection.OpenAsync(cancellationToken);
-
-            return await DetailSchemaRenderer.GetRoutineParametersAsync(connection, routineName, databaseName, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve routine parameters for {RoutineName} in database {DatabaseName}.", routineName, databaseName);
+            _logger.LogError(ex, "Failed to retrieve {Operation} for {ObjectName} in database {DatabaseName}.", operationName, objectName, databaseName);
             return SqlToAiError.QueryError(ex.Message);
         }
     }
