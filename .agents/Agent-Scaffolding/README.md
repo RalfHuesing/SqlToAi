@@ -40,15 +40,13 @@ musst du explizit anstoßen, in jedem Zielprojekt einzeln.
 ### Erstmalig einbinden
 
 ```bash
-git subtree add --prefix=.agents/Agent-Scaffolding \
-  https://github.com/RalfHuesing/Agent-Scaffolding main --squash
+git subtree add --prefix=.agents/Agent-Scaffolding https://github.com/RalfHuesing/Agent-Scaffolding main --squash
 ```
 
 ### Updates reinholen
 
 ```bash
-git subtree pull --prefix=.agents/Agent-Scaffolding \
-  https://github.com/RalfHuesing/Agent-Scaffolding main --squash
+git subtree pull --prefix=.agents/Agent-Scaffolding https://github.com/RalfHuesing/Agent-Scaffolding main --squash
 ```
 
 ### Lokale Änderungen zurück in dieses Repo pushen
@@ -57,6 +55,5 @@ Selten nötig — nur falls direkt im eingebundenen Ordner eines
 Zielprojekts editiert wurde, statt hier zentral:
 
 ```bash
-git subtree push --prefix=.agents/Agent-Scaffolding \
-  https://github.com/RalfHuesing/Agent-Scaffolding main
+git subtree push --prefix=.agents/Agent-Scaffolding https://github.com/RalfHuesing/Agent-Scaffolding main
 ```
