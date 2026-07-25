@@ -66,6 +66,17 @@ Die drei Subagent-Rollen (Planer/Coder/Auditer) werden vom Orchestrator per
 
 ## 5. Phasen
 
+**Nebenläufigkeit — strikt verboten:** Der gesamte Loop ist **rein
+seriell**, ohne Ausnahme. Genau ein Subagent (Planer/Coder/Auditer) läuft
+zu jedem Zeitpunkt, egal ob innerhalb eines Steps (Rollen-Reihenfolge)
+oder über Steps/Fix-Runden hinweg — auch dann, wenn zwei Steps inhaltlich
+unabhängig aussehen (verschiedene Dateien, kein offensichtlicher
+Konflikt). Grund: alle Subagenten arbeiten auf demselben Git-Working-Tree
+und demselben Branch; Dateiüberlappung ist irrelevant, parallele
+Commits/Working-Tree-Änderungen auf demselben Checkout sind ein
+Integritätsrisiko, keine Effizienzsteigerung. Der Orchestrator wartet
+jeden Subagenten vollständig ab, bevor der nächste startet.
+
 ### 5.1 Initialisierung (einmalig pro Task)
 - Orchestrator erstellt `tasks/<name>/task-state.md` mit Status `executing`
 - Orchestrator ruft Planer auf mit Verweis auf das Task-Verzeichnis

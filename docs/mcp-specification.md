@@ -58,6 +58,8 @@ Nach dem statischen Namensabgleich führt der Server einen dynamischen Check dir
 * **Fehlerbehandlung:** Wenn die Ausführung von `AccessCheckSql` einen SQL-Fehler wirft oder kein Ergebnis liefert, wird das Level restriktiv auf `0` (`None`) gesetzt.
 * **Session- & TTL-Caching:**
   Um die Latenz zu minimieren, wird das ermittelte Access-Level für die Dauer der MCP-Sitzung gecacht. Über `CacheTtlSeconds` kann optional eine maximale Gültigkeitsdauer (in Sekunden) konfiguriert werden, nach der das Level erneut per SQL-Abfrage validiert wird (z. B. bei Berechtigungsänderungen im laufenden Betrieb).
+* **Wichtig — Cache-Invalidierung im Incident-Fall:**
+  > Die Access-Level- (`AccessLevelProvider`) und Anonymisierungsregel-Caches (`AnonymizationRuleProvider`) haben keine programmatische Invalidierungs-API. Wird `AccessCheckSql` serverseitig geändert, um einer Datenbank dringend die Berechtigung zu entziehen, oder wird eine fälschlich zu freizügige `AnonymizationRules`-Zeile entfernt, bleibt der zuvor gecachte Zustand bis zu `CacheTtlSeconds` (Default 300 s) wirksam. **Für sofortige Wirkung muss der `SqlToAi`-Prozess neu gestartet werden** — ein Hot-Reload oder Signal gibt es nicht. Bei kurzen TTLs (z. B. `60`) lässt sich der maximale Wirksamkeits-Verzug entsprechend reduzieren; eine `0` ist nicht erlaubt (würde bei jedem Tool-Aufruf neu geprüft).
 
 ---
 

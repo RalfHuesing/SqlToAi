@@ -63,6 +63,22 @@ Prüfe, ob `<task-dir>/task-state.md` existiert.
 
 ## Schritt 2 — Rollen als Subagenten aufrufen
 
+> **Harte Regel, keine Empfehlung: Genau ein Subagent gleichzeitig, für
+> den gesamten Task — niemals mehrere.** Nicht nur Planer/Coder/Auditer
+> innerhalb eines Steps, sondern auch verschiedene Steps oder Fix-Runden
+> **niemals** parallel starten, selbst wenn zwei Steps inhaltlich
+> unabhängig aussehen (verschiedene Dateien, kein offensichtlicher
+> Konflikt). **Grund:** Alle Subagenten arbeiten im selben Git-Working-
+> Tree auf demselben Branch. Ob sich die bearbeiteten Dateien überlappen,
+> ist irrelevant — zwei gleichzeitige Commits/Working-Tree-Änderungen auf
+> demselben Checkout sind ein Integritätsrisiko (Race Conditions, kaputte
+> Commit-Reihenfolge, verlorene Änderungen), kein Effizienzgewinn. Du
+> startest jeden Subagenten **synchron/im Vordergrund** und wartest sein
+> vollständiges Ergebnis ab, bevor du irgendetwas anderes tust (siehe
+> „Hinweise für Claude Code" unten für die konkrete technische Umsetzung
+> — dort ist das Vergessen des richtigen Parameters der einzige Weg, wie
+> diese Regel unbemerkt gebrochen werden könnte).
+
 Für Planer/Coder/Auditer gibt es **keine vorregistrierten Subagent-Typen** —
 das hält das Setup portabel. Stattdessen:
 
@@ -72,14 +88,14 @@ das hält das Setup portabel. Stattdessen:
    + konkreter Auftrag (welcher Task, welcher Step, welcher Modus) + Pfade
    zu den relevanten Dateien (Aufgaben-Doku, Step-Plan/-Result, Tech-Stack-
    Notiz).
-3. Starte damit eine neue, unabhängige Subagent-Konversation (siehe Hinweise
-   für Claude Code unten). Der Subagent bekommt **nur** diesen Prompt als
-   Kontext — nicht deinen bisherigen Gesprächsverlauf.
-4. Werte das Ergebnis aus (Dateien, die der Subagent geschrieben haben soll,
-   plus seine Abschlussmeldung), aktualisiere `task-state.md` entsprechend.
-
-Rufe Rollen **sequenziell** auf, nie parallel — Coder braucht den
-fertigen Step-Plan, Auditer braucht das fertige Coder-Ergebnis.
+3. Starte damit eine neue, unabhängige Subagent-Konversation **synchron**
+   (siehe Hinweise für Claude Code unten). Der Subagent bekommt **nur**
+   diesen Prompt als Kontext — nicht deinen bisherigen Gesprächsverlauf.
+   Du wartest, bis dieser eine Aufruf vollständig zurückkommt.
+4. Erst danach: Werte das Ergebnis aus (Dateien, die der Subagent
+   geschrieben haben soll, plus seine Abschlussmeldung), aktualisiere
+   `task-state.md` entsprechend, committe was zu committen ist — dann
+   erst der nächste Subagent-Aufruf.
 
 ### Commit-Verantwortung (Übersicht)
 
@@ -200,6 +216,9 @@ Zusammenfassung an den Nutzer:
   oben), nie Produktcode.
 - **Keine Rolle überspringen.** Auch ein trivialer Step läuft durch
   Coder → Auditer, nicht direkt "durchgewunken".
+- **Niemals zwei Subagenten gleichzeitig laufen lassen** — weder zwei
+  Rollen desselben Steps noch zwei verschiedene Steps/Fix-Runden parallel,
+  auch nicht wenn sie unabhängig aussehen. Siehe Warnkasten in Schritt 2.
 - **Keinen Push.** Genau wie die Subagenten — nur lokale Commits.
 - **Bei `blocked` nicht selbst entscheiden und weitermachen.** Nutzer-
   Entscheidungen sind Nutzer-Entscheidungen.
@@ -216,9 +235,14 @@ Diese Sektion ist implementierungsspezifisch — für andere Tools sinngemäß
 - Subagent-Aufrufe (Schritt 2): Agent-Tool nutzen, `subagent_type`
   `general-purpose` (oder `claude`), **kein** eigener registrierter Typ pro
   Rolle nötig — der Skill-Inhalt geht komplett in den `prompt`.
-- **Immer im Vordergrund aufrufen** (`run_in_background: false` bzw. den
-  synchronen Default nutzen), da Coder → Auditer eine harte Abhängigkeit
-  ist. Kein paralleles Spawnen mehrerer Rollen für denselben Step.
+- **Bei jedem einzelnen Agent-Aufruf explizit `run_in_background: false`
+  setzen.** Das Agent-Tool ist **standardmäßig asynchron** (Hintergrund),
+  wenn das Flag fehlt — ohne dieses Flag wartest du strukturell **nicht**
+  auf das Ergebnis, egal was Schritt 2 vorschreibt. Das ist der einzige
+  Mechanismus, der die Sequenzialitäts-Regel aus Schritt 2 tatsächlich
+  durchsetzt; alles andere ist Text, dem du folgen musst. Vor jedem
+  Subagent-Aufruf kurz prüfen: „Habe ich `run_in_background: false`
+  gesetzt?"
 - Für Status-Updates an den Nutzer reicht normaler Chat-Text nach jedem
   Step — kein Cron/Push nötig, außer der Nutzer bittet explizit um
   unbeaufsichtigten/geplanten Lauf.
