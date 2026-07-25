@@ -29,7 +29,7 @@ current_step: step-008
 | step-005 | done | Punkt 19: generischer `TtlCache<TKey, TValue>` | ✅ | ✅ | `52c62a9` |
 | step-006 | done | Punkt 20: `ExecuteDetailQueryAsync`-Helper in `SchemaService` | ✅ | ✅ | `31d77a9` |
 | step-007 | done | Punkt 21: `MarkdownTableRenderer` konsolidieren | ✅ | ✅ | `085cb4a` |
-| step-008 | in_progress | Punkt 22: `GlobMatcher` in `SqlToAi.Domain` (Rest nach `bcef6a9`) | - | - | - |
+| step-008 | done | Punkt 22: `GlobMatcher` in `SqlToAi.Domain` (Rest nach `bcef6a9`) | ✅ | ✅ | `6f12998` |
 
 ## History
 
@@ -65,6 +65,9 @@ current_step: step-008
 - 2026-07-25T21:50:00+02:00 — step-007: coder fertig, commit `085cb4a` (MarkdownTableRenderer extrahiert, 8 Aufrufe umgestellt), commit `1a92d07` (Doku). 393/393 Tests grün (+4 MarkdownTableRendererTests). Bit-Identität per SHA-256 verifiziert (alle drei Originale: `675ce12b...`). Baseline automatisch aktualisiert.
 - 2026-07-25T22:00:00+02:00 — step-007: auditer-Verdict `approved` (Plan-Erfüllung, Rules, Logik ok; 5 Baseline-Hashes verifiziert; 34 bestehende Tests unverändert grün)
 - 2026-07-25T22:00:00+02:00 — step-007 → done (0 Steps offen: 008 + globaler Audit)
+- 2026-07-25T22:15:00+02:00 — step-008: coder fertig, commit `6f12998` (GlobMatcher extrahiert, SecurityGuard umgestellt), commit `af438dd` (Doku). 410/410 Tests grün (+17 GlobMatcherTests). Bit-Identität bestätigt. Plan-Widerspruch sauber aufgelöst (Tests riefen MatchesPattern direkt auf → GlobMatcher.IsMatch). InternalsVisibleTo bereits da. Baseline automatisch aktualisiert.
+- 2026-07-25T22:30:00+02:00 — step-008: auditer-Verdict `approved` (Plan-Erfüllung, Rules, Logik ok; Bit-Identität sicherheitsrelevant verifiziert; 4 Baseline-Hashes stimmen; Commit-Subject 91 Zeichen als nicht-blockierend akzeptiert)
+- 2026-07-25T22:30:00+02:00 — step-008 → done (alle 8 Step-Commits + 8 Step-Reviews durch, bereit für globalen 360°-Audit)
 
 ## Config
 
