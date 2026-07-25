@@ -59,11 +59,13 @@ public sealed class ReadOnlyGuard : IReadOnlyGuard
         var sb = new StringBuilder(sql.Length);
         foreach (var ev in SqlCharScanner.Scan(sql))
         {
-            // Original-Logik: Zeichen in 'Normal' durchreichen, in 'SingleQuote' (nur das
-            // '\'' selbst) durch Whitespace ersetzen. Andere States (Comments, Bracket) werden
-            // implizit übersprungen. Im Gegensatz zur vorherigen Inline-Implementierung werden
-            // Bracket-Inhalte jetzt ebenfalls ausgeblendet — semantisch ohne Auswirkung, da der
-            // Regex auf Mutating-Keywords in echten Identifiern eh nicht greift.
+            // Original-Logik (vor step-004-Refactor): Zeichen in 'Normal' und innerhalb von
+            // Bracket-Identifiern '[...]' durchreichen, in 'SingleQuote' (nur das '\'' selbst)
+            // durch Whitespace ersetzen, damit Werte wie WHERE Status = 'DELETE' nicht als
+            // Mutating-Keyword matchen. Andere States (LineComment, BlockComment) werden
+            // implizit übersprungen. Bracket-Inhalt MUSS durchgereicht werden, damit Wortgrenzen
+            // in [insert], [drop], [delete], [update], [truncate] vom Mutating-Regex
+            // \b(...)\b erkannt werden — siehe step-004/fix-01.
             if (ev.State == SqlCharState.Normal)
             {
                 sb.Append(ev.Character);
@@ -71,6 +73,10 @@ public sealed class ReadOnlyGuard : IReadOnlyGuard
             else if (ev.State == SqlCharState.SingleQuote && ev.Character == '\'')
             {
                 sb.Append(' ');
+            }
+            else if (ev.State == SqlCharState.Bracket)
+            {
+                sb.Append(ev.Character);
             }
         }
 

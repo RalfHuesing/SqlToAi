@@ -32,6 +32,11 @@ public sealed class ReadOnlyGuardTests
     [InlineData("SELECT * FROM Customers WHERE Status = 'UPDATE'")]
     [InlineData("SELECT HAS_PERMS_BY_NAME('T', 'OBJECT', 'EXECUTE') AS CanExec")]
     [InlineData("SELECT 'it''s a delete-like value' AS Note")]
+    // step-004/fix-01: harmlose Bracket-Identifier muessen safe bleiben. Bracket-Inhalt wird
+    // an die Regex durchgereicht, aber das Wort in den Klammern ist nicht im Mutating-Set.
+    [InlineData("SELECT [My Column With Spaces] FROM t")]
+    [InlineData("SELECT [Order Date] FROM [Customer Orders]")]
+    [InlineData("SELECT * FROM [dbo].[Customers]")]
     public void IsQuerySafe_ShouldReturnTrue_ForSafeQueries(string query)
     {
         // Arrange
@@ -66,6 +71,15 @@ public sealed class ReadOnlyGuardTests
     [InlineData("SP_EXECUTESQL N'SELECT 1'")]
     [InlineData("Sp_ExecuteSql N'SELECT 1'")]
     [InlineData("sp_executesql N'DELETE FROM dbo.Customers; COMMIT'")]
+    // step-004/fix-01: Bracket-Identifier mit mutating-keyword-aehnlichem Inhalt muessen
+    // abgewiesen werden. .NET-Regex-Wortgrenzen \b bilden sich an '[' und ']', sodass insert
+    // innerhalb von [insert] als eigenstaendiges Token matcht. Ohne Bracket-Pass-Through
+    // waeren diese Queries faelschlich als safe eingestuft worden.
+    [InlineData("SELECT [insert] FROM t")]
+    [InlineData("SELECT [drop] FROM t")]
+    [InlineData("SELECT * FROM [delete]")]
+    [InlineData("SELECT [update] FROM t WHERE [truncate] = 1")]
+    [InlineData("INSERT INTO [insert] VALUES (1)")]
     public void IsQuerySafe_ShouldReturnFalse_ForMutatingQueries(string query)
     {
         // Arrange
