@@ -1,5 +1,5 @@
 ---
-status: open
+status: done (pending audit)
 type: step-plan
 task: appsettings-aktuell-halten
 step: step-002
