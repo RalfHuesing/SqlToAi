@@ -3,15 +3,17 @@ status: done
 type: step-result
 task: <TASK-NAME>
 step: <NNN>              # im Fix-Modus: <NNN>/fix-<XX>
+step_type: single  # single | batch — aus step-plan.md übernehmen, siehe ../../spec.md §7.7
 coded_by: coder
-coded_by_model: <Modell-ID, z. B. claude-sonnet-5>
-coded_by_model_knowledge_cutoff: <z. B. 2026-01>
+coded_by_model: <Modell-ID deiner eigenen LLM-Instanz>
+coded_by_model_knowledge_cutoff: <Knowledge-Cutoff-Datum, z. B. 2026-01>
 coded_at: <ISO-8601>
 code_commit_hash: <SHA>  # Commit mit Code+Tests (Coder-Skill Schritt 5)
 # Hinweis: den Commit, der DIESE Datei enthält (Coder-Skill Schritt 7),
 # kann diese Datei denknotwendig nicht selbst zitieren — bei Bedarf per
 # `git log --follow -- <Pfad-dieser-Datei>` nachschlagen.
 status_after: done  # done | blocked
+blocker_category: n/a  # n/a | content | infrastructure — nur relevant falls status_after: blocked, siehe Abschnitt "Falls Status blocked"
 ---
 
 # Result Step <NNN>: <Titel>
@@ -27,6 +29,11 @@ status_after: done  # done | blocked
 - `tests/.../NeueTestDatei.cs` (neu) — <was die Tests abdecken>
 
 <Pro Datei ein Bullet. Auch neue Files auflisten.>
+
+<Bei `step_type: batch`: pro Bullet zusätzlich die Item-ID voranstellen,
+z. B. `- item-01: pfad/zu/datei.md — Tippfehler korrigiert`, damit
+Auditer und ein späterer item-genauer Fix-Step die Zuordnung nachvollziehen
+können (siehe `../../spec.md` §7.7).>
 
 ## Commit
 
@@ -85,8 +92,10 @@ getestet — Test fehlt möglicherweise.">
 
 ## Falls Status `blocked`
 
-**Blockiert weil:** <konkrete Begründung>
+**Blocker-Art:** `content` (fachlich/planerisch — Nutzer-Entscheidung nötig) oder `infrastructure` (Umgebung/Tooling fehlt oder nicht erreichbar — siehe Coder-Skill Schritt 4a)
 
-**Brauche von Nutzer:** <klare Frage oder Entscheidung>
+**Blockiert weil:** <konkrete Begründung — bei `infrastructure`: was genau fehlt/nicht erreichbar ist>
+
+**Brauche von Nutzer:** <klare Frage oder Entscheidung — bei `infrastructure`: konkrete manuelle Handlung, z. B. "Dienst X starten", "Tool Y installieren">
 
 **Bisher erreicht:** <was bereits umgesetzt ist, was noch offen ist>

@@ -3,6 +3,7 @@ status: executing  # executing | done | aborted
 task: <TASK-NAME>
 started_at: <ISO-8601>
 last_updated: <ISO-8601>
+rules_dir: <.agents/rules | .cursor/rules | <custom-pfad> | keins>  # einmalig erkannt (siehe ../spec.md §3.1), von konzept.md übernommen falls vorhanden
 total_fix_rounds: 0  # Summe aller Fix-Runden über alle Steps (Task-weiter Not-Anker, siehe Config)
 current_step: step-001
 ---
@@ -27,7 +28,10 @@ current_step: step-001
 
 <Wird vom Orchestrator gepflegt. Status pro Step: open / in_progress /
 done / done (fix-XX pending) / blocked. „Fix-Runden" = Anzahl vorhandener
-`fix-XX`-Unterordner / `max_fix_rounds_per_step` (Default 3/3).>
+`fix-XX`-Unterordner / `max_fix_rounds_per_step` (Default 3/3). Bei
+Batch-Steps (`step_type: batch`, siehe ../spec.md §7.7) im Titel optional
+die Item-Zahl vermerken, z. B. „Micro-Batch: 6 Doku-Korrekturen" — das
+Fix-Budget gilt trotzdem pro Step, nicht pro Item.>
 
 ## History
 
@@ -53,6 +57,8 @@ Andernfalls gelten die Defaults aus `../spec.md`.
 ```
 max_fix_rounds_per_step: 3
 max_total_fix_rounds: 12
+max_batch_items: 8          # siehe ../spec.md §7.7 (Micro-Batches)
+max_batch_diff_lines: 40    # siehe ../spec.md §7.7 (Micro-Batches)
 build_command: <aus Tech-Stack-Notiz>
 test_command: <aus Tech-Stack-Notiz>
 target_branch: <aktueller Branch, nicht hartcodiert>
@@ -67,4 +73,7 @@ target_branch: <aktueller Branch, nicht hartcodiert>
 - **Task-weiter Not-Anker erreicht** (`max_total_fix_rounds`, Default 12,
   über alle Steps summiert): Task → `aborted`, siehe `task-summary.md`.
 - **Blocker aufgetreten** (Step mit Status `blocked`): Loop pausiert,
-  Nutzer klärt
+  Nutzer klärt. Gilt unabhängig von der Blocker-Ursache identisch — auch
+  ein infrastruktur-/tooling-bedingter Blocker (z. B. Dienst nicht
+  erreichbar, Tool fehlt) erzeugt keinen Fix-Step und zählt **nicht**
+  gegen das Fix-Budget (siehe `../skills/coder/SKILL.md` Schritt 4a).

@@ -4,12 +4,21 @@ type: step-plan
 task: <TASK-NAME>
 step: <NNN>              # im Fix-Modus: <NNN>/fix-<XX>
 title: "<Titel des Steps>"
-estimated_risk: <low|medium|high>  # Einschätzung des Planers, siehe SKILL.md. Aktuell rein informativ, keine automatische Konsequenz.
+estimated_risk: <low|medium|high>  # Einschätzung des Planers, siehe SKILL.md §3a. Bei step_type: batch: Risiko aller Items ist per Definition low.
+step_type: single  # single (Default) | batch — siehe ../../spec.md §7.7. Bei batch: items-Liste unten füllen.
+items: []  # nur bei step_type: batch. Ein Eintrag pro gebündeltem Mini-Befund:
+# items:
+#   - id: item-01
+#     title: "<Kurztitel des Befunds>"
+#     source: "<Quelle, z. B. Aufgaben-Doku-Referenz>"
+#   - id: item-02
+#     title: "<Kurztitel>"
+#     source: "<Quelle>"
 created_by: planer
-created_by_model: <Modell-ID, z. B. claude-sonnet-5>
-created_by_model_knowledge_cutoff: <z. B. 2026-01>
+created_by_model: <Modell-ID deiner eigenen LLM-Instanz>
+created_by_model_knowledge_cutoff: <Knowledge-Cutoff-Datum, z. B. 2026-01>
 created_at: <ISO-8601>
-related_to: []
+related_to: []  # Pointer auf andere step-NNN (Task-interne Abhängigkeiten) oder auf step-review.md (Fix-Modus) — nie Fakten cachen, nur verweisen. Siehe ../../spec.md §7.6.
 ---
 
 # Step <NNN>: <Titel>
@@ -26,6 +35,8 @@ related_to: []
 
 ## Konkrete Änderungen
 
+**Bei `step_type: single`** (Standard-Struktur):
+
 ### Datei 1: `pfad/zu/datei.cs` (Zeile X-Y)
 
 - **Was:** <konkrete Änderung, nicht "implementiere X" sondern "in Foo.cs Zeile 13 ergänze: ...">
@@ -34,6 +45,20 @@ related_to: []
 ### Datei 2: ...
 
 <Wiederholen für jede betroffene Datei. Wenn keine Datei, sondern z. B. nur Doku: hier explizit "Doku: README.md, Sektion X — Absatz Y erweitern um Z.">
+
+**Bei `step_type: batch`** (siehe `../../spec.md` §7.7): statt „Datei N"
+eine Unterüberschrift pro Item aus der `items`-Liste im Frontmatter,
+Item-ID im Titel:
+
+### item-01: <Kurztitel> — `pfad/zu/datei.md` (Zeile X)
+
+- **Was:** <konkrete Änderung>
+- **Warum:** <kurz>
+
+### item-02: ...
+
+<Ein Abschnitt pro Item, unabhängig davon ob die Items thematisch
+zusammenhängen oder nicht.>
 
 ## Tests
 
@@ -54,7 +79,7 @@ related_to: []
 
 ## Rules-Refs
 
-- `.agents/rules/<datei>#<Abschnitt>` — <was daran relevant ist> (projekt-root-relativ)
+- `<rules_dir>/<datei>#<Abschnitt>` — <was daran relevant ist> (projekt-root-relativ; `rules_dir` siehe Tech-Stack-Notiz / `task-state.md`-Frontmatter)
 - <weitere>
 
 ## Bekannte Ausnahmen

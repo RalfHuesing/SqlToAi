@@ -26,7 +26,8 @@ existiert (Resume nach Unterbrechung).
 - **`orchestrator.md`** — die ausführbare Orchestrator-Anleitung (das,
   was du tatsächlich aufrufst)
 - **`spec.md`** — die volle Spezifikation dahinter: Phasen, Rollen,
-  Fix-Step-Mechanik, Git-Strategie, Loop-Guard, Edge-Cases
+  Fix-Step-Mechanik, Micro-Batches für triviale Low-Risk-Änderungen
+  (§7.7), Git-Strategie, Loop-Guard, Edge-Cases
 - **`skills/`** — Rollen-Definitionen für Planer, Coder, Auditer
   (jeweils `SKILL.md`), vom Orchestrator komplett in den jeweiligen
   Subagenten-Prompt eingebettet
