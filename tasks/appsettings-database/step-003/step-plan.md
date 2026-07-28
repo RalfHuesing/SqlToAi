@@ -1,5 +1,5 @@
 ---
-status: open
+status: done
 type: step-plan
 task: appsettings-database
 step: 003
