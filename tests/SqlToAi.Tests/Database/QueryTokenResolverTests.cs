@@ -10,11 +10,10 @@ namespace SqlToAi.Tests.Database;
 // @covers SqlToAi.Database.QueryTokenResolver
 public sealed class QueryTokenResolverTests
 {
-    private static QueryTokenResolver BuildResolver(ITokenVault vault, bool enabled = true, string secret = "top-secret")
+    private static QueryTokenResolver BuildResolver(ITokenVault vault, bool enabled = true)
     {
         var options = new SqlToAiOptions();
         options.Anonymizer.Tokenization.Enabled = enabled;
-        options.Anonymizer.Tokenization.Secret = secret;
         return new QueryTokenResolver(vault, Options.Create(options));
     }
 
@@ -24,18 +23,6 @@ public sealed class QueryTokenResolverTests
         var vault = new TokenVault();
         vault.Store("§§§tok§§§", "RealValue");
         var resolver = BuildResolver(vault, enabled: false);
-
-        string result = resolver.ResolveTokens("SELECT * FROM T WHERE A = '§§§tok§§§'");
-
-        Assert.Contains("§§§tok§§§", result, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ResolveTokens_ShouldReturnQueryUnchanged_WhenSecretIsEmpty()
-    {
-        var vault = new TokenVault();
-        vault.Store("§§§tok§§§", "RealValue");
-        var resolver = BuildResolver(vault, secret: "");
 
         string result = resolver.ResolveTokens("SELECT * FROM T WHERE A = '§§§tok§§§'");
 
@@ -145,7 +132,6 @@ public sealed class QueryTokenResolverTests
         vault.Store("<<tok>>", "RealValue");
         var options = new SqlToAiOptions();
         options.Anonymizer.Tokenization.Enabled = true;
-        options.Anonymizer.Tokenization.Secret = "top-secret";
         options.Anonymizer.Tokenization.Prefix = "<<";
         options.Anonymizer.Tokenization.Suffix = ">>";
         var resolver = new QueryTokenResolver(vault, Options.Create(options));
@@ -162,7 +148,6 @@ public sealed class QueryTokenResolverTests
         var options = new SqlToAiOptions();
         options.Anonymizer.Enabled = true;
         options.Anonymizer.Tokenization.Enabled = true;
-        options.Anonymizer.Tokenization.Secret = "top-secret";
         var anonymizer = new Anonymizer(Options.Create(options), vault);
         var resolver = new QueryTokenResolver(vault, Options.Create(options));
 

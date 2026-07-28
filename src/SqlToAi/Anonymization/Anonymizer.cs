@@ -68,28 +68,12 @@ public sealed class Anonymizer : IAnonymizer
             return RunAnonymization(originalValue, _options.Anonymizer.DefaultMode);
         }
 
-        string token = ComputeToken(originalValue, tokenization);
-        _tokenVault.Store(token, originalValue);
-        return token;
+        return _tokenVault.GetOrAddToken(originalValue, tokenization.Prefix, tokenization.Suffix);
     }
 
     private bool IsColumnExcluded(AnonymizationColumnContext context)
     {
         return !_options.Anonymizer.Enabled;
-    }
-
-    private static string ComputeToken(string value, TokenizationOptions tokenization)
-    {
-        byte[] keyBytes = Encoding.UTF8.GetBytes(tokenization.Secret);
-        byte[] valueBytes = Encoding.UTF8.GetBytes(value);
-        byte[] hash = HMACSHA256.HashData(keyBytes, valueBytes);
-
-        string body = Convert.ToBase64String(hash)
-            .Replace('+', '-')
-            .Replace('/', '_')
-            .TrimEnd('=');
-
-        return tokenization.Prefix + body + tokenization.Suffix;
     }
 
     private static string RunAnonymization(string value, string mode)

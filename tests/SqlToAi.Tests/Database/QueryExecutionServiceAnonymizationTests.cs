@@ -111,7 +111,6 @@ public sealed partial class QueryExecutionServiceTests
         var options = new SqlToAiOptions();
         options.Anonymizer.Enabled = true;
         options.Anonymizer.Tokenization.Enabled = enabled;
-        options.Anonymizer.Tokenization.Secret = "top-secret";
         return options;
     }
 

@@ -103,12 +103,11 @@ public sealed class AnonymizerTests
     // Tests: Tokenize
     // -------------------------------------------------------------------------
 
-    private static SqlToAiOptions BuildTokenizationOptions(bool enabled = true, string secret = "top-secret")
+    private static SqlToAiOptions BuildTokenizationOptions(bool enabled = true)
     {
         var options = new SqlToAiOptions();
         options.Anonymizer.Enabled = true;
         options.Anonymizer.Tokenization.Enabled = enabled;
-        options.Anonymizer.Tokenization.Secret = secret;
         return options;
     }
 
@@ -132,6 +131,16 @@ public sealed class AnonymizerTests
     }
 
     [Fact]
+    public void Tokenize_ShouldProduceCompactShortToken()
+    {
+        var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), new TokenVault());
+
+        var token = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
+
+        Assert.Equal("§§§T1§§§", token);
+    }
+
+    [Fact]
     public void Tokenize_ShouldProduceDifferentTokens_ForDifferentValues()
     {
         var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), new TokenVault());
@@ -140,6 +149,8 @@ public sealed class AnonymizerTests
         var token2 = anonymizer.Tokenize("IBAN", "DE11520513735120710131");
 
         Assert.NotEqual(token1, token2);
+        Assert.Equal("§§§T1§§§", token1);
+        Assert.Equal("§§§T2§§§", token2);
     }
 
     [Fact]
@@ -154,19 +165,7 @@ public sealed class AnonymizerTests
 
         Assert.StartsWith("<<", token, StringComparison.Ordinal);
         Assert.EndsWith(">>", token, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Tokenize_ShouldProduceDifferentTokens_ForDifferentSecrets()
-    {
-        var vault = new TokenVault();
-        var anonymizerA = new Anonymizer(Options.Create(BuildTokenizationOptions(secret: "secret-a")), vault);
-        var anonymizerB = new Anonymizer(Options.Create(BuildTokenizationOptions(secret: "secret-b")), vault);
-
-        var tokenA = anonymizerA.Tokenize("IBAN", "DE89370400440532013000");
-        var tokenB = anonymizerB.Tokenize("IBAN", "DE89370400440532013000");
-
-        Assert.NotEqual(tokenA, tokenB);
+        Assert.Equal("<<T1>>", token);
     }
 
     [Fact]
@@ -190,17 +189,6 @@ public sealed class AnonymizerTests
 
         Assert.NotEqual("Ralf", result);
         Assert.Equal(4, result.Length); // ScramblePattern default preserves length
-    }
-
-    [Fact]
-    public void Tokenize_ShouldFallBackToMasking_WhenSecretIsEmpty()
-    {
-        var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions(secret: "")), new TokenVault());
-
-        var result = anonymizer.Tokenize("Name", "Ralf");
-
-        Assert.NotEqual("Ralf", result);
-        Assert.Equal(4, result.Length);
     }
 
     [Fact]

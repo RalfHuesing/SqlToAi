@@ -2,6 +2,7 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 
 namespace SqlToAi.Anonymization;
 
@@ -13,6 +14,20 @@ namespace SqlToAi.Anonymization;
 public sealed class TokenVault : ITokenVault
 {
     private readonly ConcurrentDictionary<string, string> _tokenToValue = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, string> _valueToToken = new(StringComparer.Ordinal);
+    private int _counter;
+
+    /// <inheritdoc/>
+    public string GetOrAddToken(string value, string prefix, string suffix)
+    {
+        return _valueToToken.GetOrAdd(value, val =>
+        {
+            int id = Interlocked.Increment(ref _counter);
+            string token = $"{prefix}T{id}{suffix}";
+            _tokenToValue[token] = val;
+            return token;
+        });
+    }
 
     /// <inheritdoc/>
     public void Store(string token, string value) => _tokenToValue[token] = value;

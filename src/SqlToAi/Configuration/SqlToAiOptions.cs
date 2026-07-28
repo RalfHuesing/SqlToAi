@@ -83,14 +83,6 @@ public sealed class TokenizationOptions
     /// <summary>Master switch. When false, every anonymized column keeps using the regular <see cref="AnonymizerOptions.DefaultMode"/> masking.</summary>
     public bool Enabled { get; set; }
 
-    /// <summary>
-    /// Secret key for the deterministic HMAC-SHA256 token derivation. Required for tokenization to be
-    /// usable — when empty, <see cref="Enabled"/> is effectively ignored and anonymized columns fall
-    /// back to regular masking (fail-safe default). Never hardcode this; supply it via an environment
-    /// variable placeholder (e.g. <c>%SQLTOAI_TOKEN_SECRET%</c>).
-    /// </summary>
-    public string Secret { get; set; } = string.Empty;
-
     /// <summary>Marker prepended to every token so it can be unambiguously recognized in SQL text.</summary>
     public string Prefix { get; set; } = "§§§";
 
@@ -98,13 +90,12 @@ public sealed class TokenizationOptions
     public string Suffix { get; set; } = "§§§";
 
     /// <summary>
-    /// Whether tokenization is actually usable, i.e. enabled with a non-empty secret and non-empty
+    /// Whether tokenization is actually usable, i.e. enabled with non-empty
     /// delimiters. Both <see cref="Anonymizer"/> and the query-side token resolver must agree on this
     /// exact condition, so it lives here as the single source of truth.
     /// </summary>
     public bool IsUsable =>
         Enabled
-        && !string.IsNullOrEmpty(Secret)
         && !string.IsNullOrEmpty(Prefix)
         && !string.IsNullOrEmpty(Suffix);
 }

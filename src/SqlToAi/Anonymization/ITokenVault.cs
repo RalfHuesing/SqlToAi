@@ -11,6 +11,12 @@ namespace SqlToAi.Anonymization;
 /// </summary>
 public interface ITokenVault
 {
+    /// <summary>
+    /// Returns an existing token for the specified <paramref name="value"/> if already generated,
+    /// or creates and stores a new short token (e.g. <c>§§§T1§§§</c>) bi-directionally.
+    /// </summary>
+    string GetOrAddToken(string value, string prefix, string suffix);
+
     /// <summary>Remembers the real value behind a token, so it can be resolved later.</summary>
     void Store(string token, string value);
 

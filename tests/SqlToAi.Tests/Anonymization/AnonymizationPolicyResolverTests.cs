@@ -61,29 +61,16 @@ public sealed class AnonymizationPolicyResolverTests
     {
         var options = new SqlToAiOptions();
         options.Anonymizer.Tokenization.Enabled = false;
-        options.Anonymizer.Tokenization.Secret = "top-secret";
         var resolver = BuildResolver(options);
 
         Assert.False(resolver.IsTokenizationActive);
     }
 
     [Fact]
-    public void IsTokenizationActive_ShouldBeFalse_WhenSecretMissing()
+    public void IsTokenizationActive_ShouldBeTrue_WhenEnabled()
     {
         var options = new SqlToAiOptions();
         options.Anonymizer.Tokenization.Enabled = true;
-        options.Anonymizer.Tokenization.Secret = "";
-        var resolver = BuildResolver(options);
-
-        Assert.False(resolver.IsTokenizationActive);
-    }
-
-    [Fact]
-    public void IsTokenizationActive_ShouldBeTrue_WhenEnabledWithSecret()
-    {
-        var options = new SqlToAiOptions();
-        options.Anonymizer.Tokenization.Enabled = true;
-        options.Anonymizer.Tokenization.Secret = "top-secret";
         var resolver = BuildResolver(options);
 
         Assert.True(resolver.IsTokenizationActive);
