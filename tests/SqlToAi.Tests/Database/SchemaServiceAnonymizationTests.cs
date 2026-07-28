@@ -20,7 +20,7 @@ public sealed class SchemaServiceAnonymizationTests
     {
         // Arrange — mock schema returns CustomerId (int, PK/Identity) and Email (varchar, nullable).
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -49,7 +49,7 @@ public sealed class SchemaServiceAnonymizationTests
         // Arrange — same mock schema (CustomerId int, Email varchar), but the resolver now flags
         // Email as both anonymized AND searchable-token (reversible), not just masked.
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));

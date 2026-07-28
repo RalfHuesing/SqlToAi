@@ -10,8 +10,8 @@ Designed specifically for developers analyzing ERP systems and complex database 
 
 * 🚀 **Stdio-based MCP Host:** Fast, local execution using standard input/output (no HTTP/network setup required).
 * 🛡️ **PII Shield (On-the-Fly Anonymization):** Automatically scrambles or hashes all string values in query results (default: ON) to protect customer data while preserving data structure, casing, length, and join logical consistency. *Known limits* — string anonymization applies only to `string`-typed values; numeric IDs, dates, and other non-string columns are never anonymized, regardless of `AnonymizationRules`. Schema tools (`sql_get_schema`, `sql_get_schema_constraints`, `sql_get_trigger_definition`, view/function bodies) return raw DDL text without anonymization, so do not embed sensitive literal defaults in `DEFAULT` constraints or trigger code.
-* 🔒 **Schreibschutz (Read-Only Guard):** Regex-based command checking rejects modifying queries (`INSERT`, `UPDATE`, `DROP`, `EXEC`, etc.) inside a rollback transaction. The guard only steps aside for a database whose `AccessCheckSql` explicitly returns `ReadWrite` — every other access level stays read-only, always.
-* 🚦 **Safety/Demo Probe Check:** Run a configurable SQL validation query (e.g. `SELECT 1 WHERE DB_NAME() LIKE '%demo%'`) before accessing any database, blocking access to production databases. The probe also controls per-database anonymization (return `ReadOnly` for clear-text, `ReadOnlyAnonymized` for protected access) and, if returned, full write access (`ReadWrite`).
+* 🔒 **Read-Only Guard & Level-Based Authorization:** Regex-based command checking rejects modifying queries (`INSERT`, `UPDATE`, `DROP`, `EXEC`, etc.) inside a rollback transaction. The guard only steps aside for a database declared in the `ReadWrite` level list — every other access level stays read-only, always.
+* 🚦 **Level-Based Database Access Control:** Assign allowed databases directly to access level lists (`ReadWrite`, `ReadOnly`, `ReadOnlyAnonymized`, `SchemaOnly`) in `appsettings.json`. Fail-safe default-deny blocks unlisted databases (`AccessLevel.None`), and any multi-list declaration resolves to the most restrictive level (`SchemaOnly` > `ReadOnlyAnonymized` > `ReadOnly` > `ReadWrite`).
 * 🛡️ **Default Anonymization:** Every string column is automatically scrambled or tokenized with the configured algorithm unless a matching rule in `AnonymizationRules` disables anonymization (`Anonymize=0`) — no per-database manual configuration required.
 * 🌐 **Central, Cross-Database Anonymization Rules (optional):** Configure granular rules in a dedicated database (`AnonymizationRules`), applying across customer databases via `LIKE`-style wildcard patterns, with the most specific matching rule winning.
 * 🔑 **Reversible, Searchable Tokenization (optional):** A global mode switch, just like `DefaultMode` — when enabled, every column that would be anonymized gets a deterministic, keyed token instead of a scramble/hash mask, automatically, with zero column-by-column configuration. The server resolves that exact token back to the real value inside string literals before a later query executes — so `WHERE`, `JOIN`, `LIKE`, and range comparisons all keep working across tables, without the AI ever learning the value itself. Which columns get anonymized at all is entirely controlled by `AnonymizationRules`.
@@ -42,7 +42,7 @@ output. The root section is `SqlToAi`, which contains the following sub-sections
 
 | Section | Purpose |
 | :--- | :--- |
-| `Databases` | Static whitelist (`Allowed`/`Blocked`), `AccessCheckSql` for the dynamic permission probe, and `CacheTtlSeconds`. |
+| `Databases` | Level-based database access lists (`ReadWrite`, `ReadOnly`, `ReadOnlyAnonymized`, `SchemaOnly`) and `CacheTtlSeconds`. |
 | `SqlServer` | Connection parameters (`Server`, `IntegratedSecurity`, `UserId`, `Password`, `CommandTimeoutSeconds`). Values support environment variable interpolation (e.g. `%COMPUTERNAME%`). |
 | `Anonymizer` | Master switch (`Enabled`), the algorithm (`DefaultMode`: `ScramblePattern` or `Hash`), and the optional `Tokenization` sub-section below. |
 | `Anonymizer.Tokenization` | Optional global mode switch (`Enabled`, `Secret`, `Prefix`/`Suffix`) that replaces `DefaultMode` masking with reversible tokens for every anonymized column. See [mcp-specification.md](docs/mcp-specification.md#f-reversible-durchsuchbare-tokenisierung-anonymizertokenization-optional). |
@@ -80,9 +80,11 @@ The server picks credentials in this order (first match wins):
 {
   "SqlToAi": {
     "Databases": {
-      "Allowed": ["Demo_*", "TestDb", "Reporting_ReadOnly"],
-      "Blocked": ["master", "msdb", "tempdb", "model"],
-      "AccessCheckSql": "SELECT CASE WHEN SYSTEM_USER = 'readonly_ai' THEN 'ReadOnly' ELSE 'None' END AS AccessLevel"
+      "CacheTtlSeconds": 300,
+      "ReadWrite": ["DemoDB"],
+      "ReadOnly": ["ReportingDB"],
+      "ReadOnlyAnonymized": [],
+      "SchemaOnly": []
     },
     "SqlServer": {
       "Server": "%COMPUTERNAME%\\MSSQLSERVER",

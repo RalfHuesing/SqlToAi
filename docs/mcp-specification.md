@@ -15,51 +15,36 @@ Dieses Dokument definiert das vollständige Konzept, die Sicherheitsmechanismen 
 
 ## 2. Sicherheits- & Guardrail-Konzepte
 
-### A. Multi-Datenbank-Sicherheit (Static Whitelisting)
-Ein SQL Server besitzt typischerweise viele System- und Benutzerdatenbanken. Standardmäßig verweigert der MCP-Server jeglichen Zugriff. Der Administrator muss explizite Freigabemuster definieren.
+### A. Multi-Database Access & Level-Based Whitelisting
 
-* **Konfiguration:**
+SQL Server instances typically host multiple databases. By default, the MCP server enforces strict Default-Deny: any database not explicitly configured under an access level is blocked (`AccessLevel.None`).
+
+* **Configuration Structure:**
   ```json
   "Databases": {
-    "Allowed": ["Demo_*", "TestDb", "Reporting_ReadOnly"],
-    "Blocked": ["master", "msdb", "tempdb", "model", "HR_Payroll"],
-    "CacheTtlSeconds": 300
+    "CacheTtlSeconds": 300,
+    "ReadWrite": [ "DemoDB" ],
+    "ReadOnly": [ "ReportingDB" ],
+    "ReadOnlyAnonymized": [ "CustomerDB" ],
+    "SchemaOnly": [ "StagingDB" ]
   }
   ```
-* **Mechanismus:**
-  1. Jedes Tool außer `sql_list_databases`/`sql_search_databases` verlangt den Parameter `database` als **Pflichtfeld** — es gibt keinen impliziten Default; fehlt er, schlägt der Aufruf mit `SQL-AI-0001` fehl.
-  2. Der Name der Zieldatenbank wird gegen die Listen `Allowed` und `Blocked` geprüft (Unterstützung von einfachen Wildcards wie `*`).
-  3. Passt der Name nicht auf ein Muster in `Allowed` oder passt er auf ein Muster in `Blocked`, wird die Anfrage sofort blockiert (`SQL-AI-0104`).
-* **Credentials-Sicherheit:**
-  Der Connection String kann in der JSON-Konfiguration hinterlegt werden, es wird jedoch dringend empfohlen, ihn über die Umgebungsvariable `SQLTOAI_CONNECTION_STRING` an den MCP-Server zu übergeben, um Zugangsdaten nicht in Konfigurationsdateien einzuchecken.
 
----
+* **Access Levels & Permissions:**
 
-### B. Dynamischer Access- & Permission-Check (Access Levels)
-Nach dem statischen Namensabgleich führt der Server einen dynamischen Check direkt in der Zieldatenbank aus. Dieser bestimmt das maximale Zugriffslevel für die aktuelle Verbindung.
+  | Level Name | Description / Permissions |
+  | :--- | :--- |
+  | `None` | **Access Blocked (Default).** Any database not listed in `ReadWrite`, `ReadOnly`, `ReadOnlyAnonymized`, or `SchemaOnly` resolves to `None`. All tools fail with `SQL-AI-0104`. |
+  | `SchemaOnly` | **Metadata Only.** Schema and search tools (`sql_get_schema`, `sql_search_objects`, etc.) are allowed. `sql_execute_query` is blocked with `SQL-AI-0107`. |
+  | `ReadOnlyAnonymized` | **Anonymized Read Access.** Schema tools and `sql_execute_query` SELECTs are allowed; string columns are anonymized. |
+  | `ReadOnly` | **Raw Read Access.** Schema tools and `sql_execute_query` SELECTs are allowed without anonymization. |
+  | `ReadWrite` | **Full Read & Write Access.** All tools including data-modifying queries via `sql_execute_query` are permitted. Read-Only Guard is bypassed for DML/DDL execution. |
 
-* **Konfiguration:**
-  ```json
-  "Databases": {
-    "AccessCheckSql": "SELECT AccessLevel = CASE WHEN DB_NAME() LIKE '%demo%' THEN 'ReadOnly' WHEN SYSTEM_USER = 'readonly_ai' THEN 'SchemaOnly' ELSE 'None' END"
-  }
-  ```
-* **Rückgabewerte (Access Levels):**
-  Die SQL-Query muss eine Spalte namens `AccessLevel` zurückgeben (oder einen Skalarwert liefern). Der Wert wird wie folgt interpretiert:
-
-  | Wert (Int) | Wert (String) | Bedeutung / Berechtigung |
-  | :--- | :--- | :--- |
-  | `0` | `None` | **Gesamter Zugriff gesperrt.** Alle Tools für diese Datenbank schlagen mit `SQL-AI-0104` fehl. |
-  | `1` | `SchemaOnly` | **Nur Metadaten.** Alle Schema- und Suchtools sind erlaubt. Abfragen über `sql_execute_query` werden mit `SQL-AI-0107` blockiert. |
-  | `2` | `ReadOnlyAnonymized` | **Lesezugriff, anonymisiert.** Schema-Tools und Leseoperationen über `sql_execute_query` sind erlaubt; String-Spalten werden vor der Rückgabe per Anonymizer maskiert (siehe Abschnitt D). |
-  | `3` | `ReadOnly` | **Lesezugriff, Klartext.** Schema-Tools und Leseoperationen sind erlaubt, ohne Anonymisierung. |
-  | `4` | `ReadWrite` | **Vollzugriff.** Alle Aktionen (inklusive Schreiboperationen über `sql_execute_query`) sind erlaubt. Dies ist die einzige Stufe, die den Read-Only Guard (Abschnitt C) umgeht — es gibt keinen zusätzlichen globalen Schalter. |
-
-* **Fehlerbehandlung:** Wenn die Ausführung von `AccessCheckSql` einen SQL-Fehler wirft oder kein Ergebnis liefert, wird das Level restriktiv auf `0` (`None`) gesetzt.
-* **Session- & TTL-Caching:**
-  Um die Latenz zu minimieren, wird das ermittelte Access-Level für die Dauer der MCP-Sitzung gecacht. Über `CacheTtlSeconds` kann optional eine maximale Gültigkeitsdauer (in Sekunden) konfiguriert werden, nach der das Level erneut per SQL-Abfrage validiert wird (z. B. bei Berechtigungsänderungen im laufenden Betrieb).
-* **Wichtig — Cache-Invalidierung im Incident-Fall:**
-  > Die Access-Level- (`AccessLevelProvider`) und Anonymisierungsregel-Caches (`AnonymizationRuleProvider`) haben keine programmatische Invalidierungs-API. Wird `AccessCheckSql` serverseitig geändert, um einer Datenbank dringend die Berechtigung zu entziehen, oder wird eine fälschlich zu freizügige `AnonymizationRules`-Zeile entfernt, bleibt der zuvor gecachte Zustand bis zu `CacheTtlSeconds` (Default 300 s) wirksam. **Für sofortige Wirkung muss der `SqlToAi`-Prozess neu gestartet werden** — ein Hot-Reload oder Signal gibt es nicht. Bei kurzen TTLs (z. B. `60`) lässt sich der maximale Wirksamkeits-Verzug entsprechend reduzieren; eine `0` ist nicht erlaubt (würde bei jedem Tool-Aufruf neu geprüft).
+* **Matching & Conflict Resolution Rules:**
+  1. **Exact Matching:** Database names are matched case-insensitively using exact string equality (no globs/wildcards).
+  2. **Fail-Safe Conflict Resolution:** If a database is listed under multiple access level arrays, the most restrictive level wins:
+     $$\text{SchemaOnly} > \text{ReadOnlyAnonymized} > \text{ReadOnly} > \text{ReadWrite}$$
+  3. **Global Exclusions:** Databases matching patterns in `SqlServer.ExcludedDatabases` are always blocked regardless of access level declarations.
 
 ---
 
@@ -70,12 +55,12 @@ Für jede Datenbank außer solchen mit Access Level `ReadWrite` (Abschnitt B) wi
 2. **Transaktions-Ebene:** Alle Abfragen werden innerhalb einer expliziten Transaktion ausgeführt. Am Ende der Ausführung wird ein `ROLLBACK` ausgeführt, sodass versehentliche oder böswillige Datenänderungen verworfen werden.
 3. **Least-Privilege-Empfehlung:** Der Schreibschutz des Servers dient als "Defense-in-Depth". Die primäre Absicherung muss stets über einen SQL-Login mit minimalen Rechten (z. B. nur Mitgliedschaft in der Rolle `db_datareader`) realisiert werden.
 
-**Ausnahme bei `ReadWrite`:** Ist das ermittelte Access Level `ReadWrite`, überspringt der Server Schritt 1 vollständig (auch `INSERT`/`UPDATE`/`DELETE`/`EXEC` sind erlaubt) und committet die Transaktion aus Schritt 2 statt sie zurückzurollen. Es gibt **keinen separaten globalen Schalter** dafür — die Freigabe erfolgt ausschließlich pro Datenbank über `AccessCheckSql` (Abschnitt B). Der Mehrfach-Statement-Schutz (`SQL-AI-0101`) bleibt davon unberührt und gilt immer.
+**Ausnahme bei `ReadWrite`:** Ist das ermittelte Access Level `ReadWrite` (Datenbank in `Databases.ReadWrite` konfiguriert), überspringt der Server Schritt 1 vollständig (auch `INSERT`/`UPDATE`/`DELETE`/`EXEC` sind erlaubt) und committet die Transaktion aus Schritt 2 statt sie zurückzurollen. Es gibt **keinen separaten globalen Schalter** dafür — die Freigabe erfolgt ausschließlich pro Datenbank über die `ReadWrite`-Liste (Abschnitt A). Der Mehrfach-Statement-Schutz (`SQL-AI-0101`) bleibt davon unberührt und gilt immer.
 
 ---
 
 ### D. Per-DB String-Anonymisierung (AccessLevel-gesteuert)
-Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server String-Werte im Arbeitsspeicher, bevor sie an den KI-Agenten übertragen werden. Die Entscheidung *ob* anonymisiert wird, fällt pro Datenbank am `AccessLevel` (siehe Abschnitt B): Liefert `AccessCheckSql` `ReadOnlyAnonymized`/`2`, wird jede zurückgegebene String-Spalte anonymisiert; bei `ReadOnly`/`3` (Klartext) nicht.
+Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server String-Werte im Arbeitsspeicher, bevor sie an den KI-Agenten übertragen werden. Die Entscheidung *ob* anonymisiert wird, fällt pro Datenbank am `AccessLevel` (siehe Abschnitt A): Befindet sich die Datenbank in der Liste `ReadOnlyAnonymized`, wird jede zurückgegebene String-Spalte anonymisiert; bei `ReadOnly` (Klartext) nicht.
 
 * **Konfiguration:**
   ```json

@@ -4,14 +4,13 @@ using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
 using SqlToAi.Domain;
 using SqlToAi.Security;
+using Xunit;
 
 namespace SqlToAi.Tests.Security;
 
 // @covers SqlToAi.Security.SecurityGuard
 public sealed class SecurityGuardTests
 {
-    private static readonly Type TargetType = typeof(SecurityGuard);
-
     [Fact]
     public void IsDatabaseAllowed_ShouldReturnFalse_ForEmptyOrNullDatabase()
     {
@@ -25,56 +24,53 @@ public sealed class SecurityGuardTests
     }
 
     [Fact]
-    public void IsDatabaseAllowed_ShouldReturnTrue_WhenMatchesAllowedPattern()
+    public void IsDatabaseAllowed_ShouldReturnTrue_WhenDatabaseIsInConfiguredLevelList()
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = new List<string> { "Demo_*", "Reporting" };
+        options.Databases.ReadWrite = ["DemoDB"];
+        options.Databases.ReadOnly = ["ReportingDB"];
         var guard = new SecurityGuard(Options.Create(options));
 
         // Act & Assert
-        Assert.True(guard.IsDatabaseAllowed("Demo_App"));
-        Assert.True(guard.IsDatabaseAllowed("Reporting"));
-        Assert.False(guard.IsDatabaseAllowed("Demo"));
-        Assert.False(guard.IsDatabaseAllowed("Master"));
+        Assert.True(guard.IsDatabaseAllowed("DemoDB"));
+        Assert.True(guard.IsDatabaseAllowed("ReportingDB"));
+        Assert.False(guard.IsDatabaseAllowed("UnknownDB"));
     }
 
     [Fact]
-    public void IsDatabaseAllowed_ShouldReturnFalse_WhenMatchesBlockedOrExcludedPattern()
+    public void IsDatabaseAllowed_ShouldReturnFalse_WhenDatabaseIsGloballyExcluded()
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = new List<string> { "*" };
-        options.Databases.Blocked = new List<string> { "master", "msdb", "tempdb" };
-        options.SqlServer.ExcludedDatabases = new List<string> { "HR_Payroll" };
+        options.Databases.ReadWrite = ["DemoDB", "HR_Payroll"];
+        options.SqlServer.ExcludedDatabases = ["HR_Payroll", "master*"];
         var guard = new SecurityGuard(Options.Create(options));
 
         // Act & Assert
-        Assert.True(guard.IsDatabaseAllowed("Demo_App"));
-        Assert.False(guard.IsDatabaseAllowed("master"));
-        Assert.False(guard.IsDatabaseAllowed("msdb"));
+        Assert.True(guard.IsDatabaseAllowed("DemoDB"));
         Assert.False(guard.IsDatabaseAllowed("HR_Payroll"));
     }
 
     [Theory]
-    [InlineData("Demo_A", "Demo_?", true)] // single-char wildcard matches exactly one character
-    [InlineData("Demo_App", "Demo_??", false)] // '?' matches one character, so 'Demo_??' is 7 chars vs 8-char text
-    [InlineData("MyServer.1", "MyServer.1", true)] // exact match including regex metacharacters
-    [InlineData("MyServer.", "MyServer?", true)] // '?' substitutes the '.' (one char)
-    [InlineData("MyServer.1", "MyServer.1*", true)] // '*' after a metacharacter
-    [InlineData("MyServerX1", "MyServer.1", false)] // '.' must be escaped as literal
-    [InlineData("demo_a", "DEMO_?", true)] // case-insensitive matching
-    [InlineData("Demo_App", "Demo_App?", false)] // '?' requires at least one trailing character
-    [InlineData("Demo_App", "Demo_App*", true)] // '*' matches zero or more trailing characters
+    [InlineData("Demo_A", "Demo_?", true)]
+    [InlineData("Demo_App", "Demo_??", false)]
+    [InlineData("MyServer.1", "MyServer.1", true)]
+    [InlineData("MyServer.", "MyServer?", true)]
+    [InlineData("MyServer.1", "MyServer.1*", true)]
+    [InlineData("MyServerX1", "MyServer.1", false)]
+    [InlineData("demo_a", "DEMO_?", true)]
+    [InlineData("Demo_App", "Demo_App?", false)]
+    [InlineData("Demo_App", "Demo_App*", true)]
     public void MatchesPattern_ShouldEvaluateGlobWildcardsCaseInsensitively(string text, string pattern, bool expected)
     {
         Assert.Equal(expected, GlobMatcher.IsMatch(text, pattern));
     }
 
     [Theory]
-    [InlineData("", "Demo_*")] // empty text never matches a non-empty pattern
-    [InlineData("Demo_App", "")] // empty pattern is rejected by the guard
-    [InlineData("", "")] // both empty -> no match
+    [InlineData("", "Demo_*")]
+    [InlineData("Demo_App", "")]
+    [InlineData("", "")]
     public void MatchesPattern_ShouldReturnFalse_OnTimeoutOrEmptyInput(string text, string pattern)
     {
         Assert.False(GlobMatcher.IsMatch(text, pattern));

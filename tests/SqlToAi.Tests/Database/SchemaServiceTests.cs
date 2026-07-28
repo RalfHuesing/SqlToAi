@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 
 using System.Data;
 using System.Data.Common;
@@ -25,7 +25,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName, "SalesDb"];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -50,7 +50,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["SalesDb"];
+        options.Databases.ReadWrite = ["SalesDb"];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -73,7 +73,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -97,7 +97,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -123,7 +123,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -147,7 +147,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -173,7 +173,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -197,7 +197,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -221,7 +221,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -245,7 +245,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -268,7 +268,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -292,7 +292,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -316,7 +316,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -339,7 +339,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -363,7 +363,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -386,7 +386,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -409,7 +409,7 @@ public sealed class SchemaServiceTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -433,7 +433,7 @@ public sealed class SchemaServiceTests
         // Arrange — verifies there is no hidden column-count limit anywhere in the
         // rendering pipeline; sys.columns itself has no TOP/limit in its query.
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["*"];
+        options.Databases.ReadWrite = [TestConstants.DatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -459,7 +459,7 @@ public sealed class SchemaServiceTests
         // static whitelist check inside VerifyDatabaseAccessAsync fails. This guarantees
         // the helper short-circuits before any CreateConnection call.
         var options = new SqlToAiOptions();
-        options.Databases.Allowed = ["SalesDb"];
+        options.Databases.ReadWrite = ["SalesDb"];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
