@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -194,7 +195,8 @@ public sealed class AppSettingsMigrator
 
     internal static string CreateBackupFile(string targetFilePath, List<string> logs)
     {
-        string backupPath = targetFilePath + ".bak";
+        string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
+        string backupPath = $"{targetFilePath}.{timestamp}.bak";
         try
         {
             string originalJson = File.ReadAllText(targetFilePath);

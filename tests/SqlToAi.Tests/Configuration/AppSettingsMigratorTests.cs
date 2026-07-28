@@ -117,6 +117,7 @@ public sealed class AppSettingsMigratorTests : IDisposable
         // Assert
         Assert.True(result.MigrationApplied);
         Assert.NotNull(result.BackupFilePath);
+        Assert.Matches(@"appsettings\.json\.\d{8}_\d{6}\.bak$", result.BackupFilePath);
         Assert.True(File.Exists(result.BackupFilePath));
 
         string updatedText = File.ReadAllText(targetFilePath);
@@ -175,7 +176,7 @@ public sealed class AppSettingsMigratorTests : IDisposable
         // Assert
         Assert.False(result.MigrationApplied);
         Assert.Null(result.BackupFilePath);
-        Assert.False(File.Exists(targetFilePath + ".bak"));
+        Assert.Empty(Directory.GetFiles(_tempDirectory, "*.bak"));
     }
 
     [Fact]
@@ -329,5 +330,21 @@ public sealed class AppSettingsMigratorTests : IDisposable
         // Only the Password field changed
         Assert.Equal("***MASKED-BY-MIGRATOR***", backupSqlServer["Password"]!.GetValue<string>());
         Assert.NotEqual(origSqlServer["Password"]!.GetValue<string>(), backupSqlServer["Password"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void CreateBackupFile_ShouldUseTimestampInFilename()
+    {
+        // Arrange
+        string targetFilePath = Path.Combine(_tempDirectory, "appsettings.json");
+        File.WriteAllText(targetFilePath, "{}", Encoding.UTF8);
+        var logs = new List<string>();
+
+        // Act
+        string backupPath = AppSettingsMigrator.CreateBackupFile(targetFilePath, logs);
+
+        // Assert
+        Assert.Matches(@"appsettings\.json\.\d{8}_\d{6}\.bak$", backupPath);
+        Assert.True(File.Exists(backupPath));
     }
 }
