@@ -1,22 +1,22 @@
 ---
-status: executing
+status: done
 task: tokenization-short-tokens
 started_at: 2026-07-28T15:21:00Z
-last_updated: 2026-07-28T15:21:00Z
+last_updated: 2026-07-28T15:27:10Z
 rules_dir: .agents/rules
 total_fix_rounds: 0
-current_step: step-001
+current_step: step-004
 ---
 
 # Task State: tokenization-short-tokens
 
 ## Übersicht
 
-- **Task-Status:** `executing`
+- **Task-Status:** `done`
 - **Fix-Runden gesamt:** 0
-- **Aktueller Schritt:** `step-001`
+- **Aktueller Schritt:** `step-004`
 - **Gestartet:** 2026-07-28T15:21:00Z
-- **Zuletzt aktualisiert:** 2026-07-28T15:21:00Z
+- **Zuletzt aktualisiert:** 2026-07-28T15:27:10Z
 
 ## Steps
 
@@ -25,7 +25,7 @@ current_step: step-001
 | step-001 | done | TokenizationOptions & TokenVault Refactoring (Entfernung Secret, Bidirektionales Short-Token Mapping) | 0/3 | ee80b94 | approved | 2b09dfc |
 | step-002 | done | Anonymizer & QueryTokenResolver Refactoring (Kurz-Token Generierung & Pattern Matching) | 0/3 | ee80b94 | approved | 23d9de0 |
 | step-003 | done | Test-Updates (AnonymizerTests & QueryTokenResolverTests) | 0/3 | ee80b94 | approved | a885aa7 |
-| step-004 | open | Dokumentations-Synchronisation (README.md & mcp-specification.md) | 0/3 | - | - | - |
+| step-004 | done | Dokumentations-Synchronisation (README.md & mcp-specification.md) | 0/3 | 2bf1f51 | approved | 4a412e1 |
 
 ## History
 
@@ -34,6 +34,8 @@ current_step: step-001
 - 2026-07-28T15:25:00Z — step-001: approved (Code: `ee80b94`, Doku: `2b09dfc`)
 - 2026-07-28T15:26:00Z — step-002: approved (Code: `ee80b94`, Doku: `23d9de0`)
 - 2026-07-28T15:26:40Z — step-003: approved (Code: `ee80b94`, Doku: `a885aa7`)
+- 2026-07-28T15:27:10Z — step-004: approved (Code: `2bf1f51`, Doku: `4a412e1`)
+- 2026-07-28T15:27:10Z — Task erfolgreich abgeschlossen (`done`)
 
 ## Config
 
