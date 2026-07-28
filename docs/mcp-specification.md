@@ -117,11 +117,11 @@ Sämtliche Anonymisierungs-Regeln und -Ausschlüsse werden zentral über die `An
 
 ### F. Reversible, durchsuchbare Tokenisierung (`Anonymizer.Tokenization`, optional)
 
-Normale Anonymisierung (Abschnitt D) ist bewusst eine Einbahnstraße: Der Server maskiert einen Wert beim Herausgeben, kann ihn aber nicht zurückrechnen. Bei vielen Datenbanken mit hunderten Tabellen kann das zu restriktiv sein — die KI soll denselben Wert über mehere Tabellen hinweg wiederfinden können (`WHERE`, `JOIN`, `LIKE`, Bereichsvergleiche), ohne den Klartext je zu sehen. `Tokenization` löst das durch reversible, schlüssel-basierte Tokens statt Scramble/Hash.
+Normale Anonymisierung (Abschnitt D) ist bewusst eine Einbahnstraße: Der Server maskiert einen Wert beim Herausgeben, kann ihn aber nicht zurückrechnen. Bei vielen Datenbanken mit hunderten Tabellen kann das zu restriktiv sein — die KI soll denselben Wert über mehere Tabellen hinweg wiederfinden können (`WHERE`, `JOIN`, `LIKE`, Bereichsvergleiche), ohne den Klartext je zu sehen. `Tokenization` löst das durch reversible, hochkompakte Kurz-Tokens.
 
-* **Globaler Modus-Schalter, kein Pro-Spalten-Opt-in:** `Tokenization.Enabled` funktioniert genau wie `DefaultMode` — ist es aktiv (und nutzbar, siehe unten), wird *jede* Spalte, die ohnehin anonymisiert würde, tokenisiert statt maskiert. Es gibt bewusst keine Spalten-Allowlist zu pflegen. *Ob* eine Spalte überhaupt anonymisiert wird, entscheiden ausschließlich die `AnonymizationRules` (mit `Anonymize=0`, siehe Abschnitt E) — `Tokenization` ändert nur *wie* eine bereits anonymisierte Spalte anonymisiert wird.
+* **Globaler Modus-Schalter, kein Pro-Spalten-Opt-in:** `Tokenization.Enabled` funktioniert genau wie `DefaultMode` — ist es aktiv, wird *jede* Spalte, die ohnehin anonymisiert würde, tokenisiert statt maskiert. Es gibt bewusst keine Spalten-Allowlist zu pflegen. *Ob* eine Spalte überhaupt anonymisiert wird, entscheiden ausschließlich die `AnonymizationRules` (mit `Anonymize=0`, siehe Abschnitt E) — `Tokenization` ändert nur *wie* eine bereits anonymisierte Spalte anonymisiert wird.
 * **Funktionsweise:**
-  1. **Ausgabe (Egress):** Für jede anonymisierte Spalte berechnet der Server `Token = HMAC-SHA256(Secret, Wert)` (Base64Url-kodiert, umschlossen von `Prefix`/`Suffix`) statt Scramble/Hash. Derselbe Wert ergibt immer dasselbe Token — Korrelation über Tabellen hinweg bleibt möglich, ohne dass die KI den Wert kennt. Der Server merkt sich `Token → Wert` in einem In-Memory-Vault für die Laufzeit des Prozesses.
+  1. **Ausgabe (Egress):** Für jede anonymisierte Spalte erzeugt der Server ein kompaktes Kurz-Token Schema (`§§§T1§§§`, `§§§T2§§§`, etc. mit ~7 Zeichen / 2-3 LLM Tokens) anstelle langer Base64 Hashes. Derselbe Wert innerhalb einer Sitzung ergibt über den bi-direktionalen `TokenVault` garantiert immer dasselbe Kurz-Token. Der Server merkt sich `Wert ↔ Token` im In-Memory `TokenVault` für die Laufzeit des Prozesses.
   2. **Eingabe (Ingress):** Bevor eine Abfrage gegen `sql_execute_query` ausgeführt wird, durchsucht der Server jedes String-Literal (niemals Kommentare, `[...]`-Bezeichner oder SQL-Schlüsselwörter) nach dem Token-Muster. Ein erkanntes, im Vault bekanntes Token wird durch den Realwert ersetzt — SQL Server sieht danach eine ganz normale Abfrage gegen echte Daten. Ein unbekanntes (geratenes/gefälschtes) Token bleibt unverändert stehen; das Prädikat findet dann schlicht keine Treffer, statt einen Fehler zu werfen.
   3. **Wichtige Eigenschaft:** Da die Datenbank selbst nie verändert wird — nur der Text, den die KI schreibt, wird vor der Ausführung textuell ersetzt —, funktionieren praktisch alle Operatoren (`=`, `IN`, `LIKE '%...%'`, `>=`/`<=`, `JOIN ... ON`), solange die KI ein zuvor tatsächlich ausgehändigtes, vollständiges Token verwendet. Was nicht geht (und auch nicht gehen soll): Ein *Teil* eines Tokens erraten oder selbst konstruieren — das Token trägt keine positionale Beziehung zum Realwert.
 * **Konfiguration:**
@@ -129,13 +129,12 @@ Normale Anonymisierung (Abschnitt D) ist bewusst eine Einbahnstraße: Der Server
   "Anonymizer": {
     "Tokenization": {
       "Enabled": false,
-      "Secret": "",
       "Prefix": "§§§",
       "Suffix": "§§§"
     }
   }
   ```
-  * `Enabled`: Hauptschalter. `Secret` ist zwingend für einen tatsächlichen Effekt — ist er leer, fällt jede anonymisierte Spalte automatisch auf die reguläre `DefaultMode`-Maskierung zurück (Fail-Safe). `Secret` sollte über eine Umgebungsvariable eingespielt werden (z. B. `"%SQLTOAI_TOKEN_SECRET%"`), niemals im Klartext eingecheckt.
+  * `Enabled`: Hauptschalter.
   * `Prefix`/`Suffix`: Umschließen jedes Token eindeutig, damit die Ingress-Erkennung Tokens sicher von normalem Text unterscheidet.
 * **Bekannte Grenzen:**
   * **Cross-Referenz:** Da Tokens deterministisch sind, kann die KI Token↔Wert selbst zuordnen, sobald derselbe Wert irgendwo (z. B. über eine Ausschlussregel) im Klartext sichtbar ist. Freigabe-Entscheidungen sollten daher konsistent gepflegt werden.
