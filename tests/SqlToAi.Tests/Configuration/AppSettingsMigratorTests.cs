@@ -187,10 +187,10 @@ public sealed class AppSettingsMigratorTests : IDisposable
         string userJsonText = """
         {
           "SqlToAi": {
-            "Databases": {
-              "AccessCheckSql": "SELECT CASE WHEN DB_NAME() IN ('OLDemoReweAbfD') THEN 'ReadWrite' ELSE 'ReadOnlyAnonymized' END AS AccessLevel"
-            }
+            "MetadataProvider": {
+            "TableMetadataQuery": "SELECT CASE WHEN DB_NAME() IN ('OLDemoReweAbfD') THEN 'ReadWrite' ELSE 'ReadOnlyAnonymized' END AS AccessLevel"
           }
+        }
         }
         """;
         File.WriteAllText(targetFilePath, userJsonText, Encoding.UTF8);
@@ -198,8 +198,8 @@ public sealed class AppSettingsMigratorTests : IDisposable
         string defaultJsonText = """
         {
           "SqlToAi": {
-            "Databases": {
-              "AccessCheckSql": "SELECT 1",
+            "MetadataProvider": {
+              "TableMetadataQuery": "SELECT 1",
               "NewKey": "NewValue"
             }
           }

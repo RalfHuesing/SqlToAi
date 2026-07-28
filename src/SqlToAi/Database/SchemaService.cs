@@ -84,9 +84,12 @@ public sealed class SchemaService : ISchemaService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to query sys.databases catalog. Falling back to configured static Allowed list.");
-            var staticAllowed = _options.Databases.Allowed
-                .Where(pattern => !pattern.Contains('*') && !pattern.Contains('?'))
+            _logger.LogWarning(ex, "Failed to query sys.databases catalog. Falling back to configured static database lists.");
+            var staticAllowed = _options.Databases.ReadWrite
+                .Concat(_options.Databases.ReadOnly)
+                .Concat(_options.Databases.ReadOnlyAnonymized)
+                .Concat(_options.Databases.SchemaOnly)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(db => db)
                 .ToList();
             return staticAllowed;

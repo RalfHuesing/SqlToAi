@@ -46,7 +46,8 @@ public sealed class SqlToAiOptionsTests
             "IntegratedSecurity": true
           },
           "Databases": {
-            "Allowed": ["Demo_*"],
+            "ReadWrite": ["DemoDB"],
+            "ReadOnly": ["ArchiveDB"],
             "CacheTtlSeconds": 100
           },
           "Anonymizer": {
@@ -68,8 +69,10 @@ public sealed class SqlToAiOptionsTests
         Assert.Equal("my-server", options.SqlServer.Server);
         Assert.True(options.SqlServer.IntegratedSecurity);
 
-        var allowed = Assert.Single(options.Databases.Allowed);
-        Assert.Equal("Demo_*", allowed);
+        var rw = Assert.Single(options.Databases.ReadWrite);
+        Assert.Equal("DemoDB", rw);
+        var ro = Assert.Single(options.Databases.ReadOnly);
+        Assert.Equal("ArchiveDB", ro);
         Assert.Equal(100, options.Databases.CacheTtlSeconds);
 
         Assert.True(options.Anonymizer.Enabled);
@@ -81,7 +84,6 @@ public sealed class SqlToAiOptionsTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.AccessCheckSql = "SELECT CASE WHEN DB_NAME() = 'OLDemoReweAbfD910' THEN 'ReadWrite' ELSE 'None' END";
         options.MetadataProvider.TableMetadataQuery = "SELECT * FROM tables";
         options.MetadataProvider.ColumnMetadataQuery = "SELECT * FROM columns";
 
@@ -89,7 +91,6 @@ public sealed class SqlToAiOptionsTests
         ConfigurationResolver.Resolve(options);
 
         // Assert
-        Assert.Equal("SELECT CASE WHEN DB_NAME() = 'OLDemoReweAbfD910' THEN 'ReadWrite' ELSE 'None' END", options.Databases.AccessCheckSql);
         Assert.Equal("SELECT * FROM tables", options.MetadataProvider.TableMetadataQuery);
         Assert.Equal("SELECT * FROM columns", options.MetadataProvider.ColumnMetadataQuery);
     }
@@ -111,15 +112,15 @@ public sealed class SqlToAiOptionsTests
         try
         {
             var options = new SqlToAiOptions();
-            options.Databases.AccessCheckSql = relativeFileName;
-            options.MetadataProvider.TableMetadataQuery = absoluteFileName;
+            options.MetadataProvider.TableMetadataQuery = relativeFileName;
+            options.MetadataProvider.ColumnMetadataQuery = absoluteFileName;
 
             // Act
             ConfigurationResolver.Resolve(options);
 
             // Assert
-            Assert.Equal(relativeSql, options.Databases.AccessCheckSql);
-            Assert.Equal(absoluteSql, options.MetadataProvider.TableMetadataQuery);
+            Assert.Equal(relativeSql, options.MetadataProvider.TableMetadataQuery);
+            Assert.Equal(absoluteSql, options.MetadataProvider.ColumnMetadataQuery);
         }
         finally
         {
@@ -133,7 +134,7 @@ public sealed class SqlToAiOptionsTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.AccessCheckSql = "non-existent-script.sql";
+        options.MetadataProvider.TableMetadataQuery = "non-existent-script.sql";
 
         // Act & Assert
         Assert.Throws<FileNotFoundException>(() => ConfigurationResolver.Resolve(options));
@@ -150,15 +151,15 @@ public sealed class SqlToAiOptionsTests
         try
         {
             options.SqlServer.Server = "%TEST_ENV_VAR_SERVER%\\MSSQLSERVER";
-            options.Databases.Allowed = new List<string> { "%TEST_ENV_VAR_DB%_Allowed" };
+            options.Databases.ReadWrite = new List<string> { "%TEST_ENV_VAR_DB%_RW" };
 
             // Act
             ConfigurationResolver.Resolve(options);
 
             // Assert
             Assert.Equal("EnvServerName\\MSSQLSERVER", options.SqlServer.Server);
-            var allowed = Assert.Single(options.Databases.Allowed);
-            Assert.Equal("EnvDbName_Allowed", allowed);
+            var rw = Assert.Single(options.Databases.ReadWrite);
+            Assert.Equal("EnvDbName_RW", rw);
         }
         finally
         {

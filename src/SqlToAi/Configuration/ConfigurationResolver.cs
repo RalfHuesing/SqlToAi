@@ -38,9 +38,10 @@ public static class ConfigurationResolver
 
         if (options.Databases != null)
         {
-            options.Databases.AccessCheckSql = Expand(options.Databases.AccessCheckSql);
-            ExpandListInPlace(options.Databases.Allowed);
-            ExpandListInPlace(options.Databases.Blocked);
+            ExpandListInPlace(options.Databases.ReadWrite);
+            ExpandListInPlace(options.Databases.ReadOnly);
+            ExpandListInPlace(options.Databases.ReadOnlyAnonymized);
+            ExpandListInPlace(options.Databases.SchemaOnly);
         }
 
         if (options.MetadataProvider != null)
@@ -81,12 +82,6 @@ public static class ConfigurationResolver
 
     private static void ResolveSqlFiles(SqlToAiOptions options)
     {
-
-        if (options.Databases != null)
-        {
-            options.Databases.AccessCheckSql = ResolveValue(options.Databases.AccessCheckSql);
-        }
-
         if (options.MetadataProvider != null)
         {
             options.MetadataProvider.TableMetadataQuery = ResolveValue(options.MetadataProvider.TableMetadataQuery);

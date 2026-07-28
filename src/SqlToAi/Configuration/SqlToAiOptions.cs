@@ -30,14 +30,15 @@ public sealed class SqlServerOptions
 }
 
 /// <summary>
-/// Options for static database whitelisting and dynamic access verification checks.
+/// Options for database level authorization and access configuration.
 /// </summary>
 public sealed class DatabasesOptions
 {
-    public List<string> Allowed { get; set; } = [];
-    public List<string> Blocked { get; set; } = [];
+    public List<string> ReadWrite { get; set; } = [];
+    public List<string> ReadOnly { get; set; } = [];
+    public List<string> ReadOnlyAnonymized { get; set; } = [];
+    public List<string> SchemaOnly { get; set; } = [];
     public int CacheTtlSeconds { get; set; } = 300;
-    public string AccessCheckSql { get; set; } = string.Empty;
 }
 
 /// <summary>

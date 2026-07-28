@@ -1,5 +1,6 @@
 #nullable enable
 
+using System.Collections.Generic;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
 using SqlToAi.Domain;
@@ -7,26 +8,38 @@ using SqlToAi.Domain;
 namespace SqlToAi.Security;
 
 /// <summary>
-/// Enforces database security policy guardrails using static allowed and blocked patterns.
+/// Enforces database security policy guardrails using configured database access levels and excluded database patterns.
 /// </summary>
 public sealed class SecurityGuard : ISecurityGuard
 {
     private readonly SqlToAiOptions _options;
+    private readonly IAccessLevelProvider _accessLevelProvider;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SecurityGuard"/> class with an explicit access level provider.
+    /// </summary>
+    /// <param name="options">The bound options containing databases configurations.</param>
+    /// <param name="accessLevelProvider">The access level provider.</param>
+    public SecurityGuard(IOptions<SqlToAiOptions> options, IAccessLevelProvider accessLevelProvider)
+    {
+        _options = options.Value;
+        _accessLevelProvider = accessLevelProvider;
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SecurityGuard"/> class.
     /// </summary>
     /// <param name="options">The bound options containing databases configurations.</param>
     public SecurityGuard(IOptions<SqlToAiOptions> options)
+        : this(options, new AccessLevelProvider(options))
     {
-        _options = options.Value;
     }
 
     /// <summary>
-    /// Checks if a database name is allowed by comparing it against configured allowed and blocked patterns.
+    /// Checks if a database name is allowed by checking global exclusions and ensuring it has a configured AccessLevel != None.
     /// </summary>
     /// <param name="databaseName">The database name to check.</param>
-    /// <returns>True if the database matches an allowed pattern and does not match any blocked pattern; otherwise, false.</returns>
+    /// <returns>True if the database is allowed and not globally excluded; otherwise, false.</returns>
     public bool IsDatabaseAllowed(string databaseName)
     {
         if (string.IsNullOrWhiteSpace(databaseName))
@@ -34,15 +47,15 @@ public sealed class SecurityGuard : ISecurityGuard
             return false;
         }
 
-        // 1. Check against Blocked list and ExcludedDatabases list
-        if (IsMatchedByAnyPattern(databaseName, _options.Databases.Blocked) ||
-            IsMatchedByAnyPattern(databaseName, _options.SqlServer.ExcludedDatabases))
+        // 1. Check against global ExcludedDatabases list
+        if (IsMatchedByAnyPattern(databaseName, _options.SqlServer.ExcludedDatabases))
         {
             return false;
         }
 
-        // 2. Check against Allowed list
-        return IsMatchedByAnyPattern(databaseName, _options.Databases.Allowed);
+        // 2. Check if AccessLevel is anything other than None
+        AccessLevel level = _accessLevelProvider.GetAccessLevelAsync(databaseName).GetAwaiter().GetResult();
+        return level != AccessLevel.None;
     }
 
     private static bool IsMatchedByAnyPattern(string databaseName, IEnumerable<string> patterns)
