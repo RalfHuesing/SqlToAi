@@ -3,6 +3,7 @@ status: draft  # draft | ready
 type: konzept
 project_kind: unknown  # unknown | greenfield | brownfield — vom Workflow erkannt (Schritt 2)
 estimated_scope: unknown  # unknown | small | medium | large — Selbsteinschätzung des Workflows, steuert Frage-Tiefe
+rules_dir: unknown  # unknown | .agents/rules | .cursor/rules | <custom-pfad> | keins — vom Workflow erkannt (Schritt 2), von task-loop übernommen statt neu erkannt
 last_updated: <ISO-8601>
 open_questions:
   - <kurze offene Frage/Unschärfe — leer, wenn status: ready>
@@ -50,7 +51,13 @@ später (z. B. beim Planer im task-loop) nochmal aufkommt.>
 <Bei `project_kind: brownfield`: konkret betroffene Module/Dateien/
 Bereiche des Bestandscodes. Bei `project_kind: greenfield`: geplante
 Grobstruktur (Verzeichnisse, Hauptkomponenten) — kein Detailplan, das
-macht später der Planer.>
+macht später der Planer.
+
+**Pointer-Prinzip:** Dies ist eine Liste von Fundstellen (Datei/Modul +
+ein Satz, warum relevant), keine Beschreibung, wie der Code dort
+funktioniert — solche Behauptungen veralten. Der Planer im `task-loop`
+prüft an diesen Fundstellen den dann aktuellen Stand selbst nach, statt
+sich auf den hier festgehaltenen Inhalt zu verlassen.>
 
 ## Wie (grober Ansatz)
 

@@ -1,6 +1,6 @@
 ---
 workflow: initial-workflow
-version: 0.1
+version: 0.3
 status: draft
 role: orchestrator
 invoked_as: "orchestrator.md <task-dir> (Pfad zu diesem Ordner ist projektabhängig)"
@@ -15,9 +15,10 @@ Alle Pfade in dieser Datei, die auf andere Dateien **innerhalb von
 `dev-loop/`** verweisen (`spec.md`, `skills/**`, `templates/**`,
 `../planning/…`), sind relativ zu dieser Datei zu verstehen —
 funktionieren unabhängig davon, wo `dev-loop/` in deinem Projekt liegt.
-Verweise auf **projekteigene** Konventionen (`.agents/rules/**`,
-`README.md`, `docs/**`) meinen dagegen den Ort relativ zu deinem
-**Projekt-Root** (wo der Agent gerade arbeitet) — unabhängig davon, wo
+Verweise auf **projekteigene** Konventionen (`<rules_dir>/**`, erkannt
+gemäß `spec.md` §3.1; `README.md`, `docs/**`) meinen dagegen den Ort
+relativ zu deinem **Projekt-Root** (wo der Agent gerade arbeitet) —
+unabhängig davon, wo
 `dev-loop/` selbst liegt. Das Task-Verzeichnis (`<task-dir>`) wird bei
 jedem Aufruf explizit übergeben und nirgends als fester Name/Pfad
 angenommen — es kann irgendwo in deinem Projekt liegen.
@@ -50,16 +51,28 @@ du beim jeweils verwendeten Werkzeug konkret nachschlagen musst.
 Prüfe, ob `<task-dir>/task-state.md` existiert.
 
 **Fall A — Datei existiert nicht (frischer Task):**
-1. Lege `<task-dir>/task-state.md` an (Template
-   `templates/task-state.md`), Status `executing`.
-2. Rufe die Planer-Rolle auf (siehe Schritt 3) mit dem Auftrag "Plane den
+1. Ermittle `rules_dir` (Details: `spec.md` §3.1): prüfe zuerst, ob
+   `<task-dir>/konzept.md` existiert und dort im Frontmatter `rules_dir`
+   gesetzt hat — falls ja, übernehmen, keine erneute Erkennung/Rückfrage.
+   Sonst selbst erkennen: `.agents/rules/` und `.cursor/rules/`
+   (projekt-root-relativ) prüfen — genau einer vorhanden → automatisch
+   übernehmen; beide oder keins vorhanden → Nutzer offen fragen (auch ein
+   dritter, hier nicht gelisteter Pfad oder „keine Konventionen" sind
+   gültige Antworten).
+2. Lege `<task-dir>/task-state.md` an (Template
+   `templates/task-state.md`), Status `executing`, `rules_dir` im
+   Frontmatter eintragen.
+3. Rufe die Planer-Rolle auf (siehe Schritt 3) mit dem Auftrag "Plane den
    gesamten Task".
-3. Fahre fort mit Schritt 4 (Loop).
+4. Fahre fort mit Schritt 4 (Loop).
 
 **Fall B — Datei existiert, Status `executing`:**
 - **Automatisch fortsetzen, ohne nachzufragen.** Lies `current_step` und die
   Steps-Tabelle, ermittle den nächsten offenen/unfertigen Step und mache dort
   weiter (Schritt 4).
+- Fehlt `rules_dir` im Frontmatter (Alt-Task von vor dieser Konvention):
+  einmalig nach obigem Verfahren nachträglich ermitteln und ergänzen,
+  dann normal fortfahren — keine Sonderbehandlung darüber hinaus.
 - Melde dem Nutzer kurz und knapp: *"Laufenden Task gefunden (`<name>`),
   setze fort bei `step-NNN`."* — das genügt, keine Rückfrage nötig.
 
@@ -102,7 +115,10 @@ das hält das Setup portabel. Stattdessen:
 2. Baue daraus den vollständigen Prompt für den Subagent-Aufruf: Skill-Inhalt
    + konkreter Auftrag (welcher Task, welcher Step, welcher Modus) + Pfade
    zu den relevanten Dateien (Aufgaben-Doku, Step-Plan/-Result, Tech-Stack-
-   Notiz).
+   Notiz) + **`rules_dir`** (aus `task-state.md`-Frontmatter, siehe Schritt 1).
+   Der Subagent hat keinen Zugriff auf deinen bisherigen Gesprächsverlauf
+   oder den ursprünglichen Nutzer-Prompt — ohne diese explizite Angabe
+   weiß er nicht, wo die Projektkonventionen liegen (siehe `spec.md` §3.1).
 3. Starte damit eine neue, unabhängige Subagent-Konversation **synchron**
    (siehe „Werkzeug-Hinweis" unten). Der Subagent bekommt **nur** diesen
    Prompt als Kontext — nicht deinen bisherigen Gesprächsverlauf. Du
@@ -133,7 +149,16 @@ betroffenen Task-Dateien, nie breit (`-A`/`.`).
 
 ## Schritt 3 — Planer aufrufen (Initial oder Fix-Modus)
 
-Gemäß `spec.md` §5.1 / `skills/planer/SKILL.md`. Nach Rückkehr:
+Gemäß `spec.md` §5.1 / `skills/planer/SKILL.md`. Manche der erzeugten
+Steps können `step_type: batch` sein — mehrere thematisch unabhängige,
+aber einzeln triviale Low-Risk-Änderungen in einem Step gebündelt (siehe
+`spec.md` §7.7). Für dich als Orchestrator ändert das **nichts** am
+Ablauf: ein Batch-Step durchläuft Coder → Auditer genauso wie jeder
+andere Step, nur der Inhalt ist anders strukturiert. Einzige Ausnahme:
+Löst ein `issues`-Verdict bei einem Batch-Step einen Fix-Step aus, deckt
+dieser nur die im Review benannten Item(s) ab, nicht den ganzen Batch —
+das steuert der Planer im Fix-Modus selbst, du musst dafür nichts
+Zusätzliches tun. Nach Rückkehr:
 - Trage alle neuen `step-NNN` (bzw. `step-NNN/fix-XX` im Fix-Modus) in die
   Steps-Tabelle von `task-state.md` ein (Status `open`).
 - **Committe die neuen `step-plan.md`-Dateien** — ein Commit pro

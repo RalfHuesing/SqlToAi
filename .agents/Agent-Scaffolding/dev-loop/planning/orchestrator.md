@@ -1,6 +1,6 @@
 ---
 workflow: konzept-workflow
-version: 0.1
+version: 0.3
 status: draft
 role: "interaktiver Begleiter (läuft in der aktuellen Session, kein Subagenten-Loop)"
 invoked_as: "orchestrator.md <task-dir> (Pfad zu diesem Ordner ist projektabhängig)"
@@ -15,8 +15,9 @@ Alle Pfade in dieser Datei, die auf andere Dateien **innerhalb von
 `dev-loop/`** verweisen (z. B. `templates/konzept.md`, `../task-loop/…`),
 sind relativ zu dieser Datei zu verstehen — funktionieren unabhängig
 davon, wo `dev-loop/` in deinem Projekt liegt. Verweise auf **projekt-
-eigene** Konventionen (`.agents/rules/**`, `README.md`, `docs/**`)
-meinen dagegen den Ort relativ zu deinem **Projekt-Root** (wo der Agent
+eigene** Konventionen (`<rules_dir>/**`, erkannt gemäß
+`../task-loop/spec.md` §3.1; `README.md`, `docs/**`) meinen dagegen den
+Ort relativ zu deinem **Projekt-Root** (wo der Agent
 gerade arbeitet) — unabhängig davon, wo `dev-loop/` selbst liegt.
 
 ## Zweck
@@ -76,9 +77,31 @@ Unklarheit fragst du nach, statt zu raten oder autonom zu entscheiden.
 
 ## Schritt 2 — Projekt-Anker lesen, Projekt-Art einschätzen
 
-- Lies `.agents/rules/**`, `README.md`, `docs/**` (projekt-root-relativ,
-  siehe Pfad-Hinweis oben) — was immer davon existiert. Das ist dieselbe
-  Anker-Grundlage wie beim Planer in `../task-loop/spec.md`.
+### Rules-Verzeichnis erkennen
+
+Bevor du Projektkonventionen liest, ermittle **wo** sie liegen — das ist
+nicht mehr fest verdrahtet. Zwei bekannte Konventionen werden geprüft:
+`.agents/rules/` und `.cursor/rules/` (projekt-root-relativ).
+
+- Existiert **genau eines** der beiden Verzeichnisse: das ist `rules_dir`
+  — automatisch übernehmen, keine Rückfrage nötig.
+- Existieren **beide** oder **keins** von beiden: frag den Nutzer explizit
+  und offen (nicht nur Ja/Nein — der Nutzer kann auch einen dritten, hier
+  nicht gelisteten Pfad nennen oder bestätigen, dass keine projektweiten
+  Konventionen existieren).
+- Trage das Ergebnis als `rules_dir` ins Frontmatter von `konzept.md` ein
+  (Wert `keins`, falls der Nutzer bestätigt, dass es keine gibt).
+
+Ab hier und in allen folgenden Schritten ist mit „Projektkonventionen"
+immer `<rules_dir>/**` gemeint, nicht mehr wörtlich `.agents/rules/**`.
+
+### Anker lesen, Projekt-Art einschätzen
+
+- Lies `<rules_dir>/**` (siehe oben), `README.md`, `docs/**`, `AGENTS.md`
+  (projekt-root-relativ, siehe Pfad-Hinweis oben) — was immer davon
+  existiert. `AGENTS.md` ergänzt `<rules_dir>/**`, ersetzt es nicht. Das
+  ist dieselbe Anker-Grundlage wie beim Planer in `../task-loop/spec.md`
+  §3.
 - Schätze ein, ob substanzieller Bestandscode existiert (mehr als
   Konfiguration/Skelett — z. B. mehrere Quellcode-Dateien mit echtem
   Inhalt, nicht nur Boilerplate):
@@ -87,7 +110,14 @@ Unklarheit fragst du nach, statt zu raten oder autonom zu entscheiden.
     Einstiegspunkte) — genug, um „Wo im Projekt"/„Wie" realistisch zu
     verankern und Widersprüche zur bestehenden Struktur früh zu sehen.
     Fragen zu Bestandscode immer mit **konkretem Bezug** stellen (Datei/
-    Modul benennen), nicht abstrakt.
+    Modul benennen), nicht abstrakt. **Pointer-Prinzip:** Was du dabei in
+    „Wo im Projekt" (Schritt 5) festhältst, sind Fundstellen (Datei/Modul
+    + ein Satz Relevanz), keine Verhaltens- oder Architektur-Behauptungen
+    — der Planer im `task-loop` verlässt sich beim Task-Start nicht auf
+    den Inhalt, sondern prüft an den genannten Fundstellen den dann
+    aktuellen Stand selbst nach. Das hält den Abschnitt auch dann noch
+    nützlich, wenn sich der Code zwischen Konzept- und Umsetzungsphase
+    (oder innerhalb einer langen Umsetzung) verändert hat.
   - **Nein (leeres/neues Projekt) → `project_kind: greenfield`.** Fokus
     liegt stärker auf Grundsatzfragen (Sprache/Stack/Plattform), weil
     nichts vorgegeben ist.
