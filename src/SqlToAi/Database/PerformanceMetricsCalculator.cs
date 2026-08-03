@@ -33,14 +33,14 @@ internal static class PerformanceMetricsCalculator
 
         foreach (var runMessages in perRunMessages)
         {
-            var (runCpu, runElapsed, runLogical, runPhysical, runReadAhead) = ParseRunMessages(runMessages);
+            var (runCpu, runElapsed, runLogical, runPhysical, runReadAhead, runHasMatch) = ParseRunMessages(runMessages);
             totalCpu      += runCpu;
             totalElapsed  += runElapsed;
             totalLogical  += runLogical;
             totalPhysical += runPhysical;
             totalReadAhead += runReadAhead;
 
-            if (runCpu > 0 || runElapsed > 0)
+            if (runHasMatch)
             {
                 minCpu     = Math.Min(minCpu,     runCpu);
                 maxCpu     = Math.Max(maxCpu,     runCpu);
@@ -66,20 +66,22 @@ internal static class PerformanceMetricsCalculator
 
     /// <summary>
     /// Returns <paramref name="value"/> unless it's a single-run measurement or the value was never
-    /// updated from its <paramref name="sentinel"/> (no run produced a non-zero CPU/elapsed time).
+    /// updated from its <paramref name="sentinel"/> (no run's STATISTICS TIME message matched).
     /// </summary>
     private static long? OrNullIfSingleRun(bool multiRun, long value, long sentinel) =>
         multiRun && value != sentinel ? value : null;
 
-    private static (long Cpu, long Elapsed, long Logical, long Physical, long ReadAhead) ParseRunMessages(
+    private static (long Cpu, long Elapsed, long Logical, long Physical, long ReadAhead, bool HasMatch) ParseRunMessages(
         IReadOnlyList<string> messages)
     {
         long cpu = 0, elapsed = 0, logical = 0, physical = 0, readAhead = 0;
+        bool hasMatch = false;
         foreach (string msg in messages)
         {
             var cpuMatch = CpuTimeRegex.Match(msg);
             if (cpuMatch.Success)
             {
+                hasMatch = true;
                 cpu     += long.Parse(cpuMatch.Groups[1].Value, CultureInfo.InvariantCulture);
                 elapsed += long.Parse(cpuMatch.Groups[2].Value, CultureInfo.InvariantCulture);
             }
@@ -92,6 +94,6 @@ internal static class PerformanceMetricsCalculator
                 readAhead += long.Parse(ioMatch.Groups[3].Value, CultureInfo.InvariantCulture);
             }
         }
-        return (cpu, elapsed, logical, physical, readAhead);
+        return (cpu, elapsed, logical, physical, readAhead, hasMatch);
     }
 }

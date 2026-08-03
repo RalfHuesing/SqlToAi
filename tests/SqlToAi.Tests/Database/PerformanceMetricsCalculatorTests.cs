@@ -98,4 +98,40 @@ public sealed class PerformanceMetricsCalculatorTests
         Assert.Null(result.MinCpuMs);
         Assert.Null(result.MaxCpuMs);
     }
+
+    [Fact]
+    public void Compute_MixedZeroAndNonZeroRuns_MinIsZeroNotNull()
+    {
+        // A run with a genuine 0 ms measurement must count toward min/max, not be excluded
+        var perRun = new List<IReadOnlyList<string>>
+        {
+            MakeRunMessages(cpuMs: 0, elapsedMs: 0),
+            MakeRunMessages(cpuMs: 50, elapsedMs: 60)
+        };
+
+        var result = PerformanceMetricsCalculator.Compute(perRun, execRuns: 2);
+
+        Assert.Equal(0L, result.MinCpuMs);
+        Assert.Equal(0L, result.MinElapsedMs);
+        Assert.Equal(50L, result.MaxCpuMs);
+        Assert.Equal(60L, result.MaxElapsedMs);
+    }
+
+    [Fact]
+    public void Compute_AllRunsZero_MinMaxAreZeroNotNull()
+    {
+        // Every run genuinely measures 0 ms: min/max must be 0, not null
+        var perRun = new List<IReadOnlyList<string>>
+        {
+            MakeRunMessages(cpuMs: 0, elapsedMs: 0),
+            MakeRunMessages(cpuMs: 0, elapsedMs: 0)
+        };
+
+        var result = PerformanceMetricsCalculator.Compute(perRun, execRuns: 2);
+
+        Assert.Equal(0L, result.MinCpuMs);
+        Assert.Equal(0L, result.MaxCpuMs);
+        Assert.Equal(0L, result.MinElapsedMs);
+        Assert.Equal(0L, result.MaxElapsedMs);
+    }
 }
