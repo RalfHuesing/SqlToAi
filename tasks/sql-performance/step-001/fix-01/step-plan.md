@@ -1,5 +1,5 @@
 ---
-status: done (pending audit)
+status: done (approved)
 type: step-plan
 task: sql-performance
 step: 001/fix-01

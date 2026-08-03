@@ -27,7 +27,7 @@ eine Zeile.>
 
 | Step | Epic | Status | Title | Fix-Runden | Coded | Reviewed | Commit |
 |------|------|--------|-------|------------|-------|----------|--------|
-| step-001 | EPIC-01 | done (fix-01 pending) | PerformanceMetrics min/avg/max erweitern | 1/3 | ja | issues | 5c40cac8 |
+| step-001 | EPIC-01 | done | PerformanceMetrics min/avg/max erweitern | 1/3 | ja | approved (nach fix-01) | 5c40cac8 / 4d8fe08 |
 
 ## Config (optional)
 
