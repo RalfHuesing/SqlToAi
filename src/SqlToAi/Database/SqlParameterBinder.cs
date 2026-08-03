@@ -190,6 +190,17 @@ public static class SqlParameterBinder
     {
         string normalizedName = paramName.StartsWith('@') ? paramName : "@" + paramName;
 
+        if (command.Parameters.Contains(normalizedName))
+        {
+            var existingParam = command.Parameters[normalizedName];
+            existingParam.Value = value ?? DBNull.Value;
+            if (dbType.HasValue)
+            {
+                existingParam.DbType = dbType.Value;
+            }
+            return;
+        }
+
         var param = command.CreateParameter();
         param.ParameterName = normalizedName;
         param.Value = value ?? DBNull.Value;

@@ -187,7 +187,7 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Zweck:** Filtert die Liste der freigegebenen Datenbanken nach einem Teilstring.
 
 ### 3. `sql_validate_query`
-* **Argumente:** `query` (String, Pflicht), `database` (String, Pflicht)
+* **Argumente:** `query` (String, Pflicht), `database` (String, Pflicht), `parameters` (Object, optional — typisierte SQL-Parameter).
 * **Zweck:** Prüft eine SQL-Abfrage fachlich und technisch (Syntax-Check über `PARSEONLY` im Kontext der Zieldatenbank), ohne sie auszuführen.
 
 ### 4. `sql_search_objects`

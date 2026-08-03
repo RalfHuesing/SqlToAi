@@ -136,4 +136,18 @@ public sealed class SqlParameterBinderTests
         Assert.Single(command.Parameters);
         Assert.Equal("@Score", command.Parameters[0].ParameterName);
     }
+
+    [Fact]
+    public void BindParameters_DuplicateParameterName_UpdatesValueWithoutThrowing()
+    {
+        using var command = new SqlCommand();
+        var dict1 = new Dictionary<string, object?> { ["@TenantId"] = 10 };
+        var dict2 = new Dictionary<string, object?> { ["TenantId"] = 20 };
+
+        SqlParameterBinder.BindParameters(command, dict1);
+        SqlParameterBinder.BindParameters(command, dict2);
+
+        Assert.Single(command.Parameters);
+        Assert.Equal(20, command.Parameters["@TenantId"].Value);
+    }
 }
