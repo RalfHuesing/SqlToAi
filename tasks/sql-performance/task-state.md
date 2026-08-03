@@ -4,7 +4,7 @@ task: sql-performance
 started_at: 2026-08-03T10:04:00Z
 last_updated: 2026-08-03T10:04:00Z
 rules_dir: .agents/rules
-total_fix_rounds: 0
+total_fix_rounds: 1
 current_step: step-001
 ---
 
@@ -27,7 +27,7 @@ eine Zeile.>
 
 | Step | Epic | Status | Title | Fix-Runden | Coded | Reviewed | Commit |
 |------|------|--------|-------|------------|-------|----------|--------|
-| step-001 | EPIC-01 | done (pending audit) | PerformanceMetrics min/avg/max erweitern | 0/3 | ja | - | 5c40cac8 |
+| step-001 | EPIC-01 | done (fix-01 pending) | PerformanceMetrics min/avg/max erweitern | 1/3 | ja | issues | 5c40cac8 |
 
 ## Config (optional)
 
