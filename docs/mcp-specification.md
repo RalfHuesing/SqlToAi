@@ -232,7 +232,7 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Zweck:** Liefert Parameter, Typen und Rückgabestrukturen für Prozeduren und Funktionen.
 
 ### 12. `sql_execute_query`
-* **Argumente:** `query` (String, Pflicht), `requested_row_limit` (Int, optional), `database` (String, Pflicht)
+* **Argumente:** `query` (String, Pflicht), `requested_row_limit` (Int, optional), `database` (String, Pflicht), `parameters` (Object, optional — typisierte SQL-Parameter).
 * **Zweck:** Führt ein einzelnes SQL-SELECT-Statement aus.
 * **Einschränkung:** Nur ein einzelnes Statement erlaubt (Semikolon-Trennung mehrerer Queries führt zu Fehler `SQL-AI-0101`).
 * **Datenverarbeitung:** Anwendbare Limits greifen (Default: 100 Zeilen). String-Spalten werden anonymisiert, falls aktiviert und passend zu den Regeln.
@@ -242,6 +242,23 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
   2. Die eigentlichen JSON-Zeilen der Abfrageergebnisse.
   Wurden keine Daten anonymisiert, wird nur der Datenblock zurückgegeben (spart Token).
 * **Berechtigungsprüfung:** Schlägt fehl mit `SQL-AI-0107`, falls das Access-Level der Datenbank nur `SchemaOnly` oder `None` ist.
+
+### 13. `sql_compare_queries`
+* **Argumente:** `database` (String, Pflicht), `query_a` (String, Pflicht), `query_b` (String, Pflicht), `parameters_a` (Object, optional), `parameters_b` (Object, optional), `parameters` (Object, optional — gemeinsame Parameter), `max_diff_rows` (Int, optional — Default: 5).
+* **Zweck:** Vergleicht zwei SQL-Abfragen auf der Zieldatenbank auf semantische Ergebnissatz-Gleichheit ohne Übertragung großer Datenmengen.
+* **Prüfschritte:**
+  1. **Schema-Check:** Vergleicht Spaltenanzahl, Spaltennamen und Datentypen via `CommandBehavior.SchemaOnly`.
+  2. **Count-Check:** Vergleicht die exakte Zeilenanzahl via `COUNT_BIG(*)`.
+  3. **Set-Differenz (EXCEPT):** Führt DB-seitige Set-Differenzen (`A EXCEPT B` und `B EXCEPT A`) aus und liefert Beispielzeilen für Abweichungen zurück.
+
+### 14. `sql_measure_performance`
+* **Argumente:** `database` (String, Pflicht), `query` (String, Pflicht), `parameters` (Object, optional), `warmup_runs` (Int, optional — Default: 1), `execution_runs` (Int, optional — Default: 1), `include_plan_analysis` (Bool, optional — Default: true).
+* **Zweck:** Erfasst präzise Server-Metriken (CPU-Zeit, Elapsed Time, Logical Reads, Physical Reads, Read-Ahead Reads) via T-SQL `STATISTICS IO, TIME` und parst den XML-Ausführungsplan (`Missing Indexes`, `CONVERT_IMPLICIT`, `Table Scans`).
+* **Graceful Degradation:** Fehlt dem Datenbankbenutzer die `SHOWPLAN`-Berechtigung, degradiert das Tool automatisch auf reine IO/TIME-Messung und gibt einen entsprechenden Hinweis zurück.
+
+### 15. `sql_benchmark_optimization`
+* **Argumente:** `database` (String, Pflicht), `query_a` (Baseline, Pflicht), `query_b` (Kandidat, Pflicht), `parameters_a` (Object, optional), `parameters_b` (Object, optional), `parameters` (Object, optional), `warmup_runs` (Int, optional), `execution_runs` (Int, optional).
+* **Zweck:** Kombinierter All-in-One Benchmark zur Evaluierung von SQL-Optimierungen. Führt Äquivalenzvergleich und Performancemessungen für beide Abfragen durch, berechnet prozentuale und absolute Deltas (CPU, IO) und liefert ein klares Urteil (`Recommended`, `NotRecommended`, `Neutral`, `UnsafeDueToDataMismatch`).
 
 ---
 

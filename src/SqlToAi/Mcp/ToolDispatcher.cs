@@ -41,6 +41,7 @@ public sealed class ToolDispatcher : IToolDispatcher
     private readonly IQueryValidationService _queryValidationService;
     private readonly IQueryComparisonService _queryComparisonService;
     private readonly IPerformanceMeasurementService _performanceMeasurementService;
+    private readonly IOptimizationBenchmarkService _benchmarkService;
     private readonly DatabasesOptions _dbOptions;
     private readonly ILogger<ToolDispatcher> _logger;
     private readonly Dictionary<string, Func<ToolCallParams, CancellationToken, Task<ToolCallResult>>> _handlers;
@@ -52,6 +53,7 @@ public sealed class ToolDispatcher : IToolDispatcher
         IQueryValidationService queryValidationService,
         IQueryComparisonService queryComparisonService,
         IPerformanceMeasurementService performanceMeasurementService,
+        IOptimizationBenchmarkService benchmarkService,
         IOptions<SqlToAiOptions> options,
         ILogger<ToolDispatcher> logger)
     {
@@ -60,6 +62,7 @@ public sealed class ToolDispatcher : IToolDispatcher
         _queryValidationService = queryValidationService;
         _queryComparisonService = queryComparisonService;
         _performanceMeasurementService = performanceMeasurementService;
+        _benchmarkService = benchmarkService;
         _dbOptions = options.Value.Databases;
         _logger = logger;
 
@@ -180,7 +183,21 @@ public sealed class ToolDispatcher : IToolDispatcher
                         GetInt(paramsObj, McpConstants.ArgExecutionRuns) ?? 1,
                         GetBool(paramsObj, McpConstants.ArgIncludePlanAnalysis) ?? true),
                     ct),
-                    res => JsonSerializer.Serialize(res, typeof(PerformanceMeasurementResult), McpJsonContext.Default))
+                    res => JsonSerializer.Serialize(res, typeof(PerformanceMeasurementResult), McpJsonContext.Default)),
+
+            [McpConstants.ToolBenchmarkOptimization] = (paramsObj, ct) =>
+                CallAsync(() => _benchmarkService.BenchmarkOptimizationAsync(
+                    new QueryBenchmarkArgs(
+                        GetDb(paramsObj),
+                        Require(paramsObj, McpConstants.ArgQueryA),
+                        Require(paramsObj, McpConstants.ArgQueryB),
+                        GetObject(paramsObj, McpConstants.ArgParametersA),
+                        GetObject(paramsObj, McpConstants.ArgParametersB),
+                        GetObject(paramsObj, McpConstants.ArgParameters),
+                        GetInt(paramsObj, McpConstants.ArgWarmupRuns) ?? 1,
+                        GetInt(paramsObj, McpConstants.ArgExecutionRuns) ?? 1),
+                    ct),
+                    res => JsonSerializer.Serialize(res, typeof(OptimizationBenchmarkResult), McpJsonContext.Default))
         };
     }
 

@@ -20,7 +20,8 @@ public sealed class ToolDispatcherTests
         FakeQueryExecutionService? exec = null,
         FakeQueryValidationService? validation = null,
         FakeQueryComparisonService? comparison = null,
-        FakePerformanceMeasurementService? perf = null)
+        FakePerformanceMeasurementService? perf = null,
+        FakeOptimizationBenchmarkService? benchmark = null)
     {
         var options = new SqlToAiOptions();
         return new ToolDispatcher(
@@ -29,6 +30,7 @@ public sealed class ToolDispatcherTests
             validation ?? new FakeQueryValidationService(),
             comparison ?? new FakeQueryComparisonService(),
             perf       ?? new FakePerformanceMeasurementService(),
+            benchmark  ?? new FakeOptimizationBenchmarkService(),
             Options.Create(options),
             NullLogger<ToolDispatcher>.Instance);
     }
@@ -405,6 +407,26 @@ public sealed class ToolDispatcherTests
             var res = new PerformanceMeasurementResult(
                 args.DatabaseName, 1, 1, new PerformanceMetrics(10, 15, 100, 0, 0), Array.Empty<PerformancePlanWarning>(), true, null);
             return Task.FromResult(Result<PerformanceMeasurementResult>.Success(res));
+        }
+    }
+
+    private sealed class FakeOptimizationBenchmarkService : IOptimizationBenchmarkService
+    {
+        public bool BenchmarkCalled { get; private set; }
+
+        public Task<Result<OptimizationBenchmarkResult>> BenchmarkOptimizationAsync(
+            string databaseName, string queryA, string queryB, CancellationToken cancellationToken = default)
+            => BenchmarkOptimizationAsync(new QueryBenchmarkArgs(databaseName, queryA, queryB), cancellationToken);
+
+        public Task<Result<OptimizationBenchmarkResult>> BenchmarkOptimizationAsync(
+            QueryBenchmarkArgs args, CancellationToken cancellationToken = default)
+        {
+            BenchmarkCalled = true;
+            var comp = new QueryComparisonResult(true, true, true, 10, 10, Array.Empty<string>(), "[]", "[]");
+            var perf = new PerformanceMeasurementResult(args.DatabaseName, 1, 1, new PerformanceMetrics(10, 15, 100, 0, 0), Array.Empty<PerformancePlanWarning>(), true, null);
+            var deltas = new BenchmarkMetricsDelta(new MetricDelta(10, 5, -5, -50.0), new MetricDelta(15, 10, -5, -33.3), new MetricDelta(100, 50, -50, -50.0), new MetricDelta(0, 0, 0, 0.0));
+            var res = new OptimizationBenchmarkResult(args.DatabaseName, "Recommended", "Summary", comp, perf, perf, deltas);
+            return Task.FromResult(Result<OptimizationBenchmarkResult>.Success(res));
         }
     }
 }

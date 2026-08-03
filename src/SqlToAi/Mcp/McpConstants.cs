@@ -67,6 +67,7 @@ internal static class McpConstants
     internal const string ToolExecuteQuery = "sql_execute_query";
     internal const string ToolCompareQueries = "sql_compare_queries";
     internal const string ToolMeasurePerformance = "sql_measure_performance";
+    internal const string ToolBenchmarkOptimization = "sql_benchmark_optimization";
 
     // -------------------------------------------------------------------------
     // Tool argument keys

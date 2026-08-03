@@ -40,7 +40,8 @@ public sealed class ToolRegistry
         BuildGetRoutineParameters(),
         BuildExecuteQuery(),
         BuildCompareQueries(),
-        BuildMeasurePerformance()
+        BuildMeasurePerformance(),
+        BuildBenchmarkOptimization()
     ];
 
     private static ToolDefinition BuildListDatabases() => new()
@@ -258,6 +259,27 @@ public sealed class ToolRegistry
                 [McpConstants.ArgIncludePlanAnalysis]  = new() { Type = "boolean", Description = "Whether to attempt actual execution plan XML analysis (default true)." }
             },
             Required = [McpConstants.ArgDatabase, McpConstants.ArgQuery]
+        }
+    };
+
+    private static ToolDefinition BuildBenchmarkOptimization() => new()
+    {
+        Name = McpConstants.ToolBenchmarkOptimization,
+        Description = "Runs a full optimization benchmark comparing baseline (Query A) vs candidate (Query B), evaluating result set equivalence, performance deltas (CPU, IO), and returning an actionable recommendation verdict.",
+        InputSchema = new ToolInputSchema
+        {
+            Properties = new Dictionary<string, ToolParameterDefinition>
+            {
+                [McpConstants.ArgDatabase]     = StringParam("Target database name. Required."),
+                [McpConstants.ArgQueryA]        = StringParam("Baseline SQL query (Query A). Required."),
+                [McpConstants.ArgQueryB]        = StringParam("Candidate SQL query (Query B). Required."),
+                [McpConstants.ArgParametersA]   = new() { Type = "object", Description = "Optional dictionary of parameters for Query A." },
+                [McpConstants.ArgParametersB]   = new() { Type = "object", Description = "Optional dictionary of parameters for Query B." },
+                [McpConstants.ArgParameters]    = new() { Type = "object", Description = "Optional shared dictionary of parameters for both queries." },
+                [McpConstants.ArgWarmupRuns]    = new() { Type = "integer", Description = "Number of initial unmeasured warmup runs (default 1)." },
+                [McpConstants.ArgExecutionRuns] = new() { Type = "integer", Description = "Number of measured execution runs to average (default 1)." }
+            },
+            Required = [McpConstants.ArgDatabase, McpConstants.ArgQueryA, McpConstants.ArgQueryB]
         }
     };
 

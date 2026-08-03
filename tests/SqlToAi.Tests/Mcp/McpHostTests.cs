@@ -74,14 +74,14 @@ public sealed class McpHostTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task ToolsList_ShouldReturn_FourteenTools()
+    public async Task ToolsList_ShouldReturn_FifteenTools()
     {
         var host = BuildHost();
         string raw = await SendAsync(host, """{"jsonrpc":"2.0","id":2,"method":"tools/list"}""");
 
         using var doc = JsonDocument.Parse(raw);
         var tools = doc.RootElement.GetProperty("result").GetProperty("tools");
-        Assert.Equal(14, tools.GetArrayLength());
+        Assert.Equal(15, tools.GetArrayLength());
     }
 
     // -------------------------------------------------------------------------
