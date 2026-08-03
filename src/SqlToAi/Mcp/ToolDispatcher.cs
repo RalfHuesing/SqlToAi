@@ -143,7 +143,7 @@ public sealed class ToolDispatcher : IToolDispatcher
                 }
 
                 var queryResult = result.Value;
-                string execInfoText = $"Execution Info: {queryResult.RowCount} rows returned in {queryResult.ElapsedMs} ms.";
+                string execInfoText = $"Execution Info: {queryResult.RowCount} rows returned in {queryResult.ElapsedMs} ms | cpu: {queryResult.CpuTimeMs} ms | logical reads: {queryResult.LogicalReads}.";
                 var contentList = new List<ToolContent>();
 
                 if (queryResult.WasAnonymized)

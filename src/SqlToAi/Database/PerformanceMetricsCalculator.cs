@@ -71,7 +71,12 @@ internal static class PerformanceMetricsCalculator
     private static long? OrNullIfSingleRun(bool multiRun, long value, long sentinel) =>
         multiRun && value != sentinel ? value : null;
 
-    private static (long Cpu, long Elapsed, long Logical, long Physical, long ReadAhead, bool HasMatch) ParseRunMessages(
+    /// <summary>
+    /// Parses a single run's captured STATISTICS IO/TIME messages into their numeric components.
+    /// Internal (not private) so <see cref="QueryExecutionService"/> can reuse the same regex
+    /// parsing logic instead of duplicating it (see step-002 JIT context).
+    /// </summary>
+    internal static (long Cpu, long Elapsed, long Logical, long Physical, long ReadAhead, bool HasMatch) ParseRunMessages(
         IReadOnlyList<string> messages)
     {
         long cpu = 0, elapsed = 0, logical = 0, physical = 0, readAhead = 0;

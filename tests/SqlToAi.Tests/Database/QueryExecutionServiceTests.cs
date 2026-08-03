@@ -350,6 +350,31 @@ public sealed partial class QueryExecutionServiceTests
         Assert.Equal(SqlToAiError.InfrastructureErrorCode, result.Error.Code);
     }
 
+    // -------------------------------------------------------------------------
+    // Tests: STATISTICS IO/TIME (step-002)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldIssueSetStatisticsCommands_BeforeMainQuery()
+    {
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("Col1\tVal1"));
+        var options = new SqlToAiOptions();
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(factory.ExecutedNonQueryCommands, c => string.Equals(c, "SET STATISTICS IO ON", StringComparison.Ordinal));
+        Assert.Contains(factory.ExecutedNonQueryCommands, c => string.Equals(c, "SET STATISTICS TIME ON", StringComparison.Ordinal));
+        // The fake connection is not a SqlConnection, so the InfoMessage guard never fires —
+        // both metrics stay at their 0 default (see step-002 JIT context on testability).
+        Assert.Equal(0, result.Value.CpuTimeMs);
+        Assert.Equal(0, result.Value.LogicalReads);
+    }
+
     // Anonymization and tokenization tests continue in the second partial-class file:
     // see QueryExecutionServiceAnonymizationTests.cs.
 }

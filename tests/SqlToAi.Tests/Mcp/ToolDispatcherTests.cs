@@ -257,6 +257,22 @@ public sealed class ToolDispatcherTests
     }
 
     [Fact]
+    public async Task ExecuteQuery_ShouldIncludeCpuAndLogicalReads_InExecutionInfoText()
+    {
+        var exec = new FakeQueryExecutionService(cpuTimeMs: 12, logicalReads: 34);
+        var dispatcher = BuildDispatcher(exec: exec);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExecuteQuery,
+                (McpConstants.ArgQuery, "SELECT 1"),
+                (McpConstants.ArgDatabase, TestConstants.DatabaseName)),
+            TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsError);
+        Assert.Contains("cpu: 12 ms | logical reads: 34.", result.Content[0].Text);
+    }
+
+    [Fact]
     public async Task ExecuteQuery_ShouldNotMentionTokens_WhenNoSearchableColumns()
     {
         var exec = new FakeQueryExecutionService(wasAnonymized: true, withSearchableTokens: false);
@@ -331,7 +347,9 @@ public sealed class ToolDispatcherTests
         { LastDatabase = db; return Task.FromResult(Result<string>.Success("# Params")); }
     }
 
-    private sealed class FakeQueryExecutionService(bool fail = false, bool wasAnonymized = false, bool withSearchableTokens = false) : IQueryExecutionService
+    private sealed class FakeQueryExecutionService(
+        bool fail = false, bool wasAnonymized = false, bool withSearchableTokens = false,
+        long cpuTimeMs = 0, long logicalReads = 0) : IQueryExecutionService
     {
         private static readonly string[] AnonymizedColumnsSample = new[] { "FirstName", "Email" };
         private static readonly string[] SearchableTokenColumnsSample = new[] { "Email" };
@@ -353,11 +371,11 @@ public sealed class ToolDispatcherTests
             }
 
             var result = wasAnonymized
-                ? new QueryExecutionResult("{\"Col\":1}", true, AnonymizedColumnsSample, "ScramblePattern")
+                ? new QueryExecutionResult("{\"Col\":1}", true, AnonymizedColumnsSample, "ScramblePattern", CpuTimeMs: cpuTimeMs, LogicalReads: logicalReads)
                 {
                     SearchableTokenColumns = withSearchableTokens ? SearchableTokenColumnsSample : Array.Empty<string>()
                 }
-                : new QueryExecutionResult("{\"Col\":1}", false, Array.Empty<string>(), "ScramblePattern");
+                : new QueryExecutionResult("{\"Col\":1}", false, Array.Empty<string>(), "ScramblePattern", CpuTimeMs: cpuTimeMs, LogicalReads: logicalReads);
 
             return Task.FromResult(Result<QueryExecutionResult>.Success(result));
         }

@@ -116,6 +116,13 @@ internal sealed class MockQueryConnectionFactory(MockQueryRowConfig? config = nu
     /// <summary>The most recently created connection — lets tests inspect its transaction.</summary>
     public FakeDbConnection? LastConnection { get; private set; }
 
+    /// <summary>
+    /// Command texts passed to <see cref="DbCommand.ExecuteNonQuery"/> across all commands on the
+    /// most recently created connection — used to assert that <c>SET STATISTICS ...</c> commands
+    /// were issued (see step-002).
+    /// </summary>
+    public List<string> ExecutedNonQueryCommands { get; } = [];
+
     public DbConnection CreateConnection(string? databaseName)
     {
         LastConnection = BuildConnection(_config);
@@ -124,11 +131,12 @@ internal sealed class MockQueryConnectionFactory(MockQueryRowConfig? config = nu
 
     public DbConnection CreateConnection() => CreateConnection((string?)null);
 
-    private static FakeDbConnection BuildConnection(MockQueryRowConfig config) =>
+    private FakeDbConnection BuildConnection(MockQueryRowConfig config) =>
         new(
             conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(
                 ExecuteScalar: cmd => ExecuteScalar(cmd, config),
-                ExecuteReader: cmd => ExecuteReader(cmd, conn, config))),
+                ExecuteReader: cmd => ExecuteReader(cmd, conn, config),
+                ExecuteNonQuery: cmd => RecordNonQuery(cmd))),
             new FakeDbConnectionOptions(
                 Database: TestConstants.DatabaseName,
                 DataSource: "mock",
@@ -156,6 +164,13 @@ internal sealed class MockQueryConnectionFactory(MockQueryRowConfig? config = nu
         config.TranCountSequence != null && cmd.CommandText.Contains("@@TRANCOUNT", StringComparison.OrdinalIgnoreCase)
             ? config.TranCountSequence.Next()
             : 1;
+
+    /// <summary>Records the command text of every <c>ExecuteNonQuery</c> call (e.g. the <c>SET STATISTICS ...</c> commands issued before the main query).</summary>
+    private int RecordNonQuery(FakeDbCommand cmd)
+    {
+        ExecutedNonQueryCommands.Add(cmd.CommandText);
+        return 0;
+    }
 
     /// <summary>
     /// Records the command actually run through a data reader (the real query) on the connection
