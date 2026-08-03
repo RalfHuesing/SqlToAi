@@ -1,10 +1,10 @@
 ---
-status: draft
+status: ready
 type: konzept
 project_kind: brownfield
 estimated_scope: medium
 rules_dir: .agents/rules
-last_updated: 2026-08-03T19:30:00+02:00
+last_updated: 2026-08-03T19:45:00+02:00
 open_questions: []
 ---
 
@@ -29,9 +29,9 @@ Eine GitHub-Actions-CI-Pipeline wurde ebenfalls diskutiert, aber bewusst aus dem
 
 ### Muss-Haben
 
-- **CommandTimeout Konfigurierbarkeit & Härtung:** Entfernen von `CommandTimeout = 0` in [QueryExecutionService.cs:251](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/src/SqlToAi/Database/QueryExecutionService.cs#L251). Neue `QueryExecutionOptions.CommandTimeoutSeconds` aus `appsettings.json`, gebunden an `DbCommand.CommandTimeout`. Im Zuge dessen: Umbenennung der bestehenden, aber irreführend benannten `SqlServerOptions.CommandTimeoutSeconds` → `ConnectTimeoutSeconds` (siehe „Entdeckte Mängel" unten — sie wird heute bereits als `ConnectTimeout` verwendet, nicht als Command-Timeout).
+- **CommandTimeout Konfigurierbarkeit & Härtung:** Entfernen von `CommandTimeout = 0` in [QueryExecutionService.cs:251](src/SqlToAi/Database/QueryExecutionService.cs#L251). Neue `QueryExecutionOptions.CommandTimeoutSeconds` aus `appsettings.json`, gebunden an `DbCommand.CommandTimeout`. Im Zuge dessen: Umbenennung der bestehenden, aber irreführend benannten `SqlServerOptions.CommandTimeoutSeconds` → `ConnectTimeoutSeconds` (siehe „Entdeckte Mängel" unten — sie wird heute bereits als `ConnectTimeout` verwendet, nicht als Command-Timeout).
 - **Serverseitiges Row-Limit Enforcement:** `SET ROWCOUNT` als Session-Setting vor Ausführung setzen (analog zum bestehenden `ExecuteSetOptionAsync`-Helper) — robust gegenüber beliebigen, LLM-generierten SELECT-Formen, ohne den Query-Text anzufassen. Die bestehende clientseitige Zeilenbegrenzung (`while (rowCount < args.RowLimit ...)`) bleibt zusätzlich als Sicherheitsnetz bestehen. Das harte Limit kommt weiterhin aus `QueryExecutionOptions.MaxRowLimit` (appsettings.json) — unverändert.
-- **MCP Trail Redaction (Anonymizer-Reuse):** [McpTrailWriter.cs](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/src/SqlToAi/Mcp/McpTrailWriter.cs) wendet vor dem Schreiben auf Festplatte dieselbe bestehende Anonymisierung (PII-Glob-Patterns, Hash/ScramblePattern) an wie die Query-Ergebnisse selbst — unabhängig vom `AccessLevel` der jeweiligen Datenbank. Ziel: ein lokal laufender Agent, der die Trail-Dateien direkt vom Dateisystem liest, bekommt dieselbe reduzierte Sicht wie über den MCP-Kanal, nicht mehr. Kein neues Krypto-/Key-Management, keine separate Redaction-Engine — reine Wiederverwendung vorhandener Infrastruktur.
+- **MCP Trail Redaction (Anonymizer-Reuse):** [McpTrailWriter.cs](src/SqlToAi/Mcp/McpTrailWriter.cs) wendet vor dem Schreiben auf Festplatte dieselbe bestehende Anonymisierung (PII-Glob-Patterns, Hash/ScramblePattern) an wie die Query-Ergebnisse selbst — unabhängig vom `AccessLevel` der jeweiligen Datenbank. Ziel: ein lokal laufender Agent, der die Trail-Dateien direkt vom Dateisystem liest, bekommt dieselbe reduzierte Sicht wie über den MCP-Kanal, nicht mehr. Kein neues Krypto-/Key-Management, keine separate Redaction-Engine — reine Wiederverwendung vorhandener Infrastruktur.
 
 ### Nice-to-Have (optional, spätere Iteration)
 
@@ -47,7 +47,7 @@ Eine GitHub-Actions-CI-Pipeline wurde ebenfalls diskutiert, aber bewusst aus dem
 ## Zielplattformen / Technischer Rahmen
 
 - **.NET 10 / C# 14 & ADO.NET (`Microsoft.Data.SqlClient`)**
-- **Konfiguration via `appsettings.json` und `IOptions<SqlToAiOptions>`** (gemäß [SqlToAiRichtlinien.mdc](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/.agents/rules/SqlToAiRichtlinien.mdc))
+- **Konfiguration via `appsettings.json` und `IOptions<SqlToAiOptions>`** (gemäß [SqlToAiRichtlinien.mdc](.agents/rules/SqlToAiRichtlinien.mdc))
 - Server läuft plattformübergreifend (Windows/Linux/macOS, siehe `release.yml`-Build-Matrix) — relevant dafür, dass keine Windows-only-Mechanismen (z.B. DPAPI) in Betracht gezogen wurden.
 
 ## Verworfene Alternativen
@@ -59,27 +59,27 @@ Eine GitHub-Actions-CI-Pipeline wurde ebenfalls diskutiert, aber bewusst aus dem
 
 ## Wo im Projekt
 
-- [QueryExecutionService.cs](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/src/SqlToAi/Database/QueryExecutionService.cs): `CommandTimeout = 0` entfernen und an `QueryExecutionOptions.CommandTimeoutSeconds` binden; `SET ROWCOUNT` vor `ExecuteReaderAsync` setzen.
-- [SqlToAiOptions.cs](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/src/SqlToAi/Configuration/SqlToAiOptions.cs): `SqlServerOptions.CommandTimeoutSeconds` → `ConnectTimeoutSeconds` umbenennen; neue `QueryExecutionOptions.CommandTimeoutSeconds` ergänzen.
-- [SqlConnectionFactory.cs:44](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/src/SqlToAi/Database/SqlConnectionFactory.cs#L44): Referenz auf den umbenannten `SqlServerOptions.ConnectTimeoutSeconds` anpassen.
-- [appsettings.json](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/src/SqlToAi/appsettings.json): `SqlServer.CommandTimeoutSeconds` → `ConnectTimeoutSeconds`; neuer `QueryExecution.CommandTimeoutSeconds`-Eintrag mit sinnvollem Default.
-- [McpTrailWriter.cs](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/src/SqlToAi/Mcp/McpTrailWriter.cs): Anonymisierung der geschriebenen Argumente/Response vor `File.AppendAllText`/`File.WriteAllText` einbauen, unter Wiederverwendung von `IAnonymizer`.
+- [QueryExecutionService.cs](src/SqlToAi/Database/QueryExecutionService.cs): `CommandTimeout = 0` entfernen und an `QueryExecutionOptions.CommandTimeoutSeconds` binden; `SET ROWCOUNT` vor `ExecuteReaderAsync` setzen.
+- [SqlToAiOptions.cs](src/SqlToAi/Configuration/SqlToAiOptions.cs): `SqlServerOptions.CommandTimeoutSeconds` → `ConnectTimeoutSeconds` umbenennen; neue `QueryExecutionOptions.CommandTimeoutSeconds` ergänzen.
+- [SqlConnectionFactory.cs:44](src/SqlToAi/Database/SqlConnectionFactory.cs#L44): Referenz auf den umbenannten `SqlServerOptions.ConnectTimeoutSeconds` anpassen.
+- [appsettings.json](src/SqlToAi/appsettings.json): `SqlServer.CommandTimeoutSeconds` → `ConnectTimeoutSeconds`; neuer `QueryExecution.CommandTimeoutSeconds`-Eintrag mit sinnvollem Default.
+- [McpTrailWriter.cs](src/SqlToAi/Mcp/McpTrailWriter.cs): Anonymisierung der geschriebenen Argumente/Response vor `File.AppendAllText`/`File.WriteAllText` einbauen, unter Wiederverwendung von `IAnonymizer`.
 - `.github/workflows/`: keine neue Datei (bewusst, siehe Non-Goals); bestehende `release.yml` unverändert.
 
 ## Entdeckte Mängel/Redundanzen
 
 - **Hartkodiertes `CommandTimeout = 0`**
-  - **Gefunden:** [QueryExecutionService.cs:251](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/src/SqlToAi/Database/QueryExecutionService.cs#L251) (`command.CommandTimeout = 0;`)
-  - **Bezug:** Verstoß gegen [SqlToAiRichtlinien.mdc §4](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/.agents/rules/SqlToAiRichtlinien.mdc#L66) ("Keine hartkodierten Werte & AppSettings-Pflicht").
+  - **Gefunden:** [QueryExecutionService.cs:251](src/SqlToAi/Database/QueryExecutionService.cs#L251) (`command.CommandTimeout = 0;`)
+  - **Bezug:** Verstoß gegen [SqlToAiRichtlinien.mdc §4](.agents/rules/SqlToAiRichtlinien.mdc#L66) ("Keine hartkodierten Werte & AppSettings-Pflicht").
   - **Entscheidung:** übernommen ins Scope (→ siehe Muss-Haben)
 
 - **Rein clientseitiges Row-Limit**
-  - **Gefunden:** [QueryExecutionService.cs:263](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/src/SqlToAi/Database/QueryExecutionService.cs#L263) (`while (rowCount < args.RowLimit && await reader.ReadAsync())`)
+  - **Gefunden:** [QueryExecutionService.cs:263](src/SqlToAi/Database/QueryExecutionService.cs#L263) (`while (rowCount < args.RowLimit && await reader.ReadAsync())`)
   - **Bezug:** Performance- & Ressourcen-Mangel bei großen Tabellen.
   - **Entscheidung:** als alleinige Technik verworfen, bleibt aber als sekundäres Sicherheitsnetz neben `SET ROWCOUNT` bestehen (→ siehe Muss-Haben & Verworfene Alternativen)
 
 - **Unredigierte MCP Trail Logs**
-  - **Gefunden:** [McpTrailWriter.cs:112-129](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/src/SqlToAi/Mcp/McpTrailWriter.cs#L112-L129)
+  - **Gefunden:** [McpTrailWriter.cs:112-129](src/SqlToAi/Mcp/McpTrailWriter.cs#L112-L129)
   - **Bezug:** Zugriffsweg über das lokale Dateisystem, der an der MCP-eigenen Zugriffssteuerung vorbeiführt.
   - **Entscheidung:** übernommen ins Scope, aber mit angepasster Technik — Anonymizer-Wiederverwendung statt Verschlüsselung (→ siehe Muss-Haben; Verschlüsselung explizit verworfen, siehe Verworfene Alternativen)
 
@@ -89,7 +89,7 @@ Eine GitHub-Actions-CI-Pipeline wurde ebenfalls diskutiert, aber bewusst aus dem
   - **Entscheidung:** ABGELEHNT — Alleinentwickler-Kontext mit genau einem externen Nutzer, manueller Testlauf vor Release bereits etabliert, Aufwand/Nutzen nicht gerechtfertigt (→ siehe Non-Goals)
 
 - **NEU — Irreführende Benennung `SqlServerOptions.CommandTimeoutSeconds`**
-  - **Gefunden:** [SqlConnectionFactory.cs:44](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/src/SqlToAi/Database/SqlConnectionFactory.cs#L44) verwendet `SqlServerOptions.CommandTimeoutSeconds` als `ConnectTimeout` — nicht als Command-Timeout, obwohl Property-Name und `appsettings.json`-Schlüssel das Gegenteil suggerieren.
+  - **Gefunden:** [SqlConnectionFactory.cs:44](src/SqlToAi/Database/SqlConnectionFactory.cs#L44) verwendet `SqlServerOptions.CommandTimeoutSeconds` als `ConnectTimeout` — nicht als Command-Timeout, obwohl Property-Name und `appsettings.json`-Schlüssel das Gegenteil suggerieren.
   - **Bezug:** Irreführende Konfiguration, direkt im Weg der geplanten CommandTimeout-Härtung entdeckt (eine zweite, korrekt benannte `CommandTimeoutSeconds`-Option hätte sonst zu einer verwirrenden Namenskollision geführt).
   - **Entscheidung:** übernommen ins Scope — Umbenennung zu `ConnectTimeoutSeconds` (→ siehe Muss-Haben)
 

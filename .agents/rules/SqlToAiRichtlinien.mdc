@@ -58,7 +58,8 @@ dotnet run            # Starten (als MCP Server)
 ## 4. Updates, Dokumentation & Sprachen (Updates, Documentation & Languages)
 
 - **xUnit v3 Tests:** Pflicht für alle funktionalen Änderungen, Sicherheitsüberprüfungen (Safety-Check, Anonymisierung, Read-Only Guard) sowie für jede nicht-triviale Funktion.
-- **Dokumentations-Synchronisation (Pflicht):** Bei jeder Entwicklung und Änderung an Features/Optionen müssen die Dokumentationen in [mcp-specification.md](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/docs/mcp-specification.md) und [README.md](file:///c:/Daten/Entwicklung/Ralf/SqlToAi/README.md) zwingend aktuell gehalten und synchronisiert werden (ohne Aufforderung).
+- **Dokumentations-Synchronisation (Pflicht):** Bei jeder Entwicklung und Änderung an Features/Optionen müssen die Dokumentationen in [docs/architecture-spec.md](../../docs/architecture-spec.md) und [README.md](../../README.md) zwingend aktuell gehalten und synchronisiert werden (ohne Aufforderung).
+- **Keine absoluten Pfade in Markdown-Links:** In Dokumentation (`docs/**`, `tasks/**`, `.agents/**`, `README.md` etc.) immer repo-relative Pfade verwenden (z. B. `[QueryExecutionService.cs](src/SqlToAi/Database/QueryExecutionService.cs#L251)`), niemals absolute `file:///c:/...`-Links. Absolute Pfade sind maschinenspezifisch und brechen bei jedem anderen Checkout-Ort.
 - **Sprachvorgaben (Language Rules):**
   - **Dokumentation & Code:** Alle Dokumentationen (einschließlich Markdown-Dateien in `docs/` und `README.md`) sowie der gesamte Quellcode (Klassennamen, Methoden, Variablen, XML-Kommentare etc.) müssen in **englischer Sprache** verfasst sein.
   - **Kommunikation:** Die Kommunikationssprache zwischen dem KI-Agenten und dem Benutzer ist **Deutsch**.
