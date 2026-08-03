@@ -28,7 +28,7 @@
     "src/SqlToAi/Database/MarkdownTableRenderer.cs": "4ce6ccce77660bd60f6a7a84c91b17a5b2597adf5d3325c3b2cd910c909d3002",
     "src/SqlToAi/Database/OptimizationBenchmarkService.cs": "bac7ff9ec29d1d4112f36b7fe917f39577dd0284a82e710fba5e6c535a4b6b9a",
     "src/SqlToAi/Database/PerformanceMeasurementService.cs": "f73355129fd0cbb4de3fcb0a7dcf1b04dbf97bfc1f582897d1c569382d2975eb",
-    "src/SqlToAi/Database/QueryComparisonService.cs": "d762a57e2a25c88382cdfb23f4e9f9056323b3069054a0976ae3307afe5b5b1a",
+    "src/SqlToAi/Database/QueryComparisonService.cs": "310541d357e5c3296652e3a74e72d2972ca1d7ae8bda7d14d858fb5e434bf5fe",
     "src/SqlToAi/Database/QueryExecutionService.cs": "50401ca626afe96b2c03aff24651f9caf929f7161f282c542a8daac47c4fb4f2",
     "src/SqlToAi/Database/QueryTokenResolver.cs": "2d2e6dd3e127e4cd576db070bfb971b42fe1ebfed1c8790f51514dfc7ce79177",
     "src/SqlToAi/Database/QueryValidationService.cs": "940564c6731d6b7676f27e0fe3be2dd7588cd363e93c205fd53a1ef88e463a27",

@@ -262,8 +262,13 @@ public sealed class QueryComparisonService : IQueryComparisonService
         object? parameters,
         CancellationToken ct)
     {
+        var (preamble, body) = ExtractPreambleAndBody(query);
+        string countSql = string.IsNullOrEmpty(preamble)
+            ? $"SELECT COUNT_BIG(*) FROM ({body}) AS SqlToAiCountSubQuery"
+            : $"{preamble}\nSELECT COUNT_BIG(*) FROM ({body}) AS SqlToAiCountSubQuery";
+
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = $"SELECT COUNT_BIG(*) FROM ({query}) AS SqlToAiCountSubQuery";
+        cmd.CommandText = countSql;
         cmd.Transaction = transaction;
         SqlParameterBinder.BindParameters(cmd, parameters);
 
@@ -279,13 +284,126 @@ public sealed class QueryComparisonService : IQueryComparisonService
         object? paramsB,
         CancellationToken ct)
     {
-        string sqlExceptAnotB = $"SELECT * FROM ({args.QueryA}) AS QA EXCEPT SELECT * FROM ({args.QueryB}) AS QB";
-        string sqlExceptBnotA = $"SELECT * FROM ({args.QueryB}) AS QB EXCEPT SELECT * FROM ({args.QueryA}) AS QA";
+        var (preambleA, bodyA) = ExtractPreambleAndBody(args.QueryA);
+        var (preambleB, bodyB) = ExtractPreambleAndBody(args.QueryB);
+        string combinedPreamble = CombinePreambles(preambleA, preambleB);
+
+        string sqlExceptAnotB = string.IsNullOrEmpty(combinedPreamble)
+            ? $"SELECT * FROM ({bodyA}) AS QA EXCEPT SELECT * FROM ({bodyB}) AS QB"
+            : $"{combinedPreamble}\nSELECT * FROM ({bodyA}) AS QA EXCEPT SELECT * FROM ({bodyB}) AS QB";
+
+        string sqlExceptBnotA = string.IsNullOrEmpty(combinedPreamble)
+            ? $"SELECT * FROM ({bodyB}) AS QB EXCEPT SELECT * FROM ({bodyA}) AS QA"
+            : $"{combinedPreamble}\nSELECT * FROM ({bodyB}) AS QB EXCEPT SELECT * FROM ({bodyA}) AS QA";
 
         string diffAnotB = await ExecuteDiffQueryAsync(connection, transaction, sqlExceptAnotB, paramsA, paramsB, args.MaxDiffRows, ct);
         string diffBnotA = await ExecuteDiffQueryAsync(connection, transaction, sqlExceptBnotA, paramsB, paramsA, args.MaxDiffRows, ct);
 
         return (diffAnotB, diffBnotA);
+    }
+
+    private static (string Preamble, string Body) ExtractPreambleAndBody(string query)
+    {
+        var semicolonIndices = GetSemicolonIndices(query);
+        if (semicolonIndices.Count == 0)
+        {
+            return (string.Empty, query.Trim());
+        }
+
+        var segments = GetSegmentsFromIndices(query, semicolonIndices);
+        int lastNonEmptyIndex = GetLastNonEmptyIndex(segments);
+
+        if (lastNonEmptyIndex <= 0)
+        {
+            return (string.Empty, query.Trim());
+        }
+
+        return BuildPreambleAndBody(segments, lastNonEmptyIndex);
+    }
+
+    private static List<int> GetSemicolonIndices(string query)
+    {
+        var indices = new List<int>();
+        foreach (var ev in SqlCharScanner.Scan(query))
+        {
+            if (ev.State == SqlCharState.Normal && ev.Character == ';')
+            {
+                indices.Add(ev.Index);
+            }
+        }
+        return indices;
+    }
+
+    private static List<string> GetSegmentsFromIndices(string query, List<int> semicolonIndices)
+    {
+        var segments = new List<string>();
+        int lastIndex = 0;
+        foreach (int idx in semicolonIndices)
+        {
+            segments.Add(query[lastIndex..idx]);
+            lastIndex = idx + 1;
+        }
+        if (lastIndex <= query.Length)
+        {
+            segments.Add(query[lastIndex..]);
+        }
+        return segments;
+    }
+
+    private static int GetLastNonEmptyIndex(List<string> segments)
+    {
+        int index = segments.Count - 1;
+        while (index >= 0 && string.IsNullOrWhiteSpace(segments[index]))
+        {
+            index--;
+        }
+        return index;
+    }
+
+    private static (string Preamble, string Body) BuildPreambleAndBody(List<string> segments, int lastNonEmptyIndex)
+    {
+        var preambleParts = new List<string>();
+        for (int i = 0; i < lastNonEmptyIndex; i++)
+        {
+            if (!string.IsNullOrWhiteSpace(segments[i]))
+            {
+                preambleParts.Add(segments[i].Trim() + ";");
+            }
+        }
+
+        var bodyParts = new List<string>();
+        for (int i = lastNonEmptyIndex; i < segments.Count; i++)
+        {
+            if (!string.IsNullOrWhiteSpace(segments[i]))
+            {
+                bodyParts.Add(segments[i].Trim());
+            }
+        }
+
+        return (string.Join("\n", preambleParts), string.Join(";\n", bodyParts));
+    }
+
+    private static string CombinePreambles(string preambleA, string preambleB)
+    {
+        if (string.IsNullOrWhiteSpace(preambleA)) return preambleB;
+        if (string.IsNullOrWhiteSpace(preambleB)) return preambleA;
+
+        var lines = new List<string>();
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var p in new[] { preambleA, preambleB })
+        {
+            var parts = p.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var part in parts)
+            {
+                if (!string.IsNullOrWhiteSpace(part) && set.Add(part))
+                {
+                    lines.Add(part + ";");
+                }
+            }
+        }
+
+        return string.Join("\n", lines);
     }
 
     private static async Task<string> ExecuteDiffQueryAsync(
