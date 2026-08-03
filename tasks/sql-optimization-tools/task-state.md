@@ -24,6 +24,7 @@ current_step: step-001
 
 | Step | Epic | Status | Title | Fix-Runden | Coded | Reviewed | Commit |
 |------|------|--------|-------|------------|-------|----------|--------|
+| step-001 | EPIC-01 | open | Typisierte SQL-Parameter in Execute- und Validate-Tools nachrüsten | 0/3 | - | - | - |
 
 ## Config (optional)
 
