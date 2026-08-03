@@ -74,6 +74,27 @@ The server picks credentials in this order (first match wins):
 > credentials for a local dev server, make sure the repo is private and the login is limited to
 > read-only access on a non-production database.
 
+### Recommended Database Permissions
+
+To give the AI agent optimal read-only analysis capabilities without over-granting administrative rights, configure the SQL Server database user with the following permissions:
+
+```sql
+USE [TargetDatabase];
+
+-- 1. Read-only data access (for sql_execute_query, sql_compare_queries)
+ALTER ROLE [db_datareader] ADD MEMBER [SqlToAiUser];
+
+-- 2. View object DDL definitions for views, procedures, functions & triggers (for sql_get_schema, sql_get_trigger_definition)
+GRANT VIEW DEFINITION TO [SqlToAiUser];
+
+-- 3. Execution plan XML analysis (for sql_measure_performance, sql_benchmark_optimization)
+GRANT SHOWPLAN TO [SqlToAiUser];
+```
+
+* **`db_datareader`**: Grants read access to table and view data.
+* **`VIEW DEFINITION`**: Allows reading `sys.sql_modules` DDL definitions for views, procedures, functions, and triggers. Without this grant, SQL Server hides definition texts for non-owner logins.
+* **`SHOWPLAN`**: Enables actual XML execution plan generation (`STATISTICS XML`) and missing index recommendations. If missing, performance measurement tools degrade gracefully to IO/TIME metrics.
+
 ### Example `appsettings.json`
 
 ```json

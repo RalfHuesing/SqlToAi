@@ -149,6 +149,29 @@ Normale Anonymisierung (Abschnitt D) ist bewusst eine Einbahnstraße: Der Server
 
 ---
 
+### H. Empfohlene SQL-Server-Berechtigungen für den DB-User
+
+Für eine optimale Analysefähigkeit des KI-Agenten bei minimalem Rechtetransfer (Least Privilege) werden folgende SQL Server-Berechtigungen auf der Zieldatenbank empfohlen:
+
+```sql
+USE [Zieldatenbank];
+
+-- 1. Lesezugriff auf Tabellen & Sichten (für sql_execute_query, sql_compare_queries)
+ALTER ROLE [db_datareader] ADD MEMBER [SqlToAiUser];
+
+-- 2. DDL-Quelltexte von Sichten, Prozeduren, Funktionen & Triggern lesen (für sql_get_schema, sql_get_trigger_definition)
+GRANT VIEW DEFINITION TO [SqlToAiUser];
+
+-- 3. Ausführungsplan-XML & Indexempfehlungen analysieren (für sql_measure_performance, sql_benchmark_optimization)
+GRANT SHOWPLAN TO [SqlToAiUser];
+```
+
+* **`db_datareader`**: Erlaubt das Lesen aller Tabellendaten für Abfragen und Äquivalenzvergleiche.
+* **`VIEW DEFINITION`**: Ermöglicht das Auslesen der Quelltexte von Views, Stored Procedures, Funktionen und Triggern aus `sys.sql_modules`. Ohne dieses Recht maskiert SQL Server die Definitionstexte für Nicht-Eigentümer.
+* **`SHOWPLAN`**: Schaltet den tatsächlichen XML-Ausführungsplan (`STATISTICS XML`) und Index-Empfehlungen für die Performance-Analyse frei. Fehlt das Recht, degradiert das Tool automatisch auf reine IO/TIME-Leistungsmessungen.
+
+---
+
 ## 3. Schema-Enrichment (Dokumentations-Kopplung)
 
 Um kryptische Tabellen- und Spaltennamen für das LLM verständlicher zu machen, reichert der Server Schemaabfragen automatisch mit fachlichen Beschreibungen an.
