@@ -5,7 +5,7 @@ started_at: 2026-08-03T10:12:00+02:00
 last_updated: 2026-08-03T10:12:00+02:00
 rules_dir: .agents/rules
 total_fix_rounds: 0
-current_step: step-001
+current_step: step-002
 ---
 
 # Task State: sql-optimization-tools
@@ -14,17 +14,18 @@ current_step: step-001
 
 - **Task-Status:** `executing`
 - **Fix-Runden gesamt:** 0 (Not-Anker bei `max_total_fix_rounds`, siehe Config)
-- **Aktueller Schritt:** `step-001`
+- **Aktueller Schritt:** `step-002`
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-03T10:12:00+02:00
-- **Zuletzt aktualisiert:** 2026-08-03T10:12:00+02:00
+- **Zuletzt aktualisiert:** 2026-08-03T10:18:00+02:00
 
 ## Steps
 
 | Step | Epic | Status | Title | Fix-Runden | Coded | Reviewed | Commit |
 |------|------|--------|-------|------------|-------|----------|--------|
 | step-001 | EPIC-01 | done | Typisierte SQL-Parameter in Execute- und Validate-Tools nachrüsten | 0/3 | 6829124 | approved | 09110cf |
+| step-002 | EPIC-02 | open | Ergebnissatz- & Äquivalenzvergleich (sql_compare_queries) implementieren | 0/3 | - | - | - |
 
 ## Config (optional)
 
