@@ -1,9 +1,9 @@
 ---
-status: active
+status: completed
 task: sql-optimization-tools
 derived_from: konzept.md
 created_at: 2026-08-03T10:12:00+02:00
-last_updated: 2026-08-03T10:12:00+02:00
+last_updated: 2026-08-03T10:27:30+02:00
 created_by_model: gemini-3.6-flash
 created_by_model_knowledge_cutoff: 2026-01
 ---
@@ -27,7 +27,7 @@ Grober Anker, kein Detailplan — Detail-Steps entstehen erst JIT im Step-Modus 
 
 ## Epics
 
-- [ ] EPIC-01: Parameter-Support in bestehenden Execution- & Validation-Tools — Nachrüsten typisierter SQL-Parameter (Auto-Detection + DB-Typ Override) in `QueryExecutionService`, `ToolRegistry` & `ToolDispatcher` für `sql_execute_query` & `sql_validate_query` (Bezug zu `konzept.md` §Muss-Haben/Refactoring).
-- [ ] EPIC-02: Ergebnissatz- & Äquivalenzvergleich (`sql_compare_queries`) — Implementierung von DB-seitigem Set-Differenzvergleich (`EXCEPT` / `UNION ALL`), Schema- & Count-Checks sowie kompakter Diff-Ausgabe (Bezug zu `konzept.md` §Muss-Haben/Tool 1).
-- [ ] EPIC-03: Performance- & Plan-Analyse Engine (`sql_measure_performance`) — Messung von Server-Metriken (`STATISTICS IO, TIME`) und XML-Plan-Parsing (`Missing Indexes`, `CONVERT_IMPLICIT`, Table Scans) mit Graceful Degradation (Bezug zu `konzept.md` §Muss-Haben/Tool 2).
-- [ ] EPIC-04: Kombi-Benchmark (`sql_benchmark_optimization`) & Dokumentation — Bereitstellung des kombinierten Benchmark-Tools und Dokumentation benötigter DB-Berechtigungen (`SHOWPLAN`) in `docs/` (Bezug zu `konzept.md` §Muss-Haben/Tool 3 & Doku).
+- [x] EPIC-01: Parameter-Support in bestehenden Execution- & Validation-Tools — Nachrüsten typisierter SQL-Parameter (Auto-Detection + DB-Typ Override) in `QueryExecutionService`, `ToolRegistry` & `ToolDispatcher` für `sql_execute_query` & `sql_validate_query` (→ step-001).
+- [x] EPIC-02: Ergebnissatz- & Äquivalenzvergleich (`sql_compare_queries`) — Implementierung von DB-seitigem Set-Differenzvergleich (`EXCEPT` / `UNION ALL`), Schema- & Count-Checks sowie kompakter Diff-Ausgabe (→ step-002).
+- [x] EPIC-03: Performance- & Plan-Analyse Engine (`sql_measure_performance`) — Messung von Server-Metriken (`STATISTICS IO, TIME`) und XML-Plan-Parsing (`Missing Indexes`, `CONVERT_IMPLICIT`, Table Scans) mit Graceful Degradation (→ step-003).
+- [x] EPIC-04: Kombi-Benchmark (`sql_benchmark_optimization`) & Dokumentation — Bereitstellung des kombinierten Benchmark-Tools und Dokumentation benötigter DB-Berechtigungen (`SHOWPLAN`) in `docs/` (→ step-004).
