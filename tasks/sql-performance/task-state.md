@@ -1,8 +1,8 @@
 ---
-status: executing  # executing | done | aborted
+status: done  # executing | done | aborted
 task: sql-performance
 started_at: 2026-08-03T10:04:00Z
-last_updated: 2026-08-03T10:04:00Z
+last_updated: 2026-08-03T15:20:00Z
 rules_dir: .agents/rules
 total_fix_rounds: 1
 current_step: step-004
@@ -12,7 +12,7 @@ current_step: step-004
 
 ## Übersicht
 
-- **Task-Status:** `executing`
+- **Task-Status:** `done` — siehe `task-summary.md`
 - **Fix-Runden gesamt:** 1 (Not-Anker bei `max_total_fix_rounds`, siehe Config)
 - **Aktueller Schritt:** `step-004`
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
