@@ -39,7 +39,8 @@ public sealed class ToolRegistry
         BuildGetObjectReferences(),
         BuildGetRoutineParameters(),
         BuildExecuteQuery(),
-        BuildCompareQueries()
+        BuildCompareQueries(),
+        BuildMeasurePerformance()
     ];
 
     private static ToolDefinition BuildListDatabases() => new()
@@ -238,6 +239,25 @@ public sealed class ToolRegistry
                 [McpConstants.ArgMaxDiffRows]  = new() { Type = "integer", Description = "Maximum example diff rows to return when queries differ. Default is 5." }
             },
             Required = [McpConstants.ArgDatabase, McpConstants.ArgQueryA, McpConstants.ArgQueryB]
+        }
+    };
+
+    private static ToolDefinition BuildMeasurePerformance() => new()
+    {
+        Name = McpConstants.ToolMeasurePerformance,
+        Description = "Measures SQL query execution metrics (CPU time, elapsed time, logical/physical IO reads) and extracts warnings from the actual execution plan XML.",
+        InputSchema = new ToolInputSchema
+        {
+            Properties = new Dictionary<string, ToolParameterDefinition>
+            {
+                [McpConstants.ArgDatabase]             = StringParam("Target database name. Required."),
+                [McpConstants.ArgQuery]                = StringParam("SQL query to measure. Required."),
+                [McpConstants.ArgParameters]           = new() { Type = "object", Description = "Optional dictionary of typed parameters for the query." },
+                [McpConstants.ArgWarmupRuns]           = new() { Type = "integer", Description = "Number of initial unmeasured warmup runs (default 1)." },
+                [McpConstants.ArgExecutionRuns]        = new() { Type = "integer", Description = "Number of measured execution runs to average (default 1)." },
+                [McpConstants.ArgIncludePlanAnalysis]  = new() { Type = "boolean", Description = "Whether to attempt actual execution plan XML analysis (default true)." }
+            },
+            Required = [McpConstants.ArgDatabase, McpConstants.ArgQuery]
         }
     };
 

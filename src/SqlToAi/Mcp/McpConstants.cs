@@ -66,6 +66,7 @@ internal static class McpConstants
     internal const string ToolGetRoutineParameters = "sql_get_routine_parameters";
     internal const string ToolExecuteQuery = "sql_execute_query";
     internal const string ToolCompareQueries = "sql_compare_queries";
+    internal const string ToolMeasurePerformance = "sql_measure_performance";
 
     // -------------------------------------------------------------------------
     // Tool argument keys
@@ -85,4 +86,7 @@ internal static class McpConstants
     internal const string ArgParametersA = "parameters_a";
     internal const string ArgParametersB = "parameters_b";
     internal const string ArgMaxDiffRows = "max_diff_rows";
+    internal const string ArgWarmupRuns = "warmup_runs";
+    internal const string ArgExecutionRuns = "execution_runs";
+    internal const string ArgIncludePlanAnalysis = "include_plan_analysis";
 }

@@ -181,7 +181,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         }
 
         var (rowsInANotB, rowsInBNotA) = await ExecuteExceptDiffsAsync(
-            connection, transaction, args.QueryA, args.QueryB, paramsA, paramsB, maxDiffRows, ct);
+            connection, transaction, args, paramsA, paramsB, ct);
 
         bool isEqual = countMatch && rowsInANotB == "[]" && rowsInBNotA == "[]";
 
@@ -264,18 +264,16 @@ public sealed class QueryComparisonService : IQueryComparisonService
     private static async Task<(string RowsInANotB, string RowsInBNotA)> ExecuteExceptDiffsAsync(
         DbConnection connection,
         DbTransaction transaction,
-        string queryA,
-        string queryB,
+        QueryComparisonArgs args,
         object? paramsA,
         object? paramsB,
-        int maxDiffRows,
         CancellationToken ct)
     {
-        string sqlExceptAnotB = $"SELECT * FROM ({queryA}) AS QA EXCEPT SELECT * FROM ({queryB}) AS QB";
-        string sqlExceptBnotA = $"SELECT * FROM ({queryB}) AS QB EXCEPT SELECT * FROM ({queryA}) AS QA";
+        string sqlExceptAnotB = $"SELECT * FROM ({args.QueryA}) AS QA EXCEPT SELECT * FROM ({args.QueryB}) AS QB";
+        string sqlExceptBnotA = $"SELECT * FROM ({args.QueryB}) AS QB EXCEPT SELECT * FROM ({args.QueryA}) AS QA";
 
-        string diffAnotB = await ExecuteDiffQueryAsync(connection, transaction, sqlExceptAnotB, paramsA, paramsB, maxDiffRows, ct);
-        string diffBnotA = await ExecuteDiffQueryAsync(connection, transaction, sqlExceptBnotA, paramsB, paramsA, maxDiffRows, ct);
+        string diffAnotB = await ExecuteDiffQueryAsync(connection, transaction, sqlExceptAnotB, paramsA, paramsB, args.MaxDiffRows, ct);
+        string diffBnotA = await ExecuteDiffQueryAsync(connection, transaction, sqlExceptBnotA, paramsB, paramsA, args.MaxDiffRows, ct);
 
         return (diffAnotB, diffBnotA);
     }

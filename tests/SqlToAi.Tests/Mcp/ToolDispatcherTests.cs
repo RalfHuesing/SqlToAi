@@ -19,7 +19,8 @@ public sealed class ToolDispatcherTests
         FakeSchemaService? schema = null,
         FakeQueryExecutionService? exec = null,
         FakeQueryValidationService? validation = null,
-        FakeQueryComparisonService? comparison = null)
+        FakeQueryComparisonService? comparison = null,
+        FakePerformanceMeasurementService? perf = null)
     {
         var options = new SqlToAiOptions();
         return new ToolDispatcher(
@@ -27,6 +28,7 @@ public sealed class ToolDispatcherTests
             exec   ?? new FakeQueryExecutionService(),
             validation ?? new FakeQueryValidationService(),
             comparison ?? new FakeQueryComparisonService(),
+            perf       ?? new FakePerformanceMeasurementService(),
             Options.Create(options),
             NullLogger<ToolDispatcher>.Instance);
     }
@@ -385,6 +387,24 @@ public sealed class ToolDispatcherTests
             CompareCalled = true;
             var res = new QueryComparisonResult(true, true, true, 10, 10, Array.Empty<string>(), "[]", "[]");
             return Task.FromResult(Result<QueryComparisonResult>.Success(res));
+        }
+    }
+
+    private sealed class FakePerformanceMeasurementService : IPerformanceMeasurementService
+    {
+        public bool MeasureCalled { get; private set; }
+
+        public Task<Result<PerformanceMeasurementResult>> MeasurePerformanceAsync(
+            string databaseName, string query, CancellationToken cancellationToken = default)
+            => MeasurePerformanceAsync(new QueryPerformanceArgs(databaseName, query), cancellationToken);
+
+        public Task<Result<PerformanceMeasurementResult>> MeasurePerformanceAsync(
+            QueryPerformanceArgs args, CancellationToken cancellationToken = default)
+        {
+            MeasureCalled = true;
+            var res = new PerformanceMeasurementResult(
+                args.DatabaseName, 1, 1, new PerformanceMetrics(10, 15, 100, 0, 0), Array.Empty<PerformancePlanWarning>(), true, null);
+            return Task.FromResult(Result<PerformanceMeasurementResult>.Success(res));
         }
     }
 }

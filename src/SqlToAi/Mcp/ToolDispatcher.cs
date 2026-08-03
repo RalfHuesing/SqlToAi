@@ -40,6 +40,7 @@ public sealed class ToolDispatcher : IToolDispatcher
     private readonly IQueryExecutionService _queryExecutionService;
     private readonly IQueryValidationService _queryValidationService;
     private readonly IQueryComparisonService _queryComparisonService;
+    private readonly IPerformanceMeasurementService _performanceMeasurementService;
     private readonly DatabasesOptions _dbOptions;
     private readonly ILogger<ToolDispatcher> _logger;
     private readonly Dictionary<string, Func<ToolCallParams, CancellationToken, Task<ToolCallResult>>> _handlers;
@@ -50,6 +51,7 @@ public sealed class ToolDispatcher : IToolDispatcher
         IQueryExecutionService queryExecutionService,
         IQueryValidationService queryValidationService,
         IQueryComparisonService queryComparisonService,
+        IPerformanceMeasurementService performanceMeasurementService,
         IOptions<SqlToAiOptions> options,
         ILogger<ToolDispatcher> logger)
     {
@@ -57,6 +59,7 @@ public sealed class ToolDispatcher : IToolDispatcher
         _queryExecutionService = queryExecutionService;
         _queryValidationService = queryValidationService;
         _queryComparisonService = queryComparisonService;
+        _performanceMeasurementService = performanceMeasurementService;
         _dbOptions = options.Value.Databases;
         _logger = logger;
 
@@ -165,7 +168,19 @@ public sealed class ToolDispatcher : IToolDispatcher
                         GetObject(paramsObj, McpConstants.ArgParameters),
                         GetInt(paramsObj, McpConstants.ArgMaxDiffRows) ?? 5),
                     ct),
-                    res => JsonSerializer.Serialize(res, typeof(QueryComparisonResult), McpJsonContext.Default))
+                    res => JsonSerializer.Serialize(res, typeof(QueryComparisonResult), McpJsonContext.Default)),
+
+            [McpConstants.ToolMeasurePerformance] = (paramsObj, ct) =>
+                CallAsync(() => _performanceMeasurementService.MeasurePerformanceAsync(
+                    new QueryPerformanceArgs(
+                        GetDb(paramsObj),
+                        Require(paramsObj, McpConstants.ArgQuery),
+                        GetObject(paramsObj, McpConstants.ArgParameters),
+                        GetInt(paramsObj, McpConstants.ArgWarmupRuns) ?? 1,
+                        GetInt(paramsObj, McpConstants.ArgExecutionRuns) ?? 1,
+                        GetBool(paramsObj, McpConstants.ArgIncludePlanAnalysis) ?? true),
+                    ct),
+                    res => JsonSerializer.Serialize(res, typeof(PerformanceMeasurementResult), McpJsonContext.Default))
         };
     }
 
@@ -294,6 +309,18 @@ public sealed class ToolDispatcher : IToolDispatcher
     private static object? GetObject(ToolCallParams p, string key)
     {
         if (p.Arguments.TryGetValue(key, out object? raw)) return raw;
+        return null;
+    }
+
+    private static bool? GetBool(ToolCallParams p, string key)
+    {
+        if (!p.Arguments.TryGetValue(key, out object? raw)) return null;
+        if (raw is bool b) return b;
+        if (raw is JsonElement el)
+        {
+            if (el.ValueKind == JsonValueKind.True) return true;
+            if (el.ValueKind == JsonValueKind.False) return false;
+        }
         return null;
     }
 }
