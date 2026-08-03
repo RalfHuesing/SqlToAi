@@ -1,6 +1,6 @@
 ---
 title: "SQL-Parser-Refactoring: ScriptDom statt Custom-Parser"
-status: draft
+status: ready
 last_updated: "2026-08-03"
 rules_dir: .agents/rules
 project_kind: brownfield
