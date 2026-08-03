@@ -262,7 +262,10 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Token-Auflösung (falls `Anonymizer.Tokenization` aktiv):** Bevor die Abfrage ausgeführt wird, löst der Server jedes erkannte, gültige Anonymisierungs-Token in String-Literalen zum Realwert auf (siehe Abschnitt 2.F). Die KI kann so mit zuvor erhaltenen Tokens filtern/joinen, ohne den Wert je zu kennen.
 * **Mehrfach-Content-Rückgabe & Laufzeit-Metadaten:** Das Tool liefert strukturierte Inhaltsblöcke (`Content` im MCP-Protokoll) zurück:
   1. Einen Anonymisierungs-Hinweis (sofern Spalten anonymisiert wurden; siehe Abschnitt 2.G).
-  2. Einen `Execution Info`-Header mit Zeilenanzahl und Ausführungszeit in Millisekunden (`Execution Info: X rows returned in Y ms.`).
+  2. Einen `Execution Info`-Header: `Execution Info: X rows returned in Y ms | cpu: Z ms | logical reads: W.`
+     `cpu_time_ms`/`logical_reads` werden serverseitig bei jedem Aufruf über `SET STATISTICS IO/TIME`
+     gemessen (kein Parameter nötig, kein zusätzlicher Roundtrip). `Y` bleibt die reine
+     Client-Laufzeit der Abfrage selbst und ist nicht identisch mit `Z` (`cpu`).
   3. Die eigentlichen JSON-Zeilen der Abfrageergebnisse.
 * **Berechtigungsprüfung:** Schlägt fehl mit `SQL-AI-0107`, falls das Access-Level der Datenbank nur `SchemaOnly` oder `None` ist.
 
@@ -275,13 +278,26 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
   3. **Set-Differenz (EXCEPT):** Führt DB-seitige Set-Differenzen (`A EXCEPT B` und `B EXCEPT A`) aus und liefert Beispielzeilen für Abweichungen zurück.
 
 ### 14. `sql_measure_performance`
-* **Argumente:** `database` (String, Pflicht), `query` (String, Pflicht), `parameters` (Object, optional), `warmup_runs` (Int, optional — Default: 1), `execution_runs` (Int, optional — Default: 1), `include_plan_analysis` (Bool, optional — Default: true).
+* **Argumente:** `database` (String, Pflicht), `query` (String, Pflicht), `parameters` (Object, optional), `warmup_runs` (Int, optional — Default: 1, steuert die Anzahl initialer, ungemessener Aufwärm-Läufe zum Vorwärmen des Plan-Cache), `execution_runs` (Int, optional — Default: 1, steuert die Anzahl gemessener Läufe, deren Werte gemittelt werden), `include_plan_analysis` (Bool, optional — Default: true).
 * **Zweck:** Erfasst präzise Server-Metriken (CPU-Zeit, Elapsed Time, Logical Reads, Physical Reads, Read-Ahead Reads) via T-SQL `STATISTICS IO, TIME` und parst den XML-Ausführungsplan (`Missing Indexes`, `CONVERT_IMPLICIT`, `Table Scans`).
 * **Graceful Degradation:** Fehlt dem Datenbankbenutzer die `SHOWPLAN`-Berechtigung, degradiert das Tool automatisch auf reine IO/TIME-Messung und gibt einen entsprechenden Hinweis zurück.
+* **Rückgabestruktur (`PerformanceMeasurementResult`):** `database`, `runs_evaluated`, `warmup_runs`,
+  `metrics`, `warnings[]` (je `type`/`severity`/`message`/`impact` aus dem tatsächlichen
+  Ausführungsplan-XML), `has_showplan_permission`, `showplan_note`. `metrics` enthält
+  `cpu_time_ms`/`elapsed_time_ms`/`logical_reads`/`physical_reads`/`read_ahead_reads` (Mittelwerte)
+  sowie die nullable `min_elapsed_ms`/`max_elapsed_ms`/`min_cpu_ms`/`max_cpu_ms` — diese vier sind
+  nur befüllt, wenn `execution_runs > 1` ist (sonst `null`), und existieren nur für `elapsed`/`cpu`,
+  nicht für die drei Reads-Felder.
 
 ### 15. `sql_benchmark_optimization`
 * **Argumente:** `database` (String, Pflicht), `query_a` (Baseline, Pflicht), `query_b` (Kandidat, Pflicht), `parameters_a` (Object, optional), `parameters_b` (Object, optional), `parameters` (Object, optional), `warmup_runs` (Int, optional), `execution_runs` (Int, optional).
 * **Zweck:** Kombinierter All-in-One Benchmark zur Evaluierung von SQL-Optimierungen. Führt Äquivalenzvergleich und Performancemessungen für beide Abfragen durch, berechnet prozentuale und absolute Deltas (CPU, IO) und liefert ein klares Urteil (`Recommended`, `NotRecommended`, `Neutral`, `UnsafeDueToDataMismatch`).
+* **Rückgabestruktur (`OptimizationBenchmarkResult`):** `database`, `verdict`, `summary`,
+  `comparison` (vollständiges `sql_compare_queries`-Ergebnis), `performance_a`/`performance_b` (je ein
+  vollständiges `sql_measure_performance`-Ergebnis wie unter Punkt 14 beschrieben) sowie `deltas`
+  (`BenchmarkMetricsDelta`) mit `cpu_time`/`elapsed_time`/`logical_reads`/`physical_reads`, je ein
+  `MetricDelta`-Objekt mit `baseline_value`/`candidate_value`/`absolute_delta`/`percentage_delta`
+  (ein negativer `percentage_delta` bedeutet, dass der Kandidat sich verbessert hat).
 
 ---
 
