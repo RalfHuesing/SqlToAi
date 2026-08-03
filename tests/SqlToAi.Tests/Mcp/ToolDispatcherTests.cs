@@ -201,7 +201,7 @@ public sealed class ToolDispatcherTests
     }
 
     [Fact]
-    public async Task ExecuteQuery_ShouldReturnSingleContentBlock_WhenNotAnonymized()
+    public async Task ExecuteQuery_ShouldReturnExecutionInfoAndData_WhenNotAnonymized()
     {
         var exec = new FakeQueryExecutionService(wasAnonymized: false);
         var dispatcher = BuildDispatcher(exec: exec);
@@ -213,12 +213,13 @@ public sealed class ToolDispatcherTests
             TestContext.Current.CancellationToken);
 
         Assert.False(result.IsError);
-        Assert.Single(result.Content);
-        Assert.Equal("{\"Col\":1}", result.Content[0].Text);
+        Assert.Equal(2, result.Content.Count);
+        Assert.Contains("Execution Info:", result.Content[0].Text);
+        Assert.Equal("{\"Col\":1}", result.Content[1].Text);
     }
 
     [Fact]
-    public async Task ExecuteQuery_ShouldReturnTwoContentBlocks_WhenAnonymized()
+    public async Task ExecuteQuery_ShouldReturnThreeContentBlocks_WhenAnonymized()
     {
         var exec = new FakeQueryExecutionService(wasAnonymized: true);
         var dispatcher = BuildDispatcher(exec: exec);
@@ -230,10 +231,11 @@ public sealed class ToolDispatcherTests
             TestContext.Current.CancellationToken);
 
         Assert.False(result.IsError);
-        Assert.Equal(2, result.Content.Count);
+        Assert.Equal(3, result.Content.Count);
         Assert.Contains("anonymized (Mode: ScramblePattern)", result.Content[0].Text);
         Assert.Contains("columns were anonymized: FirstName, Email", result.Content[0].Text);
-        Assert.Equal("{\"Col\":1}", result.Content[1].Text);
+        Assert.Contains("Execution Info:", result.Content[1].Text);
+        Assert.Equal("{\"Col\":1}", result.Content[2].Text);
     }
 
     [Fact]

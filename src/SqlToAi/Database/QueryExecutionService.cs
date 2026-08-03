@@ -235,6 +235,8 @@ public sealed class QueryExecutionService : IQueryExecutionService
         ExecutionArgs args,
         CancellationToken cancellationToken)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
         using var command = args.Connection.CreateCommand();
         command.CommandText = args.Query;
         command.Transaction = args.Transaction;
@@ -256,13 +258,15 @@ public sealed class QueryExecutionService : IQueryExecutionService
             rowCount++;
         }
 
+        stopwatch.Stop();
+
         if (rowCount == 0)
         {
-            return new QueryExecutionResult("[]", false, Array.Empty<string>(), _anonymizationMode);
+            return new QueryExecutionResult("[]", false, Array.Empty<string>(), _anonymizationMode, ElapsedMs: stopwatch.ElapsedMilliseconds, RowCount: 0);
         }
 
         return new QueryExecutionResult(
-            sb.ToString().TrimEnd(), tracker.WasAnonymized, tracker.AnonymizedColumns, _anonymizationMode, tracker.SearchableTokenColumns);
+            sb.ToString().TrimEnd(), tracker.WasAnonymized, tracker.AnonymizedColumns, _anonymizationMode, tracker.SearchableTokenColumns, ElapsedMs: stopwatch.ElapsedMilliseconds, RowCount: rowCount);
     }
 
     /// <summary>Accumulates per-row anonymization outcomes while serializing a result set.</summary>

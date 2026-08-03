@@ -17,7 +17,9 @@ public sealed record QueryExecutionResult(
     bool WasAnonymized,
     IReadOnlyList<string> AnonymizedColumns,
     string AnonymizationMode,
-    IReadOnlyList<string> SearchableTokenColumns = null!)
+    IReadOnlyList<string> SearchableTokenColumns = null!,
+    long ElapsedMs = 0,
+    int RowCount = 0)
 {
     public IReadOnlyList<string> SearchableTokenColumns { get; init; } = SearchableTokenColumns ?? [];
 }

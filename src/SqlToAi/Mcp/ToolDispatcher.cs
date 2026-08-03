@@ -143,21 +143,22 @@ public sealed class ToolDispatcher : IToolDispatcher
                 }
 
                 var queryResult = result.Value;
+                string execInfoText = $"Execution Info: {queryResult.RowCount} rows returned in {queryResult.ElapsedMs} ms.";
+                var contentList = new List<ToolContent>();
+
                 if (queryResult.WasAnonymized)
                 {
-                    string noteText = BuildAnonymizationNote(queryResult);
-                    return new ToolCallResult
-                    {
-                        Content = new[]
-                        {
-                            new ToolContent { Type = "text", Text = noteText },
-                            new ToolContent { Type = "text", Text = queryResult.Data }
-                        },
-                        IsError = false
-                    };
+                    contentList.Add(new ToolContent { Type = "text", Text = BuildAnonymizationNote(queryResult) });
                 }
 
-                return ToolCallResult.Success(queryResult.Data);
+                contentList.Add(new ToolContent { Type = "text", Text = execInfoText });
+                contentList.Add(new ToolContent { Type = "text", Text = queryResult.Data });
+
+                return new ToolCallResult
+                {
+                    Content = contentList,
+                    IsError = false
+                };
             },
 
             [McpConstants.ToolCompareQueries] = (paramsObj, ct) =>

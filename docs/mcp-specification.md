@@ -260,10 +260,10 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Einschränkung:** Nur ein einzelnes Statement erlaubt (Semikolon-Trennung mehrerer Queries führt zu Fehler `SQL-AI-0101`).
 * **Datenverarbeitung:** Anwendbare Limits greifen (Default: 100 Zeilen). String-Spalten werden anonymisiert, falls aktiviert und passend zu den Regeln.
 * **Token-Auflösung (falls `Anonymizer.Tokenization` aktiv):** Bevor die Abfrage ausgeführt wird, löst der Server jedes erkannte, gültige Anonymisierungs-Token in String-Literalen zum Realwert auf (siehe Abschnitt 2.F). Die KI kann so mit zuvor erhaltenen Tokens filtern/joinen, ohne den Wert je zu kennen.
-* **Mehrfach-Content-Rückgabe bei Anonymisierung:** Wurden bei der Abfrage tatsächlich Spalten anonymisiert, liefert das Tool zwei Inhaltsblöcke (`Content` im MCP-Protokoll) zurück:
-  1. Einen Hinweis für das LLM, welche `Tabelle.Spalte`-Kombinationen mit welchem Modus anonymisiert wurden, inklusive einer Handlungsanweisung (Nutzer informieren, Freischaltung vorschlagen statt die Werte als echte Daten zu behandeln; siehe Abschnitt 2.G).
-  2. Die eigentlichen JSON-Zeilen der Abfrageergebnisse.
-  Wurden keine Daten anonymisiert, wird nur der Datenblock zurückgegeben (spart Token).
+* **Mehrfach-Content-Rückgabe & Laufzeit-Metadaten:** Das Tool liefert strukturierte Inhaltsblöcke (`Content` im MCP-Protokoll) zurück:
+  1. Einen Anonymisierungs-Hinweis (sofern Spalten anonymisiert wurden; siehe Abschnitt 2.G).
+  2. Einen `Execution Info`-Header mit Zeilenanzahl und Ausführungszeit in Millisekunden (`Execution Info: X rows returned in Y ms.`).
+  3. Die eigentlichen JSON-Zeilen der Abfrageergebnisse.
 * **Berechtigungsprüfung:** Schlägt fehl mit `SQL-AI-0107`, falls das Access-Level der Datenbank nur `SchemaOnly` oder `None` ist.
 
 ### 13. `sql_compare_queries`
