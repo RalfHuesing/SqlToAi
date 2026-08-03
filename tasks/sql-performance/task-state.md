@@ -27,7 +27,7 @@ eine Zeile.>
 
 | Step | Epic | Status | Title | Fix-Runden | Coded | Reviewed | Commit |
 |------|------|--------|-------|------------|-------|----------|--------|
-| step-001 | EPIC-01 | in_progress | PerformanceMetrics min/avg/max erweitern | 0/3 | - | - | - |
+| step-001 | EPIC-01 | done (pending audit) | PerformanceMetrics min/avg/max erweitern | 0/3 | ja | - | 5c40cac8 |
 
 ## Config (optional)
 
@@ -39,9 +39,9 @@ max_batch_diff_lines: 40
 build_command: dotnet build
 test_command: dotnet test
 target_branch: (aktueller Branch)
-model_planer: <nicht festgelegt>
-model_coder: <nicht festgelegt>
-model_kritiker: <nicht festgelegt>
+model_planer: Claude Sonnet 5, reasoning effort high
+model_coder: Claude Sonnet 5, reasoning effort medium
+model_kritiker: Claude Sonnet 5, reasoning effort high
 ```
 
 ## Abbruch-Bedingungen
