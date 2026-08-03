@@ -1,7 +1,7 @@
 ---
 step: step-001
 epic: EPIC-01
-status: open  # open | in_progress | done (pending audit) | blocked
+status: done (pending audit)  # open | in_progress | done (pending audit) | blocked
 step_type: single  # single | batch
 estimated_risk: low
 rules_refs:
