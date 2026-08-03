@@ -27,6 +27,7 @@ eine Zeile.>
 
 | Step | Epic | Status | Title | Fix-Runden | Coded | Reviewed | Commit |
 |------|------|--------|-------|------------|-------|----------|--------|
+| step-001 | EPIC-01 | in_progress | PerformanceMetrics min/avg/max erweitern | 0/3 | - | - | - |
 
 ## Config (optional)
 
