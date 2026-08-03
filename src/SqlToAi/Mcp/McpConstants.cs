@@ -50,7 +50,7 @@ internal static class McpConstants
     internal const string MethodPing = "ping";
 
     // -------------------------------------------------------------------------
-    // Tool names (must match mcp-specification.md exactly)
+    // Tool names (must match architecture-spec.md exactly)
     // -------------------------------------------------------------------------
 
     internal const string ToolListDatabases = "sql_list_databases";

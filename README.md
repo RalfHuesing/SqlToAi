@@ -55,8 +55,8 @@ output. The root section is `SqlToAi`, which contains the following sub-sections
 | `Databases` | Level-based database access lists (`ReadWrite`, `ReadOnly`, `ReadOnlyAnonymized`, `SchemaOnly`) and `CacheTtlSeconds`. |
 | `SqlServer` | Connection parameters (`Server`, `IntegratedSecurity`, `UserId`, `Password`, `CommandTimeoutSeconds`). Values support environment variable interpolation (e.g. `%COMPUTERNAME%`). |
 | `Anonymizer` | Master switch (`Enabled`), the algorithm (`DefaultMode`: `ScramblePattern` or `Hash`), and the optional `Tokenization` sub-section below. |
-| `Anonymizer.Tokenization` | Optional global mode switch (`Enabled`, `Prefix`/`Suffix`) that replaces `DefaultMode` masking with reversible tokens for every anonymized column. See [mcp-specification.md](docs/mcp-specification.md#f-reversible-durchsuchbare-tokenisierung-anonymizertokenization-optional). |
-| `AnonymizationRules` | Optional central, cross-database rules (`Enabled`, separate `Server`/`Database`/credentials, `TableName`, `CacheTtlSeconds`). See [mcp-specification.md](docs/mcp-specification.md#e-zentrale-datenbankübergreifende-anonymisierungsregeln-anonymizationrules-optional). |
+| `Anonymizer.Tokenization` | Optional global mode switch (`Enabled`, `Prefix`/`Suffix`) that replaces `DefaultMode` masking with reversible tokens for every anonymized column. See [architecture-spec.md](docs/architecture-spec.md#f-reversible-durchsuchbare-tokenisierung-anonymizertokenization-optional). |
+| `AnonymizationRules` | Optional central, cross-database rules (`Enabled`, separate `Server`/`Database`/credentials, `TableName`, `CacheTtlSeconds`). See [architecture-spec.md](docs/architecture-spec.md#e-zentrale-datenbankübergreifende-anonymisierungsregeln-anonymizationrules-optional). |
 | `MetadataProvider` | Optional custom queries and separate database credentials (`Server`, `Database`, `UserId`, `Password`, `IntegratedSecurity`, etc.) for table/column documentation enrichment. |
 | `QueryExecution` | `DefaultRowLimit` and `MaxRowLimit` for `sql_execute_query`. |
 | `Logging` | File-based logging root directory, app/error rolling sinks, and the MCP-trail settings. See [Logging](#logging) below. |
@@ -290,7 +290,7 @@ Select-String -Path log\mcp\**\*.jsonl -Pattern '"success":false'
 ## Architecture & Concept Documentation
 
 For more in-depth details about the concept, database schemas, and tool parameters, please refer to:
-* **[mcp-specification.md](docs/mcp-specification.md)** - Details on MCP tools, safety mechanisms, anonymization algorithms, and error mapping.
+* **[architecture-spec.md](docs/architecture-spec.md)** - Details on MCP tools, safety mechanisms, anonymization algorithms, and error mapping.
 
 ---
 

@@ -7,7 +7,7 @@ namespace SqlToAi.Domain;
 /// </summary>
 public sealed record SqlToAiError(string Code, string Message)
 {
-    // Error catalog codes according to mcp-specification.md
+    // Error catalog codes according to architecture-spec.md
     internal const string InvalidParametersCode = "SQL-AI-0001";
     internal const string MultipleStatementsForbiddenCode = "SQL-AI-0101";
     internal const string QueryErrorCode = "SQL-AI-0102";

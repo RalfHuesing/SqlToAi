@@ -180,7 +180,7 @@ public sealed class McpModelsTests
     [Fact]
     public void McpConstants_ToolNames_ShouldMatchSpecification()
     {
-        // All 12 tools defined in mcp-specification.md must be present
+        // All 12 tools defined in architecture-spec.md must be present
         var tools = new[]
         {
             McpConstants.ToolListDatabases,

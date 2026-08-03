@@ -78,7 +78,7 @@ avg_user_impact × (seeks + scans)).
 - `top` (optional — Top N Vorschläge, Default 10)
 
 **Benötigte Permission:** `VIEW SERVER STATE` — zusätzlich zu `db_datareader` + `SHOWPLAN`.
-Muss in `docs/mcp-specification.md` §H dokumentiert werden.
+Muss in `docs/architecture-spec.md` §H dokumentiert werden.
 
 **Hinweis:** DMV-Daten sind seit letztem Restart akkumuliert. Auf Servern die selten
 neu starten (Prod), sehr aussagekräftig. Nach Restart leer — Tool sollte darauf hinweisen.
@@ -135,6 +135,6 @@ signifikante I/O verursachen (es liest den Index durch). Parameter `mode`:
 ## Nächste Schritte (wenn dieser Task geöffnet wird)
 
 1. Entscheiden: Welche der 4 Ideen kommen in Scope?
-2. `VIEW SERVER STATE`-Permission in `mcp-specification.md` §H ergänzen?
+2. `VIEW SERVER STATE`-Permission in `docs/architecture-spec.md` §H ergänzen?
 3. Neues Tool `sql_suggest_indexes` vs. Erweiterung bestehender Tools?
 4. Tests definieren (DMV-Queries sind schwer zu unit-testen → Integration Tests?)
