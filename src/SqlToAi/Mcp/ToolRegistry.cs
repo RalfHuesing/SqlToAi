@@ -209,7 +209,11 @@ public sealed class ToolRegistry
     private static ToolDefinition BuildExecuteQuery() => new()
     {
         Name = McpConstants.ToolExecuteQuery,
-        Description = "Executes a single read-only SELECT statement inside a rollback transaction and returns the results as JSON lines. String columns are anonymized when the database access level requires it.",
+        Description = "Executes a single read-only SELECT statement inside a rollback transaction and returns the " +
+            "results as JSON lines, followed by an \"Execution Info: X rows returned in Y ms | cpu: Z ms | " +
+            "logical reads: W.\" line (server-side cpu_time_ms/logical_reads via SET STATISTICS IO/TIME, " +
+            "measured on every call, no parameter needed; Y is the client round-trip of the query itself). " +
+            "String columns are anonymized when the database access level requires it.",
         InputSchema = new ToolInputSchema
         {
             Properties = new Dictionary<string, ToolParameterDefinition>
@@ -246,7 +250,17 @@ public sealed class ToolRegistry
     private static ToolDefinition BuildMeasurePerformance() => new()
     {
         Name = McpConstants.ToolMeasurePerformance,
-        Description = "Measures SQL query execution metrics (CPU time, elapsed time, logical/physical IO reads) and extracts warnings from the actual execution plan XML.",
+        Description = "Measures SQL query performance via SET STATISTICS IO/TIME on the actual execution (not an " +
+            "estimated plan): returns JSON with metrics (cpu_time_ms, elapsed_time_ms, logical_reads, " +
+            "physical_reads, read_ahead_reads), runs_evaluated, warmup_runs, warnings[] " +
+            "(type/severity/message/impact from the actual execution plan XML), has_showplan_permission, " +
+            "showplan_note. Use warmup_runs to pre-warm the plan cache (default 1, not measured); " +
+            "execution_runs (default 1) controls how many measured runs are averaged into cpu_time_ms/ " +
+            "elapsed_time_ms/logical_reads — when execution_runs > 1, metrics additionally include " +
+            "min_elapsed_ms/max_elapsed_ms/min_cpu_ms/max_cpu_ms (null when execution_runs = 1). Set " +
+            "include_plan_analysis to false to skip execution plan XML analysis. Degrades gracefully " +
+            "(has_showplan_permission=false, showplan_note explains why) if SHOWPLAN permission is missing — " +
+            "metrics are still returned.",
         InputSchema = new ToolInputSchema
         {
             Properties = new Dictionary<string, ToolParameterDefinition>
@@ -255,7 +269,7 @@ public sealed class ToolRegistry
                 [McpConstants.ArgQuery]                = StringParam("SQL query to measure. Required."),
                 [McpConstants.ArgParameters]           = new() { Type = "object", Description = "Optional dictionary of typed parameters for the query." },
                 [McpConstants.ArgWarmupRuns]           = new() { Type = "integer", Description = "Number of initial unmeasured warmup runs (default 1)." },
-                [McpConstants.ArgExecutionRuns]        = new() { Type = "integer", Description = "Number of measured execution runs to average (default 1)." },
+                [McpConstants.ArgExecutionRuns]        = new() { Type = "integer", Description = "Number of measured execution runs (default 1). When > 1, results include min/avg/max per metric instead of only the average." },
                 [McpConstants.ArgIncludePlanAnalysis]  = new() { Type = "boolean", Description = "Whether to attempt actual execution plan XML analysis (default true)." }
             },
             Required = [McpConstants.ArgDatabase, McpConstants.ArgQuery]
@@ -265,7 +279,17 @@ public sealed class ToolRegistry
     private static ToolDefinition BuildBenchmarkOptimization() => new()
     {
         Name = McpConstants.ToolBenchmarkOptimization,
-        Description = "Runs a full optimization benchmark comparing baseline (Query A) vs candidate (Query B), evaluating result set equivalence, performance deltas (CPU, IO), and returning an actionable recommendation verdict.",
+        Description = "Runs a full optimization benchmark comparing baseline (Query A) vs candidate (Query B): checks " +
+            "result set equivalence (via sql_compare_queries semantics) and measures both queries' performance " +
+            "(same mechanism as sql_measure_performance, using warmup_runs/execution_runs). Returns JSON with " +
+            "verdict (one of \"Recommended\" — equivalent and candidate uses less or equal CPU/logical reads " +
+            "with at least one strictly improved; \"NotRecommended\" — equivalent but candidate uses more CPU or " +
+            "logical reads; \"Neutral\" — equivalent with identical resource usage; \"UnsafeDueToDataMismatch\" — " +
+            "candidate produces different results or schema, cannot replace baseline), summary (human-readable " +
+            "explanation), comparison (schema/row-count/EXCEPT diff result), performance_a/performance_b (full " +
+            "sql_measure_performance-style results for each query), and deltas (cpu_time/elapsed_time/ " +
+            "logical_reads/physical_reads, each with baseline_value/candidate_value/absolute_delta/ " +
+            "percentage_delta — negative percentage_delta means the candidate improved).",
         InputSchema = new ToolInputSchema
         {
             Properties = new Dictionary<string, ToolParameterDefinition>

@@ -67,7 +67,7 @@
     "src/SqlToAi/Mcp/McpTrailJsonOptions.cs": "5a3566e050fe6092c4effeebb7d33a67b5736fd78a083375625a0d563c998df4",
     "src/SqlToAi/Mcp/McpTrailWriter.cs": "e5bc54b5f0caa409bb0841f1fa819ddf368f9f679fd64a42cf0f6ba8ff201438",
     "src/SqlToAi/Mcp/ToolDispatcher.cs": "b820da79d8a12a2a4c47cce0e5db174544723ee490954fe5ac3c320224e692dc",
-    "src/SqlToAi/Mcp/ToolRegistry.cs": "3350dc3805e4b2ea0440e76ff9d74c8822c413786c09906ee54bfbeac1824a7f",
+    "src/SqlToAi/Mcp/ToolRegistry.cs": "5adee120e7aa9f012168e3ca7a1be3da0366d787e5b693e9bf61c79ac58cf2d4",
     "src/SqlToAi/Metadata/IMetadataProvider.cs": "f6999a8eb676d6f9596af956c88aa23ec50fe5418526674dc74265a28ff01c93",
     "src/SqlToAi/Metadata/MetadataProvider.cs": "b82cb873ac7a1e15c7dcafaf6d0dd1c94cae666548f03a517385e999140e989d",
     "src/SqlToAi/Program.cs": "4ad6ae7868b9dea93c4509fb8c11e3a45da55b19f067fe32445cf190cc3b1b5a",
