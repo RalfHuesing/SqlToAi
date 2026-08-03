@@ -5,7 +5,7 @@ started_at: 2026-08-03T10:12:00+02:00
 last_updated: 2026-08-03T10:12:00+02:00
 rules_dir: .agents/rules
 total_fix_rounds: 0
-current_step: step-003
+current_step: step-004
 ---
 
 # Task State: sql-optimization-tools
@@ -14,11 +14,11 @@ current_step: step-003
 
 - **Task-Status:** `executing`
 - **Fix-Runden gesamt:** 0 (Not-Anker bei `max_total_fix_rounds`, siehe Config)
-- **Aktueller Schritt:** `step-003`
+- **Aktueller Schritt:** `step-004`
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-03T10:12:00+02:00
-- **Zuletzt aktualisiert:** 2026-08-03T10:22:00+02:00
+- **Zuletzt aktualisiert:** 2026-08-03T10:25:00+02:00
 
 ## Steps
 
@@ -27,6 +27,7 @@ current_step: step-003
 | step-001 | EPIC-01 | done | Typisierte SQL-Parameter in Execute- und Validate-Tools nachrüsten | 0/3 | 6829124 | approved | 09110cf |
 | step-002 | EPIC-02 | done | Ergebnissatz- & Äquivalenzvergleich (sql_compare_queries) implementieren | 0/3 | 4c05ee4 | approved | 014ba72 |
 | step-003 | EPIC-03 | done | Performance- & Plan-Analyse Engine (sql_measure_performance) implementieren | 0/3 | 27a6b0a | approved | ea9f027 |
+| step-004 | EPIC-04 | open | Kombi-Benchmark (sql_benchmark_optimization) & Dokumentation implementieren | 0/3 | - | - | - |
 
 ## Config (optional)
 
