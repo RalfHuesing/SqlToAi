@@ -28,7 +28,7 @@ Step-Modus des Planers. Diese Datei wird laufend angepasst.
 
 ## Epics
 
-- [ ] EPIC-01: PerformanceMetrics min/avg/max — `PerformanceMetrics` um nullable `min_*/max_*`-Felder erweitern; `ProcessCapturedOutput` per Run parsen statt summieren; `McpJsonContext.cs` anpassen; Tests ergänzen (Bezug: konzept.md §Muss-Haben 1)
-- [ ] EPIC-02: STATISTICS IO/TIME in sql_execute_query — `QueryExecutionService` mit `InfoMessage`-Handler und `SET STATISTICS IO/TIME ON` erweitern; `QueryExecutionResult` um `LogicalReads`/`CpuTimeMs` ergänzen; `ToolDispatcher` Execution-Info-Text erweitern; Tests ergänzen (Bezug: konzept.md §Muss-Haben 2)
+- [x] EPIC-01: PerformanceMetrics min/avg/max — `PerformanceMetrics` um nullable `min_*/max_*`-Felder erweitern; `ProcessCapturedOutput` per Run parsen statt summieren; `McpJsonContext.cs` anpassen; Tests ergänzen (Bezug: konzept.md §Muss-Haben 1) — erledigt in `step-001` + `step-001/fix-01` (Fix: Min/Max-Gültigkeit strukturell über Regex-Match statt Wert-Schwellenwert, siehe `step-001/step-review.md` Finding 1)
+- [ ] EPIC-02: STATISTICS IO/TIME in sql_execute_query — `QueryExecutionService` mit `InfoMessage`-Handler und `SET STATISTICS IO/TIME ON` erweitern; `QueryExecutionResult` um `LogicalReads`/`CpuTimeMs` ergänzen; `ToolDispatcher` Execution-Info-Text erweitern; Tests ergänzen (Bezug: konzept.md §Muss-Haben 2) — in Arbeit → step-002
 - [ ] EPIC-03: ToolRegistry Descriptions Rewrite — `BuildMeasurePerformance`, `BuildBenchmarkOptimization`, `BuildExecuteQuery` mit agentenlesbaren Descriptions rewriten; alle JSON-Felder, Semantik von min/avg/max, Verdict-Werte, Execution-Info-Block explizit nennen (Bezug: konzept.md §Muss-Haben 3)
 - [ ] EPIC-04: Dokumentation — `mcp-specification.md` §14 + §15 aktualisieren (Betrifft: docs/mcp-specification.md §14 sql_measure_performance, §15 sql_benchmark_optimization, §12 sql_execute_query)
