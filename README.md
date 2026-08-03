@@ -1,14 +1,18 @@
 # SqlToAi
 
-**SqlToAi** is a lightweight, secure, and highly customizable Model Context Protocol (MCP) server for Microsoft SQL Server. It allows AI agents and LLMs (such as Cursor, Windsurf, or Claude Desktop) to interact with databases securely, retrieve schema information, and run read-only queries with on-the-fly string anonymization to protect PII.
+**SqlToAi** is a lightweight, secure, and highly customizable Model Context Protocol (MCP) server for Microsoft SQL Server. It allows AI agents and LLMs (such as Cursor, Windsurf, or Claude Desktop) to interact with databases securely, retrieve schema information, run read-only queries with on-the-fly string anonymization to protect PII, measure SQL Server query performance & execution plans, verify query result equivalence, and execute automated optimization benchmarks with typed SQL parameters.
 
-Designed specifically for developers analyzing ERP systems and complex database schemas without exposing sensitive customer data.
+Designed specifically for developers analyzing ERP systems, optimizing SQL queries, and exploring complex database schemas without exposing sensitive customer data.
 
 ---
 
 ## Key Features
 
 * 🚀 **Stdio-based MCP Host:** Fast, local execution using standard input/output (no HTTP/network setup required).
+* ⚡ **SQL Performance & Execution Plan Engine:** Measure server-side CPU time, elapsed time, and logical/physical reads (`STATISTICS IO, TIME`), and parse actual XML execution plans (`STATISTICS XML`) for missing index recommendations, table scans, and implicit data type conversions (`CONVERT_IMPLICIT`), with graceful degradation if `SHOWPLAN` permissions are missing.
+* ⚖️ **Database-Side Result Set Equivalence (`sql_compare_queries`):** Perform server-side set difference checks (`EXCEPT` / `UNION ALL`), row count comparisons, and schema validations between baseline (Query A) and candidate (Query B) queries without downloading large datasets to the client.
+* 🏆 **All-in-One Optimization Benchmarking (`sql_benchmark_optimization`):** Compare baseline vs candidate queries in a single step, evaluating result equivalence, resource utilization deltas, and returning an automated actionable recommendation verdict (`Recommended`, `NotRecommended`, `Neutral`, `UnsafeDueToDataMismatch`).
+* 🏷️ **Typed SQL Parameters & Explicit Type Overrides:** Parameterized query support across execution, validation, comparison, and benchmarking tools — supporting automatic primitive/date inference as well as explicit DB type overrides (e.g. `{"value": "123", "dbType": "AnsiString"}`) to eliminate implicit conversion warnings in SQL Server plans.
 * 🛡️ **PII Shield (On-the-Fly Anonymization):** Automatically scrambles or hashes all string values in query results (default: ON) to protect customer data while preserving data structure, casing, length, and join logical consistency. *Known limits* — string anonymization applies only to `string`-typed values; numeric IDs, dates, and other non-string columns are never anonymized, regardless of `AnonymizationRules`. Schema tools (`sql_get_schema`, `sql_get_schema_constraints`, `sql_get_trigger_definition`, view/function bodies) return raw DDL text without anonymization, so do not embed sensitive literal defaults in `DEFAULT` constraints or trigger code.
 * 🔒 **Read-Only Guard & Level-Based Authorization:** Regex-based command checking rejects modifying queries (`INSERT`, `UPDATE`, `DROP`, `EXEC`, etc.) inside a rollback transaction. The guard only steps aside for a database declared in the `ReadWrite` level list — every other access level stays read-only, always.
 * 🚦 **Level-Based Database Access Control:** Assign allowed databases directly to access level lists (`ReadWrite`, `ReadOnly`, `ReadOnlyAnonymized`, `SchemaOnly`) in `appsettings.json`. Fail-safe default-deny blocks unlisted databases (`AccessLevel.None`), and any multi-list declaration resolves to the most restrictive level (`SchemaOnly` > `ReadOnlyAnonymized` > `ReadOnly` > `ReadWrite`).
