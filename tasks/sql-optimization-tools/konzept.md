@@ -4,7 +4,7 @@ type: konzept
 project_kind: brownfield
 estimated_scope: medium
 rules_dir: .agents/rules
-last_updated: 2026-08-03T09:28:00Z
+last_updated: 2026-08-03T09:41:00Z
 open_questions: []
 ---
 
@@ -12,11 +12,11 @@ open_questions: []
 
 ## Ziel (Was)
 
-Erweiterung von `SqlToAi` um drei dedizierte MCP-Tools, mit denen KI-Agenten zwei SQL-Abfragen auf semantische Gleichheit (Schema, Datentypen, Zeilenanzahl und Zeileninhalte) vergleichen und deren Performance (Laufzeit, Logical Reads, CPU-Zeit, Execution-Plan-Analysen wie Missing Indexes) präzise und empirisch messen können. Zudem wird die Unterstützung für SQL-Parameter (`parameters`-Dictionary) konsistent in den neuen Tools sowie im bestehenden `sql_execute_query` nachgerüstet. Die Tools liefern rein technische Analyseergebnisse und kompakte Metriken an den Agenten (kein Streaming von großen Ergebnismengen).
+Erweiterung von `SqlToAi` um drei dedizierte MCP-Tools, mit denen KI-Agenten zwei SQL-Abfragen auf semantische Gleichheit (Schema, Datentypen, Zeilenanzahl und Zeileninhalte) vergleichen und deren Performance (Laufzeit, Logical Reads, CPU-Zeit, Execution-Plan-Analysen wie Missing Indexes) präzise und empirisch messen können. Zudem wird die Unterstützung für typisierte SQL-Parameter (`parameters`-Dictionary mit Auto-Detection und Option für explizite DB-Typen) konsistent in den neuen Tools sowie im bestehenden `sql_execute_query` nachgerüstet. Die Tools liefern rein technische Analyseergebnisse und kompakte Metriken an den Agenten (kein Streaming von großen Ergebnismengen).
 
 ## Warum / Kontext
 
-Wenn KI-Agenten SQL-Abfragen optimieren, arbeiten sie ohne empirische Feedbackschleife oft "im Blindflug". Sie können aktuell weder sicherstellen, dass die optimierte Abfrage exakt dieselben Ergebnisse liefert, noch fundiert bewerten, ob eine Änderung die Performance verbessert hat. Reine Client-Laufzeiten sind durch Caching und Serverlast unzuverlässig; direkte Datenvergleiche im Agenten-Kontext scheitern an Datenmengen. Zudem simulieren hartcodierte SQL-Literale ohne Parameter nicht das reale Verhalten der DB-Anwendungen (Plan Cache, Parameter Sniffing).
+Wenn KI-Agenten SQL-Abfragen optimieren, arbeiten sie ohne empirische Feedbackschleife oft "im Blindflug". Sie können aktuell weder sicherstellen, dass die optimierte Abfrage exakt dieselben Ergebnisse liefert, noch fundiert bewerten, ob eine Änderung die Performance verbessert hat. Reine Client-Laufzeiten sind durch Caching und Serverlast unzuverlässig; direkte Datenvergleiche im Agenten-Kontext scheitern an Datenmengen. Zudem simulieren hartcodierte SQL-Literale ohne Parameter nicht das reale Verhalten der DB-Anwendungen (Plan Cache, Parameter Sniffing, implizite Datentyp-Konvertierungen).
 
 ## Scope
 
@@ -30,7 +30,7 @@ Wenn KI-Agenten SQL-Abfragen optimieren, arbeiten sie ohne empirische Feedbacksc
   - **Parameter-Support:** Akzeptiert optional ein `parameters`-Dictionary (z. B. `{"CustomerId": 42}`).
 - **Tool 2: Performance-Messung (`sql_measure_performance`):**
   - **Hard-Metriken:** Server-seitige CPU-Zeit, Elapsed Time, Logical Reads / Physical Reads (via `STATISTICS IO, TIME`).
-  - **Execution-Plan-Analyse (Actual Execution Plan):** Extraktion kompakter Warnungen aus dem XML-Plan (z. B. `Missing Indexes`, `Implicit Conversions`, `Table Scans` mit hoher Cost).
+  - **Execution-Plan-Analyse (Actual Execution Plan):** Extraktion kompakter Warnungen aus dem XML-Plan (z. B. `Missing Indexes`, `Implicit Conversions` / `CONVERT_IMPLICIT`, `Table Scans` mit hoher Cost).
   - **Graceful Degradation bei fehlenden Berechtigungen:** Wenn dem DB-User das `SHOWPLAN`-Recht fehlt, schlägt das Tool nicht fehl, sondern liefert IO/Time-Metriken + Warnung ("SHOWPLAN permission missing").
   - **Warmup & Averaging:** Unterstützung für Mehrfachausführungen zur Caching-Kompensation.
   - **Parameter-Support:** Akzeptiert optional ein `parameters`-Dictionary.
@@ -58,6 +58,7 @@ Wenn KI-Agenten SQL-Abfragen optimieren, arbeiten sie ohne empirische Feedbacksc
 - **Language & Runtime:** .NET 10 / C# 14 (Standard von SqlToAi).
 - **Datenbanken:** Primärer Fokus auf MS SQL Server (`STATISTICS IO/TIME`, `STATISTICS XML`).
 - **Execution Engine:** Nutzung bestehender Dapper- / DbConnection-Strukturen in `SqlToAi.Database`.
+- **Parameter Mapping Engine:** `System.Text.Json` Parser mit automatischer Typerkennung (Primitives, ISO-8601 DateTimes) sowie Fallback für explizite Typvorgaben (`{"value": "val", "dbType": "AnsiString"}`).
 
 ## Verworfene Alternativen
 
@@ -89,16 +90,17 @@ Wenn KI-Agenten SQL-Abfragen optimieren, arbeiten sie ohne empirische Feedbacksc
 2. **Performance & Plan Parser Engine:**
    - Aktivieren von `SET STATISTICS IO, TIME, XML ON` auf der Verbindung.
    - Abfangen von Berechtigungsfehlern (`SqlException` bezüglich `SHOWPLAN`).
-   - Parsen der T-SQL Informational Messages (Logical Reads) und des XML-Ausführungsplans (Extraktion von `MissingIndexes`, `Warnings`, `TableScan`).
-3. **MCP Tool Binding:**
+   - Parsen der T-SQL Informational Messages (Logical Reads) und des XML-Ausführungsplans (Extraktion von `MissingIndexes`, `Warnings` wie `CONVERT_IMPLICIT`, `TableScan`).
+3. **MCP Tool Binding & Parameter Parser:**
    - Bereitstellen von 3 neuen MCP-Tools sowie Aktualisierung von `sql_execute_query` mit sauber typisierten JSON-Schemas.
+   - Umwandlung von JSON-Parametern in Dapper-`DynamicParameters` (Auto-Detect für Primitive & ISO-Dates, Unterstützung expliziter DB-Typen).
 
 ## Definition of Done / Erfolgskriterien
 
-- `sql_compare_queries` erkennt exakt, ob zwei Queries inhaltsgleich sind, unterstützt Parameter und meldet Diffs bei Abweichungen.
-- `sql_measure_performance` liefert reproduzierbare Metriken (Logical Reads, CPU Time, Elapsed Time) und extrahiert Ausführungsplan-Hinweise (Missing Index, Table Scan), sofern Berechtigungen vorliegen.
+- `sql_compare_queries` erkennt exakt, ob zwei Queries inhaltsgleich sind, unterstützt typisierte Parameter und meldet Diffs bei Abweichungen.
+- `sql_measure_performance` liefert reproduzierbare Metriken (Logical Reads, CPU Time, Elapsed Time) und extrahiert Ausführungsplan-Hinweise (Missing Index, `CONVERT_IMPLICIT` Warnungen, Table Scan), sofern Berechtigungen vorliegen.
 - Bei fehlender `SHOWPLAN`-Berechtigung schlägt die Leistungsmessung nicht fehl, sondern degradiert sauber (Warnhinweis im Ergebnis).
-- `sql_execute_query` unterstützt optional parametrisierte Aufrufe.
+- `sql_execute_query` unterstützt optional parametrisierte Aufrufe mit automatischer und expliziter Typerkennung.
 - Benötigte DB-Berechtigungen sind in der Projektdokumentation klar festgehalten.
 - `sql_benchmark_optimization` bietet den vollständigen Vergleich zweier Queries in einem Call.
 - Neue Unit- und Integrationstests in `tests/` decken Äquivalenz-, Performance-, Parameter- und Fallback-Analysen ab.
