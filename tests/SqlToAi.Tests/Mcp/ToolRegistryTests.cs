@@ -13,9 +13,9 @@ public sealed class ToolRegistryTests
     private readonly ToolRegistry _registry = new();
 
     [Fact]
-    public void GetAll_ShouldReturn_ExactlyTwelveTools()
+    public void GetAll_ShouldReturn_ThirteenTools()
     {
-        Assert.Equal(12, _registry.GetAll().Count);
+        Assert.Equal(13, _registry.GetAll().Count);
     }
 
     [Fact]
@@ -28,6 +28,7 @@ public sealed class ToolRegistryTests
         Assert.Contains(McpConstants.ToolValidateQuery, names);
         Assert.Contains(McpConstants.ToolSearchObjects, names);
         Assert.Contains(McpConstants.ToolGetSchema, names);
+        Assert.Contains(McpConstants.ToolCompareQueries, names);
         Assert.Contains(McpConstants.ToolGetSchemaForeignKeys, names);
         Assert.Contains(McpConstants.ToolGetSchemaIndexes, names);
         Assert.Contains(McpConstants.ToolGetSchemaConstraints, names);

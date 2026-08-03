@@ -18,13 +18,15 @@ public sealed class ToolDispatcherTests
     private static ToolDispatcher BuildDispatcher(
         FakeSchemaService? schema = null,
         FakeQueryExecutionService? exec = null,
-        FakeQueryValidationService? validation = null)
+        FakeQueryValidationService? validation = null,
+        FakeQueryComparisonService? comparison = null)
     {
         var options = new SqlToAiOptions();
         return new ToolDispatcher(
             schema ?? new FakeSchemaService(),
             exec   ?? new FakeQueryExecutionService(),
             validation ?? new FakeQueryValidationService(),
+            comparison ?? new FakeQueryComparisonService(),
             Options.Create(options),
             NullLogger<ToolDispatcher>.Instance);
     }
@@ -366,6 +368,23 @@ public sealed class ToolDispatcherTests
         {
             ValidateCalled = true;
             return Task.FromResult(Result<string>.Success("Query syntax is valid."));
+        }
+    }
+
+    private sealed class FakeQueryComparisonService : IQueryComparisonService
+    {
+        public bool CompareCalled { get; private set; }
+
+        public Task<Result<QueryComparisonResult>> CompareQueriesAsync(
+            string databaseName, string queryA, string queryB, CancellationToken cancellationToken = default)
+            => CompareQueriesAsync(new QueryComparisonArgs(databaseName, queryA, queryB), cancellationToken);
+
+        public Task<Result<QueryComparisonResult>> CompareQueriesAsync(
+            QueryComparisonArgs args, CancellationToken cancellationToken = default)
+        {
+            CompareCalled = true;
+            var res = new QueryComparisonResult(true, true, true, 10, 10, Array.Empty<string>(), "[]", "[]");
+            return Task.FromResult(Result<QueryComparisonResult>.Success(res));
         }
     }
 }

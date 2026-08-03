@@ -39,6 +39,7 @@ public sealed class ToolDispatcher : IToolDispatcher
     private readonly ISchemaService _schemaService;
     private readonly IQueryExecutionService _queryExecutionService;
     private readonly IQueryValidationService _queryValidationService;
+    private readonly IQueryComparisonService _queryComparisonService;
     private readonly DatabasesOptions _dbOptions;
     private readonly ILogger<ToolDispatcher> _logger;
     private readonly Dictionary<string, Func<ToolCallParams, CancellationToken, Task<ToolCallResult>>> _handlers;
@@ -48,12 +49,14 @@ public sealed class ToolDispatcher : IToolDispatcher
         ISchemaService schemaService,
         IQueryExecutionService queryExecutionService,
         IQueryValidationService queryValidationService,
+        IQueryComparisonService queryComparisonService,
         IOptions<SqlToAiOptions> options,
         ILogger<ToolDispatcher> logger)
     {
         _schemaService = schemaService;
         _queryExecutionService = queryExecutionService;
         _queryValidationService = queryValidationService;
+        _queryComparisonService = queryComparisonService;
         _dbOptions = options.Value.Databases;
         _logger = logger;
 
@@ -149,7 +152,20 @@ public sealed class ToolDispatcher : IToolDispatcher
                 }
 
                 return ToolCallResult.Success(queryResult.Data);
-            }
+            },
+
+            [McpConstants.ToolCompareQueries] = (paramsObj, ct) =>
+                CallAsync(() => _queryComparisonService.CompareQueriesAsync(
+                    new QueryComparisonArgs(
+                        GetDb(paramsObj),
+                        Require(paramsObj, McpConstants.ArgQueryA),
+                        Require(paramsObj, McpConstants.ArgQueryB),
+                        GetObject(paramsObj, McpConstants.ArgParametersA),
+                        GetObject(paramsObj, McpConstants.ArgParametersB),
+                        GetObject(paramsObj, McpConstants.ArgParameters),
+                        GetInt(paramsObj, McpConstants.ArgMaxDiffRows) ?? 5),
+                    ct),
+                    res => JsonSerializer.Serialize(res, typeof(QueryComparisonResult), McpJsonContext.Default))
         };
     }
 

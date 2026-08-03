@@ -33,6 +33,8 @@ namespace SqlToAi.Mcp;
 [JsonSerializable(typeof(ToolContent))]
 [JsonSerializable(typeof(EmptyResult))]
 [JsonSerializable(typeof(McpCallRecordShape))]
+[JsonSerializable(typeof(Domain.QueryComparisonResult))]
+[JsonSerializable(typeof(Domain.QueryComparisonArgs))]
 [JsonSerializable(typeof(Dictionary<string, object?>))]
 [JsonSerializable(typeof(IReadOnlyList<string>))]
 [JsonSerializable(typeof(JsonElement))]

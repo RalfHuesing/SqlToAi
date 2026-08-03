@@ -38,7 +38,8 @@ public sealed class ToolRegistry
         BuildGetTriggerDefinition(),
         BuildGetObjectReferences(),
         BuildGetRoutineParameters(),
-        BuildExecuteQuery()
+        BuildExecuteQuery(),
+        BuildCompareQueries()
     ];
 
     private static ToolDefinition BuildListDatabases() => new()
@@ -217,6 +218,26 @@ public sealed class ToolRegistry
                 [McpConstants.ArgParameters]        = new() { Type = "object", Description = "Optional dictionary of typed SQL parameters (e.g. {\"CustomerId\": 42} or {\"val\": {\"value\": \"123\", \"dbType\": \"AnsiString\"}})." }
             },
             Required = [McpConstants.ArgQuery, McpConstants.ArgDatabase]
+        }
+    };
+
+    private static ToolDefinition BuildCompareQueries() => new()
+    {
+        Name = McpConstants.ToolCompareQueries,
+        Description = "Compares two SQL queries for semantic equivalence (schema, row counts, and database-side EXCEPT set differences) without transferring full datasets.",
+        InputSchema = new ToolInputSchema
+        {
+            Properties = new Dictionary<string, ToolParameterDefinition>
+            {
+                [McpConstants.ArgDatabase]    = StringParam("Target database name. Required."),
+                [McpConstants.ArgQueryA]       = StringParam("Baseline SQL query (Query A). Required."),
+                [McpConstants.ArgQueryB]       = StringParam("Candidate SQL query (Query B). Required."),
+                [McpConstants.ArgParametersA]  = new() { Type = "object", Description = "Optional dictionary of parameters for Query A." },
+                [McpConstants.ArgParametersB]  = new() { Type = "object", Description = "Optional dictionary of parameters for Query B." },
+                [McpConstants.ArgParameters]   = new() { Type = "object", Description = "Optional shared dictionary of parameters for both queries." },
+                [McpConstants.ArgMaxDiffRows]  = new() { Type = "integer", Description = "Maximum example diff rows to return when queries differ. Default is 5." }
+            },
+            Required = [McpConstants.ArgDatabase, McpConstants.ArgQueryA, McpConstants.ArgQueryB]
         }
     };
 
