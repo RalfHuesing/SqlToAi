@@ -41,6 +41,25 @@ public sealed partial class QueryExecutionServiceTests
     }
 
     [Fact]
+    public async Task ExecuteQueryAsync_ShouldAnonymizeStrings_WhenQueryContainsDeclare()
+    {
+        var options = new SqlToAiOptions();
+        options.Anonymizer.Enabled = true;
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("Ralf Huesing"));
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        const string declareQuery = "DECLARE @Id int = 1; SELECT Name FROM Customers WHERE Id = @Id";
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, declareQuery, null, TestContext.Current.CancellationToken);
+        Assert.True(result.IsSuccess);
+        Assert.DoesNotContain("Ralf Huesing", result.Value.Data, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Value.WasAnonymized);
+        Assert.Contains("Name", result.Value.AnonymizedColumns);
+    }
+
+    [Fact]
     public async Task ExecuteQueryAsync_ShouldNotAnonymize_WhenReadOnly()
     {
         const string original = "Ralf Huesing";
