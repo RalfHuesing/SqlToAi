@@ -70,7 +70,7 @@ public sealed class ToolDispatcher : IToolDispatcher
 
             [McpConstants.ToolValidateQuery] = (paramsObj, ct) =>
                 CallAsync(() => _queryValidationService.ValidateQueryAsync(
-                    GetDb(paramsObj), Require(paramsObj, McpConstants.ArgQuery), ct)),
+                    GetDb(paramsObj), Require(paramsObj, McpConstants.ArgQuery), GetObject(paramsObj, McpConstants.ArgParameters), ct)),
 
             [McpConstants.ToolSearchObjects] = (paramsObj, ct) =>
                 CallAsync(() => _schemaService.SearchObjectsAsync(
@@ -120,6 +120,7 @@ public sealed class ToolDispatcher : IToolDispatcher
                         GetDb(paramsObj),
                         Require(paramsObj, McpConstants.ArgQuery),
                         GetInt(paramsObj, McpConstants.ArgRequestedRowLimit),
+                        GetObject(paramsObj, McpConstants.ArgParameters),
                         ct);
                 }
                 catch (ArgumentException ex)
@@ -271,6 +272,12 @@ public sealed class ToolDispatcher : IToolDispatcher
         {
             if (el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out int v)) return v;
         }
+        return null;
+    }
+
+    private static object? GetObject(ToolCallParams p, string key)
+    {
+        if (p.Arguments.TryGetValue(key, out object? raw)) return raw;
         return null;
     }
 }

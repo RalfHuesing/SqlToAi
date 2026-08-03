@@ -31,4 +31,20 @@ public interface IQueryExecutionService
         string query,
         int? requestedRowLimit,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Executes a single SQL statement against the specified database with optional parameter binding.
+    /// </summary>
+    /// <param name="databaseName">The name of the target database.</param>
+    /// <param name="query">The SQL query to execute.</param>
+    /// <param name="requestedRowLimit">Optional row limit.</param>
+    /// <param name="parameters">Optional parameters container (dictionary, JSON element, or string).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Execution result.</returns>
+    Task<Result<QueryExecutionResult>> ExecuteQueryAsync(
+        string databaseName,
+        string query,
+        int? requestedRowLimit,
+        object? parameters,
+        CancellationToken cancellationToken = default);
 }

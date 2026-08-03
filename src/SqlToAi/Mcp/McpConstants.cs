@@ -78,4 +78,5 @@ internal static class McpConstants
     internal const string ArgTriggerName = "trigger_name";
     internal const string ArgQuery = "query";
     internal const string ArgRequestedRowLimit = "requested_row_limit";
+    internal const string ArgParameters = "parameters";
 }

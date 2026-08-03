@@ -332,6 +332,9 @@ public sealed class ToolDispatcherTests
         public int? LastRowLimit { get; private set; }
 
         public Task<Result<QueryExecutionResult>> ExecuteQueryAsync(string db, string query, int? requestedRowLimit, CancellationToken ct = default)
+            => ExecuteQueryAsync(db, query, requestedRowLimit, parameters: null, ct);
+
+        public Task<Result<QueryExecutionResult>> ExecuteQueryAsync(string db, string query, int? requestedRowLimit, object? parameters, CancellationToken ct = default)
         {
             ExecuteCalled = true;
             LastRowLimit = requestedRowLimit;
@@ -357,6 +360,9 @@ public sealed class ToolDispatcherTests
         public bool ValidateCalled { get; private set; }
 
         public Task<Result<string>> ValidateQueryAsync(string db, string query, CancellationToken ct = default)
+            => ValidateQueryAsync(db, query, parameters: null, ct);
+
+        public Task<Result<string>> ValidateQueryAsync(string db, string query, object? parameters, CancellationToken ct = default)
         {
             ValidateCalled = true;
             return Task.FromResult(Result<string>.Success("Query syntax is valid."));

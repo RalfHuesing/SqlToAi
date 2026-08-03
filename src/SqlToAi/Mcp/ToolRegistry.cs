@@ -70,8 +70,9 @@ public sealed class ToolRegistry
         {
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
-                [McpConstants.ArgQuery]    = StringParam("The SQL query to validate."),
-                [McpConstants.ArgDatabase] = StringParam("Target database name. Required.")
+                [McpConstants.ArgQuery]      = StringParam("The SQL query to validate."),
+                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required."),
+                [McpConstants.ArgParameters] = new() { Type = "object", Description = "Optional dictionary of typed SQL parameters (e.g. {\"CustomerId\": 42} or {\"val\": {\"value\": \"123\", \"dbType\": \"AnsiString\"}})." }
             },
             Required = [McpConstants.ArgQuery, McpConstants.ArgDatabase]
         }
@@ -212,7 +213,8 @@ public sealed class ToolRegistry
             {
                 [McpConstants.ArgQuery]             = StringParam("The SQL SELECT query to execute."),
                 [McpConstants.ArgDatabase]          = StringParam("Target database name. Required."),
-                [McpConstants.ArgRequestedRowLimit] = new() { Type = "integer", Description = "Maximum rows to return. Capped by the server's configured maximum. Optional." }
+                [McpConstants.ArgRequestedRowLimit] = new() { Type = "integer", Description = "Maximum rows to return. Capped by the server's configured maximum. Optional." },
+                [McpConstants.ArgParameters]        = new() { Type = "object", Description = "Optional dictionary of typed SQL parameters (e.g. {\"CustomerId\": 42} or {\"val\": {\"value\": \"123\", \"dbType\": \"AnsiString\"}})." }
             },
             Required = [McpConstants.ArgQuery, McpConstants.ArgDatabase]
         }

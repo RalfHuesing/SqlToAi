@@ -78,10 +78,21 @@ public sealed class QueryExecutionService : IQueryExecutionService
     }
 
     /// <inheritdoc/>
+    public Task<Result<QueryExecutionResult>> ExecuteQueryAsync(
+        string databaseName,
+        string query,
+        int? requestedRowLimit,
+        CancellationToken cancellationToken = default)
+    {
+        return ExecuteQueryAsync(databaseName, query, requestedRowLimit, parameters: null, cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<QueryExecutionResult>> ExecuteQueryAsync(
         string databaseName,
         string query,
         int? requestedRowLimit,
+        object? parameters,
         CancellationToken cancellationToken = default)
     {
         // 1. Validate inputs
@@ -139,7 +150,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
             : query;
 
         return await ExecuteQueryInTransactionAsync(
-            databaseName, effectiveQuery, effectiveLimit, anonymize, writeAllowed, cancellationToken);
+            databaseName, effectiveQuery, effectiveLimit, anonymize, writeAllowed, parameters, cancellationToken);
     }
 
     private async Task<Result<QueryExecutionResult>> ExecuteQueryInTransactionAsync(
@@ -148,6 +159,7 @@ public sealed class QueryExecutionService : IQueryExecutionService
         int effectiveLimit,
         bool anonymize,
         bool writeAllowed,
+        object? parameters,
         CancellationToken cancellationToken)
     {
         try
@@ -162,34 +174,24 @@ public sealed class QueryExecutionService : IQueryExecutionService
             bool tranCountChanged;
             try
             {
-                result = await ExecuteAndSerializeAsync(connection, transaction, query, effectiveLimit, anonymize, databaseName, cancellationToken);
+                var execArgs = new ExecutionArgs(connection, transaction, query, effectiveLimit, anonymize, databaseName, parameters);
+                result = await ExecuteAndSerializeAsync(execArgs, cancellationToken);
                 int tranCountAfterExecution = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, cancellationToken);
                 tranCountChanged = tranCountAfterExecution != baselineTranCount;
             }
             catch
             {
-                // Roll back any partial state before the outer catch reports the error.
                 await transaction.RollbackAsync(cancellationToken);
                 throw;
             }
 
-            // A statement that itself alters the ambient transaction's state (e.g. an embedded
-            // COMMIT deep inside dynamic SQL) breaks the isolation guarantee the whole
-            // rollback-by-default design rests on — the result can no longer be trusted,
-            // regardless of what keyword caused it, so it must never reach the caller.
             if (!writeAllowed && tranCountChanged)
             {
                 return await TransactionIntegrityGuard.RejectViolationAsync(_logger, databaseName, transaction, cancellationToken);
             }
 
-            // Only a write-allowed database persists changes; everything else stays a dry run
-            // (guarantees zero side-effects even for accidental DML that slips through).
             if (writeAllowed)
             {
-                // If the trancount already changed, the transaction is already gone (e.g.
-                // committed by the statement itself) — nothing left to commit on a fully
-                // authorized database; calling Commit again would only throw a confusing
-                // "no transaction" error.
                 if (!tranCountChanged)
                 {
                     await transaction.CommitAsync(cancellationToken);
@@ -208,65 +210,47 @@ public sealed class QueryExecutionService : IQueryExecutionService
         }
         catch (Exception ex)
         {
-            // The log always gets the full, untouched exception message (and the already
-            // detokenized query) — the admin has direct SQL Server access anyway and needs the
-            // real values to verify reported errors. This is a deliberate, accepted design
-            // choice and must never change (see audit-2026-07-24/01-security-guardrails.md,
-            // Finding "Detokenisierte Klartextwerte leaken über Fehlerpfad").
             LogQueryFailed(_logger, databaseName, query, ex);
-
-            // What goes back to the AI is different: for an anonymized/tokenized database,
-            // `query` may contain a value that was just detokenized back to its real, cleartext
-            // form (see ResolveTokens above), and SQL Server routinely quotes the offending
-            // literal verbatim in ex.Message (e.g. type-conversion errors) — returning that
-            // verbatim would leak the exact real values tokenization exists to hide. A
-            // non-anonymized database has no such secrecy promise, so ex.Message keeps its
-            // full diagnostic value there, unchanged.
             string? anonymizedMessage = anonymize ? BuildAnonymizedQueryErrorMessage(ex) : null;
             return SqlToAiErrorMapper.MapException(ex, anonymizedMessage);
         }
     }
 
-    /// <summary>
-    /// Builds a generic, non-quoting error message for an anonymized/tokenized database's query
-    /// failure — deliberately never includes <c>ex.Message</c>'s free text, since SQL Server
-    /// routinely embeds the offending literal value directly in it for common errors (e.g.
-    /// type-conversion failures), which for a just-detokenized query could be a real PII value.
-    /// </summary>
     private static string BuildAnonymizedQueryErrorMessage(Exception ex) => ex switch
     {
         SqlException sqlEx => $"(SQL error {sqlEx.Number}) the query failed during execution. Check syntax and column types; see server-side logs for details.",
         _ => "the query failed during execution.",
     };
 
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
+    private sealed record ExecutionArgs(
+        DbConnection Connection,
+        DbTransaction Transaction,
+        string Query,
+        int RowLimit,
+        bool Anonymize,
+        string DatabaseName,
+        object? Parameters);
 
     private async Task<Result<QueryExecutionResult>> ExecuteAndSerializeAsync(
-        DbConnection connection,
-        DbTransaction transaction,
-        string query,
-        int rowLimit,
-        bool anonymize,
-        string databaseName,
+        ExecutionArgs args,
         CancellationToken cancellationToken)
     {
-        using var command = connection.CreateCommand();
-        command.CommandText = query;
-        command.Transaction = transaction;
-        command.CommandTimeout = 0; // governed by caller's CancellationToken
+        using var command = args.Connection.CreateCommand();
+        command.CommandText = args.Query;
+        command.Transaction = args.Transaction;
+        command.CommandTimeout = 0;
+        SqlParameterBinder.BindParameters(command, args.Parameters);
 
         using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess | CommandBehavior.KeyInfo, cancellationToken);
 
         var columnNames = GetColumnNames(reader);
-        var anonCtx = await ResolveAnonymizationContextAsync(reader, columnNames, anonymize, databaseName, cancellationToken);
+        var anonCtx = await ResolveAnonymizationContextAsync(reader, columnNames, args.Anonymize, args.DatabaseName, cancellationToken);
 
         var sb = new StringBuilder();
         int rowCount = 0;
         var tracker = new RowAnonymizationTracker();
 
-        while (rowCount < rowLimit && await reader.ReadAsync(cancellationToken))
+        while (rowCount < args.RowLimit && await reader.ReadAsync(cancellationToken))
         {
             AppendSerializedRow(sb, reader, columnNames, anonCtx, tracker);
             rowCount++;

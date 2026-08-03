@@ -47,9 +47,20 @@ public sealed class QueryValidationService : IQueryValidationService
     }
 
     /// <inheritdoc/>
+    /// <inheritdoc/>
+    public Task<Result<string>> ValidateQueryAsync(
+        string databaseName,
+        string query,
+        CancellationToken cancellationToken = default)
+    {
+        return ValidateQueryAsync(databaseName, query, parameters: null, cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<string>> ValidateQueryAsync(
         string databaseName,
         string query,
+        object? parameters,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(databaseName))
@@ -100,7 +111,7 @@ public sealed class QueryValidationService : IQueryValidationService
             using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
             try
             {
-                await ExecuteParseonlyValidationAsync(connection, transaction, query, cancellationToken);
+                await ExecuteParseonlyValidationAsync(connection, transaction, query, parameters, cancellationToken);
                 return "Query syntax is valid.";
             }
             finally
@@ -123,6 +134,7 @@ public sealed class QueryValidationService : IQueryValidationService
         DbConnection connection,
         DbTransaction transaction,
         string query,
+        object? parameters,
         CancellationToken cancellationToken)
     {
         using var setParseonlyCmd = connection.CreateCommand();
@@ -135,6 +147,7 @@ public sealed class QueryValidationService : IQueryValidationService
         queryCmd.CommandText = query;
         queryCmd.Transaction = transaction;
         queryCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
+        SqlParameterBinder.BindParameters(queryCmd, parameters);
         await queryCmd.ExecuteNonQueryAsync(cancellationToken);
 
         using var resetCmd = connection.CreateCommand();
