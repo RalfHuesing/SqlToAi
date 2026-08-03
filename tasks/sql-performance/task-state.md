@@ -28,7 +28,7 @@ eine Zeile.>
 | Step | Epic | Status | Title | Fix-Runden | Coded | Reviewed | Commit |
 |------|------|--------|-------|------------|-------|----------|--------|
 | step-001 | EPIC-01 | done | PerformanceMetrics min/avg/max erweitern | 1/3 | ja | approved (nach fix-01) | 5c40cac8 / 4d8fe08 |
-| step-002 | EPIC-02 | in_progress | STATISTICS IO/TIME in sql_execute_query | 0/3 | - | - | - |
+| step-002 | EPIC-02 | done | STATISTICS IO/TIME in sql_execute_query | 0/3 | ja | approved | 3c63f72 |
 
 ## Config (optional)
 
