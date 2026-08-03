@@ -8,11 +8,15 @@ namespace SqlToAi.Domain;
 /// Hard performance metrics captured from SQL Server STATISTICS IO and TIME.
 /// </summary>
 public sealed record PerformanceMetrics(
-    [property: JsonPropertyName("cpu_time_ms")] long CpuTimeMs,
-    [property: JsonPropertyName("elapsed_time_ms")] long ElapsedTimeMs,
-    [property: JsonPropertyName("logical_reads")] long LogicalReads,
-    [property: JsonPropertyName("physical_reads")] long PhysicalReads,
-    [property: JsonPropertyName("read_ahead_reads")] long ReadAheadReads);
+    [property: JsonPropertyName("cpu_time_ms")]      long  CpuTimeMs,
+    [property: JsonPropertyName("elapsed_time_ms")]  long  ElapsedTimeMs,
+    [property: JsonPropertyName("logical_reads")]    long  LogicalReads,
+    [property: JsonPropertyName("physical_reads")]   long  PhysicalReads,
+    [property: JsonPropertyName("read_ahead_reads")] long  ReadAheadReads,
+    [property: JsonPropertyName("min_elapsed_ms")]   long? MinElapsedMs    = null,
+    [property: JsonPropertyName("max_elapsed_ms")]   long? MaxElapsedMs    = null,
+    [property: JsonPropertyName("min_cpu_ms")]       long? MinCpuMs        = null,
+    [property: JsonPropertyName("max_cpu_ms")]       long? MaxCpuMs        = null);
 
 /// <summary>
 /// A single warning or insight extracted from an actual execution plan XML.

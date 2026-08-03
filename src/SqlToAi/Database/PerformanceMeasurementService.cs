@@ -3,7 +3,6 @@
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
-using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -24,12 +23,6 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             LogLevel.Error,
             new EventId(1, "MeasurementFailed"),
             "Performance measurement failed for database {Database}.");
-
-    private static readonly Regex CpuTimeRegex = new(
-        @"CPU time = (\d+) ms,\s+elapsed time = (\d+) ms", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-    private static readonly Regex IoReadsRegex = new(
-        @"logical reads (\d+),\s+physical reads (\d+),\s+read-ahead reads (\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly ISecurityGuard _securityGuard;
@@ -188,10 +181,11 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
         messages.Clear();
         int execRuns = Math.Clamp(args.ExecutionRuns, 1, 10);
         string? xmlPlanText;
-        (xmlPlanText, hasShowplanPermission, showplanNote) = await ExecuteMeasuredRunsAsync(
+        IReadOnlyList<IReadOnlyList<string>> perRunMessages;
+        (xmlPlanText, perRunMessages, hasShowplanPermission, showplanNote) = await ExecuteMeasuredRunsAsync(
             connection, transaction, args, execRuns, messages, hasShowplanPermission, showplanNote, ct);
 
-        var (metrics, warnings) = ProcessCapturedOutput(messages, xmlPlanText, execRuns, hasShowplanPermission);
+        var (metrics, warnings) = ProcessCapturedOutput(perRunMessages, xmlPlanText, execRuns, hasShowplanPermission);
 
         return new PerformanceMeasurementResult(
             Database: args.DatabaseName,
@@ -231,7 +225,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
         return (hasPermission, note);
     }
 
-    private static async Task<(string? XmlPlanText, bool HasPermission, string? Note)> ExecuteMeasuredRunsAsync(
+    private static async Task<(string? XmlPlanText, IReadOnlyList<IReadOnlyList<string>> PerRunMessages, bool HasPermission, string? Note)> ExecuteMeasuredRunsAsync(
         DbConnection connection,
         DbTransaction transaction,
         QueryPerformanceArgs args,
@@ -242,8 +236,10 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
         CancellationToken ct)
     {
         string? xmlPlanText = null;
+        var perRunMessages = new List<IReadOnlyList<string>>(execRuns);
         for (int i = 0; i < execRuns; i++)
         {
+            messages.Clear();
             try
             {
                 string? plan = await RunQueryOnceAsync(connection, transaction, args, ct);
@@ -251,6 +247,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
                 {
                     xmlPlanText = plan;
                 }
+                perRunMessages.Add([.. messages]);
             }
             catch (SqlException ex) when (hasPermission && IsShowplanPermissionError(ex))
             {
@@ -261,7 +258,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
                 i--;
             }
         }
-        return (xmlPlanText, hasPermission, note);
+        return (xmlPlanText, perRunMessages, hasPermission, note);
     }
 
     private static bool IsShowplanPermissionError(SqlException ex) =>
@@ -300,39 +297,12 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
     }
 
     private static (PerformanceMetrics Metrics, IReadOnlyList<PerformancePlanWarning> Warnings) ProcessCapturedOutput(
-        List<string> messages, string? xmlPlanText, int execRuns, bool hasShowplanPermission)
+        IReadOnlyList<IReadOnlyList<string>> perRunMessages, string? xmlPlanText, int execRuns, bool hasShowplanPermission)
     {
-        long totalCpu = 0, totalElapsed = 0, totalLogical = 0, totalPhysical = 0, totalReadAhead = 0;
-
-        foreach (string msg in messages)
-        {
-            var cpuMatch = CpuTimeRegex.Match(msg);
-            if (cpuMatch.Success)
-            {
-                totalCpu += long.Parse(cpuMatch.Groups[1].Value, CultureInfo.InvariantCulture);
-                totalElapsed += long.Parse(cpuMatch.Groups[2].Value, CultureInfo.InvariantCulture);
-            }
-
-            var ioMatch = IoReadsRegex.Match(msg);
-            if (ioMatch.Success)
-            {
-                totalLogical += long.Parse(ioMatch.Groups[1].Value, CultureInfo.InvariantCulture);
-                totalPhysical += long.Parse(ioMatch.Groups[2].Value, CultureInfo.InvariantCulture);
-                totalReadAhead += long.Parse(ioMatch.Groups[3].Value, CultureInfo.InvariantCulture);
-            }
-        }
-
-        var metrics = new PerformanceMetrics(
-            CpuTimeMs: totalCpu / execRuns,
-            ElapsedTimeMs: totalElapsed / execRuns,
-            LogicalReads: totalLogical / execRuns,
-            PhysicalReads: totalPhysical / execRuns,
-            ReadAheadReads: totalReadAhead / execRuns);
-
+        var metrics = PerformanceMetricsCalculator.Compute(perRunMessages, execRuns);
         var warnings = hasShowplanPermission && !string.IsNullOrWhiteSpace(xmlPlanText)
             ? ParseExecutionPlanXml(xmlPlanText)
             : Array.Empty<PerformancePlanWarning>();
-
         return (metrics, warnings);
     }
 
