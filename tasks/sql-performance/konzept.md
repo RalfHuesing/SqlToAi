@@ -36,7 +36,7 @@ Ein Audit-Durchlauf hat folgende offene Punkte identifiziert:
 | `runs: N` → min/avg/max | Nur Durchschnitt in `PerformanceMetrics`, kein Min/Max | ✅ `PerformanceMetrics` direkt erweitern: nullable `min_*/max_*` Felder |
 | Tool-Beschreibungen (ToolRegistry) | Ausgabeformat + Runs-Semantik nicht sichtbar | ✅ Vollständiger Rewrite aller Performance-/Execute-Descriptions |
 | `logicalReads`/`cpuMs` in `sql_execute_query` Execution Info | QueryExecutionService hat kein STATISTICS | ✅ Implementieren — gleiche Connection/Transaction, kein Extra-Roundtrip |
-| `sql_execute_batch` | Multi-Statement | ❌ Non-Goal (SQL-AI-0101, sqlcmd-Territorium) |
+| `sql_execute_batch` | Multi-Statement | ❌ Non-Goal (SQL-AI-0101 bleibt) |
 
 ---
 
@@ -58,6 +58,10 @@ Ein Audit-Durchlauf hat folgende offene Punkte identifiziert:
    - `Execution Info`-Text wird erweitert: `X rows returned in Y ms | cpu: Z ms | logical reads: W`
    - Betrifft: `QueryExecutionService.cs`, `QueryExecutionResult.cs` (neue Felder), `ToolDispatcher.cs`
      (Execution Info Text), Tests
+   - **Entscheidung: Kein Parameter** — STATISTICS IO/TIME läuft bei jedem `sql_execute_query` mit.
+     Overhead = null (SQL Server misst intern sowieso). Der Agent sieht `logical_reads` + `cpu_time_ms`
+     bei jeder Query — auch ohne explizite Performance-Messung. Das ist ein Feature, kein Overhead.
+     Kein `include_statistics`-Parameter, kein appsettings-Schalter.
 
 3. **ToolRegistry Descriptions — vollständiger Rewrite (agentenlesbar ohne Spec)**:
    - `sql_measure_performance`: Server-Metriken (cpu_time_ms, elapsed_time_ms, logical_reads…) im
@@ -152,7 +156,7 @@ Degrades gracefully if SHOWPLAN permission is missing.
 
 | Fund | Entscheidung |
 |:--|:--|
-| `sql_execute_batch` fehlt | Bewusst Non-Goal (SQL-AI-0101 bleibt, sqlcmd-Territorium) |
+| `sql_execute_batch` fehlt | Bewusst Non-Goal (SQL-AI-0101 bleibt) |
 | `Execution Info` in `sql_execute_query` fehlt logicalReads | Nice-to-Have, Entscheidung offen |
 | ToolRegistry Descriptions unvollständig | In Scope (Muss) |
 | min/avg/max fehlt | In Scope (Muss) |
@@ -171,7 +175,7 @@ Degrades gracefully if SHOWPLAN permission is missing.
 
 ## Non-Goals (explizit)
 
-- `sql_execute_batch` (Multi-Statement, SET STATISTICS-Batch) — bleibt sqlcmd-Territorium
+- `sql_execute_batch` (Multi-Statement, SET STATISTICS-Batch) — Non-Goal, SQL-AI-0101 bleibt
 - Persistente Performance-Logs / Verlaufsdaten
 - `include_statistics` / `include_io_statistics` als separate Bool-Parameter (bereits durch
   `include_plan_analysis` und STATISTICS IO/TIME abgedeckt)
