@@ -137,23 +137,28 @@ public sealed class QueryValidationService : IQueryValidationService
         object? parameters,
         CancellationToken cancellationToken)
     {
-        using var setParseonlyCmd = connection.CreateCommand();
-        setParseonlyCmd.CommandText = "SET PARSEONLY ON";
-        setParseonlyCmd.Transaction = transaction;
-        setParseonlyCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
-        await setParseonlyCmd.ExecuteNonQueryAsync(cancellationToken);
+        using var setNoexecCmd = connection.CreateCommand();
+        setNoexecCmd.CommandText = "SET NOEXEC ON";
+        setNoexecCmd.Transaction = transaction;
+        setNoexecCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
+        await setNoexecCmd.ExecuteNonQueryAsync(cancellationToken);
 
-        using var queryCmd = connection.CreateCommand();
-        queryCmd.CommandText = query;
-        queryCmd.Transaction = transaction;
-        queryCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
-        SqlParameterBinder.BindParameters(queryCmd, parameters);
-        await queryCmd.ExecuteNonQueryAsync(cancellationToken);
-
-        using var resetCmd = connection.CreateCommand();
-        resetCmd.CommandText = "SET PARSEONLY OFF";
-        resetCmd.Transaction = transaction;
-        resetCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
-        await resetCmd.ExecuteNonQueryAsync(cancellationToken);
+        try
+        {
+            using var queryCmd = connection.CreateCommand();
+            queryCmd.CommandText = query;
+            queryCmd.Transaction = transaction;
+            queryCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
+            SqlParameterBinder.BindParameters(queryCmd, parameters);
+            await queryCmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+        finally
+        {
+            using var resetCmd = connection.CreateCommand();
+            resetCmd.CommandText = "SET NOEXEC OFF";
+            resetCmd.Transaction = transaction;
+            resetCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
+            await resetCmd.ExecuteNonQueryAsync(cancellationToken);
+        }
     }
 }

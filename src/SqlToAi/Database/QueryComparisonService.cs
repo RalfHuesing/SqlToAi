@@ -207,30 +207,19 @@ public sealed class QueryComparisonService : IQueryComparisonService
     {
         var diffs = new List<string>();
 
-        using var cmdA = connection.CreateCommand();
-        cmdA.CommandText = queryA;
-        cmdA.Transaction = transaction;
-        SqlParameterBinder.BindParameters(cmdA, paramsA);
-        using var readerA = await cmdA.ExecuteReaderAsync(CommandBehavior.SchemaOnly, ct);
+        var colsA = await GetSchemaColumnsAsync(connection, transaction, queryA, paramsA, ct);
+        var colsB = await GetSchemaColumnsAsync(connection, transaction, queryB, paramsB, ct);
 
-        using var cmdB = connection.CreateCommand();
-        cmdB.CommandText = queryB;
-        cmdB.Transaction = transaction;
-        SqlParameterBinder.BindParameters(cmdB, paramsB);
-        using var readerB = await cmdB.ExecuteReaderAsync(CommandBehavior.SchemaOnly, ct);
-
-        if (readerA.FieldCount != readerB.FieldCount)
+        if (colsA.Count != colsB.Count)
         {
-            diffs.Add($"Column count mismatch: Query A has {readerA.FieldCount} columns, Query B has {readerB.FieldCount} columns.");
+            diffs.Add($"Column count mismatch: Query A has {colsA.Count} columns, Query B has {colsB.Count} columns.");
             return (false, diffs);
         }
 
-        for (int i = 0; i < readerA.FieldCount; i++)
+        for (int i = 0; i < colsA.Count; i++)
         {
-            string nameA = readerA.GetName(i);
-            string nameB = readerB.GetName(i);
-            string typeA = readerA.GetDataTypeName(i);
-            string typeB = readerB.GetDataTypeName(i);
+            var (nameA, typeA) = colsA[i];
+            var (nameB, typeB) = colsB[i];
 
             if (!string.Equals(nameA, nameB, StringComparison.OrdinalIgnoreCase))
             {
@@ -243,6 +232,27 @@ public sealed class QueryComparisonService : IQueryComparisonService
         }
 
         return (diffs.Count == 0, diffs);
+    }
+
+    private static async Task<List<(string Name, string Type)>> GetSchemaColumnsAsync(
+        DbConnection connection,
+        DbTransaction transaction,
+        string query,
+        object? parameters,
+        CancellationToken ct)
+    {
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = query;
+        cmd.Transaction = transaction;
+        SqlParameterBinder.BindParameters(cmd, parameters);
+
+        using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SchemaOnly, ct);
+        var list = new List<(string Name, string Type)>(reader.FieldCount);
+        for (int i = 0; i < reader.FieldCount; i++)
+        {
+            list.Add((reader.GetName(i), reader.GetDataTypeName(i)));
+        }
+        return list;
     }
 
     private static async Task<long> ExecuteCountAsync(

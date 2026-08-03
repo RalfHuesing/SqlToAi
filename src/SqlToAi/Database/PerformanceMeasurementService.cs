@@ -171,7 +171,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             {
                 await ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS XML ON", ct);
             }
-            catch (SqlException ex) when (ex.Number == 262 || ex.Message.Contains("SHOWPLAN", StringComparison.OrdinalIgnoreCase))
+            catch (SqlException ex) when (IsShowplanPermissionError(ex))
             {
                 hasShowplanPermission = false;
                 showplanNote = "SHOWPLAN permission missing; performance metrics captured without XML plan analysis.";
@@ -182,23 +182,14 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
         await ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS TIME ON", ct);
 
         int warmupRuns = Math.Max(0, args.WarmupRuns);
-        for (int i = 0; i < warmupRuns; i++)
-        {
-            await RunQueryOnceAsync(connection, transaction, args, ct);
-        }
+        (hasShowplanPermission, showplanNote) = await ExecuteWarmupRunsAsync(
+            connection, transaction, args, warmupRuns, messages, hasShowplanPermission, showplanNote, ct);
 
         messages.Clear();
         int execRuns = Math.Clamp(args.ExecutionRuns, 1, 10);
-        string? xmlPlanText = null;
-
-        for (int i = 0; i < execRuns; i++)
-        {
-            string? plan = await RunQueryOnceAsync(connection, transaction, args, ct);
-            if (plan != null)
-            {
-                xmlPlanText = plan;
-            }
-        }
+        string? xmlPlanText;
+        (xmlPlanText, hasShowplanPermission, showplanNote) = await ExecuteMeasuredRunsAsync(
+            connection, transaction, args, execRuns, messages, hasShowplanPermission, showplanNote, ct);
 
         var (metrics, warnings) = ProcessCapturedOutput(messages, xmlPlanText, execRuns, hasShowplanPermission);
 
@@ -211,6 +202,70 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             HasShowplanPermission: hasShowplanPermission,
             ShowplanNote: showplanNote);
     }
+
+    private static async Task<(bool HasPermission, string? Note)> ExecuteWarmupRunsAsync(
+        DbConnection connection,
+        DbTransaction transaction,
+        QueryPerformanceArgs args,
+        int warmupRuns,
+        List<string> messages,
+        bool hasPermission,
+        string? note,
+        CancellationToken ct)
+    {
+        for (int i = 0; i < warmupRuns; i++)
+        {
+            try
+            {
+                await RunQueryOnceAsync(connection, transaction, args, ct);
+            }
+            catch (SqlException ex) when (hasPermission && IsShowplanPermissionError(ex))
+            {
+                hasPermission = false;
+                note = "SHOWPLAN permission missing; performance metrics captured without XML plan analysis.";
+                await ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS XML OFF", ct);
+                messages.Clear();
+                i--;
+            }
+        }
+        return (hasPermission, note);
+    }
+
+    private static async Task<(string? XmlPlanText, bool HasPermission, string? Note)> ExecuteMeasuredRunsAsync(
+        DbConnection connection,
+        DbTransaction transaction,
+        QueryPerformanceArgs args,
+        int execRuns,
+        List<string> messages,
+        bool hasPermission,
+        string? note,
+        CancellationToken ct)
+    {
+        string? xmlPlanText = null;
+        for (int i = 0; i < execRuns; i++)
+        {
+            try
+            {
+                string? plan = await RunQueryOnceAsync(connection, transaction, args, ct);
+                if (plan != null)
+                {
+                    xmlPlanText = plan;
+                }
+            }
+            catch (SqlException ex) when (hasPermission && IsShowplanPermissionError(ex))
+            {
+                hasPermission = false;
+                note = "SHOWPLAN permission missing; performance metrics captured without XML plan analysis.";
+                await ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS XML OFF", ct);
+                messages.Clear();
+                i--;
+            }
+        }
+        return (xmlPlanText, hasPermission, note);
+    }
+
+    private static bool IsShowplanPermissionError(SqlException ex) =>
+        ex.Number == 262 || ex.Message.Contains("SHOWPLAN", StringComparison.OrdinalIgnoreCase);
 
     private static async Task ExecuteSetOptionAsync(DbConnection connection, DbTransaction transaction, string sql, CancellationToken ct)
     {
