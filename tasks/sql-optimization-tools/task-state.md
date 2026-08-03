@@ -25,7 +25,7 @@ current_step: step-002
 | Step | Epic | Status | Title | Fix-Runden | Coded | Reviewed | Commit |
 |------|------|--------|-------|------------|-------|----------|--------|
 | step-001 | EPIC-01 | done | Typisierte SQL-Parameter in Execute- und Validate-Tools nachrüsten | 0/3 | 6829124 | approved | 09110cf |
-| step-002 | EPIC-02 | open | Ergebnissatz- & Äquivalenzvergleich (sql_compare_queries) implementieren | 0/3 | - | - | - |
+| step-002 | EPIC-02 | done | Ergebnissatz- & Äquivalenzvergleich (sql_compare_queries) implementieren | 0/3 | 4c05ee4 | approved | 014ba72 |
 
 ## Config (optional)
 
