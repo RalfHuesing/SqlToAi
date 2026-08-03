@@ -26,7 +26,7 @@ current_step: step-003
 |------|------|--------|-------|------------|-------|----------|--------|
 | step-001 | EPIC-01 | done | Typisierte SQL-Parameter in Execute- und Validate-Tools nachrüsten | 0/3 | 6829124 | approved | 09110cf |
 | step-002 | EPIC-02 | done | Ergebnissatz- & Äquivalenzvergleich (sql_compare_queries) implementieren | 0/3 | 4c05ee4 | approved | 014ba72 |
-| step-003 | EPIC-03 | open | Performance- & Plan-Analyse Engine (sql_measure_performance) implementieren | 0/3 | - | - | - |
+| step-003 | EPIC-03 | done | Performance- & Plan-Analyse Engine (sql_measure_performance) implementieren | 0/3 | 27a6b0a | approved | ea9f027 |
 
 ## Config (optional)
 
