@@ -5,7 +5,7 @@ started_at: 2026-08-03T10:04:00Z
 last_updated: 2026-08-03T10:04:00Z
 rules_dir: .agents/rules
 total_fix_rounds: 1
-current_step: step-003
+current_step: step-004
 ---
 
 # Task State: sql-performance
@@ -14,7 +14,7 @@ current_step: step-003
 
 - **Task-Status:** `executing`
 - **Fix-Runden gesamt:** 1 (Not-Anker bei `max_total_fix_rounds`, siehe Config)
-- **Aktueller Schritt:** `step-003`
+- **Aktueller Schritt:** `step-004`
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-03T10:04:00Z
@@ -30,6 +30,7 @@ eine Zeile.>
 | step-001 | EPIC-01 | done | PerformanceMetrics min/avg/max erweitern | 1/3 | ja | approved (nach fix-01) | 5c40cac8 / 4d8fe08 |
 | step-002 | EPIC-02 | done | STATISTICS IO/TIME in sql_execute_query | 0/3 | ja | approved | 3c63f72 |
 | step-003 | EPIC-03 | done | ToolRegistry Descriptions Rewrite | 0/3 | ja | approved | ed2beba |
+| step-004 | EPIC-04 | in_progress | Dokumentation (mcp-specification.md) | 0/3 | - | - | - |
 
 ## Config (optional)
 
