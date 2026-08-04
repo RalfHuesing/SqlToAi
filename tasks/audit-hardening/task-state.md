@@ -29,7 +29,7 @@ eine Zeile.>
 |------|------|--------|-------|------------|-------|----------|--------|
 | step-001 | EPIC-01 | done | CommandTimeout-Konfigurierbarkeit & Umbenennung | 0/3 | 32d1aab | approved | 32d1aab |
 | step-002 | EPIC-02 | done | Serverseitiges Row-Limit via SET ROWCOUNT | 0/3 | 27d7259 | approved | 27d7259 |
-| step-003 | EPIC-03 | done (fix-01 pending) | MCP-Trail-Redaction via Anonymizer-Reuse | 1/3 | c3952e4 | issues | c3952e4 |
+| step-003 | EPIC-03 | done | MCP-Trail-Redaction via Anonymizer-Reuse | 1/3 | d64241d | approved | d64241d |
 
 ## Config (optional)
 

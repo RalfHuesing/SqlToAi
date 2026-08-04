@@ -2,7 +2,7 @@
 task: audit-hardening
 type: tech-debt-log
 maintained_by: kritiker
-last_updated: 2026-08-04T15:00:00+02:00
+last_updated: 2026-08-04T19:30:00+02:00
 ---
 
 # Tech-Debt-Log: audit-hardening
@@ -26,6 +26,7 @@ Verweis auf die Tech-Debt-ID).
 |---|---|---|---|
 | TD-001 | `src/SqlToAi/Database/QueryValidationService.cs` (Zeilen 143, 151, 160) | niedrig | Nutzt `SqlServerOptions.ConnectTimeoutSeconds` (Connection-Timeout-Option) als Command-Timeout für `SET NOEXEC`/Parse-Only-Validierungsbefehle — Name passt seit der Umbenennung in Step 001 nicht mehr zum Verwendungszweck. |
 | TD-002 | `src/SqlToAi/Anonymization/Anonymizer.cs:74` (`IsColumnExcluded`) | hoch | Wertet den `context`-Parameter nie aus — `AnonymizerOptions.ExcludedColumns`-Glob-Patterns greifen projektweit nirgends (weder für Query-Ergebnisse noch für den neuen Trail-Redaction-Pfad aus Step 003), obwohl die XML-Doku und `IAnonymizationPolicyResolver` (genutzt für die "Anonymized: Yes/No"-Schema-Hinweise) das Gegenteil suggerieren. |
+| TD-003 | `src/SqlToAi/Mcp/McpTrailWriter.cs` (`AnonymizeObjectProperties`, `content`-Array-Sonderfall) | niedrig | Der Content-Block-Kontext (`IsContentBlock`) wird für jede Objekt-Property namens `content` mit Array-Wert aktiviert, nicht nur für `result.content[]` im Response-Envelope — vom Plan als akzeptabel sanktioniert, aber ein LLM-gewähltes `arguments.content`-Array mit `type`-Properties würde ebenfalls (fälschlich) exempt behandelt. |
 
 ## Einträge
 
@@ -85,4 +86,33 @@ Verweis auf die Tech-Debt-ID).
   Glob-Pattern-Prüfung gegen `context.TableName`/`context.OriginColumnName`
   (bzw. `context` an sich) erweitern, damit `ExcludedColumns` wie
   dokumentiert wirkt — sowohl für Query-Ergebnisse als auch für den Trail.
+- **Status:** offen
+
+### TD-003 — `content`-Array-Sonderfall in `McpTrailWriter` positionsunabhängig [Priorität: niedrig]
+
+- **Gefunden in:** step-003/fix-01 (Kritiker-Review vom 2026-08-04)
+- **Ort:** `src/SqlToAi/Mcp/McpTrailWriter.cs` (`AnonymizeObjectProperties`,
+  Zweig `key == "content" && obj[key] is JsonArray contentArray`)
+- **Befund:** Der Content-Block-Kontext (`IsContentBlock = true`) wird für
+  **jede** Objekt-Property namens `content` mit `JsonArray`-Wert aktiviert,
+  unabhängig davon, ob es sich tatsächlich um `result.content[]` im
+  Response-Envelope handelt. Ein LLM-gewähltes `arguments.content`-Array
+  (z. B. ein Bind-Parameter namens `content`, dessen Wert ein Array von
+  Objekten mit `type`-Property ist) würde ebenfalls `IsContentBlock`-
+  Behandlung für seine direkten Elemente bekommen — dessen `type`-Property
+  bliebe dann fälschlich unredigiert, falls sensibel. Der Schaden ist durch
+  die Ein-Ebene-Tiefe-Begrenzung (`IsContentBlock` wird nach einem
+  Rekursionsschritt garantiert zurückgesetzt) eng begrenzt.
+- **Warum nicht sofort gefixt:** `step-003/fix-01/step-plan.md` sanktioniert
+  diese Grobheit explizit („im Zweifel darf der Check aber grobzügiger
+  sein, solange er nicht dazu führt, dass beliebige verschachtelte
+  `type`-Properties in Nicht-Content-Kontexten ausgenommen werden") — kein
+  neu durch den Fix eingeführtes Problem, sondern eine bewusst in Kauf
+  genommene Restungenauigkeit des Fixes selbst. Eine präzisere Bindung an
+  „nur `result.content[]` im Response-Envelope" wäre eine über den
+  aktuellen Fix-Scope hinausgehende Verschärfung.
+- **Vorschlag:** Bei Bedarf den Content-Block-Kontext zusätzlich an
+  `context.IsEnvelopeRoot`-Herkunft koppeln (z. B. nur aktivieren, wenn der
+  `content`-Array-Fund selbst unterhalb eines `result`-Objekts auf der
+  Envelope-Ebene liegt), statt an den Property-Namen allein.
 - **Status:** offen
