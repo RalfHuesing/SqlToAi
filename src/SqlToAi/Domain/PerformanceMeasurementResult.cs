@@ -25,7 +25,8 @@ public sealed record PerformancePlanWarning(
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("severity")] string Severity,
     [property: JsonPropertyName("message")] string Message,
-    [property: JsonPropertyName("impact")] double? Impact);
+    [property: JsonPropertyName("impact")] double? Impact,
+    [property: JsonPropertyName("missing_index_statement")] string? MissingIndexStatement = null);
 
 /// <summary>
 /// Overall result of measuring a query's performance on SQL Server.

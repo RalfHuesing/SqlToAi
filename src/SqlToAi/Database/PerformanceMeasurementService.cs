@@ -3,6 +3,7 @@
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
+using System.Linq;
 using System.Xml.Linq;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -333,12 +334,87 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             string impactStr = mi.Parent?.Attribute("Impact")?.Value ?? mi.Parent?.Parent?.Attribute("Impact")?.Value ?? "0";
             double.TryParse(impactStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double impact);
 
+            var equality = new List<string>();
+            var inequality = new List<string>();
+            var include = new List<string>();
+            foreach (var cg in mi.Elements(ns + "ColumnGroup"))
+            {
+                string usage = cg.Attribute("Usage")?.Value ?? string.Empty;
+                var cols = cg.Elements(ns + "Column")
+                             .Select(c => c.Attribute("Name")?.Value)
+                             .Where(n => !string.IsNullOrEmpty(n))
+                             .Select(n => n!)
+                             .ToList();
+                switch (usage)
+                {
+                    case "EQUALITY":
+                        equality.AddRange(cols);
+                        break;
+                    case "INEQUALITY":
+                        inequality.AddRange(cols);
+                        break;
+                    case "INCLUDE":
+                        include.AddRange(cols);
+                        break;
+                }
+            }
+
+            string? statement = BuildCreateIndexStatement(table, equality, inequality, include);
+
             warnings.Add(new PerformancePlanWarning(
                 Type: "MissingIndex",
                 Severity: "Warning",
                 Message: $"Missing index recommendation on {table} (Impact: {impact:F1}%).",
-                Impact: impact));
+                Impact: impact,
+                MissingIndexStatement: statement));
         }
+    }
+
+    private static string? BuildCreateIndexStatement(
+        string table,
+        List<string> equality,
+        List<string> inequality,
+        List<string> include)
+    {
+        if (equality.Count == 0 && inequality.Count == 0)
+        {
+            return null;
+        }
+
+        // Strip schema/brackets from the table identifier to derive a short index name.
+        // "[dbo].[Orders]" -> "Orders"
+        var tableForName = table
+            .Replace("[", string.Empty, StringComparison.Ordinal)
+            .Replace("]", string.Empty, StringComparison.Ordinal);
+        var dotIndex = tableForName.IndexOf('.');
+        if (dotIndex >= 0)
+        {
+            tableForName = tableForName[(dotIndex + 1)..];
+        }
+
+        var keyCols = equality.Concat(inequality).ToList();
+        // Index name: IX_<Table>_<FirstCol>[__<SecondCol>]. Single underscore between
+        // table and first column, double underscore between multiple key columns for
+        // readability.
+        string nameSuffix = keyCols.Count switch
+        {
+            0 => string.Empty,
+            1 => "_" + keyCols[0],
+            _ => "_" + keyCols[0] + "__" + keyCols[1]
+        };
+        var indexName = "IX_" + tableForName + nameSuffix;
+
+        var keyClause = string.Join(", ", keyCols);
+        var sb = new System.Text.StringBuilder();
+        sb.Append("CREATE NONCLUSTERED INDEX ").Append(indexName)
+          .Append(" ON ").Append(table)
+          .Append(" (").Append(keyClause).Append(')');
+        if (include.Count > 0)
+        {
+            sb.Append(" INCLUDE (").Append(string.Join(", ", include)).Append(')');
+        }
+        sb.Append(';');
+        return sb.ToString();
     }
 
     private static void ExtractOperatorWarnings(XDocument doc, List<PerformancePlanWarning> warnings)

@@ -126,4 +126,127 @@ public sealed class PerformanceMeasurementServiceTests
         Assert.Contains(warnings, w => w.Type == "ImplicitConversion");
         Assert.Contains(warnings, w => w.Type == "TableScan");
     }
+
+    [Fact]
+    public void ParseExecutionPlanXml_MissingIndex_EqualityOnly_BuildsStatement()
+    {
+        string sampleXml = """
+        <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan">
+          <BatchSequence>
+            <Batch>
+              <Statements>
+                <StmtSimple>
+                  <QueryPlan>
+                    <MissingIndexes>
+                      <MissingIndexGroup Impact="72.5">
+                        <MissingIndex Table="[dbo].[Orders]">
+                          <ColumnGroup Usage="EQUALITY">
+                            <Column Name="CustomerId" />
+                          </ColumnGroup>
+                        </MissingIndex>
+                      </MissingIndexGroup>
+                    </MissingIndexes>
+                  </QueryPlan>
+                </StmtSimple>
+              </Statements>
+            </Batch>
+          </BatchSequence>
+        </ShowPlanXML>
+        """;
+
+        var warnings = PerformanceMeasurementService.ParseExecutionPlanXml(sampleXml);
+
+        var missing = Assert.Single(warnings, w => w.Type == "MissingIndex");
+        Assert.NotNull(missing.MissingIndexStatement);
+        Assert.Contains("CREATE NONCLUSTERED INDEX", missing.MissingIndexStatement);
+        Assert.Contains("IX_Orders_CustomerId", missing.MissingIndexStatement);
+        Assert.Contains("ON [dbo].[Orders]", missing.MissingIndexStatement);
+        Assert.Contains("(CustomerId)", missing.MissingIndexStatement);
+        Assert.EndsWith(";", missing.MissingIndexStatement);
+    }
+
+    [Fact]
+    public void ParseExecutionPlanXml_MissingIndex_EqualityPlusInequalityPlusInclude_BuildsFullStatement()
+    {
+        string sampleXml = """
+        <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan">
+          <BatchSequence>
+            <Batch>
+              <Statements>
+                <StmtSimple>
+                  <QueryPlan>
+                    <MissingIndexes>
+                      <MissingIndexGroup Impact="85.7">
+                        <MissingIndex Table="[dbo].[Orders]">
+                          <ColumnGroup Usage="EQUALITY">
+                            <Column Name="CustomerId" />
+                          </ColumnGroup>
+                          <ColumnGroup Usage="INEQUALITY">
+                            <Column Name="OrderDate" />
+                          </ColumnGroup>
+                          <ColumnGroup Usage="INCLUDE">
+                            <Column Name="Amount" />
+                            <Column Name="Status" />
+                          </ColumnGroup>
+                        </MissingIndex>
+                      </MissingIndexGroup>
+                    </MissingIndexes>
+                  </QueryPlan>
+                </StmtSimple>
+              </Statements>
+            </Batch>
+          </BatchSequence>
+        </ShowPlanXML>
+        """;
+
+        var warnings = PerformanceMeasurementService.ParseExecutionPlanXml(sampleXml);
+
+        var missing = Assert.Single(warnings, w => w.Type == "MissingIndex");
+        Assert.NotNull(missing.MissingIndexStatement);
+        Assert.Contains("CREATE NONCLUSTERED INDEX", missing.MissingIndexStatement);
+        Assert.Contains("ON [dbo].[Orders]", missing.MissingIndexStatement);
+        Assert.Contains("(CustomerId, OrderDate)", missing.MissingIndexStatement);
+        Assert.Contains("INCLUDE (Amount, Status)", missing.MissingIndexStatement);
+        Assert.EndsWith(";", missing.MissingIndexStatement);
+    }
+
+    [Fact]
+    public void ParseExecutionPlanXml_MissingIndex_EqualityOnlyWithInclude_BuildsStatementWithInclude()
+    {
+        string sampleXml = """
+        <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan">
+          <BatchSequence>
+            <Batch>
+              <Statements>
+                <StmtSimple>
+                  <QueryPlan>
+                    <MissingIndexes>
+                      <MissingIndexGroup Impact="60.0">
+                        <MissingIndex Table="[dbo].[Orders]">
+                          <ColumnGroup Usage="EQUALITY">
+                            <Column Name="CustomerId" />
+                          </ColumnGroup>
+                          <ColumnGroup Usage="INCLUDE">
+                            <Column Name="Amount" />
+                            <Column Name="Status" />
+                          </ColumnGroup>
+                        </MissingIndex>
+                      </MissingIndexGroup>
+                    </MissingIndexes>
+                  </QueryPlan>
+                </StmtSimple>
+              </Statements>
+            </Batch>
+          </BatchSequence>
+        </ShowPlanXML>
+        """;
+
+        var warnings = PerformanceMeasurementService.ParseExecutionPlanXml(sampleXml);
+
+        var missing = Assert.Single(warnings, w => w.Type == "MissingIndex");
+        Assert.NotNull(missing.MissingIndexStatement);
+        Assert.Contains("ON [dbo].[Orders] (CustomerId)", missing.MissingIndexStatement);
+        Assert.Contains("INCLUDE (Amount, Status)", missing.MissingIndexStatement);
+        Assert.EndsWith(";", missing.MissingIndexStatement);
+    }
 }

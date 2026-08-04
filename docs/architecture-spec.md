@@ -283,10 +283,14 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Graceful Degradation:** Fehlt dem Datenbankbenutzer die `SHOWPLAN`-Berechtigung, degradiert das Tool automatisch auf reine IO/TIME-Messung und gibt einen entsprechenden Hinweis zurück.
 * **Rückgabestruktur (`PerformanceMeasurementResult`):** `database`, `runs_evaluated`, `warmup_runs`,
   `metrics`, `warnings[]` (je `type`/`severity`/`message`/`impact` aus dem tatsächlichen
-  Ausführungsplan-XML), `has_showplan_permission`, `showplan_note`. `metrics` enthält
-  `cpu_time_ms`/`elapsed_time_ms`/`logical_reads`/`physical_reads`/`read_ahead_reads` (Mittelwerte)
-  sowie die nullable `min_elapsed_ms`/`max_elapsed_ms`/`min_cpu_ms`/`max_cpu_ms` — diese vier sind
-  nur befüllt, wenn `execution_runs > 1` ist (sonst `null`), und existieren nur für `elapsed`/`cpu`,
+  Ausführungsplan-XML; `MissingIndex`-Warnings enthalten zusätzlich `missing_index_statement`
+  (string, nullable) mit dem fertigen `CREATE NONCLUSTERED INDEX`-DDL aus den
+  `ColumnGroup`-Spalten — `null`, wenn keine Schlüssel- (`EQUALITY`/`INEQUALITY`)-Spalten
+  vorhanden sind und somit kein baubares Index-Statement), `has_showplan_permission`,
+  `showplan_note`. `metrics` enthält `cpu_time_ms`/`elapsed_time_ms`/`logical_reads`/
+  `physical_reads`/`read_ahead_reads` (Mittelwerte) sowie die nullable
+  `min_elapsed_ms`/`max_elapsed_ms`/`min_cpu_ms`/`max_cpu_ms` — diese vier sind nur befüllt,
+  wenn `execution_runs > 1` ist (sonst `null`), und existieren nur für `elapsed`/`cpu`,
   nicht für die drei Reads-Felder.
 
 ### 15. `sql_benchmark_optimization`

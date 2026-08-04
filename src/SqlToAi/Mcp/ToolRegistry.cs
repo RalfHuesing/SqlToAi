@@ -253,7 +253,9 @@ public sealed class ToolRegistry
         Description = "Measures SQL query performance via SET STATISTICS IO/TIME on the actual execution (not an " +
             "estimated plan): returns JSON with metrics (cpu_time_ms, elapsed_time_ms, logical_reads, " +
             "physical_reads, read_ahead_reads), runs_evaluated, warmup_runs, warnings[] " +
-            "(type/severity/message/impact from the actual execution plan XML), has_showplan_permission, " +
+            "(type/severity/message/impact from the actual execution plan XML; MissingIndex warnings " +
+            "additionally include missing_index_statement with a ready-to-execute CREATE NONCLUSTERED " +
+            "INDEX DDL string when key columns are present, null otherwise), has_showplan_permission, " +
             "showplan_note. Use warmup_runs to pre-warm the plan cache (default 1, not measured); " +
             "execution_runs (default 1) controls how many measured runs are averaged into cpu_time_ms/ " +
             "elapsed_time_ms/logical_reads — when execution_runs > 1, metrics additionally include " +
