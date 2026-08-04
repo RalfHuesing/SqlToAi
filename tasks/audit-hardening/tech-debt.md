@@ -2,7 +2,7 @@
 task: audit-hardening
 type: tech-debt-log
 maintained_by: kritiker
-last_updated: 2026-08-04T23:30:00+02:00
+last_updated: 2026-08-04T23:59:00+02:00
 ---
 
 # Tech-Debt-Log: audit-hardening
@@ -26,7 +26,7 @@ Verweis auf die Tech-Debt-ID).
 |---|---|---|---|
 | TD-001 | `src/SqlToAi/Database/QueryValidationService.cs` (Zeilen 143, 151, 160) | niedrig | ~~Nutzte `SqlServerOptions.ConnectTimeoutSeconds` (Connection-Timeout-Option) als Command-Timeout für `SET NOEXEC`/Parse-Only-Validierungsbefehle~~ — behoben in step-004. |
 | TD-002 | `src/SqlToAi/Anonymization/Anonymizer.cs:74` (`IsColumnExcluded`) | hoch | ~~Wertet den `context`-Parameter nie aus — `AnonymizerOptions.ExcludedColumns`-Glob-Patterns greifen projektweit nirgends~~ — durch Klärung/Architektur-Review aufgelöst in step-005: `ExcludedColumns` existiert nicht mehr (entfernt vor Task-Start, Commit `9324ed1`), keine Code-Änderung nötig. |
-| TD-003 | `src/SqlToAi/Mcp/McpTrailWriter.cs` (`AnonymizeObjectProperties`, `content`-Array-Sonderfall) | niedrig | Der Content-Block-Kontext (`IsContentBlock`) wird für jede Objekt-Property namens `content` mit Array-Wert aktiviert, nicht nur für `result.content[]` im Response-Envelope — vom Plan als akzeptabel sanktioniert, aber ein LLM-gewähltes `arguments.content`-Array mit `type`-Properties würde ebenfalls (fälschlich) exempt behandelt. |
+| TD-003 | `src/SqlToAi/Mcp/McpTrailWriter.cs` (`AnonymizeObjectProperties`, `content`-Array-Sonderfall) | niedrig | ~~Der Content-Block-Kontext (`IsContentBlock`) wurde für jede Objekt-Property namens `content` mit Array-Wert aktiviert, nicht nur für `result.content[]` im Response-Envelope~~ — behoben in step-006. |
 
 ## Einträge
 
@@ -144,8 +144,17 @@ Verweis auf die Tech-Debt-ID).
   genommene Restungenauigkeit des Fixes selbst. Eine präzisere Bindung an
   „nur `result.content[]` im Response-Envelope" wäre eine über den
   aktuellen Fix-Scope hinausgehende Verschärfung.
-- **Vorschlag:** Bei Bedarf den Content-Block-Kontext zusätzlich an
+- **Vorschlag (umgesetzt, siehe Status):** Bei Bedarf den Content-Block-Kontext zusätzlich an
   `context.IsEnvelopeRoot`-Herkunft koppeln (z. B. nur aktivieren, wenn der
   `content`-Array-Fund selbst unterhalb eines `result`-Objekts auf der
   Envelope-Ebene liegt), statt an den Property-Namen allein.
-- **Status:** offen
+- **Status:** erledigt — behoben in `step-006` (Commit `e21a934`, Kritiker-Review vom
+  2026-08-04T23:59:00+02:00). `RedactionContext` bekam ein drittes Flag `IsResultObject`,
+  das nur beim Abstieg von der Envelope-Wurzel in deren `result`-Property gesetzt wird; der
+  `content`-Array-Sonderfall aktiviert `IsContentBlock` jetzt nur noch unter dieser Bedingung.
+  Eigene Verifikation (Kritiker): neuer Test `Record_ShouldRedactTypeProperty_InContentArrayNotOnResult`
+  (`arguments.content[].type`) schlägt gegen den Vor-Fix-Code fehl (per `git show e21a934^` isoliert
+  nachvollzogen) und ist grün gegen den Fix — kein bloß behaupteter, sondern belegter Beweis. Zusätzlicher
+  Test `Record_ShouldRedactTypeProperty_InNestedContentArray_NotDirectlyOnResult` deckt
+  `result.someWrapper.content[].type` ab. Regressionstest für `result.content[0].type` bleibt grün.
+  `dotnet build`/`dotnet test` (502 Tests) grün.
