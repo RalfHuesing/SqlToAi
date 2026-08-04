@@ -2,7 +2,7 @@
 task: audit-hardening
 type: tech-debt-log
 maintained_by: kritiker
-last_updated: 2026-08-04T21:45:00+02:00
+last_updated: 2026-08-04T23:30:00+02:00
 ---
 
 # Tech-Debt-Log: audit-hardening
@@ -25,7 +25,7 @@ Verweis auf die Tech-Debt-ID).
 | ID | Bereich / Datei | Priorität | Kurzfassung |
 |---|---|---|---|
 | TD-001 | `src/SqlToAi/Database/QueryValidationService.cs` (Zeilen 143, 151, 160) | niedrig | ~~Nutzte `SqlServerOptions.ConnectTimeoutSeconds` (Connection-Timeout-Option) als Command-Timeout für `SET NOEXEC`/Parse-Only-Validierungsbefehle~~ — behoben in step-004. |
-| TD-002 | `src/SqlToAi/Anonymization/Anonymizer.cs:74` (`IsColumnExcluded`) | hoch | Wertet den `context`-Parameter nie aus — `AnonymizerOptions.ExcludedColumns`-Glob-Patterns greifen projektweit nirgends (weder für Query-Ergebnisse noch für den neuen Trail-Redaction-Pfad aus Step 003), obwohl die XML-Doku und `IAnonymizationPolicyResolver` (genutzt für die "Anonymized: Yes/No"-Schema-Hinweise) das Gegenteil suggerieren. |
+| TD-002 | `src/SqlToAi/Anonymization/Anonymizer.cs:74` (`IsColumnExcluded`) | hoch | ~~Wertet den `context`-Parameter nie aus — `AnonymizerOptions.ExcludedColumns`-Glob-Patterns greifen projektweit nirgends~~ — durch Klärung/Architektur-Review aufgelöst in step-005: `ExcludedColumns` existiert nicht mehr (entfernt vor Task-Start, Commit `9324ed1`), keine Code-Änderung nötig. |
 | TD-003 | `src/SqlToAi/Mcp/McpTrailWriter.cs` (`AnonymizeObjectProperties`, `content`-Array-Sonderfall) | niedrig | Der Content-Block-Kontext (`IsContentBlock`) wird für jede Objekt-Property namens `content` mit Array-Wert aktiviert, nicht nur für `result.content[]` im Response-Envelope — vom Plan als akzeptabel sanktioniert, aber ein LLM-gewähltes `arguments.content`-Array mit `type`-Properties würde ebenfalls (fälschlich) exempt behandelt. |
 
 ## Einträge
@@ -87,11 +87,39 @@ Verweis auf die Tech-Debt-ID).
   Steps. `konzept.md` Muss-Haben 3 verlangt nur den globalen Schalter für
   die Trail-Redaction, keine spaltenspezifische Ausnahmeliste — ein Fix
   wäre eine Scope-Erweiterung weit über Step 003 hinaus.
-- **Vorschlag:** Eigenes Epic/Step: `IsColumnExcluded` um tatsächliche
-  Glob-Pattern-Prüfung gegen `context.TableName`/`context.OriginColumnName`
-  (bzw. `context` an sich) erweitern, damit `ExcludedColumns` wie
-  dokumentiert wirkt — sowohl für Query-Ergebnisse als auch für den Trail.
-- **Status:** offen
+- **Vorschlag (obsolet, siehe Status):** ~~Eigenes Epic/Step: `IsColumnExcluded`
+  um tatsächliche Glob-Pattern-Prüfung gegen
+  `context.TableName`/`context.OriginColumnName` (bzw. `context` an sich)
+  erweitern, damit `ExcludedColumns` wie dokumentiert wirkt — sowohl für
+  Query-Ergebnisse als auch für den Trail.~~ Dieser Vorschlag würde die am
+  2026-07-25 (Commit `9324ed1`) bewusst entfernte lokale Exclusion-Liste
+  wieder einführen und widerspräche damit der expliziten
+  Architektur-Entscheidung dieses Commits.
+- **Status:** erledigt — durch Klärung/Architektur-Review aufgelöst, keine
+  Code-Änderung nötig, siehe `step-005` (Kritiker-Review vom
+  2026-08-04T23:30:00+02:00, Commit `6c83cc6`). Der ursprüngliche
+  TD-002-Befund beruhte auf einer bereits veralteten Prämisse: zum
+  Formulierungszeitpunkt (step-003-Review) war
+  `AnonymizerOptions.ExcludedColumns` bereits seit Commit `9324ed1`
+  (2026-07-25, vor Task-Start) vollständig entfernt — die komplette lokale
+  Glob-Exclusion-Infrastruktur (`AnonymizerExclusionProvider`,
+  `IAnonymizerExclusionProvider`, `02_anonymizer_exclusions.sql`) wurde
+  zugunsten der alleinigen zentralen `AnonymizationRules`-Tabelle
+  (`IAnonymizationRuleProvider`) konsolidiert. Eigene Verifikation (Kritiker,
+  nicht nur Planer-Aussage übernommen): `git grep ExcludedColumns` findet
+  keinen Treffer mehr in Produktionscode; der Query-Ergebnis-Pfad
+  (`QueryExecutionService.Anonymization.cs:126`, `AnonymizeCell`) prüft
+  `IsExcludedAsync`/`CentralExclusions` bereits korrekt **vor** jedem
+  `Anonymizer.Anonymize`-Aufruf — `IsColumnExcluded`s Untätigkeit bzgl.
+  `context` ist hier folgenlos. Für den Trail-Redaction-Pfad
+  (`McpTrailWriter.cs:363,396`) gibt es zwar tatsächlich keine
+  spaltenspezifische Ausnahme (nur den globalen Schalter), das ist aber
+  eine bewusste, von `konzept.md` Muss-Haben 3 nicht geforderte
+  Vereinfachung (nur der globale Schalter ist gefordert) und wirkt in
+  Richtung Über-Anonymisierung, nicht PII-Exposure — kein neuer
+  Tech-Debt-Bedarf oberhalb von TD-003. Step 005 hat stattdessen die drei
+  stale XML-Doc-Kommentare korrigiert, die noch die entfernte Architektur
+  beschrieben.
 
 ### TD-003 — `content`-Array-Sonderfall in `McpTrailWriter` positionsunabhängig [Priorität: niedrig]
 
