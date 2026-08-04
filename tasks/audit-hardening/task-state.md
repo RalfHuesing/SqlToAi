@@ -4,7 +4,7 @@ task: audit-hardening
 started_at: 2026-08-04T00:00:00+02:00
 last_updated: 2026-08-04T00:00:00+02:00
 rules_dir: .agents/rules
-total_fix_rounds: 0  # Summe aller Fix-Runden über alle Steps (Task-weiter Not-Anker, siehe Config)
+total_fix_rounds: 1  # Summe aller Fix-Runden über alle Steps (Task-weiter Not-Anker, siehe Config)
 current_step: step-001
 ---
 
@@ -13,7 +13,7 @@ current_step: step-001
 ## Übersicht
 
 - **Task-Status:** `executing`
-- **Fix-Runden gesamt:** 0 (Not-Anker bei `max_total_fix_rounds`, siehe Config)
+- **Fix-Runden gesamt:** 1 (Not-Anker bei `max_total_fix_rounds`, siehe Config)
 - **Aktueller Schritt:** `step-001`
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
@@ -29,6 +29,7 @@ eine Zeile.>
 |------|------|--------|-------|------------|-------|----------|--------|
 | step-001 | EPIC-01 | done | CommandTimeout-Konfigurierbarkeit & Umbenennung | 0/3 | 32d1aab | approved | 32d1aab |
 | step-002 | EPIC-02 | done | Serverseitiges Row-Limit via SET ROWCOUNT | 0/3 | 27d7259 | approved | 27d7259 |
+| step-003 | EPIC-03 | done (fix-01 pending) | MCP-Trail-Redaction via Anonymizer-Reuse | 1/3 | c3952e4 | issues | c3952e4 |
 
 ## Config (optional)
 
