@@ -100,8 +100,9 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
     /// must still be redacted.
     /// </summary>
     /// <param name="IsEnvelopeRoot">True only for the root object of an envelope document (<see cref="RawRequestJson"/>/<see cref="ResponseJson"/>), never for <see cref="ArgumentsJson"/> or any nested object.</param>
-    /// <param name="IsContentBlock">True only for a direct object element of a <c>content</c> array, one recursion level deep.</param>
-    private readonly record struct RedactionContext(bool IsEnvelopeRoot, bool IsContentBlock);
+    /// <param name="IsContentBlock">True only for a direct object element of a <c>content</c> array, one recursion level deep, and only when that array was found directly on <see cref="IsResultObject"/> (i.e. <c>result.content[]</c>) — never for a same-named <c>content</c> array found anywhere else in the tree (audit-hardening TD-003).</param>
+    /// <param name="IsResultObject">True only for the <c>result</c> object found as a direct child of the envelope root, one recursion level deep — never for any deeper descendant.</param>
+    private readonly record struct RedactionContext(bool IsEnvelopeRoot, bool IsContentBlock, bool IsResultObject);
 
     private readonly LoggingOptions _options;
     private readonly ILogger<McpTrailWriter> _logger;
@@ -320,7 +321,7 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
         try
         {
             JsonNode? node = JsonNode.Parse(json);
-            AnonymizeContainer(node, new RedactionContext(IsEnvelopeRoot: isEnvelope, IsContentBlock: false));
+            AnonymizeContainer(node, new RedactionContext(IsEnvelopeRoot: isEnvelope, IsContentBlock: false, IsResultObject: false));
             return node?.ToJsonString(CompactJsonOptions) ?? json;
         }
         catch (JsonException)
@@ -352,8 +353,6 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
 
     private void AnonymizeObjectProperties(JsonObject obj, RedactionContext context)
     {
-        RedactionContext childContext = default;
-
         foreach (string key in obj.Select(static kvp => kvp.Key).ToList())
         {
             if (IsExemptStructuralKey(key, context)) continue;
@@ -362,16 +361,29 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
             {
                 obj[key] = _anonymizer.Anonymize(key, stringValue);
             }
-            else if (key == "content" && obj[key] is JsonArray contentArray)
+            else if (context.IsResultObject && key == "content" && obj[key] is JsonArray contentArray)
             {
-                AnonymizeArrayElements(contentArray, childContext with { IsContentBlock = true });
+                AnonymizeArrayElements(contentArray, default(RedactionContext) with { IsContentBlock = true });
             }
             else
             {
-                AnonymizeContainer(obj[key], childContext);
+                AnonymizeContainer(obj[key], ChildContextFor(key, context));
             }
         }
     }
+
+    /// <summary>
+    /// Decides the recursion context for descending into <c>obj[key]</c> from
+    /// <paramref name="context"/>: only the <c>result</c> property found directly on the
+    /// envelope root carries <see cref="RedactionContext.IsResultObject"/> forward — every
+    /// other descent resets to a plain, unmarked context (audit-hardening TD-003: the
+    /// content-block exemption must trace back to <c>result.content[]</c>, not to the bare
+    /// property name <c>content</c> anywhere in the tree).
+    /// </summary>
+    private static RedactionContext ChildContextFor(string key, RedactionContext context) =>
+        context.IsEnvelopeRoot && key == "result"
+            ? default(RedactionContext) with { IsResultObject = true }
+            : default;
 
     /// <summary>
     /// Decides whether <paramref name="key"/> is exempt from redaction at the current
