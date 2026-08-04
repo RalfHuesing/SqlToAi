@@ -27,7 +27,7 @@ eine Zeile.>
 
 | Step | Epic | Status | Title | Fix-Runden | Coded | Reviewed | Commit |
 |------|------|--------|-------|------------|-------|----------|--------|
-| ... | ... | ... | ... | ... | ... | ... | ... |
+| step-001 | EPIC-01 | done | CommandTimeout-Konfigurierbarkeit & Umbenennung | 0/3 | 32d1aab | approved | 32d1aab |
 
 ## Config (optional)
 
