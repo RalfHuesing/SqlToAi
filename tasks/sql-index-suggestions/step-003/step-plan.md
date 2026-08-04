@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done (pending audit)
 type: step-plan
 task: sql-index-suggestions
 step: 003
