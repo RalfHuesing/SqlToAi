@@ -3,7 +3,7 @@ status: active  # active | done
 task: audit-hardening
 derived_from: konzept.md
 created_at: 2026-08-04T08:00:00+02:00
-last_updated: 2026-08-04T08:00:00+02:00
+last_updated: 2026-08-04T09:00:00+02:00
 created_by_model: Claude Sonnet 5
 created_by_model_knowledge_cutoff: 2026-01
 ---
@@ -30,7 +30,7 @@ obsolet markiert) — kein starres Vorab-Dokument.
 
 ## Epics
 
-- [ ] EPIC-01: CommandTimeout-Konfigurierbarkeit & Umbenennung — Entfernen von `command.CommandTimeout = 0` in [QueryExecutionService.cs:251](src/SqlToAi/Database/QueryExecutionService.cs#L251); neue `QueryExecutionOptions.CommandTimeoutSeconds` (appsettings-gebunden) statt Hardcode; Umbenennung der bestehenden, irreführenden `SqlServerOptions.CommandTimeoutSeconds` → `ConnectTimeoutSeconds` (Options-Klasse [SqlToAiOptions.cs](src/SqlToAi/Configuration/SqlToAiOptions.cs), `appsettings.json`, Referenz in [SqlConnectionFactory.cs:44](src/SqlToAi/Database/SqlConnectionFactory.cs#L44)) — konzept.md Muss-Haben 1 / „Wie" Schritt 1.
+- [x] EPIC-01: CommandTimeout-Konfigurierbarkeit & Umbenennung — Entfernen von `command.CommandTimeout = 0` in [QueryExecutionService.cs:251](src/SqlToAi/Database/QueryExecutionService.cs#L251); neue `QueryExecutionOptions.CommandTimeoutSeconds` (appsettings-gebunden) statt Hardcode; Umbenennung der bestehenden, irreführenden `SqlServerOptions.CommandTimeoutSeconds` → `ConnectTimeoutSeconds` (Options-Klasse [SqlToAiOptions.cs](src/SqlToAi/Configuration/SqlToAiOptions.cs), `appsettings.json`, Referenz in [SqlConnectionFactory.cs:44](src/SqlToAi/Database/SqlConnectionFactory.cs#L44)) — konzept.md Muss-Haben 1 / „Wie" Schritt 1. **Erledigt in step-001** (approved, siehe `step-001/step-review.md`); Nebenbefund TD-001 (`QueryValidationService` verwendet `ConnectTimeoutSeconds` als Command-Timeout) dokumentiert, bewusst kein eigenes Epic (Nutzer-Entscheidung vorbehalten).
 - [ ] EPIC-02: Serverseitiges Row-Limit via SET ROWCOUNT — `SET ROWCOUNT @limit` als Session-Setting vor `ExecuteReaderAsync` in [QueryExecutionService.cs](src/SqlToAi/Database/QueryExecutionService.cs) setzen, analog zum bestehenden `ExecuteSetOptionAsync`-Helper (vgl. `QueryValidationService.cs` NOEXEC-Pattern als Referenz für Session-Settings innerhalb der Transaction); bestehende clientseitige `while (rowCount < args.RowLimit ...)`-Schleife bleibt unverändert als Fallback bestehen — konzept.md Muss-Haben 2 / „Wie" Schritt 2.
 - [ ] EPIC-03: MCP-Trail-Redaction via Anonymizer-Reuse — [McpTrailWriter.cs](src/SqlToAi/Mcp/McpTrailWriter.cs) wendet vor `File.AppendAllText`/`File.WriteAllText` dieselbe bestehende `IAnonymizer`-Anonymisierung (PII-Glob-Patterns, ScramblePattern/Hash) auf die geschriebenen Request-Argumente und Response-Inhalte an, unabhängig vom `AccessLevel` der jeweiligen Datenbank — konzept.md Muss-Haben 3 / „Wie" Schritt 3.
 
