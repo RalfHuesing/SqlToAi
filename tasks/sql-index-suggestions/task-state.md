@@ -1,8 +1,8 @@
 ---
-status: executing  # executing | done | aborted | blocked
+status: done  # executing | done | aborted | blocked
 task: sql-index-suggestions
 started_at: 2026-08-04T11:02:33+02:00
-last_updated: 2026-08-05T18:30:00+02:00
+last_updated: 2026-08-05T18:45:00+02:00
 rules_dir: .agents/rules  # aus konzept.md Frontmatter uebernommen
 total_fix_rounds: 2  # Summe aller Fix-Runden ueber alle Steps (Task-weiter Not-Anker, siehe Config)
 current_step: step-007  # Reopen (Round 2): Post-Completion-Tech-Debt-Cleanup EPIC-04 — abgeschlossen
@@ -12,7 +12,7 @@ current_step: step-007  # Reopen (Round 2): Post-Completion-Tech-Debt-Cleanup EP
 
 ## Uebersicht
 
-- **Task-Status:** `executing` — alle Epics abgehakt, kein Fix ausstehend; globaler Abschluss-Check (Kritiker-Modus `global`) steht noch aus
+- **Task-Status:** `done` — globaler Abschluss-Check (Kritiker-Modus `global`) mit Verdict `done` abgeschlossen, siehe `task-summary.md`
 - **Fix-Runden gesamt:** 2 (Not-Anker bei `max_total_fix_rounds`, siehe Config)
 - **Aktueller Schritt:** `step-007` (TD-006, EPIC-04, `approved`) — EPIC-04 damit vollständig
 - **Roadmap:** siehe `roadmap.md` — EPIC-01 bis EPIC-04 alle `[x]` abgehakt
