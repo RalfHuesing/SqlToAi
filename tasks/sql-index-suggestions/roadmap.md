@@ -200,6 +200,22 @@ obsolet markiert) — kein starres Vorab-Dokument.
       `task-state.md` Status auf `done` zurücksetzen.
       → **TD-002 in step-005 abgeschlossen** (`verdict: approved`,
       2026-08-05, Commit `a1492c6`); Eintrag aus `tech-debt.md` entfernt.
-      **In Arbeit → step-006** (TD-004, SQL-2019/2022-Kompatibilität in
-      `IndexSuggestionService.LoadSuggestionsAsync`). step-007 (TD-006)
-      noch offen. EPIC-04 bleibt offen, bis auch step-007 `approved` ist.
+      → **TD-004 als „won't fix" geschlossen** (Nutzer-Entscheidung
+      2026-08-05, nach zwei gescheiterten Versuchen): step-006 (feste
+      2019/2022-Syntax, Commit `2011331`) scheiterte, weil SQL Server
+      2025 die alten Spaltennamen entgegen der Annahme NICHT als Alias
+      führt. step-006/fix-01 (versionsabhängige Query-Auswahl über
+      `connection.ServerVersion`, Commit `75fb296`) scheiterte
+      ebenfalls — die reale Test-Instanz meldet sich als SQL Server
+      2022 (Hauptversion 16), verwendet aber bereits das
+      2025-DMV-Spaltenschema, wodurch jede versionsnummernbasierte
+      Erkennung strukturell versagt. Ein tragfähiger Fix (Try/Catch-
+      Fallback oder Schema-Introspektion) wäre technisch machbar,
+      aber gegen keine echte SQL-Server-2019/2022-Instanz verifizierbar
+      — Nutzer hat entschieden, das nicht weiterzuverfolgen. Code per
+      Revert-Commit `09fa038` auf den zuletzt bekannt funktionierenden
+      Stand (SQL-Server-2025-spezifische Syntax, wie seit step-003)
+      zurückgesetzt; alle 4 Integrationstests wieder grün. Details:
+      `step-006/step-result.md`, `step-006/fix-01/step-result.md`.
+      **step-007 (TD-006) noch offen.** EPIC-04 bleibt offen, bis auch
+      step-007 `approved` ist.
