@@ -26,7 +26,7 @@ Verweis auf die Tech-Debt-ID).
 |---|---|---|---|
 | TD-001 | `docs/konzept.md` Zeile 172 vs. `tasks/.../step-001/step-plan.md` Prose-Lesart | mittel | Index-Name-Format `IX_Table_Col_Col2` (Konzept) vs. `IX_Table_Col__Col2` (Plan/Coder) ist nicht harmonisiert — Doku-Bereinigung an Konzept ODER Plan nötig. |
 | TD-002 | `src/SqlToAi/Database/PerformanceMeasurementService.cs:373` (`BuildCreateIndexStatement`) | niedrig | `DESC`-Markierung an `Column`-Elementen in `ColumnGroup` wird ignoriert — semantisch nicht deckungsgleich mit SQL-Server-Empfehlung, wenn Spalte absteigend indiziert werden soll. |
-| TD-003 | `src/SqlToAi/Database/PerformanceMeasurementService.cs:264` (`IsShowplanPermissionError`) | niedrig | Aktuell hart auf `SHOWPLAN`-Keyword-Trigger beschränkt; für EPIC-02 (`VIEW SERVER STATE`) wäre eine Generalisierung (`IsPermissionError(int number, string keyword)`) sinnvoll, aber explizit out-of-scope dieses Steps. |
+| TD-003 | `src/SqlToAi/Database/PerformanceMeasurementService.cs:264` (`IsShowplanPermissionError`) | niedrig | **erledigt in step-002** — generalisiert zu `internal static IsPermissionError(SqlException, int errorNumber, string keyword)`; SHOWPLAN-Aufrufstellen angepasst, durch Test 11 in `IndexSuggestionServiceTests` abgesichert. |
 
 ## Einträge
 
@@ -58,4 +58,4 @@ Verweis auf die Tech-Debt-ID).
 - **Befund:** Für das in EPIC-02 anstehende `sql_suggest_indexes`-Tool muss eine Permission-Erkennung für `VIEW SERVER STATE` etabliert werden. Das bestehende Pattern (`IsShowplanPermissionError`) ist `SHOWPLAN`-spezifisch. Eine Generalisierung zu `IsPermissionError(SqlException, int number, string keyword)` o. ä. würde Code-Duplikation vermeiden. Der Coder hat korrekt davon abgesehen, das in step-001 „mal eben" mitzumachen.
 - **Warum nicht sofort gefixt:** Außerhalb des Scopes von step-001 (kein EPIC-01-Auftrag; gehört in EPIC-02-Vorbereitung oder in einen eigenen kleinen Refactoring-Step).
 - **Vorschlag:** Bei EPIC-02-Planung die Generalisierung als Vorbereitungs-Schritt einplanen ODER als eigenständigen kleinen Refactor-Step anlegen. Nutzer-Entscheidung.
-- **Status:** offen
+- **Status:** **erledigt in step-002** — Helper `internal static IsPermissionError(SqlException, int errorNumber, string keyword)` ersetzt die SHOWPLAN-spezifische Variante; die drei SHOWPLAN-Aufrufstellen in `PerformanceMeasurementService` (Zeilen 168, 217, 253) sind auf den neuen Helper umgestellt (`IsPermissionError(ex, 262, "SHOWPLAN")`); semantisch identisch, durch Test 11 in `IndexSuggestionServiceTests` abgesichert.
