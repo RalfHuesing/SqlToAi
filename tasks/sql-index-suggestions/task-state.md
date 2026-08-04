@@ -33,7 +33,7 @@ eine Zeile.>
 | step-003 | EPIC-02 | done | Integrationstest für sql_suggest_indexes gegen echte Test-DB | 0/3 | 2ac3668, 0348e9d | 2026-08-05 approved (Reopen) | 9a36678, 630f0ce |
 | step-004 | EPIC-03 | done | Post-Completion Tech-Debt Cleanup — TD-001 fixen, Rest als out-of-scope markieren | 0/3 | 651c526 | 2026-08-05 approved | 7c92a3a |
 | step-005 | EPIC-04 | done | TD-002 — `DESC`-Sortierung in `BuildCreateIndexStatement` | 0/3 | a1492c6 | 2026-08-05 approved | a1492c6 |
-| step-006 | EPIC-04 | open | TD-004 — SQL-2019/2022-Syntax in `IndexSuggestionService` CTE | 0/3 | - | - | - |
+| step-006 | EPIC-04 | in_progress | TD-004 — SQL-2019/2022-Syntax in `IndexSuggestionService` CTE | 0/3 | - | - | - |
 | step-007 | EPIC-04 | open | TD-006 — Test 1 Graceful-Degradation-Toleranz | 0/3 | - | - | - |
 
 ## Config (optional)

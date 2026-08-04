@@ -3,7 +3,7 @@ status: active
 task: sql-index-suggestions
 derived_from: konzept.md
 created_at: 2026-08-04T12:00:00+02:00
-last_updated: 2026-08-05T10:40:00+02:00
+last_updated: 2026-08-05T15:30:00+02:00
 created_by_model: MiniMax-M3
 created_by_model_knowledge_cutoff: 2026-01
 ---
@@ -198,3 +198,8 @@ obsolet markiert) — kein starres Vorab-Dokument.
       `tech-debt.md` ist leer, `task-summary.md` mit
       „Post-Completion-Tech-Debt-Cleanup Round 2"-Abschnitt ergänzen,
       `task-state.md` Status auf `done` zurücksetzen.
+      → **TD-002 in step-005 abgeschlossen** (`verdict: approved`,
+      2026-08-05, Commit `a1492c6`); Eintrag aus `tech-debt.md` entfernt.
+      **In Arbeit → step-006** (TD-004, SQL-2019/2022-Kompatibilität in
+      `IndexSuggestionService.LoadSuggestionsAsync`). step-007 (TD-006)
+      noch offen. EPIC-04 bleibt offen, bis auch step-007 `approved` ist.
