@@ -163,6 +163,13 @@ public sealed class QueryExecutionOptions
     /// <summary>Hard ceiling on rows returned regardless of caller request.</summary>
     public int MaxRowLimit { get; set; } = 1000;
 
-    /// <summary>Command execution timeout in seconds applied to every query run via <c>sql_execute_query</c>.</summary>
+    /// <summary>
+    /// Command execution timeout in seconds applied to every query run via
+    /// <c>sql_execute_query</c>. Also used by <see cref="SqlToAi.Database.QueryValidationService"/>
+    /// (<c>sql_validate_query</c>) for its <c>SET NOEXEC</c> parse-only validation commands,
+    /// since both run the same kind of <see cref="System.Data.Common.DbCommand"/> against the
+    /// same connection for the same purpose (bounding how long a not-yet-fully-executed query
+    /// may run).
+    /// </summary>
     public int CommandTimeoutSeconds { get; set; } = 30;
 }

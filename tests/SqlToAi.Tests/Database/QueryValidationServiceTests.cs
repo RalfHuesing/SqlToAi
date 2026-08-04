@@ -219,6 +219,32 @@ public sealed class QueryValidationServiceTests
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.InfrastructureErrorCode, result.Error.Code);
     }
+
+    // -------------------------------------------------------------------------
+    // Tests: command timeout source (TD-001) — CommandTimeout on the SET NOEXEC ON/query/
+    // SET NOEXEC OFF commands must come from QueryExecutionOptions.CommandTimeoutSeconds
+    // (command-execution timeout), not SqlServerOptions.ConnectTimeoutSeconds (connection-open
+    // timeout). Standard appsettings.json has both at 30, so the two options must be given
+    // deliberately different values here to make a regression to the wrong source visible.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ValidateQueryAsync_ShouldUseQueryExecutionCommandTimeout_NotConnectTimeout()
+    {
+        var options = new SqlToAiOptions
+        {
+            SqlServer = new SqlServerOptions { ConnectTimeoutSeconds = 99 },
+            QueryExecution = new QueryExecutionOptions { CommandTimeoutSeconds = 42 },
+        };
+        var factory = new ValidationMockConnectionFactory();
+        var service = BuildService(factory: factory, options: options);
+
+        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
+        Assert.Equal(3, factory.ObservedCommandTimeouts.Count);
+        Assert.All(factory.ObservedCommandTimeouts, timeout => Assert.Equal(42, timeout));
+    }
 }
 
 // -------------------------------------------------------------------------
@@ -233,6 +259,13 @@ internal sealed class ValidationMockConnectionFactory(Exception? throwOnExecute 
     /// <summary>The most recently created connection — lets tests inspect its transaction.</summary>
     public FakeDbConnection? LastConnection { get; private set; }
 
+    /// <summary>
+    /// <see cref="DbCommand.CommandTimeout"/> observed on every command at the moment it executes
+    /// (SET NOEXEC ON, the query itself, SET NOEXEC OFF, in that order) — lets tests verify which
+    /// options source fed <c>CommandTimeout</c> without depending on internals of the service.
+    /// </summary>
+    public List<int> ObservedCommandTimeouts { get; } = [];
+
     public DbConnection CreateConnection(string? databaseName)
     {
         LastConnection = BuildConnection(throwOnExecute);
@@ -241,17 +274,18 @@ internal sealed class ValidationMockConnectionFactory(Exception? throwOnExecute 
 
     public DbConnection CreateConnection() => CreateConnection(null);
 
-    private static FakeDbConnection BuildConnection(Exception? executeException) =>
+    private FakeDbConnection BuildConnection(Exception? executeException) =>
         new(
-            conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(ExecuteNonQuery: _ => ExecuteNonQuery(executeException))),
+            conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(ExecuteNonQuery: cmd => ExecuteNonQuery(cmd, executeException))),
             new FakeDbConnectionOptions(
                 Database: TestConstants.DatabaseName,
                 DataSource: "mock",
                 ServerVersion: "16.0",
                 BeginTransaction: (transactionConnection, _) => new FakeDbTransaction(transactionConnection)));
 
-    private static int ExecuteNonQuery(Exception? executeException)
+    private int ExecuteNonQuery(FakeDbCommand cmd, Exception? executeException)
     {
+        ObservedCommandTimeouts.Add(cmd.CommandTimeout);
         if (executeException != null)
         {
             throw executeException;

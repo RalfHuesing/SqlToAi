@@ -26,7 +26,7 @@ public sealed class QueryValidationService : IQueryValidationService
     private readonly ISecurityGuard _securityGuard;
     private readonly IAccessLevelProvider _accessLevelProvider;
     private readonly IReadOnlyGuard _readOnlyGuard;
-    private readonly SqlServerOptions _dbOptions;
+    private readonly QueryExecutionOptions _queryExecutionOptions;
     private readonly ILogger<QueryValidationService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="QueryValidationService"/>.</summary>
@@ -42,7 +42,7 @@ public sealed class QueryValidationService : IQueryValidationService
         _securityGuard = securityGuard;
         _accessLevelProvider = accessLevelProvider;
         _readOnlyGuard = readOnlyGuard;
-        _dbOptions = options.Value.SqlServer;
+        _queryExecutionOptions = options.Value.QueryExecution;
         _logger = logger;
     }
 
@@ -140,7 +140,7 @@ public sealed class QueryValidationService : IQueryValidationService
         using var setNoexecCmd = connection.CreateCommand();
         setNoexecCmd.CommandText = "SET NOEXEC ON";
         setNoexecCmd.Transaction = transaction;
-        setNoexecCmd.CommandTimeout = _dbOptions.ConnectTimeoutSeconds;
+        setNoexecCmd.CommandTimeout = _queryExecutionOptions.CommandTimeoutSeconds;
         await setNoexecCmd.ExecuteNonQueryAsync(cancellationToken);
 
         try
@@ -148,7 +148,7 @@ public sealed class QueryValidationService : IQueryValidationService
             using var queryCmd = connection.CreateCommand();
             queryCmd.CommandText = query;
             queryCmd.Transaction = transaction;
-            queryCmd.CommandTimeout = _dbOptions.ConnectTimeoutSeconds;
+            queryCmd.CommandTimeout = _queryExecutionOptions.CommandTimeoutSeconds;
             SqlParameterBinder.BindParameters(queryCmd, parameters);
             await queryCmd.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -157,7 +157,7 @@ public sealed class QueryValidationService : IQueryValidationService
             using var resetCmd = connection.CreateCommand();
             resetCmd.CommandText = "SET NOEXEC OFF";
             resetCmd.Transaction = transaction;
-            resetCmd.CommandTimeout = _dbOptions.ConnectTimeoutSeconds;
+            resetCmd.CommandTimeout = _queryExecutionOptions.CommandTimeoutSeconds;
             await resetCmd.ExecuteNonQueryAsync(cancellationToken);
         }
     }
