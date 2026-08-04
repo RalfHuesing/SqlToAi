@@ -2,7 +2,7 @@
 status: executing  # executing | done | aborted
 task: sql-index-suggestions
 started_at: 2026-08-04T11:02:33+02:00
-last_updated: 2026-08-05T14:25:00+02:00
+last_updated: 2026-08-05T15:30:00+02:00
 rules_dir: .agents/rules  # aus konzept.md Frontmatter uebernommen
 total_fix_rounds: 1  # Summe aller Fix-Runden ueber alle Steps (Task-weiter Not-Anker, siehe Config)
 current_step: step-005  # Reopen (Round 2): Post-Completion-Tech-Debt-Cleanup EPIC-04
@@ -32,7 +32,7 @@ eine Zeile.>
 | step-002/fix-01 | EPIC-02 | done | CTE-Top-N pro index_handle (Fix für CRITICAL aus step-002) | 0/3 | bc488ec | 2026-08-04 approved | 1a412cb |
 | step-003 | EPIC-02 | done | Integrationstest für sql_suggest_indexes gegen echte Test-DB | 0/3 | 2ac3668, 0348e9d | 2026-08-05 approved (Reopen) | 9a36678, 630f0ce |
 | step-004 | EPIC-03 | done | Post-Completion Tech-Debt Cleanup — TD-001 fixen, Rest als out-of-scope markieren | 0/3 | 651c526 | 2026-08-05 approved | 7c92a3a |
-| step-005 | EPIC-04 | in_progress | TD-002 — `DESC`-Sortierung in `BuildCreateIndexStatement` | 0/3 | - | - | - |
+| step-005 | EPIC-04 | done (pending audit) | TD-002 — `DESC`-Sortierung in `BuildCreateIndexStatement` | 0/3 | a1492c6 | - | 2ffc64c |
 | step-006 | EPIC-04 | open | TD-004 — SQL-2019/2022-Syntax in `IndexSuggestionService` CTE | 0/3 | - | - | - |
 | step-007 | EPIC-04 | open | TD-006 — Test 1 Graceful-Degradation-Toleranz | 0/3 | - | - | - |
 
