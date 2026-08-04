@@ -1,8 +1,8 @@
 ---
-status: blocked  # executing | done | aborted | blocked
+status: executing  # executing | done | aborted | blocked
 task: sql-index-suggestions
 started_at: 2026-08-04T11:02:33+02:00
-last_updated: 2026-08-05T16:40:00+02:00
+last_updated: 2026-08-05T16:55:00+02:00
 rules_dir: .agents/rules  # aus konzept.md Frontmatter uebernommen
 total_fix_rounds: 1  # Summe aller Fix-Runden ueber alle Steps (Task-weiter Not-Anker, siehe Config)
 current_step: step-006  # Reopen (Round 2): Post-Completion-Tech-Debt-Cleanup EPIC-04
@@ -12,9 +12,9 @@ current_step: step-006  # Reopen (Round 2): Post-Completion-Tech-Debt-Cleanup EP
 
 ## Uebersicht
 
-- **Task-Status:** `blocked` — step-006 (TD-004) wartet auf Nutzer-Entscheidung, siehe „Blocker" unten
-- **Fix-Runden gesamt:** 1 (Not-Anker bei `max_total_fix_rounds`, siehe Config)
-- **Aktueller Schritt:** `step-006` (TD-004 SQL-2019/2022-Syntax, EPIC-04, `blocked`)
+- **Task-Status:** `executing` — Nutzer hat 2026-08-05 entschieden: SQL-2019-Kompatibilität ist Pflicht, versionsabhängige Query-Konstruktion wird umgesetzt (`step-006/fix-01`)
+- **Fix-Runden gesamt:** 2 (Not-Anker bei `max_total_fix_rounds`, siehe Config)
+- **Aktueller Schritt:** `step-006/fix-01` (TD-004 SQL-2019/2022-Syntax, versionsabhängige Query, EPIC-04, in Bearbeitung)
 - **Roadmap:** siehe `roadmap.md` fuer den Epic-Fortschritt (EPIC-01 + EPIC-02 + EPIC-03 done, EPIC-04 in Bearbeitung)
 - **Tech-Debt:** siehe `tech-debt.md` fuer gesammelte, bewusst nicht gefixte Funde (neue Policy: nur offene Items, ab 2026-08-05; aktuell TD-004, TD-006 offen; TD-002 mit step-005-`approved` entfernt)
 - **Gestartet:** 2026-08-04T11:02:33+02:00
@@ -33,7 +33,8 @@ eine Zeile.>
 | step-003 | EPIC-02 | done | Integrationstest für sql_suggest_indexes gegen echte Test-DB | 0/3 | 2ac3668, 0348e9d | 2026-08-05 approved (Reopen) | 9a36678, 630f0ce |
 | step-004 | EPIC-03 | done | Post-Completion Tech-Debt Cleanup — TD-001 fixen, Rest als out-of-scope markieren | 0/3 | 651c526 | 2026-08-05 approved | 7c92a3a |
 | step-005 | EPIC-04 | done | TD-002 — `DESC`-Sortierung in `BuildCreateIndexStatement` | 0/3 | a1492c6 | 2026-08-05 approved | a1492c6 |
-| step-006 | EPIC-04 | blocked | TD-004 — SQL-2019/2022-Syntax in `IndexSuggestionService` CTE | 0/3 | 2011331 | - | 2011331 |
+| step-006 | EPIC-04 | done (fix-01 pending) | TD-004 — SQL-2019/2022-Syntax in `IndexSuggestionService` CTE (Annahme widerlegt, siehe fix-01) | 0/3 | 2011331 | - | 2011331 |
+| step-006/fix-01 | EPIC-04 | in_progress | Versionsabhängige DMV-Query (2019/2022 + 2025) statt fixer 2019-Syntax | 1/3 | - | - | - |
 | step-007 | EPIC-04 | open | TD-006 — Test 1 Graceful-Degradation-Toleranz | 0/3 | - | - | - |
 
 ## Config (optional)
@@ -55,31 +56,19 @@ model_kritiker: <nicht festgelegt>
 genannte, rollenabhaengige Modellwahl fest. Nicht gesetzt = keine Vorgabe,
 der Orchestrator fragt auch nicht nach. Siehe `../spec.md` S10.8.>
 
-## Blocker (aktuell offen)
+## Nutzer-Entscheidung 2026-08-05 (step-006-Blocker aufgelöst)
 
-**step-006 (TD-004):** Die vom Nutzer akzeptierte Annahme „SQL Server
-2025 führt die alten DMV-Namen (`index_group_handle`,
-`sys.dm_db_missing_index_columns` als View statt TVF) als
-Rückwärtskompatibilitäts-Alias weiter" ist **empirisch widerlegt**. Der
-Coder hat die 2019/2022-Syntax exakt nach Plan umgesetzt (Commit
-`2011331`), aber gegen die reale Test-DB (SQL Server 2025 RTM
-17.0.1000.7) schlagen alle vier Integrationstests mit
-`SqlException: Ungültiger Spaltenname "index_group_handle"` fehl.
-Details: `tasks/sql-index-suggestions/step-006/step-result.md`.
-
-Offene Frage an den Nutzer — wie soll TD-004 weiterverfolgt werden?
-1. **Revert** von Commit `2011331`, TD-004 bleibt offen/wird als
-   `won't fix` markiert (Ziel SQL-Server-2019-Kompatibilität nicht
-   erreichbar ohne Versionsweiche).
-2. **Versionsabhängige Query-Konstruktion** (Try/Detect-Pattern:
-   2019/2022-Syntax **und** 2025-Syntax, Laufzeit-Entscheidung) — neuer
-   Fix-Step, deutlich größerer Scope als ursprünglich geplant.
-3. **Andere Vorgabe** (z. B. Mindestversion doch bei 2025 belassen,
-   TD-004 schließen ohne Codeänderung, Commit `2011331` so stehen
-   lassen mit Test-Anpassung o.ä.).
-
-Bis zur Klärung bleibt der Loop hier stehen (kein automatisches
-Fortsetzen).
+Die vom ursprünglichen step-006-Plan akzeptierte Annahme „SQL Server
+2025 führt die alten DMV-Namen als Rückwärtskompatibilitäts-Alias
+weiter" ist empirisch widerlegt (siehe `step-006/step-result.md`,
+Commit `2011331` schlägt gegen die reale Test-DB fehl). Nutzer-Vorgabe:
+**SQL-Server-2019-Kompatibilität ist Pflicht** — „was auch immer dafür
+zu tun ist, tu es." Das bedeutet: versionsabhängige Query-Konstruktion
+(Try/Detect-Pattern zwischen 2019/2022- und 2025-Syntax), damit die
+Kompatibilität steht UND die Integrationstests gegen die reale
+(2025-)Test-DB weiter grün laufen. Umsetzung als `step-006/fix-01`
+(größerer Scope als ursprünglicher step-006-Plan, daher als Fix statt
+stillschweigender Plan-Änderung).
 
 ## Abbruch-Bedingungen
 
