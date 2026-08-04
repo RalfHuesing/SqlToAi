@@ -1,8 +1,8 @@
 ---
-status: executing  # executing | done | aborted
+status: done  # executing | done | aborted
 task: sql-index-suggestions
 started_at: 2026-08-04T11:02:33+02:00
-last_updated: 2026-08-05T10:05:00+02:00
+last_updated: 2026-08-05T10:30:00+02:00
 rules_dir: .agents/rules  # aus konzept.md Frontmatter uebernommen
 total_fix_rounds: 1  # Summe aller Fix-Runden ueber alle Steps (Task-weiter Not-Anker, siehe Config)
 current_step: step-003
