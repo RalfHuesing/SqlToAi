@@ -172,82 +172,70 @@ Aus `tech-debt.md` aggregiert (Volltext bleibt dort, hier nur Übersicht nach
 Index-Tabelle):
 
 - **Hoch:** 0 Einträge
-- **Mittel:** 3 Einträge — `TD-001` (Konzept-Index-Name-Format-Harmonisierung),
-  `TD-004` (SQL-Server-Mindestversion 2025 für `IndexSuggestionService`-CTE
-  wegen `group_handle` + TVF; abwärtsinkompatibel zu 2019/2022),
-  `TD-005` (Test-Environment-Setup `GRANT VIEW SERVER STATE TO [Agent]`
-  einmalig lokal ausgeführt, kein reproduzierbares Setup-Skript)
+- **Mittel:** 2 Einträge — `TD-004` (SQL-Server-Mindestversion 2025 für
+  `IndexSuggestionService`-CTE wegen `group_handle` + TVF; abwärtsinkompatibel
+  zu 2019/2022), `TD-005` (Test-Environment-Setup `GRANT VIEW SERVER STATE TO
+  [Agent]` einmalig lokal ausgeführt, kein reproduzierbares Setup-Skript)
 - **Niedrig:** 3 Einträge — `TD-002` (`DESC`-Sortierung in
   `ColumnGroup`-Spalten wird in `BuildCreateIndexStatement` ignoriert),
   `TD-006` (Test 1 akzeptiert Graceful-Degradation-Notiz nicht, Asymmetrie
   zu Test 4), `TD-007` (`DmvMockConnectionFactory` deckt SQL-Syntaxfehler
   nicht ab — systemischer Test-Coverage-Gap, der CTE-Alias-Bug und
   2025-Inkompatibilitäten erst spät im Integrationstest sichtbar machte)
-- **Erledigt:** 1 Eintrag — `TD-003` (`IsShowplanPermissionError` zu
+- **Out-of-scope, won't fix in diesem Task:** 5 Einträge — `TD-002`,
+  `TD-004`, `TD-005`, `TD-006`, `TD-007` (alle per Nutzer-Vorgabe 2026-08-05
+  als nicht aus `konzept.md` ableitbar klassifiziert; Volltext-Begründungen
+  in `tech-debt.md`).
+- **Erledigt:** 2 Einträge — `TD-003` (`IsShowplanPermissionError` zu
   `IsPermissionError(SqlException, int, string)` generalisiert, in
   `step-002` umgesetzt, durch Test 11 in `IndexSuggestionServiceTests`
-  abgesichert)
+  abgesichert), `TD-001` (Konzept-Index-Name-Format-Harmonisierung, in
+  `step-004` umgesetzt: Konzept-Beispiel an Code angepasst).
 
 Volltext aller Einträge: `tech-debt.md` (Pointer-Prinzip — die ausführlichen
 Befunde, Vorschläge und Pfad-Referenzen sind dort dokumentiert, nicht hier
 dupliziert).
 
-**Hinweis für den Nutzer:** Von den drei mittel-priorisierten Einträgen
-erscheinen `TD-004` und `TD-005` aus technischer Sicht am dringendsten
+**Hinweis für den Nutzer:** TD-001 ist in `step-004` erledigt. Von den
+verbleibenden out-of-scope-Einträgen erscheinen `TD-004` und `TD-005` aus
+technischer Sicht am dringendsten, falls Folge-Tasks geplant werden
 (`TD-004` blockiert faktisch jeden Nutzer auf SQL Server < 2025, `TD-005`
-macht CI/CD und frische Test-Instanzen nicht reproduzierbar). `TD-001` ist
-eine reine Doku-Harmonisierung und kann jederzeit unabhängig erfolgen. Die
-drei niedrig-priorisierten Einträge sind Nice-to-Have-Verbesserungen, deren
-Behebung keinen Task-Block rechtfertigt.
+macht CI/CD und frische Test-Instanzen nicht reproduzierbar). Die drei
+niedrig-priorisierten Einträge sind Nice-to-Have-Verbesserungen, deren
+Behebung keinen Task-Block rechtfertigt und die jeweils eigene Architektur-/
+Test-Strategie-Entscheidungen erfordern.
 
 ## Offene Punkte
 
-- [ ] **TD-001 (mittel)** — Konzept-Beispiel in `konzept.md` Zeile 172 zeigt
-      `IX_Orders_CustomerId_OrderDate` (alle einfachen Unterstriche),
-      `PerformanceMeasurementService.BuildCreateIndexStatement` Zeile 399–405
-      verwendet `IX_Orders_CustomerId__OrderDate` (`__` als Spalten-Trenner).
-      Harmonisierung an Konzept ODER an Code (Konzept-Beispiel ist
-      Pfeil-Form, nicht normativ). Reine Doku-Aufgabe.
-- [ ] **TD-002 (niedrig)** — `BuildCreateIndexStatement` in
-      `PerformanceMeasurementService.cs:373` ignoriert das `Descending`-
-      Attribut an `Column`-Elementen. 1-2-Zeilen-Erweiterung im Helper +
-      Test-Erweiterung. Funktional nicht falsch, nur semantisch nicht
-      deckungsgleich mit SQL-Server-Empfehlung bei absteigend indizierten
-      Spalten.
-- [ ] **TD-004 (mittel)** — `IndexSuggestionService.LoadSuggestionsAsync`
-      SQL (Zeile 140–186) ist SQL-Server-2025-spezifisch
-      (`migs.group_handle` + `CROSS APPLY sys.dm_db_missing_index_columns`).
-      Eine Mindestversions-Notiz in `architecture-spec.md` §4 Nr. 16 oder §H
-      wäre ergänzend wünschenswert. Für Rückwärtskompatibilität zu SQL
-      Server 2019/2022 wäre eine versionsabhängige CTE-Konstruktion nötig
-      (Try/Detect-Pattern, kosten mehrere Tests).
-- [ ] **TD-005 (mittel)** — `GRANT VIEW SERVER STATE TO [Agent]` wurde
-      einmalig lokal außerhalb des Repos ausgeführt (Coder-Notiz
-      `step-003/step-result.md` §3). Es gibt kein reproduzierbares
-      Setup-Skript in `scripts/` oder als Initialisierungs-Methode in
-      `SqlServerFixture.cs`. Konsequenz: CI/CD und frische Test-Instanzen
-      fallen in den Graceful-Degradation-Pfad, Test 1 schlägt fehl.
-- [ ] **TD-006 (niedrig)** — Test 1 in
-      `IndexSuggestionServiceIntegrationTests.cs:26-42` akzeptiert die
-      Graceful-Degradation-Notiz nicht, Test 4 akzeptiert sie. 1-2-Zeilen-
-      Erweiterung analog Test 4 würde Test 1 setup-tolerant machen (siehe
-      TD-005).
-- [ ] **TD-007 (niedrig)** — `DmvMockConnectionFactory` in
-      `IndexSuggestionServiceTests.cs:370-424` liefert vorgegebene Rows,
-      ohne die SQL zu parsen oder auszuführen. Folge: SQL-Syntaxfehler
-      (CTE-Alias-Bug aus `step-002/fix-01`, 2025-Inkompatibilitäten aus
-      `step-003`-Reopen) werden erst im Integrationstest sichtbar. Optionen:
-      (a) statische DMV-Spalten-Validierung gegen Versions-Whitelist, (b)
-      verpflichtender Integrationstest in CI/CD mit echtem SQL-Server-
-      Container. Beides berührt Architekturentscheidungen jenseits dieses
-      Tasks.
+- [x] **TD-001** — erledigt in `step-004` (Konzept-Beispiel in
+      `konzept.md` Zeile 172 an die implementierte Code-Form
+      `IX_Orders_CustomerId__OrderDate` angepasst).
+- [-] **TD-002** — out of scope, won't fix in diesem Task: Konzept schweigt
+      über `DESC`-Sortierung; Konzept §Muss-Haben / §Wie-Idee-1 / §DoD
+      erwähnen `DESC` nicht, Konzept-Beispiel hat keine absteigend
+      indizierte Spalte. Implementierung wäre konzeptuelle Erweiterung.
+- [-] **TD-004** — out of scope, won't fix in diesem Task: Konzept schweigt
+      über SQL-Server-Mindestversion; §Zielplattformen nennt nur „kein
+      neuer Stack" ohne Versionsangabe. SQL-Server-2025-Spezifik ist
+      emergente Eigenschaft der Test-Instanz, keine Konzept-Vorgabe.
+- [-] **TD-005** — out of scope, won't fix in diesem Task: Test-Environment-
+      Setup ist CI/CD-Infrastruktur, kein Konzept-Gegenstand. Konzept
+      §DoD verlangt nur „Integrationstest gegen eine echte Test-DB", keine
+      Aussage zur Reproduzierbarkeit.
+- [-] **TD-006** — out of scope, won't fix in diesem Task: Test-Design-
+      Detail, kein Konzept-Verstoß. Konzept §DoD verlangt nur
+      „Graceful Degradation verifiziert (Unit- oder Integrationstest)".
+- [-] **TD-007** — out of scope, won't fix in diesem Task: Test-Strategie-/
+      Architektur-Frage, Konzept schweigt. 80% des Problems bereits durch
+      TD-005+TD-006 adressierbar; restliche 20% (statische Validierung)
+      lohnen nur bei mehreren geplanten DMV-Tools.
+
+*(`[-]` = out of scope, bewusst nicht in diesem Task behoben. Volltext-
+Begründungen in `tech-debt.md`. Klassifizierung 2026-08-05 per
+Nutzer-Vorgabe.)*
 
 ## Empfehlungen
 
-- **TD-001 als kleines Refactoring-Epic in einem Folge-Task aufnehmen, falls
-  die Konzept-/Code-Divergenz stört** — die Diskrepanz ist klein, die
-  Harmonisierung trivial (eine `string.Join`-Zeile in `BuildCreateIndexStatement`
-  ODER eine Beispiel-Korrektur in `konzept.md`). Aktuell nicht blockierend.
 - **TD-004 und TD-005 zusammen in einem Folge-Task adressieren**, da sie
   denselben thematischen Kreis betreffen (Produktions-Deployment von
   `sql_suggest_indexes`): Mindestversions-Notiz in `architecture-spec.md`

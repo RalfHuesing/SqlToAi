@@ -1,24 +1,24 @@
 ---
-status: executing  # executing | done | aborted
+status: done  # executing | done | aborted
 task: sql-index-suggestions
 started_at: 2026-08-04T11:02:33+02:00
-last_updated: 2026-08-05T10:30:00+02:00
+last_updated: 2026-08-05T11:15:00+02:00
 rules_dir: .agents/rules  # aus konzept.md Frontmatter uebernommen
 total_fix_rounds: 1  # Summe aller Fix-Runden ueber alle Steps (Task-weiter Not-Anker, siehe Config)
-current_step: step-004  # Reopen: Post-Completion-Tech-Debt-Cleanup
+current_step: step-004  # abgeschlossen (Post-Completion-Tech-Debt-Cleanup)
 ---
 
 # Task State: sql-index-suggestions
 
 ## Uebersicht
 
-- **Task-Status:** `executing` (Reopen für Post-Completion-Tech-Debt-Cleanup)
+- **Task-Status:** `done`
 - **Fix-Runden gesamt:** 1 (Not-Anker bei `max_total_fix_rounds`, siehe Config)
-- **Aktueller Schritt:** `step-004` (Post-Completion-Tech-Debt-Cleanup, alle Tech-Debts klassifiziert: in-scope fixen, out-of-scope dokumentiert)
-- **Roadmap:** siehe `roadmap.md` fuer den Epic-Fortschritt (EPIC-01 + EPIC-02 abgehakt, ggf. neues Mini-Epic fuer step-004)
-- **Tech-Debt:** siehe `tech-debt.md` fuer gesammelte, bewusst nicht gefixte Funde
+- **Aktueller Schritt:** `step-004` (Post-Completion-Tech-Debt-Cleanup abgeschlossen; alle Epics done)
+- **Roadmap:** siehe `roadmap.md` fuer den Epic-Fortschritt (EPIC-01 + EPIC-02 + EPIC-03 abgehakt)
+- **Tech-Debt:** siehe `tech-debt.md` fuer gesammelte, bewusst nicht gefixte Funde (5 out-of-scope + 2 erledigt)
 - **Gestartet:** 2026-08-04T11:02:33+02:00
-- **Zuletzt aktualisiert:** 2026-08-05T10:30:00+02:00
+- **Zuletzt aktualisiert:** 2026-08-05T11:15:00+02:00
 
 ## Steps
 
@@ -31,7 +31,7 @@ eine Zeile.>
 | step-002 | EPIC-02 | done | Service + Tool-Registrierung + Doku-Sync für sql_suggest_indexes | 1/3 | 3195a17 | 2026-08-04 issues → fix-01 approved | 50437e2 |
 | step-002/fix-01 | EPIC-02 | done | CTE-Top-N pro index_handle (Fix für CRITICAL aus step-002) | 0/3 | bc488ec | 2026-08-04 approved | 1a412cb |
 | step-003 | EPIC-02 | done | Integrationstest für sql_suggest_indexes gegen echte Test-DB | 0/3 | 2ac3668, 0348e9d | 2026-08-05 approved (Reopen) | 9a36678, 630f0ce |
-| step-004 | EPIC-03 | open | Post-Completion Tech-Debt Cleanup — TD-001 fixen, Rest als out-of-scope markieren | 0/3 | - | - | - |
+| step-004 | EPIC-03 | done | Post-Completion Tech-Debt Cleanup — TD-001 fixen, Rest als out-of-scope markieren | 0/3 | 651c526 | 2026-08-05 approved | 7c92a3a |
 
 ## Config (optional)
 

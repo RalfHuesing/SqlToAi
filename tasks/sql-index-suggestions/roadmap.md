@@ -136,7 +136,7 @@ obsolet markiert) — kein starres Vorab-Dokument.
       **Diese Tech-Debt-Einträge sind Beobachtungen, keine
       Pflicht-Findings — kein impliziter Nachzug in weitere Schritte.**
 
-- [ ] EPIC-03: Post-Completion Tech-Debt Cleanup
+- [x] EPIC-03: Post-Completion Tech-Debt Cleanup
       (Reopen-Auftrag vom Nutzer nach Task-Abschluss)
       — `task-summary.md` final_status `done`, alle 4 Steps approved,
       522/522 Tests grün. Der Nutzer hat 2026-08-05 angeordnet, dass
@@ -148,14 +148,13 @@ obsolet markiert) — kein starres Vorab-Dokument.
       Orchestrator-Befragung 2026-08-05 vorab abgestimmt:
       TD-001 in-scope, TD-002/004/005/006/007 out-of-scope. TD-003
       bereits in `step-002` erledigt.
-      → **umgesetzt in step-004**: ein einzelner Single-Step, der
-      `tasks/sql-index-suggestions/konzept.md` Zeile 172 an die
-      implementierte Form `IX_Orders_CustomerId__OrderDate` anpasst
-      (TD-001 erledigt), `tech-debt.md` Status-Updates für alle 6 noch
-      offenen Einträge vornimmt (TD-001 erledigt, TD-002/004/005/006/007
-      explizit als out-of-scope markiert), und `task-summary.md` um
-      den Post-Completion-Abschnitt ergänzt. **Kein Code-Change, kein
-      Test-Change**, kein Build/Test-Lauf zwingend nötig
-      (Smoke-Verifikation `dotnet test` empfohlen, sollte 522/522 grün
-      bleiben). Risiko `low`, `step_type: single`.
-      **EPIC-03 abgeschlossen, sobald step-004 Status `approved`.**
+      → **umgesetzt in step-004** (`verdict: approved`, 2026-08-05,
+      Commits `651c526` Code/Doku + `7c92a3a` Result): Konzept-Beispiel
+      in `konzept.md` Zeile 172 an implementierte Form
+      `IX_Orders_CustomerId__OrderDate` angepasst (TD-001 erledigt);
+      `tech-debt.md` Status-Updates für alle 6 noch offenen Einträge
+      vorgenommen (TD-001 erledigt, TD-002/004/005/006/007 explizit als
+      out-of-scope markiert); `task-summary.md` um den Post-Completion-
+      Abschnitt ergänzt. **Kein Code-Change, kein Test-Change**,
+      522/522 Tests grün bleiben. Risiko `low`, `step_type: single`.
+      **EPIC-03 abgeschlossen.**
