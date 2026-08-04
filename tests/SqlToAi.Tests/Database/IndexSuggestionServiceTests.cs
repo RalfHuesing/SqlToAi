@@ -275,86 +275,6 @@ public sealed class IndexSuggestionServiceTests
     }
 
     // -------------------------------------------------------------------------
-    // Test: generated SQL uses SQL Server 2019/2022-compatible syntax (TD-004)
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task SuggestIndexesAsync_GeneratedSql_UsesSqlServer2019CompatibleSyntax()
-    {
-        var factory = new DmvMockConnectionFactory([], throwOnExecuteReader: null);
-        var service = BuildService(factory: factory);
-
-        await service.SuggestIndexesAsync(new IndexSuggestionArgs("DemoDB"), TestContext.Current.CancellationToken);
-
-        var cmd = factory.LastReaderCommand;
-        Assert.NotNull(cmd);
-        string sql = cmd!.CommandText;
-
-        // 2019/2022-compatible column name (SQL Server 2025 renamed this to
-        // "group_handle" on sys.dm_db_missing_index_group_stats only).
-        Assert.Contains("migs.index_group_handle", sql, StringComparison.Ordinal);
-
-        // 2019/2022-compatible join (sys.dm_db_missing_index_columns is a
-        // view pre-2025, joined on index_handle — not a table-valued
-        // function invoked via CROSS APPLY).
-        Assert.Contains(
-            "INNER JOIN sys.dm_db_missing_index_columns AS mic",
-            sql, StringComparison.Ordinal);
-        Assert.Contains("ON mic.index_handle = ti.IndexHandle", sql, StringComparison.Ordinal);
-        Assert.DoesNotContain("CROSS APPLY", sql, StringComparison.Ordinal);
-
-        // Regression guard: migs.group_handle (2025-only column name) must
-        // not reappear as a bare, unqualified fragment.
-        Assert.DoesNotContain("migs.group_handle", sql, StringComparison.Ordinal);
-    }
-
-    // -------------------------------------------------------------------------
-    // Test (fix-01): generated SQL uses SQL Server 2025 syntax when the server
-    // reports major version 17 (TD-004)
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task SuggestIndexesAsync_GeneratedSql_UsesSqlServer2025SyntaxWhenServerReportsMajorVersion17()
-    {
-        var factory = new DmvMockConnectionFactory([], throwOnExecuteReader: null, serverVersion: "17.0.1000");
-        var service = BuildService(factory: factory);
-
-        await service.SuggestIndexesAsync(new IndexSuggestionArgs("DemoDB"), TestContext.Current.CancellationToken);
-
-        var cmd = factory.LastReaderCommand;
-        Assert.NotNull(cmd);
-        string sql = cmd!.CommandText;
-
-        Assert.Contains("migs.group_handle", sql, StringComparison.Ordinal);
-        Assert.Contains("CROSS APPLY sys.dm_db_missing_index_columns(ti.IndexHandle) AS mic", sql, StringComparison.Ordinal);
-        Assert.DoesNotContain("migs.index_group_handle", sql, StringComparison.Ordinal);
-        Assert.DoesNotContain("INNER JOIN sys.dm_db_missing_index_columns", sql, StringComparison.Ordinal);
-    }
-
-    // -------------------------------------------------------------------------
-    // Test (fix-01): generated SQL falls back to 2019/2022 syntax when the
-    // server version is unparseable or empty (TD-004)
-    // -------------------------------------------------------------------------
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("not-a-version")]
-    public async Task SuggestIndexesAsync_GeneratedSql_FallsBackToSqlServer2019SyntaxWhenServerVersionUnparseable(string serverVersion)
-    {
-        var factory = new DmvMockConnectionFactory([], throwOnExecuteReader: null, serverVersion: serverVersion);
-        var service = BuildService(factory: factory);
-
-        await service.SuggestIndexesAsync(new IndexSuggestionArgs("DemoDB"), TestContext.Current.CancellationToken);
-
-        var cmd = factory.LastReaderCommand;
-        Assert.NotNull(cmd);
-        string sql = cmd!.CommandText;
-
-        Assert.Contains("migs.index_group_handle", sql, StringComparison.Ordinal);
-        Assert.DoesNotContain("CROSS APPLY", sql, StringComparison.Ordinal);
-    }
-
-    // -------------------------------------------------------------------------
     // Test 9: graceful degradation on VIEW SERVER STATE permission error
     // -------------------------------------------------------------------------
 
@@ -470,5 +390,82 @@ public sealed class IndexSuggestionServiceTests
             modifiers: null)
             ?? throw new InvalidOperationException("SqlException internal constructor not found.");
         return (SqlException)sqlExceptionCtor.Invoke([message, errorCollection, null!, Guid.Empty]);
+    }
+
+    // -------------------------------------------------------------------------
+    // Fake DB plumbing
+    // -------------------------------------------------------------------------
+
+    private sealed record DmvColumn(int ColumnId, string ColumnUsage);
+
+    private sealed record DmvRow(
+        string Statement,
+        long IndexHandle,
+        long UserSeeks,
+        long UserScans,
+        DateTime? LastUserSeek,
+        double AvgTotalUserCost,
+        double AvgUserImpact,
+        IReadOnlyList<DmvColumn> Columns);
+
+    /// <summary>
+    /// A <see cref="DbConnection"/> fake that returns the given DMV rows from a single
+    /// reader. If <see cref="_throwOnExecuteReader"/> is set, it is thrown on
+    /// <c>ExecuteReaderAsync</c> to simulate server-side failures (e.g. permission errors).
+    /// </summary>
+    private sealed class DmvMockConnectionFactory(
+        IReadOnlyList<DmvRow> rows,
+        Exception? throwOnExecuteReader) : IDatabaseConnectionFactory
+    {
+        public FakeDbConnection? LastConnection { get; private set; }
+
+        /// <summary>The most recent <see cref="FakeDbCommand"/> passed to <c>ExecuteReader</c> —
+        /// lets tests inspect the bound parameters (Dapper prefixes the names with <c>@</c>, but
+        /// tests strip that prefix when looking up by property name).</summary>
+        public FakeDbCommand? LastReaderCommand { get; private set; }
+
+        public DbConnection CreateConnection(string? databaseName)
+        {
+            var conn = new FakeDbConnection(
+                c => new FakeDbCommand(
+                    c,
+                    new FakeDbCommandHandlers(
+                        ExecuteReader: cmd => ExecuteReader(cmd, c))),
+                new FakeDbConnectionOptions(
+                    Database: TestConstants.DatabaseName,
+                    DataSource: "mock",
+                    ServerVersion: "16.0",
+                    BeginTransaction: (connection, _) => new FakeDbTransaction(connection)));
+            conn.LastCommand = null;
+            LastConnection = conn;
+            return conn;
+        }
+
+        public DbConnection CreateConnection() => CreateConnection(null);
+
+        private FakeDbDataReader ExecuteReader(FakeDbCommand cmd, FakeDbConnection conn)
+        {
+            LastReaderCommand = cmd;
+            if (throwOnExecuteReader != null)
+            {
+                throw throwOnExecuteReader;
+            }
+
+            string[] columns =
+            [
+                "Statement", "IndexHandle", "UserSeeks", "UserScans", "LastUserSeek",
+                "AvgTotalUserCost", "AvgUserImpact", "ColumnId", "ColumnUsage",
+            ];
+            var raw = new List<object?[]>();
+            foreach (var r in rows)
+            {
+                foreach (var c in r.Columns)
+                {
+                    raw.Add([r.Statement, r.IndexHandle, r.UserSeeks, r.UserScans, r.LastUserSeek,
+                        r.AvgTotalUserCost, r.AvgUserImpact, c.ColumnId, c.ColumnUsage]);
+                }
+            }
+            return new FakeDbDataReader(columns, raw);
+        }
     }
 }

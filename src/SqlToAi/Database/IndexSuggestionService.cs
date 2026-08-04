@@ -32,112 +32,6 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
         "On a freshly started server (or shortly after a restart) this list will be short or " +
         "empty; on long-running production servers it reflects the workload since startup.";
 
-    // Threshold: SqlConnection.ServerVersion reports "<major>.<minor>.<build>";
-    // major version 17 is the first SQL Server 2025 release. Below this
-    // threshold (2019 = 15, 2022 = 16, and any unparseable/unknown version)
-    // the stable 2019/2022 DMV schema is used — see TD-004 for why this is a
-    // fixed technical constant, not an AppSettings-tunable value (same
-    // reasoning as the hardcoded SQL error numbers 300/297 in
-    // IsViewServerStatePermissionError below).
-    private const int Sql2025MinMajorVersion = 17;
-
-    private const string Sql2019CompatibleQuery = """
-        WITH Scored AS (
-            SELECT
-                mid.statement AS Statement,
-                mig.index_handle AS IndexHandle,
-                migs.user_seeks AS UserSeeks,
-                migs.user_scans AS UserScans,
-                migs.last_user_seek AS LastUserSeek,
-                migs.avg_total_user_cost AS AvgTotalUserCost,
-                migs.avg_user_impact AS AvgUserImpact,
-                (migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans)) AS ImprovementScore
-            FROM sys.dm_db_missing_index_group_stats AS migs
-            INNER JOIN sys.dm_db_missing_index_groups AS mig
-                ON migs.index_group_handle = mig.index_group_handle
-            INNER JOIN sys.dm_db_missing_index_details AS mid
-                ON mig.index_handle = mid.index_handle
-            WHERE mid.database_id = DB_ID()
-        ),
-        TopIndexes AS (
-            SELECT TOP (@Top)
-                Statement,
-                IndexHandle,
-                UserSeeks,
-                UserScans,
-                LastUserSeek,
-                AvgTotalUserCost,
-                AvgUserImpact,
-                ImprovementScore
-            FROM Scored
-            WHERE (@TableName IS NULL OR Statement LIKE '%' + @TableName + '%')
-              AND (@MinScore IS NULL OR ImprovementScore >= @MinScore)
-            ORDER BY ImprovementScore DESC, Statement
-        )
-        SELECT
-            ti.Statement,
-            ti.IndexHandle,
-            ti.UserSeeks,
-            ti.UserScans,
-            ti.LastUserSeek,
-            ti.AvgTotalUserCost,
-            ti.AvgUserImpact,
-            mic.column_id AS ColumnId,
-            mic.column_usage AS ColumnUsage
-        FROM TopIndexes AS ti
-        INNER JOIN sys.dm_db_missing_index_columns AS mic
-            ON mic.index_handle = ti.IndexHandle
-        ORDER BY ti.ImprovementScore DESC, ti.Statement, mic.column_id
-        """;
-
-    private const string Sql2025Query = """
-        WITH Scored AS (
-            SELECT
-                mid.statement AS Statement,
-                mig.index_handle AS IndexHandle,
-                migs.user_seeks AS UserSeeks,
-                migs.user_scans AS UserScans,
-                migs.last_user_seek AS LastUserSeek,
-                migs.avg_total_user_cost AS AvgTotalUserCost,
-                migs.avg_user_impact AS AvgUserImpact,
-                (migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans)) AS ImprovementScore
-            FROM sys.dm_db_missing_index_group_stats AS migs
-            INNER JOIN sys.dm_db_missing_index_groups AS mig
-                ON migs.group_handle = mig.index_group_handle
-            INNER JOIN sys.dm_db_missing_index_details AS mid
-                ON mig.index_handle = mid.index_handle
-            WHERE mid.database_id = DB_ID()
-        ),
-        TopIndexes AS (
-            SELECT TOP (@Top)
-                Statement,
-                IndexHandle,
-                UserSeeks,
-                UserScans,
-                LastUserSeek,
-                AvgTotalUserCost,
-                AvgUserImpact,
-                ImprovementScore
-            FROM Scored
-            WHERE (@TableName IS NULL OR Statement LIKE '%' + @TableName + '%')
-              AND (@MinScore IS NULL OR ImprovementScore >= @MinScore)
-            ORDER BY ImprovementScore DESC, Statement
-        )
-        SELECT
-            ti.Statement,
-            ti.IndexHandle,
-            ti.UserSeeks,
-            ti.UserScans,
-            ti.LastUserSeek,
-            ti.AvgTotalUserCost,
-            ti.AvgUserImpact,
-            mic.column_id AS ColumnId,
-            mic.column_usage AS ColumnUsage
-        FROM TopIndexes AS ti
-        CROSS APPLY sys.dm_db_missing_index_columns(ti.IndexHandle) AS mic
-        ORDER BY ti.ImprovementScore DESC, ti.Statement, mic.column_id
-        """;
-
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly ISecurityGuard _securityGuard;
     private readonly IAccessLevelProvider _accessLevelProvider;
@@ -233,21 +127,63 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
         // that forbids referencing a SELECT-list alias in the WHERE clause of
         // the same SELECT (see step-003 for the original bug analysis).
         //
-        // Minimum supported SQL Server version: 2019 (per project policy,
-        // EPIC-04/TD-004). The step-006 assumption that SQL Server 2025 accepts
-        // the old 2019/2022 DMV column/join names (`index_group_handle`,
-        // an INNER JOIN-able `sys.dm_db_missing_index_columns` view) via a
-        // backward-compatibility alias was empirically disproven by the
-        // step-006 integration tests (`SqlException: Ungültiger Spaltenname
-        // "index_group_handle"` against SQL Server 2025 RTM 17.0.1000.7 — see
-        // step-006/step-result.md). The query is therefore selected at runtime
-        // from `connection.ServerVersion` (standard DbConnection property, no
-        // extra roundtrip): server major version >= 17 (SQL Server 2025+) uses
-        // `Sql2025Query` (`group_handle`, CROSS APPLY TVF); everything else
-        // (2019, 2022, and any unparseable/unknown version, as a conservative
-        // default) uses `Sql2019CompatibleQuery` (`index_group_handle`, INNER
-        // JOIN view).
-        string sql = SelectSql(GetServerMajorVersion(connection));
+        // SQL Server 2025 compatibility notes (verified against the test instance
+        // in step-003):
+        //   * `sys.dm_db_missing_index_group_stats.index_group_handle` was renamed
+        //     to `group_handle`. The other DMVs (`sys.dm_db_missing_index_groups`,
+        //     `sys.dm_db_missing_index_details`) still expose `index_group_handle`
+        //     / `index_handle` as before.
+        //   * `sys.dm_db_missing_index_columns` is now a table-valued function
+        //     that takes the `index_handle` as a parameter; it is no longer a
+        //     view with an `index_handle` column. We invoke it via CROSS APPLY
+        //     on the per-handle rows of the outer SELECT.
+        const string sql = """
+            WITH Scored AS (
+                SELECT
+                    mid.statement AS Statement,
+                    mig.index_handle AS IndexHandle,
+                    migs.user_seeks AS UserSeeks,
+                    migs.user_scans AS UserScans,
+                    migs.last_user_seek AS LastUserSeek,
+                    migs.avg_total_user_cost AS AvgTotalUserCost,
+                    migs.avg_user_impact AS AvgUserImpact,
+                    (migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans)) AS ImprovementScore
+                FROM sys.dm_db_missing_index_group_stats AS migs
+                INNER JOIN sys.dm_db_missing_index_groups AS mig
+                    ON migs.group_handle = mig.index_group_handle
+                INNER JOIN sys.dm_db_missing_index_details AS mid
+                    ON mig.index_handle = mid.index_handle
+                WHERE mid.database_id = DB_ID()
+            ),
+            TopIndexes AS (
+                SELECT TOP (@Top)
+                    Statement,
+                    IndexHandle,
+                    UserSeeks,
+                    UserScans,
+                    LastUserSeek,
+                    AvgTotalUserCost,
+                    AvgUserImpact,
+                    ImprovementScore
+                FROM Scored
+                WHERE (@TableName IS NULL OR Statement LIKE '%' + @TableName + '%')
+                  AND (@MinScore IS NULL OR ImprovementScore >= @MinScore)
+                ORDER BY ImprovementScore DESC, Statement
+            )
+            SELECT
+                ti.Statement,
+                ti.IndexHandle,
+                ti.UserSeeks,
+                ti.UserScans,
+                ti.LastUserSeek,
+                ti.AvgTotalUserCost,
+                ti.AvgUserImpact,
+                mic.column_id AS ColumnId,
+                mic.column_usage AS ColumnUsage
+            FROM TopIndexes AS ti
+            CROSS APPLY sys.dm_db_missing_index_columns(ti.IndexHandle) AS mic
+            ORDER BY ti.ImprovementScore DESC, ti.Statement, mic.column_id
+            """;
 
         var parameters = new
         {
@@ -261,19 +197,6 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
 
         return GroupRows(rawRows);
     }
-
-    private static int GetServerMajorVersion(DbConnection connection)
-    {
-        string version = connection.ServerVersion;
-        int dotIndex = version.IndexOf('.', StringComparison.Ordinal);
-        string majorPart = dotIndex >= 0 ? version[..dotIndex] : version;
-        return int.TryParse(majorPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out int major)
-            ? major
-            : 0;
-    }
-
-    private static string SelectSql(int serverMajorVersion) =>
-        serverMajorVersion >= Sql2025MinMajorVersion ? Sql2025Query : Sql2019CompatibleQuery;
 
     private static List<MissingIndexRow> GroupRows(IEnumerable<SuggestionRawRow> rawRows)
     {
