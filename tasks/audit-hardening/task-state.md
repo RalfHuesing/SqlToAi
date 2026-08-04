@@ -1,8 +1,8 @@
 ---
-status: executing  # executing | done | aborted
+status: done  # executing | done | aborted
 task: audit-hardening
 started_at: 2026-08-04T00:00:00+02:00
-last_updated: 2026-08-04T00:00:00+02:00
+last_updated: 2026-08-04T20:00:00+02:00
 rules_dir: .agents/rules
 total_fix_rounds: 1  # Summe aller Fix-Runden über alle Steps (Task-weiter Not-Anker, siehe Config)
 current_step: step-001
@@ -12,7 +12,7 @@ current_step: step-001
 
 ## Übersicht
 
-- **Task-Status:** `executing`
+- **Task-Status:** `done`
 - **Fix-Runden gesamt:** 1 (Not-Anker bei `max_total_fix_rounds`, siehe Config)
 - **Aktueller Schritt:** `step-001`
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
