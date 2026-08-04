@@ -2,9 +2,11 @@
 
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
 
 namespace SqlToAi.Mcp;
@@ -75,15 +77,28 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
         LoggerMessage.Define<string>(LogLevel.Error, new EventId(1, "WriteFailed"),
             "Failed to write MCP trail record for {CorrelationId}.");
 
+    /// <summary>
+    /// JSON-RPC structural keys whose values are excluded from redaction so that trail
+    /// entries stay correlatable/readable (checked per object level, not globally by name).
+    /// </summary>
+    private static readonly HashSet<string> StructuralKeys = new(StringComparer.Ordinal)
+    {
+        "jsonrpc", "id", "method", "type",
+    };
+
+    private const string ArrayElementPlaceholderName = "value";
+
     private readonly LoggingOptions _options;
     private readonly ILogger<McpTrailWriter> _logger;
+    private readonly IAnonymizer _anonymizer;
     private readonly object _writeLock = new();
 
     /// <summary>Initializes a new instance of <see cref="McpTrailWriter"/>.</summary>
-    public McpTrailWriter(IOptions<SqlToAiOptions> options, ILogger<McpTrailWriter> logger)
+    public McpTrailWriter(IOptions<SqlToAiOptions> options, ILogger<McpTrailWriter> logger, IAnonymizer anonymizer)
     {
         _options = options.Value.Logging;
         _logger = logger;
+        _anonymizer = anonymizer;
     }
 
     /// <inheritdoc/>
@@ -104,15 +119,23 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
             string safeCorrelationId = SanitizeForFileName(record.CorrelationId);
             string filePrefix = $"{DateTime.UtcNow:HH-mm-ss}-{safeCorrelationId}";
 
+            // Redact before any of the four output files are produced, so the JSONL metadata
+            // line and the pretty-printed companions are all fed from the same anonymized
+            // source — a local agent reading the trail files directly must never see more
+            // than what a ReadOnlyAnonymized database would expose via the MCP channel.
+            string? anonymizedArgs = AnonymizeJsonStrings(record.ArgumentsJson);
+            string? anonymizedRequest = AnonymizeJsonStrings(record.RawRequestJson);
+            string? anonymizedResponse = AnonymizeJsonStrings(record.ResponseJson);
+
             // The metadata line — one JSONL row per call, never truncated.
-            string line = JsonSerializer.Serialize(ToJsonShape(record), typeof(McpCallRecordShape), CompactContext);
+            string line = JsonSerializer.Serialize(ToJsonShape(record, anonymizedArgs, anonymizedResponse), typeof(McpCallRecordShape), CompactContext);
             string jsonlPath = Path.Combine(dateDir, $"{filePrefix}-call.jsonl");
 
             // Pretty-printed companions for humans / editors / syntax highlighters.
-            string? requestPath = !string.IsNullOrEmpty(record.RawRequestJson)
+            string? requestPath = !string.IsNullOrEmpty(anonymizedRequest)
                 ? Path.Combine(dateDir, $"{filePrefix}-request.json")
                 : null;
-            string? responsePath = !string.IsNullOrEmpty(record.ResponseJson)
+            string? responsePath = !string.IsNullOrEmpty(anonymizedResponse)
                 ? Path.Combine(dateDir, $"{filePrefix}-response.json")
                 : null;
             string? responseMdPath = responsePath is not null
@@ -124,9 +147,9 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
             lock (_writeLock)
             {
                 File.AppendAllText(jsonlPath, line + Environment.NewLine);
-                WritePrettyJson(requestPath, record.RawRequestJson);
-                WritePrettyJson(responsePath, record.ResponseJson);
-                WriteMarkdownCompanion(responseMdPath, record.ResponseJson);
+                WritePrettyJson(requestPath, anonymizedRequest);
+                WritePrettyJson(responsePath, anonymizedResponse);
+                WriteMarkdownCompanion(responseMdPath, anonymizedResponse);
             }
         }
         catch (Exception ex)
@@ -245,14 +268,95 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
     // JSON shape (snake_case-ish, compact, human-readable)
     // -------------------------------------------------------------------------
 
-    private static McpCallRecordShape ToJsonShape(McpCallRecord r) => new(
+    private static McpCallRecordShape ToJsonShape(McpCallRecord r, string? anonymizedArgs, string? anonymizedResponse) => new(
         DateTime.UtcNow.ToString("O"),
         r.CorrelationId,
         r.Method,
         r.Tool,
-        r.ArgumentsJson,
-        r.ResponseJson,
+        anonymizedArgs,
+        anonymizedResponse,
         r.DurationMs,
         r.Success
     );
+
+    // -------------------------------------------------------------------------
+    // Redaction — reuses IAnonymizer, the same masking applied to
+    // ReadOnlyAnonymized query results, with the JSON property name standing
+    // in for the (unavailable) column name.
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Parses <paramref name="json"/> and replaces every string leaf value with its
+    /// <see cref="IAnonymizer"/>-masked counterpart. Fails safe: if the input is not valid
+    /// JSON, the original string is returned unchanged (the trail must never break on
+    /// malformed JSON).
+    /// </summary>
+    private string? AnonymizeJsonStrings(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return json;
+
+        try
+        {
+            JsonNode? node = JsonNode.Parse(json);
+            AnonymizeContainer(node);
+            return node?.ToJsonString(CompactJsonOptions) ?? json;
+        }
+        catch (JsonException)
+        {
+            return json;
+        }
+    }
+
+    /// <summary>
+    /// Redacts every string leaf reachable from <paramref name="node"/>. Object properties
+    /// are replaced in place via the object indexer (using the property name as the
+    /// alias-only <c>columnName</c>); array elements have no property name of their own, so
+    /// they use the fixed <see cref="ArrayElementPlaceholderName"/> instead. Scalars at the
+    /// root (neither object nor array) are left as-is — the trail always wraps them in a
+    /// JSON-RPC envelope, so this case does not occur in practice.
+    /// </summary>
+    private void AnonymizeContainer(JsonNode? node)
+    {
+        switch (node)
+        {
+            case JsonObject obj:
+                AnonymizeObjectProperties(obj);
+                break;
+            case JsonArray arr:
+                AnonymizeArrayElements(arr);
+                break;
+        }
+    }
+
+    private void AnonymizeObjectProperties(JsonObject obj)
+    {
+        foreach (string key in obj.Select(static kvp => kvp.Key).ToList())
+        {
+            if (StructuralKeys.Contains(key)) continue;
+
+            if (obj[key] is JsonValue value && value.TryGetValue(out string? stringValue))
+            {
+                obj[key] = _anonymizer.Anonymize(key, stringValue);
+            }
+            else
+            {
+                AnonymizeContainer(obj[key]);
+            }
+        }
+    }
+
+    private void AnonymizeArrayElements(JsonArray arr)
+    {
+        for (int i = 0; i < arr.Count; i++)
+        {
+            if (arr[i] is JsonValue value && value.TryGetValue(out string? stringValue))
+            {
+                arr[i] = _anonymizer.Anonymize(ArrayElementPlaceholderName, stringValue);
+            }
+            else
+            {
+                AnonymizeContainer(arr[i]);
+            }
+        }
+    }
 }
