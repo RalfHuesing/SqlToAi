@@ -118,12 +118,20 @@ obsolet markiert) — kein starres Vorab-Dokument.
       bzw. `bc488ec` Code + `1a412cb` Result für `fix-01`).
       Code, Doku und Unit-Tests vollständig; CTE-Korrektur
       (Top-N pro `index_handle`) verifiziert.
-      *(verbleibender Restbedarf — in Arbeit → step-003:
-      Integrationstest gegen echte Test-DB in
-      `tests/SqlToAi.Tests/Integration/`. Smoke-Test der DMV-Query
-      gegen den realen SQL-Server aus
-      `src/SqlToAi/appsettings.json` (`%COMPUTERNAME%\MSSQLSERVER2022` /
-      `Agent` / `Agent!` / `DemoDB`), mit `Assert.Skip`-konformer
-      Überspring-Logik analog `AiNetLinterTests.RecreateBaseline`,
-      falls die Test-DB nicht verfügbar ist. EPIC-02 abgeschlossen
-      nach step-003.)*
+      → **Integrationstest abgeschlossen in step-003** (Reopen, da der
+      erste Lauf einen CTE-Alias-Bug und SQL-Server-2025-Inkompatibilitäten
+      aufgedeckt hat; Reopen-Code-Commit `0348e9d`, Reopen-Doku-Commit
+      `630f0ce`; final `verdict: approved`, 2026-08-05, 522/522 Tests
+      grün inkl. 4/4 Integration-Tests gegen reale Test-DB).
+      **EPIC-02 abgeschlossen.**
+      Beobachteter Restbedarf: TD-001 (Konzept-Index-Format-Harmonisierung,
+      offen), TD-002 (`DESC`-Sortierung in `ColumnGroup`, offen),
+      TD-004 (SQL-Server-Mindestversion für `IndexSuggestionService`-CTE
+      ist 2025, nicht abwärtskompatibel — architecture-spec-Eintrag
+      wäre ergänzend, offen), TD-005 (`GRANT VIEW SERVER STATE TO [Agent]`
+      nicht reproduzierbar dokumentiert, offen), TD-006 (Test 1 sollte
+      Graceful-Degradation-Pfad akzeptieren, offen), TD-007
+      (`DmvMockConnectionFactory` deckt SQL-Syntaxfehler nicht ab,
+      systemischer Test-Coverage-Gap, offen).
+      **Diese Tech-Debt-Einträge sind Beobachtungen, keine
+      Pflicht-Findings — kein impliziter Nachzug in weitere Schritte.**
