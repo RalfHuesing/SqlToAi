@@ -31,6 +31,7 @@ eine Zeile.>
 | step-002 | EPIC-02 | done | Service + Tool-Registrierung + Doku-Sync für sql_suggest_indexes | 1/3 | 3195a17 | 2026-08-04 issues → fix-01 approved | 50437e2 |
 | step-002/fix-01 | EPIC-02 | done | CTE-Top-N pro index_handle (Fix für CRITICAL aus step-002) | 0/3 | bc488ec | 2026-08-04 approved | 1a412cb |
 | step-003 | EPIC-02 | done | Integrationstest für sql_suggest_indexes gegen echte Test-DB | 0/3 | 2ac3668, 0348e9d | 2026-08-05 approved (Reopen) | 9a36678, 630f0ce |
+| step-004 | EPIC-03 | open | Post-Completion Tech-Debt Cleanup — TD-001 fixen, Rest als out-of-scope markieren | 0/3 | - | - | - |
 
 ## Config (optional)
 
