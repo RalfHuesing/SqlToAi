@@ -2,7 +2,7 @@
 status: executing  # executing | done | aborted
 task: sql-index-suggestions
 started_at: 2026-08-04T11:02:33+02:00
-last_updated: 2026-08-05T08:05:00+02:00
+last_updated: 2026-08-05T08:30:00+02:00
 rules_dir: .agents/rules  # aus konzept.md Frontmatter uebernommen
 total_fix_rounds: 1  # Summe aller Fix-Runden ueber alle Steps (Task-weiter Not-Anker, siehe Config)
 current_step: step-003
@@ -30,7 +30,7 @@ eine Zeile.>
 | step-001 | EPIC-01 | done | Parser-Erweiterung — vollständige CREATE NONCLUSTERED INDEX-Statements | 0/3 | 86c0e48 | 2026-08-04 approved | 86c0e48 |
 | step-002 | EPIC-02 | done | Service + Tool-Registrierung + Doku-Sync für sql_suggest_indexes | 1/3 | 3195a17 | 2026-08-04 issues → fix-01 approved | 50437e2 |
 | step-002/fix-01 | EPIC-02 | done | CTE-Top-N pro index_handle (Fix für CRITICAL aus step-002) | 0/3 | bc488ec | 2026-08-04 approved | 1a412cb |
-| step-003 | EPIC-02 | open | Integrationstest für sql_suggest_indexes gegen echte Test-DB | 0/3 | - | - | - |
+| step-003 | EPIC-02 | blocked | Integrationstest für sql_suggest_indexes gegen echte Test-DB | 0/3 | 2ac3668 | 2026-08-05 blocked (CTE-Bug in step-002) | 9a36678 |
 
 ## Config (optional)
 
