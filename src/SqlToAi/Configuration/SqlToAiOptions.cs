@@ -46,8 +46,11 @@ public sealed class DatabasesOptions
 /// <summary>
 /// Options for string value anonymization to protect PII (Personally Identifiable Information).
 /// <para>
-/// Default behavior: every string column is anonymized with <see cref="DefaultMode"/> unless its
-/// name matches one of the <see cref="ExcludedColumns"/> glob patterns. Per-database
+/// Default behavior: every string column is anonymized with <see cref="DefaultMode"/> unless the
+/// central <c>AnonymizationRules</c> table (see <c>AnonymizationRuleProvider</c>) marks it as
+/// excluded (<c>Anonymize == false</c>) for the resolved database/schema/table/column. There is
+/// no local, options-based exclusion list anymore (see <c>AnonymizerExclusionProvider</c>
+/// removal, 2026-07-25) — the central rule table is the single source of truth. Per-database
 /// opt-out is configured via the dynamic <c>AccessCheckSql</c> returning
 /// <c>ReadOnly</c> (raw) versus <c>ReadOnlyAnonymized</c>.
 /// </para>

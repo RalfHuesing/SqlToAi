@@ -12,9 +12,7 @@ namespace SqlToAi.Anonymization;
 /// <param name="OriginColumnName">
 /// The resolved base column name — the query result's real source column, not its output alias.
 /// Null when the origin could not be resolved (e.g. a computed/literal/aggregate expression with
-/// no traceable source column). A null value is fail-safe: the column can never be excluded via
-/// the plain <c>AnonymizerOptions.ExcludedColumns</c> glob-pattern list in that case, no matter
-/// what the alias itself looks like.
+/// no traceable source column).
 /// </param>
 /// <param name="SchemaName">
 /// The resolved base schema name, or null/empty if unknown. Lets a database-specific exclusion be
@@ -24,7 +22,12 @@ namespace SqlToAi.Anonymization;
 /// ist schema-blind"). A null/empty value only ever satisfies a schema-agnostic exclusion entry,
 /// never a schema-scoped one — fail-safe in the "keep anonymizing" direction.
 /// </param>
-/// <param name="DbExclusions">The optional set of database-specific exclusions, keyed by <see cref="SchemaName"/>/<see cref="TableName"/>/<see cref="OriginColumnName"/>.</param>
+/// <remarks>
+/// The exclusion decision itself is never made inside <see cref="Anonymizer"/> — it is resolved
+/// upstream by the caller via the central <see cref="IAnonymizationRuleProvider"/> (see
+/// <c>QueryExecutionService.Anonymization.cs</c>), before <c>Anonymize</c>/<c>Tokenize</c> is even
+/// called. This context record only carries table/column info for traceability and tests.
+/// </remarks>
 public sealed record AnonymizationColumnContext(string? TableName, string? OriginColumnName, string? SchemaName);
 
 /// <summary>
@@ -59,8 +62,9 @@ public interface IAnonymizer
     /// same value always yields the same token, and the server remembers the token-to-value mapping
     /// so a later query can reuse the token to find matching rows without the AI ever learning the
     /// real value. Respects the exact same exclusion rules as <see cref="Anonymize(string, string)"/>
-    /// (master switch, <c>ExcludedColumns</c>) — this only changes *how* an already-anonymized value
-    /// is anonymized, never *whether* it is. Falls back to the regular masking algorithm when
+    /// (master switch, central <see cref="IAnonymizationRuleProvider"/> rules) — this only changes
+    /// *how* an already-anonymized value is anonymized, never *whether* it is. Falls back to the
+    /// regular masking algorithm when
     /// tokenization is not configured to be usable (see <c>TokenizationOptions.IsUsable</c>). No
     /// schema context is available here, so <paramref name="columnName"/> doubles as its own origin
     /// — this overload was always alias-only and stays that way for backward compatibility.

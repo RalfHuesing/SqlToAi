@@ -4,10 +4,11 @@ namespace SqlToAi.Anonymization;
 
 /// <summary>
 /// Answers, ahead of any query execution, whether a given (database, table, column) would be
-/// anonymized under the current configuration — combining the global master switch, the glob
-/// <c>ExcludedColumns</c> patterns, the legacy per-database exclusion table, and the central
-/// <see cref="IAnonymizationRuleProvider"/> rules. Used by schema tools to proactively tell the
-/// caller which columns are masked, before a query is ever written.
+/// anonymized under the current configuration — combining the global master switch
+/// (<c>AnonymizerOptions.Enabled</c>) and the central <see cref="IAnonymizationRuleProvider"/>
+/// rules — the only two exclusion sources that currently exist (see
+/// <c>AnonymizationPolicyResolver.WillAnonymizeAsync</c>). Used by schema tools to proactively
+/// tell the caller which columns are masked, before a query is ever written.
 /// </summary>
 public interface IAnonymizationPolicyResolver
 {

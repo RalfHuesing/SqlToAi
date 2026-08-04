@@ -18,7 +18,7 @@ public sealed class Anonymizer : IAnonymizer
     /// <summary>
     /// Initializes a new instance of the <see cref="Anonymizer"/> class.
     /// </summary>
-    /// <param name="options">Options containing the default anonymization mode and excluded columns.</param>
+    /// <param name="options">Options containing the global master switch and the default anonymization mode.</param>
     /// <param name="tokenVault">Reverse lookup store for tokens produced by <see cref="Tokenize"/>.</param>
     public Anonymizer(IOptions<SqlToAiOptions> options, ITokenVault tokenVault)
     {
@@ -28,8 +28,9 @@ public sealed class Anonymizer : IAnonymizer
 
     /// <summary>
     /// Anonymizes a string value if anonymization is enabled and the column is not excluded.
-    /// Default behavior: every string column is anonymized, except those that match a pattern
-    /// in <see cref="AnonymizerOptions.ExcludedColumns"/>.
+    /// Default behavior: every string column is anonymized, except when <see cref="Anonymizer"/>
+    /// itself is globally disabled (<see cref="AnonymizerOptions.Enabled"/>) — column-specific
+    /// exclusions are resolved upstream by the caller, see <see cref="IsColumnExcluded"/>.
     /// </summary>
     /// <param name="columnName">The column name containing the value.</param>
     /// <param name="originalValue">The original string value.</param>
@@ -71,6 +72,12 @@ public sealed class Anonymizer : IAnonymizer
         return _tokenVault.GetOrAddToken(originalValue, tokenization.Prefix, tokenization.Suffix);
     }
 
+    // `context` is intentionally unused here — column/table-specific exclusion decisions are made
+    // upstream by callers via the central IAnonymizationRuleProvider (see
+    // QueryExecutionService.Anonymization.cs), which needs async DB access and full
+    // database/schema/table context that this synchronous method does not have. Anonymizer itself
+    // only ever applies the global master switch (AnonymizerOptions.Enabled); there is no local,
+    // per-column exclusion mechanism anymore (removed 2026-07-25, commit 9324ed1, see TD-002).
     private bool IsColumnExcluded(AnonymizationColumnContext context)
     {
         return !_options.Anonymizer.Enabled;
