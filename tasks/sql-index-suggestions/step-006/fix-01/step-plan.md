@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 type: step-plan
 task: sql-index-suggestions
 step: 006/fix-01
