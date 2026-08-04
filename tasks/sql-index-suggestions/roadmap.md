@@ -63,7 +63,7 @@ obsolet markiert) — kein starres Vorab-Dokument.
 
 ## Epics
 
-- [ ] EPIC-01: Parser-Erweiterung in `sql_measure_performance` für
+- [x] EPIC-01: Parser-Erweiterung in `sql_measure_performance` für
       vollständige `CREATE NONCLUSTERED INDEX`-Statements
       — Idee 1 aus `konzept.md` (Muss-Haven, §Wie-Idee-1, §DoD).
       Bisher liefert die XML-Plan-Auswertung pro `MissingIndex` nur
@@ -77,6 +77,15 @@ obsolet markiert) — kein starres Vorab-Dokument.
       Nr. 14 in `architecture-spec.md` (erweiterte
       `PerformancePlanWarning`-Struktur) und das
       `sql_measure_performance`-Feature-Bullet in `README.md`.
+      → **umgesetzt in step-001** (`verdict: approved`, 2026-08-04, Commit `86c0e48`).
+      Beobachteter Restbedarf: TD-001 (Konzept-Beispiel zeigt
+      `IX_Orders_CustomerId_OrderDate` mit durchgehenden einfachen
+      Unterstrichen, Implementierung verwendet `IX_Orders_CustomerId__OrderDate`
+      — Doku-Harmonisierung an Konzept oder Code), TD-002 (`DESC`-Sortierung
+      in `ColumnGroup` wird ignoriert), TD-003 (Generalisierung
+      `IsShowplanPermissionError` für EPIC-02 relevant).
+      **Diese drei Tech-Debt-Einträge sind Beobachtungen, keine
+      Pflicht-Findings — kein impliziter Nachzug in EPIC-02.**
 
 - [ ] EPIC-02: Neues Tool `sql_suggest_indexes` — serverweit
       kumulierte DMV-Index-Empfehlungen mit Graceful Degradation
@@ -101,3 +110,10 @@ obsolet markiert) — kein starres Vorab-Dokument.
       Tool-Eintrag §4 Nr. 16 in `architecture-spec.md`,
       `VIEW SERVER STATE` in §H, sowie das `sql_suggest_indexes`-
       Feature-Bullet und die Tool-Zählung (15 → 16) in `README.md`.
+      *(in Arbeit → step-002: Service `IIndexSuggestionService` +
+      Dapper-Abfragen + Markdown-Renderer + Tool-Definition +
+      Dispatch + DI-Registrierung + Unit-Tests mit Mocks;
+      noch offen für step-003: Doku-Sync in
+      `architecture-spec.md` §4 Nr. 16 / §H und in `README.md`
+      sowie Integrationstest gegen echte Test-DB in
+      `tests/SqlToAi.Tests/Integration/`.)*
