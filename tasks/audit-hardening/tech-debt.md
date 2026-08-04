@@ -2,7 +2,7 @@
 task: audit-hardening
 type: tech-debt-log
 maintained_by: kritiker
-last_updated: 2026-08-04T19:30:00+02:00
+last_updated: 2026-08-04T21:45:00+02:00
 ---
 
 # Tech-Debt-Log: audit-hardening
@@ -24,7 +24,7 @@ Verweis auf die Tech-Debt-ID).
 
 | ID | Bereich / Datei | Priorität | Kurzfassung |
 |---|---|---|---|
-| TD-001 | `src/SqlToAi/Database/QueryValidationService.cs` (Zeilen 143, 151, 160) | niedrig | Nutzt `SqlServerOptions.ConnectTimeoutSeconds` (Connection-Timeout-Option) als Command-Timeout für `SET NOEXEC`/Parse-Only-Validierungsbefehle — Name passt seit der Umbenennung in Step 001 nicht mehr zum Verwendungszweck. |
+| TD-001 | `src/SqlToAi/Database/QueryValidationService.cs` (Zeilen 143, 151, 160) | niedrig | ~~Nutzte `SqlServerOptions.ConnectTimeoutSeconds` (Connection-Timeout-Option) als Command-Timeout für `SET NOEXEC`/Parse-Only-Validierungsbefehle~~ — behoben in step-004. |
 | TD-002 | `src/SqlToAi/Anonymization/Anonymizer.cs:74` (`IsColumnExcluded`) | hoch | Wertet den `context`-Parameter nie aus — `AnonymizerOptions.ExcludedColumns`-Glob-Patterns greifen projektweit nirgends (weder für Query-Ergebnisse noch für den neuen Trail-Redaction-Pfad aus Step 003), obwohl die XML-Doku und `IAnonymizationPolicyResolver` (genutzt für die "Anonymized: Yes/No"-Schema-Hinweise) das Gegenteil suggerieren. |
 | TD-003 | `src/SqlToAi/Mcp/McpTrailWriter.cs` (`AnonymizeObjectProperties`, `content`-Array-Sonderfall) | niedrig | Der Content-Block-Kontext (`IsContentBlock`) wird für jede Objekt-Property namens `content` mit Array-Wert aktiviert, nicht nur für `result.content[]` im Response-Envelope — vom Plan als akzeptabel sanktioniert, aber ein LLM-gewähltes `arguments.content`-Array mit `type`-Properties würde ebenfalls (fälschlich) exempt behandelt. |
 
@@ -57,7 +57,12 @@ Verweis auf die Tech-Debt-ID).
   Validierungsabfragen nicht mehr an der Connection-Timeout-Option hängt. Ggf. im selben Zug
   `SecondaryConnectionSettings.CommandTimeoutSeconds` (`SecondaryConnectionBuilder.cs:54`) korrigieren,
   da strukturell dasselbe Muster.
-- **Status:** offen
+- **Status:** erledigt — behoben in `step-004` (Commit `7becaf3`, Kritiker-Review vom
+  2026-08-04T21:45:00+02:00). `QueryValidationService` liest `CommandTimeout` jetzt aus
+  `QueryExecutionOptions.CommandTimeoutSeconds`; verifiziert per `git show 7becaf3` und neuem
+  Unit-Test `ValidateQueryAsync_ShouldUseQueryExecutionCommandTimeout_NotConnectTimeout`.
+  `SecondaryConnectionBuilder.cs:54` (umgekehrtes Muster) bleibt bewusst unangetastet — siehe
+  `step-plan.md` „Notes" für step-004, weiterhin nicht Teil dieses Eintrags.
 
 ### TD-002 — `Anonymizer.IsColumnExcluded` wertet `context` nie aus [Priorität: hoch]
 

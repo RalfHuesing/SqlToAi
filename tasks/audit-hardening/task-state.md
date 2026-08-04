@@ -30,6 +30,7 @@ eine Zeile.>
 | step-001 | EPIC-01 | done | CommandTimeout-Konfigurierbarkeit & Umbenennung | 0/3 | 32d1aab | approved | 32d1aab |
 | step-002 | EPIC-02 | done | Serverseitiges Row-Limit via SET ROWCOUNT | 0/3 | 27d7259 | approved | 27d7259 |
 | step-003 | EPIC-03 | done | MCP-Trail-Redaction via Anonymizer-Reuse | 1/3 | d64241d | approved | d64241d |
+| step-004 | EPIC-04 | done | QueryValidationService: korrekte Command-Timeout-Option (TD-001) | 0/3 | 7becaf3 | approved | 7becaf3 |
 
 ## Config (optional)
 
