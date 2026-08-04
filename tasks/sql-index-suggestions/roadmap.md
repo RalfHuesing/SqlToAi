@@ -158,3 +158,43 @@ obsolet markiert) — kein starres Vorab-Dokument.
       Abschnitt ergänzt. **Kein Code-Change, kein Test-Change**,
       522/522 Tests grün bleiben. Risiko `low`, `step_type: single`.
       **EPIC-03 abgeschlossen.**
+
+- [ ] EPIC-04: Post-Completion Tech-Debt Cleanup Round 2
+      (Nutzer-Anordnung 2026-08-05 nach EPIC-03-Abschluss)
+      — Nach EPIC-03 hat der Nutzer am 2026-08-05 eine neue Direktive
+      erteilt: die verbleibenden Tech-Debts in `tech-debt.md` adressieren
+      nach der Policy **„tech debt soll nur beinhalten was wirklich offen
+      ist"**. Klassifizierung:
+      - **TD-002** (DESC-Sortierung in `ColumnGroup`): umsetzen
+      - **TD-004** (SQL-2019/2022-Syntax): umsetzen, minimal unterstützte
+        SQL-Server-Version ist **2019** (per Nutzer-Vorgabe)
+      - **TD-005** (Test-Environment-Setup `GRANT VIEW SERVER STATE`):
+        grundsätzlich nicht machen
+      - **TD-006** (Test 1 Graceful-Toleranz): umsetzen
+      - **TD-007** (`DmvMockConnectionFactory` SQL-Validierung): skippen,
+        gleicher Status wie TD-005 (grundsätzlich nicht)
+      TD-001 und TD-003 (beide bereits erledigt) sowie TD-005 und TD-007
+      (grundsätzlich nicht) werden aus `tech-debt.md` entfernt; nur
+      TD-002, TD-004, TD-006 bleiben als offene Items.
+      Umsetzung in **drei separaten Steps** (einer pro TD):
+      - **step-005** (TD-002, EPIC-04) — `DESC`-Sortierung in
+        `BuildCreateIndexStatement` (`PerformanceMeasurementService.cs:373`)
+        + neue Tests; reine Code-/Test-Änderung in einer Datei, klein,
+        risiko `low`.
+      - **step-006** (TD-004, EPIC-04) — SQL-2019/2022-Syntax in
+        `IndexSuggestionService.LoadSuggestionsAsync` (Zeile 140-186)
+        zurückführen: `migs.index_group_handle` statt `group_handle`,
+        `INNER JOIN sys.dm_db_missing_index_columns ... ON
+        mic.index_handle` statt `CROSS APPLY ... (TVF)`. Annahme
+        explizit dokumentiert: SQL 2025 behält alte Spalten-Namen
+        als Aliases. + neue Tests, die die 2019/2022-Syntax validieren;
+        Code-/Test-Änderung in einer Datei, risiko `low`.
+      - **step-007** (TD-006, EPIC-04) — Test 1 in
+        `IndexSuggestionServiceIntegrationTests.cs:26-42` um den
+        Graceful-Degradation-Pfad erweitern (analog Test 4); reine
+        Test-Änderung, risiko `low`.
+      Nach jedem `approved`-Verdict: Eintrag aus `tech-debt.md` entfernen
+      (per neuer Policy). Nach allen drei `approved`-Verdikten:
+      `tech-debt.md` ist leer, `task-summary.md` mit
+      „Post-Completion-Tech-Debt-Cleanup Round 2"-Abschnitt ergänzen,
+      `task-state.md` Status auf `done` zurücksetzen.
