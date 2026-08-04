@@ -120,9 +120,26 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
         IndexSuggestionArgs args,
         CancellationToken ct)
     {
+        // Nested CTE: inner CTE 'Scored' computes the ImprovementScore once and
+        // applies the database-scope filter; outer CTE 'TopIndexes' applies
+        // user-supplied filters (@TableName/@MinScore) and the TOP (@Top) limit
+        // on the index_handle granularity. This avoids the T-SQL restriction
+        // that forbids referencing a SELECT-list alias in the WHERE clause of
+        // the same SELECT (see step-003 for the original bug analysis).
+        //
+        // SQL Server 2025 compatibility notes (verified against the test instance
+        // in step-003):
+        //   * `sys.dm_db_missing_index_group_stats.index_group_handle` was renamed
+        //     to `group_handle`. The other DMVs (`sys.dm_db_missing_index_groups`,
+        //     `sys.dm_db_missing_index_details`) still expose `index_group_handle`
+        //     / `index_handle` as before.
+        //   * `sys.dm_db_missing_index_columns` is now a table-valued function
+        //     that takes the `index_handle` as a parameter; it is no longer a
+        //     view with an `index_handle` column. We invoke it via CROSS APPLY
+        //     on the per-handle rows of the outer SELECT.
         const string sql = """
-            WITH TopIndexes AS (
-                SELECT TOP (@Top)
+            WITH Scored AS (
+                SELECT
                     mid.statement AS Statement,
                     mig.index_handle AS IndexHandle,
                     migs.user_seeks AS UserSeeks,
@@ -133,13 +150,25 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
                     (migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans)) AS ImprovementScore
                 FROM sys.dm_db_missing_index_group_stats AS migs
                 INNER JOIN sys.dm_db_missing_index_groups AS mig
-                    ON migs.index_group_handle = mig.index_group_handle
+                    ON migs.group_handle = mig.index_group_handle
                 INNER JOIN sys.dm_db_missing_index_details AS mid
                     ON mig.index_handle = mid.index_handle
                 WHERE mid.database_id = DB_ID()
-                  AND (@TableName IS NULL OR mid.statement LIKE '%' + @TableName + '%')
+            ),
+            TopIndexes AS (
+                SELECT TOP (@Top)
+                    Statement,
+                    IndexHandle,
+                    UserSeeks,
+                    UserScans,
+                    LastUserSeek,
+                    AvgTotalUserCost,
+                    AvgUserImpact,
+                    ImprovementScore
+                FROM Scored
+                WHERE (@TableName IS NULL OR Statement LIKE '%' + @TableName + '%')
                   AND (@MinScore IS NULL OR ImprovementScore >= @MinScore)
-                ORDER BY ImprovementScore DESC, mid.statement
+                ORDER BY ImprovementScore DESC, Statement
             )
             SELECT
                 ti.Statement,
@@ -152,8 +181,7 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
                 mic.column_id AS ColumnId,
                 mic.column_usage AS ColumnUsage
             FROM TopIndexes AS ti
-            INNER JOIN sys.dm_db_missing_index_columns AS mic
-                ON ti.IndexHandle = mic.index_handle
+            CROSS APPLY sys.dm_db_missing_index_columns(ti.IndexHandle) AS mic
             ORDER BY ti.ImprovementScore DESC, ti.Statement, mic.column_id
             """;
 

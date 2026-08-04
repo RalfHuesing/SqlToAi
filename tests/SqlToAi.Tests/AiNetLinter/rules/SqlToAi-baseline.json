@@ -26,7 +26,7 @@
     "src/SqlToAi/Database/IQueryTokenResolver.cs": "5b41c33c7b337e0c3798c5171ca4fbd07d68d32aa94f11eb59719f7dd959d4b2",
     "src/SqlToAi/Database/IQueryValidationService.cs": "d7a87580407f8a6865541882a7e1dd1f68423b3129bd5ea547b00fca1fd867ea",
     "src/SqlToAi/Database/ISchemaService.cs": "0c77a7d16d16b370671114a01543ac73cd49e4287a20cf8a946c13adf56569da",
-    "src/SqlToAi/Database/IndexSuggestionService.cs": "0c9f67e80a8f32e26fb1f5aefc14b9f1f7eec975c98dd5adc0bb2d340c6bf41c",
+    "src/SqlToAi/Database/IndexSuggestionService.cs": "dfe2689d6d6b2b605f366de9e07edf93a13c687ff0e96ccfe44534b94a3b8ac0",
     "src/SqlToAi/Database/MarkdownTableRenderer.cs": "4ce6ccce77660bd60f6a7a84c91b17a5b2597adf5d3325c3b2cd910c909d3002",
     "src/SqlToAi/Database/OptimizationBenchmarkService.cs": "5a5f1a64a85e0848f25157e23e38e13a1d44f764511d925008a3251799344cb1",
     "src/SqlToAi/Database/PerformanceMeasurementService.cs": "2af9766247f8569e7d401a7b8c7e47977a9d6bf09a4ffa40517b97d26241c569",
