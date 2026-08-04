@@ -140,7 +140,7 @@ public sealed class QueryValidationService : IQueryValidationService
         using var setNoexecCmd = connection.CreateCommand();
         setNoexecCmd.CommandText = "SET NOEXEC ON";
         setNoexecCmd.Transaction = transaction;
-        setNoexecCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
+        setNoexecCmd.CommandTimeout = _dbOptions.ConnectTimeoutSeconds;
         await setNoexecCmd.ExecuteNonQueryAsync(cancellationToken);
 
         try
@@ -148,7 +148,7 @@ public sealed class QueryValidationService : IQueryValidationService
             using var queryCmd = connection.CreateCommand();
             queryCmd.CommandText = query;
             queryCmd.Transaction = transaction;
-            queryCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
+            queryCmd.CommandTimeout = _dbOptions.ConnectTimeoutSeconds;
             SqlParameterBinder.BindParameters(queryCmd, parameters);
             await queryCmd.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -157,7 +157,7 @@ public sealed class QueryValidationService : IQueryValidationService
             using var resetCmd = connection.CreateCommand();
             resetCmd.CommandText = "SET NOEXEC OFF";
             resetCmd.Transaction = transaction;
-            resetCmd.CommandTimeout = _dbOptions.CommandTimeoutSeconds;
+            resetCmd.CommandTimeout = _dbOptions.ConnectTimeoutSeconds;
             await resetCmd.ExecuteNonQueryAsync(cancellationToken);
         }
     }

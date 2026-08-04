@@ -375,6 +375,28 @@ public sealed partial class QueryExecutionServiceTests
         Assert.Equal(0, result.Value.LogicalReads);
     }
 
+    // -------------------------------------------------------------------------
+    // Tests: configurable command timeout (audit-hardening step-001) — verifies the
+    // hardcoded `CommandTimeout = 0` (unbounded) is gone and the configured
+    // QueryExecutionOptions.CommandTimeoutSeconds reaches the actual DbCommand.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldApplyConfiguredCommandTimeout_ToCommand()
+    {
+        var options = new SqlToAiOptions { QueryExecution = new QueryExecutionOptions { CommandTimeoutSeconds = 45 } };
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("Col1\tVal1"));
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(45, factory.LastConnection?.LastCommand?.CommandTimeout);
+    }
+
     // Anonymization and tokenization tests continue in the second partial-class file:
     // see QueryExecutionServiceAnonymizationTests.cs.
 }

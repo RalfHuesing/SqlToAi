@@ -80,4 +80,21 @@ public sealed class SqlConnectionFactoryTests
         Assert.Contains("Integrated Security=True", connection.ConnectionString);
         Assert.Contains("Initial Catalog=MyDb", connection.ConnectionString);
     }
+
+    [Fact]
+    public void CreateConnection_ShouldUseConfiguredConnectTimeout()
+    {
+        // Arrange
+        var options = new SqlToAiOptions();
+        options.SqlServer.Server = "localhost";
+        options.SqlServer.IntegratedSecurity = true;
+        options.SqlServer.ConnectTimeoutSeconds = 7;
+        var factory = new SqlConnectionFactory(Options.Create(options));
+
+        // Act
+        using var connection = factory.CreateConnection("MyDb");
+
+        // Assert
+        Assert.Contains("Connect Timeout=7", connection.ConnectionString);
+    }
 }

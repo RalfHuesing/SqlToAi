@@ -248,7 +248,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService
         using var command = args.Connection.CreateCommand();
         command.CommandText = args.Query;
         command.Transaction = args.Transaction;
-        command.CommandTimeout = 0;
+        command.CommandTimeout = _options.CommandTimeoutSeconds;
         SqlParameterBinder.BindParameters(command, args.Parameters);
 
         using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess | CommandBehavior.KeyInfo, cancellationToken);

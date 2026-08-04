@@ -26,7 +26,9 @@ public sealed class SqlServerOptions
     public string? Password { get; set; }
     public bool IntegratedSecurity { get; set; }
     public List<string> ExcludedDatabases { get; set; } = [];
-    public int CommandTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>ADO.NET connection (login) timeout in seconds, i.e. how long to wait when opening the connection.</summary>
+    public int ConnectTimeoutSeconds { get; set; } = 30;
 }
 
 /// <summary>
@@ -160,4 +162,7 @@ public sealed class QueryExecutionOptions
 
     /// <summary>Hard ceiling on rows returned regardless of caller request.</summary>
     public int MaxRowLimit { get; set; } = 1000;
+
+    /// <summary>Command execution timeout in seconds applied to every query run via <c>sql_execute_query</c>.</summary>
+    public int CommandTimeoutSeconds { get; set; } = 30;
 }
