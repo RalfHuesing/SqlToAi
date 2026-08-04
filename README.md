@@ -11,6 +11,7 @@ Designed specifically for developers analyzing ERP systems, optimizing SQL queri
 ### ⚡ SQL Performance, Equivalence & Benchmarking
 * 🏆 **All-in-One Optimization Benchmarking (`sql_benchmark_optimization`):** Compare baseline vs candidate queries in a single step, evaluating result equivalence, resource utilization deltas (CPU time, logical/physical reads), XML execution plan warnings, and returning an automated actionable recommendation verdict (`Recommended`, `NotRecommended`, `Neutral`, `UnsafeDueToDataMismatch`).
 * ⚡ **SQL Performance & Execution Plan Engine (`sql_measure_performance`):** Measure server-side CPU time, elapsed time, and logical/physical reads (`STATISTICS IO, TIME`), and parse actual XML execution plans (`STATISTICS XML`) for missing index recommendations (with ready-to-execute CREATE NONCLUSTERED INDEX DDL statements per warning), table scans, and implicit data type conversions (`CONVERT_IMPLICIT`), with graceful degradation if `SHOWPLAN` permissions are missing.
+* 🧭 **Server-Wide Missing-Index Suggestions (`sql_suggest_indexes`):** Returns server-wide cumulative missing-index recommendations from SQL Server's `sys.dm_db_missing_index_*` DMVs, prioritized by `improvement_score` (`avg_total_user_cost × avg_user_impact × (user_seeks + user_scans)`), as a Markdown table with the equality/inequality/include column lists, seek/scan counts, and last-seek timestamp. Output always starts with a restart-reset note (DMV data accumulates since the last SQL Server restart). Filters: `table_name` (LIKE on the DMV `statement` column), `min_score`, `top` (default 10). Degrades gracefully (structured permission note instead of a hard error) when the database user lacks `VIEW SERVER STATE`.
 * ⚖️ **Database-Side Result Set Equivalence (`sql_compare_queries`):** Perform server-side set difference checks (`EXCEPT` / `UNION ALL`), row count comparisons, and schema validations between baseline (Query A) and candidate (Query B) queries without downloading large datasets to the client.
 * 🏷️ **Typed SQL Parameters & Explicit Type Overrides:** Parameterized query support across execution, validation, comparison, and benchmarking tools — supporting automatic primitive/date inference as well as explicit DB type overrides (e.g. `{"value": "123", "dbType": "AnsiString"}`) to eliminate implicit conversion warnings in SQL Server plans.
 
@@ -24,7 +25,7 @@ Designed specifically for developers analyzing ERP systems, optimizing SQL queri
 * 🚦 **Level-Based Database Access Control:** Granular access lists (`ReadWrite`, `ReadOnly`, `ReadOnlyAnonymized`, `SchemaOnly`) in `appsettings.json` with fail-safe default-deny (`AccessLevel.None`).
 
 ### 🔎 Schema Discovery & Developer Experience
-* 📋 **15 Progressive Disclosure Schema Tools:** Exposes 15 optimized tools for schema discovery, triggers, constraints, indexes, routine parameters, referencing entities (`sys.dm_sql_referencing_entities`), result-set equivalence comparison (`sql_compare_queries`), server performance measurement & XML plan warning parsing (`sql_measure_performance`), and all-in-one optimization benchmarking (`sql_benchmark_optimization`), formatted in clean Markdown for the AI.
+* 📋 **16 Progressive Disclosure Schema Tools:** Exposes 16 optimized tools for schema discovery, triggers, constraints, indexes, routine parameters, referencing entities (`sys.dm_sql_referencing_entities`), result-set equivalence comparison (`sql_compare_queries`), server performance measurement & XML plan warning parsing (`sql_measure_performance`), all-in-one optimization benchmarking (`sql_benchmark_optimization`), and server-wide DMV-driven missing-index suggestions (`sql_suggest_indexes`), formatted in clean Markdown for the AI.
 * 🔎 **Proactive Anonymization Awareness:** `sql_get_schema` marks column anonymization status (`No`, `Yes`, `Yes (searchable)`) before queries are written, and `sql_execute_query` reports affected `Table.Column` pairs to guide the AI agent safely.
 * 📖 **Schema Enrichment (Custom Metadata):** Inject custom business logic or table/column documentation from another database/table via configurable SQL queries directly into the schema results returned to the AI.
 * 🚀 **Stdio MCP Host & CLI Query Runner:** Fast, local stdio execution for AI clients (no network setup), plus direct CLI query execution (`.\SqlToAi.exe query ...`) for manual tool verification.
@@ -99,11 +100,15 @@ GRANT VIEW DEFINITION TO [SqlToAiUser];
 
 -- 3. Execution plan XML analysis (for sql_measure_performance, sql_benchmark_optimization)
 GRANT SHOWPLAN TO [SqlToAiUser];
+
+-- 4. Server-wide cumulative DMV-driven missing-index suggestions (for sql_suggest_indexes)
+GRANT VIEW SERVER STATE TO [SqlToAiUser];
 ```
 
 * **`db_datareader`**: Grants read access to table and view data.
 * **`VIEW DEFINITION`**: Allows reading `sys.sql_modules` DDL definitions for views, procedures, functions, and triggers. Without this grant, SQL Server hides definition texts for non-owner logins.
 * **`SHOWPLAN`**: Enables actual XML execution plan generation (`STATISTICS XML`) and missing index recommendations. If missing, performance measurement tools degrade gracefully to IO/TIME metrics.
+* **`VIEW SERVER STATE`**: Server-scoped grant; enables reading the `sys.dm_db_missing_index_*` DMVs required by `sql_suggest_indexes`. If missing, the tool returns a structured permission note instead of a hard error.
 
 ### Example `appsettings.json`
 

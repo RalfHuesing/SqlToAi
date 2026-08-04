@@ -42,6 +42,7 @@ public sealed class ToolDispatcher : IToolDispatcher
     private readonly IQueryComparisonService _queryComparisonService;
     private readonly IPerformanceMeasurementService _performanceMeasurementService;
     private readonly IOptimizationBenchmarkService _benchmarkService;
+    private readonly IIndexSuggestionService _indexSuggestionService;
     private readonly DatabasesOptions _dbOptions;
     private readonly ILogger<ToolDispatcher> _logger;
     private readonly Dictionary<string, Func<ToolCallParams, CancellationToken, Task<ToolCallResult>>> _handlers;
@@ -54,6 +55,7 @@ public sealed class ToolDispatcher : IToolDispatcher
         IQueryComparisonService queryComparisonService,
         IPerformanceMeasurementService performanceMeasurementService,
         IOptimizationBenchmarkService benchmarkService,
+        IIndexSuggestionService indexSuggestionService,
         IOptions<SqlToAiOptions> options,
         ILogger<ToolDispatcher> logger)
     {
@@ -63,6 +65,7 @@ public sealed class ToolDispatcher : IToolDispatcher
         _queryComparisonService = queryComparisonService;
         _performanceMeasurementService = performanceMeasurementService;
         _benchmarkService = benchmarkService;
+        _indexSuggestionService = indexSuggestionService;
         _dbOptions = options.Value.Databases;
         _logger = logger;
 
@@ -198,7 +201,16 @@ public sealed class ToolDispatcher : IToolDispatcher
                         GetInt(paramsObj, McpConstants.ArgWarmupRuns) ?? 1,
                         GetInt(paramsObj, McpConstants.ArgExecutionRuns) ?? 1),
                     ct),
-                    res => JsonSerializer.Serialize(res, typeof(OptimizationBenchmarkResult), McpJsonContext.Default))
+                    res => JsonSerializer.Serialize(res, typeof(OptimizationBenchmarkResult), McpJsonContext.Default)),
+
+            [McpConstants.ToolSuggestIndexes] = (paramsObj, ct) =>
+                CallAsync(() => _indexSuggestionService.SuggestIndexesAsync(
+                    new IndexSuggestionArgs(
+                        GetDb(paramsObj),
+                        GetString(paramsObj, McpConstants.ArgTableName),
+                        GetDouble(paramsObj, McpConstants.ArgMinScore),
+                        GetInt(paramsObj, McpConstants.ArgTop) ?? 10),
+                    ct))
         };
     }
 
@@ -320,6 +332,21 @@ public sealed class ToolDispatcher : IToolDispatcher
         if (raw is JsonElement el)
         {
             if (el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out int v)) return v;
+        }
+        return null;
+    }
+
+    private static double? GetDouble(ToolCallParams p, string key)
+    {
+        if (!p.Arguments.TryGetValue(key, out object? raw)) return null;
+        if (raw is double d) return d;
+        if (raw is float f) return (double)f;
+        if (raw is decimal m) return (double)m;
+        if (raw is int i) return i;
+        if (raw is long l) return l;
+        if (raw is JsonElement el)
+        {
+            if (el.ValueKind == JsonValueKind.Number && el.TryGetDouble(out double v)) return v;
         }
         return null;
     }

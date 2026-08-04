@@ -165,7 +165,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             {
                 await ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS XML ON", ct);
             }
-            catch (SqlException ex) when (IsShowplanPermissionError(ex))
+            catch (SqlException ex) when (IsPermissionError(ex, 262, "SHOWPLAN"))
             {
                 hasShowplanPermission = false;
                 showplanNote = "SHOWPLAN permission missing; performance metrics captured without XML plan analysis.";
@@ -214,7 +214,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             {
                 await RunQueryOnceAsync(connection, transaction, args, ct);
             }
-            catch (SqlException ex) when (hasPermission && IsShowplanPermissionError(ex))
+            catch (SqlException ex) when (hasPermission && IsPermissionError(ex, 262, "SHOWPLAN"))
             {
                 hasPermission = false;
                 note = "SHOWPLAN permission missing; performance metrics captured without XML plan analysis.";
@@ -250,7 +250,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
                 }
                 perRunMessages.Add([.. messages]);
             }
-            catch (SqlException ex) when (hasPermission && IsShowplanPermissionError(ex))
+            catch (SqlException ex) when (hasPermission && IsPermissionError(ex, 262, "SHOWPLAN"))
             {
                 hasPermission = false;
                 note = "SHOWPLAN permission missing; performance metrics captured without XML plan analysis.";
@@ -262,8 +262,15 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
         return (xmlPlanText, perRunMessages, hasPermission, note);
     }
 
-    private static bool IsShowplanPermissionError(SqlException ex) =>
-        ex.Number == 262 || ex.Message.Contains("SHOWPLAN", StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// Detects a SQL Server permission error by matching a known error number
+    /// (e.g. 262 for SHOWPLAN) or a case-insensitive keyword in the message
+    /// (e.g. "SHOWPLAN" or "VIEW SERVER STATE"). Generalized from the
+    /// previously SHOWPLAN-specific helper so the same logic can detect
+    /// missing <c>VIEW SERVER STATE</c> for DMV-based tools.
+    /// </summary>
+    internal static bool IsPermissionError(SqlException ex, int errorNumber, string keyword) =>
+        ex.Number == errorNumber || ex.Message.Contains(keyword, StringComparison.OrdinalIgnoreCase);
 
     private static async Task ExecuteSetOptionAsync(DbConnection connection, DbTransaction transaction, string sql, CancellationToken ct)
     {

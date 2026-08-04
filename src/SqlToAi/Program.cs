@@ -188,6 +188,7 @@ internal static class Program
         services.AddSingleton<IQueryComparisonService, QueryComparisonService>();
         services.AddSingleton<IPerformanceMeasurementService, PerformanceMeasurementService>();
         services.AddSingleton<IOptimizationBenchmarkService, OptimizationBenchmarkService>();
+        services.AddSingleton<IIndexSuggestionService, IndexSuggestionService>();
 
         // Anonymization
         services.AddSingleton<ITokenVault, TokenVault>();

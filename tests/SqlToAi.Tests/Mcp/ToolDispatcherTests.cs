@@ -21,7 +21,8 @@ public sealed class ToolDispatcherTests
         FakeQueryValidationService? validation = null,
         FakeQueryComparisonService? comparison = null,
         FakePerformanceMeasurementService? perf = null,
-        FakeOptimizationBenchmarkService? benchmark = null)
+        FakeOptimizationBenchmarkService? benchmark = null,
+        FakeIndexSuggestionService? indexSuggestion = null)
     {
         var options = new SqlToAiOptions();
         return new ToolDispatcher(
@@ -31,6 +32,7 @@ public sealed class ToolDispatcherTests
             comparison ?? new FakeQueryComparisonService(),
             perf       ?? new FakePerformanceMeasurementService(),
             benchmark  ?? new FakeOptimizationBenchmarkService(),
+            indexSuggestion ?? new FakeIndexSuggestionService(),
             Options.Create(options),
             NullLogger<ToolDispatcher>.Instance);
     }
@@ -447,6 +449,29 @@ public sealed class ToolDispatcherTests
             var deltas = new BenchmarkMetricsDelta(new MetricDelta(10, 5, -5, -50.0), new MetricDelta(15, 10, -5, -33.3), new MetricDelta(100, 50, -50, -50.0), new MetricDelta(0, 0, 0, 0.0));
             var res = new OptimizationBenchmarkResult(args.DatabaseName, "Recommended", "Summary", comp, perf, perf, deltas);
             return Task.FromResult(Result<OptimizationBenchmarkResult>.Success(res));
+        }
+    }
+
+    private sealed class FakeIndexSuggestionService : IIndexSuggestionService
+    {
+        public bool SuggestCalled { get; private set; }
+        public IndexSuggestionArgs? LastArgs { get; private set; }
+
+        public Task<Result<string>> SuggestIndexesAsync(
+            string databaseName,
+            string? tableName = null,
+            double? minScore = null,
+            int? top = null,
+            CancellationToken cancellationToken = default)
+            => SuggestIndexesAsync(new IndexSuggestionArgs(databaseName, tableName, minScore, top ?? 10), cancellationToken);
+
+        public Task<Result<string>> SuggestIndexesAsync(
+            IndexSuggestionArgs args,
+            CancellationToken cancellationToken = default)
+        {
+            SuggestCalled = true;
+            LastArgs = args;
+            return Task.FromResult(Result<string>.Success("# Missing Index Recommendations"));
         }
     }
 }

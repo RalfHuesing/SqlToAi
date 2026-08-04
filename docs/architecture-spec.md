@@ -164,11 +164,15 @@ GRANT VIEW DEFINITION TO [SqlToAiUser];
 
 -- 3. Ausführungsplan-XML & Indexempfehlungen analysieren (für sql_measure_performance, sql_benchmark_optimization)
 GRANT SHOWPLAN TO [SqlToAiUser];
+
+-- 4. Serverweit kumulierte DMV-Index-Empfehlungen abfragen (für sql_suggest_indexes)
+GRANT VIEW SERVER STATE TO [SqlToAiUser];
 ```
 
 * **`db_datareader`**: Erlaubt das Lesen aller Tabellendaten für Abfragen und Äquivalenzvergleiche.
 * **`VIEW DEFINITION`**: Ermöglicht das Auslesen der Quelltexte von Views, Stored Procedures, Funktionen und Triggern aus `sys.sql_modules`. Ohne dieses Recht maskiert SQL Server die Definitionstexte für Nicht-Eigentümer.
 * **`SHOWPLAN`**: Schaltet den tatsächlichen XML-Ausführungsplan (`STATISTICS XML`) und Index-Empfehlungen für die Performance-Analyse frei. Fehlt das Recht, degradiert das Tool automatisch auf reine IO/TIME-Leistungsmessungen.
+* **`VIEW SERVER STATE`**: Server-scoped; ermöglicht das Abfragen der `sys.dm_db_missing_index_*`-DMVs für `sql_suggest_indexes`. Fehlt das Recht, liefert das Tool eine strukturierte Markdown-Notiz mit Hinweis auf die fehlende Berechtigung, statt mit einem Hard-Error (`SQL-AI-0102`) abzubrechen.
 
 ---
 
@@ -302,6 +306,14 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
   (`BenchmarkMetricsDelta`) mit `cpu_time`/`elapsed_time`/`logical_reads`/`physical_reads`, je ein
   `MetricDelta`-Objekt mit `baseline_value`/`candidate_value`/`absolute_delta`/`percentage_delta`
   (ein negativer `percentage_delta` bedeutet, dass der Kandidat sich verbessert hat).
+
+### 16. `sql_suggest_indexes`
+* **Argumente:** `database` (String, Pflicht), `table_name` (String, optional — `LIKE`-Substring-Filter auf die `statement`-Spalte der DMV, z. B. `Orders` oder `dbo.%`, case-insensitive), `min_score` (Number, optional — Mindest-`improvement_score`; Zeilen darunter werden ausgeschlossen, Default 0 = kein Filter), `top` (Int, optional — Maximalanzahl zurückgegebener Empfehlungen, Default 10).
+* **Zweck:** Liefert die serverweit kumulierten, seit dem letzten SQL-Server-Neustart akkumulierten Missing-Index-Empfehlungen aus den DMVs `sys.dm_db_missing_index_group_stats`, `sys.dm_db_missing_index_details` und `sys.dm_db_missing_index_columns`. Pro Empfehlung wird ein `improvement_score` (Formel `avg_total_user_cost × avg_user_impact × (user_seeks + user_scans)`) berechnet und das Ergebnis absteigend nach Score sortiert. Pro Zeile werden Tabelle, Equality-/Inequality-/Include-Spaltenlisten, Seek-/Scan-Counts und der Last-Seek-Zeitstempel ausgegeben.
+* **Restart-Hinweis:** Die Ausgabe beginnt mit einem festen Hinweis-Block, dass die DMV-Daten seit dem letzten Server-Neustart akkumuliert werden — auf frisch gestarteten Servern liefert das Tool entsprechend wenig oder nichts, auf lang laufenden Produktionsservern ist es aussagekräftig.
+* **Graceful Degradation:** Fehlt dem DB-User die server-scoped `VIEW SERVER STATE`-Berechtigung, gibt das Tool eine strukturierte Markdown-Notiz (inkl. Restart-Hinweis) zurück statt eines harten Fehlers. Die für diese Permission nötige Grant-Anweisung ist in §H dokumentiert.
+* **Rückgabeformat:** Markdown — `# Missing Index Recommendations — <database>`, Restart-Hinweis-Block, optional Hinweis „No missing-index recommendations found", sonst Tabelle mit Spalten `Score | Table | Equality Columns | Inequality Columns | Include Columns | Seeks | Scans | Last Seek`. `Score` ist auf eine Ganzzahl gerundet (`improvement_score`), `Last Seek` ist `yyyy-MM-dd` oder `-`, Spaltenlisten sind kommagetrennte Spalten-IDs aus `sys.dm_db_missing_index_columns` (gruppiert nach `column_usage`: EQUALITY / INEQUALITY / INCLUDE).
+* **Berechtigungen:** `VIEW SERVER STATE` (server-scoped) — siehe §H.
 
 ---
 

@@ -41,7 +41,8 @@ public sealed class ToolRegistry
         BuildExecuteQuery(),
         BuildCompareQueries(),
         BuildMeasurePerformance(),
-        BuildBenchmarkOptimization()
+        BuildBenchmarkOptimization(),
+        BuildSuggestIndexes()
     ];
 
     private static ToolDefinition BuildListDatabases() => new()
@@ -308,6 +309,33 @@ public sealed class ToolRegistry
             Required = [McpConstants.ArgDatabase, McpConstants.ArgQueryA, McpConstants.ArgQueryB]
         }
     };
+
+    private static ToolDefinition BuildSuggestIndexes() =>
+        new()
+        {
+            Name = McpConstants.ToolSuggestIndexes,
+            Description = "Returns server-wide cumulative missing-index recommendations sourced from the SQL Server DMVs " +
+                "(sys.dm_db_missing_index_group_stats, sys.dm_db_missing_index_details, sys.dm_db_missing_index_columns). " +
+                "Each row reports an improvement_score computed as avg_total_user_cost * avg_user_impact * (user_seeks + user_scans), " +
+                "the table, the equality/inequality/include column lists, the seek/scan counts, and the last-seek timestamp. " +
+                "Output is a Markdown document prefixed with a restart-reset note (DMV data accumulates since the last SQL Server " +
+                "restart, so a freshly started server returns little or nothing). Filters: table_name (optional LIKE substring on the " +
+                "DMV 'statement' column, e.g. 'Orders' or 'dbo.%'; case-insensitive substring match), min_score (optional " +
+                "improvement_score threshold, default 0 = no threshold), top (maximum number of recommendations to return, " +
+                "default 10). Degrades gracefully (returns a structured permission note instead of a hard error) if the database " +
+                "user lacks the server-scoped VIEW SERVER STATE permission — see docs/architecture-spec.md §H for the grant.",
+            InputSchema = new ToolInputSchema
+            {
+                Properties = new Dictionary<string, ToolParameterDefinition>
+                {
+                    [McpConstants.ArgDatabase]  = StringParam("Target database name. Required."),
+                    [McpConstants.ArgTableName] = OptionalStringParam("Optional LIKE filter on the DMV 'statement' column (e.g. 'Orders' or 'dbo.%'). Case-insensitive substring match."),
+                    [McpConstants.ArgMinScore]  = new() { Type = "number", Description = "Optional minimum improvement_score threshold; rows below it are excluded. Default 0 (no threshold)." },
+                    [McpConstants.ArgTop]       = new() { Type = "integer", Description = "Maximum number of recommendations to return. Default 10." }
+                },
+                Required = [McpConstants.ArgDatabase]
+            }
+        };
 
     // -------------------------------------------------------------------------
     // Shared parameter builders
