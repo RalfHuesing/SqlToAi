@@ -275,6 +275,40 @@ public sealed class IndexSuggestionServiceTests
     }
 
     // -------------------------------------------------------------------------
+    // Test: generated SQL uses SQL Server 2019/2022-compatible syntax (TD-004)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SuggestIndexesAsync_GeneratedSql_UsesSqlServer2019CompatibleSyntax()
+    {
+        var factory = new DmvMockConnectionFactory([], throwOnExecuteReader: null);
+        var service = BuildService(factory: factory);
+
+        await service.SuggestIndexesAsync(new IndexSuggestionArgs("DemoDB"), TestContext.Current.CancellationToken);
+
+        var cmd = factory.LastReaderCommand;
+        Assert.NotNull(cmd);
+        string sql = cmd!.CommandText;
+
+        // 2019/2022-compatible column name (SQL Server 2025 renamed this to
+        // "group_handle" on sys.dm_db_missing_index_group_stats only).
+        Assert.Contains("migs.index_group_handle", sql, StringComparison.Ordinal);
+
+        // 2019/2022-compatible join (sys.dm_db_missing_index_columns is a
+        // view pre-2025, joined on index_handle — not a table-valued
+        // function invoked via CROSS APPLY).
+        Assert.Contains(
+            "INNER JOIN sys.dm_db_missing_index_columns AS mic",
+            sql, StringComparison.Ordinal);
+        Assert.Contains("ON mic.index_handle = ti.IndexHandle", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("CROSS APPLY", sql, StringComparison.Ordinal);
+
+        // Regression guard: migs.group_handle (2025-only column name) must
+        // not reappear as a bare, unqualified fragment.
+        Assert.DoesNotContain("migs.group_handle", sql, StringComparison.Ordinal);
+    }
+
+    // -------------------------------------------------------------------------
     // Test 9: graceful degradation on VIEW SERVER STATE permission error
     // -------------------------------------------------------------------------
 

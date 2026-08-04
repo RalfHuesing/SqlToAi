@@ -127,16 +127,20 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
         // that forbids referencing a SELECT-list alias in the WHERE clause of
         // the same SELECT (see step-003 for the original bug analysis).
         //
-        // SQL Server 2025 compatibility notes (verified against the test instance
-        // in step-003):
-        //   * `sys.dm_db_missing_index_group_stats.index_group_handle` was renamed
-        //     to `group_handle`. The other DMVs (`sys.dm_db_missing_index_groups`,
-        //     `sys.dm_db_missing_index_details`) still expose `index_group_handle`
-        //     / `index_handle` as before.
-        //   * `sys.dm_db_missing_index_columns` is now a table-valued function
-        //     that takes the `index_handle` as a parameter; it is no longer a
-        //     view with an `index_handle` column. We invoke it via CROSS APPLY
-        //     on the per-handle rows of the outer SELECT.
+        // Minimum supported SQL Server version: 2019 (per project policy,
+        // EPIC-04/TD-004). The DMV query therefore uses the stable pre-2025
+        // schema:
+        //   * `sys.dm_db_missing_index_group_stats.index_group_handle` — this
+        //     is the column name on SQL Server 2019/2022. SQL Server 2025
+        //     renamed it to `group_handle`, but empirically still accepts
+        //     `index_group_handle` (verified against the SQL Server 2025 test
+        //     instance, see step-006 integration test results) — presumably
+        //     via a backward-compatibility alias.
+        //   * `sys.dm_db_missing_index_columns` is a view here (not a
+        //     table-valued function), joined via INNER JOIN on `index_handle`.
+        //     SQL Server 2025 turned it into a TVF, but again accepts the
+        //     classic view-style INNER JOIN in the same backward-compatible
+        //     way.
         const string sql = """
             WITH Scored AS (
                 SELECT
@@ -150,7 +154,7 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
                     (migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans)) AS ImprovementScore
                 FROM sys.dm_db_missing_index_group_stats AS migs
                 INNER JOIN sys.dm_db_missing_index_groups AS mig
-                    ON migs.group_handle = mig.index_group_handle
+                    ON migs.index_group_handle = mig.index_group_handle
                 INNER JOIN sys.dm_db_missing_index_details AS mid
                     ON mig.index_handle = mid.index_handle
                 WHERE mid.database_id = DB_ID()
@@ -181,7 +185,8 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
                 mic.column_id AS ColumnId,
                 mic.column_usage AS ColumnUsage
             FROM TopIndexes AS ti
-            CROSS APPLY sys.dm_db_missing_index_columns(ti.IndexHandle) AS mic
+            INNER JOIN sys.dm_db_missing_index_columns AS mic
+                ON mic.index_handle = ti.IndexHandle
             ORDER BY ti.ImprovementScore DESC, ti.Statement, mic.column_id
             """;
 
