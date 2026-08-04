@@ -25,20 +25,10 @@ Verweis auf die Tech-Debt-ID).
 
 | ID | Bereich / Datei | Priorität | Kurzfassung |
 |---|---|---|---|
-| TD-002 | `src/SqlToAi/Database/PerformanceMeasurementService.cs:373` (`BuildCreateIndexStatement`) | niedrig | `DESC`-Markierung an `Column`-Elementen in `ColumnGroup` wird ignoriert — semantisch nicht deckungsgleich mit SQL-Server-Empfehlung, wenn Spalte absteigend indiziert werden soll. |
 | TD-004 | `src/SqlToAi/Database/IndexSuggestionService.cs:140-186` (`LoadSuggestionsAsync` SQL) | mittel | CTE nutzt SQL-Server-2025-spezifische Schema-Änderungen (`sys.dm_db_missing_index_group_stats.group_handle` statt `index_group_handle`; `sys.dm_db_missing_index_columns` als TVF via `CROSS APPLY`); nicht abwärtskompatibel zu SQL Server 2019/2022 — eine Mindestversions-Notiz in `docs/architecture-spec.md` §4 Nr. 16 oder §H wäre ergänzend. |
 | TD-006 | `tests/SqlToAi.Tests/Integration/IndexSuggestionServiceIntegrationTests.cs` (Test 1) | niedrig | Test 1 (`SuggestIndexesAsync_ShouldReturnMarkdownWithRestartHint_AgainstRealDatabase`) akzeptiert nur „No recommendations" oder Markdown-Tabelle, NICHT die Graceful-Degradation-Notiz; Test 4 akzeptiert beide. Asymmetrie erzwingt implizit `VIEW SERVER STATE`-Setup-Voraussetzung — Erweiterung analog Test 4 würde Test 1 setup-tolerant machen. |
 
 ## Einträge
-
-### TD-002 — `DESC`-Sortierung in `ColumnGroup`-Spalten wird ignoriert [Priorität: niedrig]
-
-- **Gefunden in:** step-001 (Kritiker-Review vom 2026-08-04, auf Basis von Coder-Notiz in `step-result.md` Beobachtungen)
-- **Ort:** `src/SqlToAi/Database/PerformanceMeasurementService.cs:373` (`BuildCreateIndexStatement`) — beim Aufbau der `ON`-Klausel wird `Column`-`Name` 1:1 übernommen, das `Descending`-Attribut nicht ausgewertet.
-- **Befund:** SQL-Server kann in `<MissingIndex>`-XML-Plans Spalten mit `<Column Name="X" Descending="True" />` markieren. Das gebaute DDL ist für absteigend indizierte Spalten semantisch unvollständig (es fehlt die `DESC`-Direktive in der Schlüsselspaltenliste). Funktional funktioniert der Index weiterhin aufsteigend, ist also nicht falsch, nur nicht exakt deckungsgleich mit der SQL-Server-Empfehlung.
-- **Warum nicht sofort gefixt:** Nicht im Scope von step-001 (Plan erwähnt `DESC` nicht; Konzept ebenfalls nicht). Wäre eine 1-2-Zeilen-Erweiterung im Helper, aber berührt Tests und ist eine bewusste Scope-Entscheidung des Planers.
-- **Vorschlag:** Bei EPIC-02 (oder einem eigenen kleinen Step) die `Column`-Kinder um `Descending`-Attribut-Auswertung erweitern und `keyClause` entsprechend mit nachgestelltem `DESC` rendern. Planer-/Nutzer-Entscheidung.
-- **Status:** **in Bearbeitung (step-005)** — Nutzer hat 2026-08-05 angeordnet, TD-002 umzusetzen. Wird in `step-005` (EPIC-04) gefixt. Nach step-005-`approved` wird der Eintrag aus `tech-debt.md` entfernt.
 
 ### TD-004 — `IndexSuggestionService`-CTE ist nicht abwärtskompatibel zu SQL Server < 2025 [Priorität: mittel]
 
