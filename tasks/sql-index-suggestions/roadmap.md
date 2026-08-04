@@ -159,7 +159,7 @@ obsolet markiert) — kein starres Vorab-Dokument.
       522/522 Tests grün bleiben. Risiko `low`, `step_type: single`.
       **EPIC-03 abgeschlossen.**
 
-- [ ] EPIC-04: Post-Completion Tech-Debt Cleanup Round 2
+- [x] EPIC-04: Post-Completion Tech-Debt Cleanup Round 2
       (Nutzer-Anordnung 2026-08-05 nach EPIC-03-Abschluss)
       — Nach EPIC-03 hat der Nutzer am 2026-08-05 eine neue Direktive
       erteilt: die verbleibenden Tech-Debts in `tech-debt.md` adressieren
@@ -217,5 +217,12 @@ obsolet markiert) — kein starres Vorab-Dokument.
       Stand (SQL-Server-2025-spezifische Syntax, wie seit step-003)
       zurückgesetzt; alle 4 Integrationstests wieder grün. Details:
       `step-006/step-result.md`, `step-006/fix-01/step-result.md`.
-      **step-007 (TD-006) noch offen.** EPIC-04 bleibt offen, bis auch
-      step-007 `approved` ist.
+      → **TD-006 in step-007 abgeschlossen** (`verdict: approved`,
+      2026-08-05, Commit `0a71e9b`): Test 1 in
+      `IndexSuggestionServiceIntegrationTests.cs` akzeptiert jetzt
+      analog zu Test 4 auch den Graceful-Degradation-Pfad; Eintrag aus
+      `tech-debt.md` entfernt.
+      **EPIC-04 abgeschlossen.** `tech-debt.md` ist damit leer (alle
+      Einträge TD-001–TD-007 sind entweder erledigt oder bewusst als
+      „won't fix"/„grundsätzlich nicht" geschlossen und aus der Datei
+      entfernt, Volltexte in der Git-Historie).

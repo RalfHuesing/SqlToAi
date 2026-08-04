@@ -2,23 +2,23 @@
 status: executing  # executing | done | aborted | blocked
 task: sql-index-suggestions
 started_at: 2026-08-04T11:02:33+02:00
-last_updated: 2026-08-05T18:00:00+02:00
+last_updated: 2026-08-05T18:30:00+02:00
 rules_dir: .agents/rules  # aus konzept.md Frontmatter uebernommen
 total_fix_rounds: 2  # Summe aller Fix-Runden ueber alle Steps (Task-weiter Not-Anker, siehe Config)
-current_step: step-007  # Reopen (Round 2): Post-Completion-Tech-Debt-Cleanup EPIC-04
+current_step: step-007  # Reopen (Round 2): Post-Completion-Tech-Debt-Cleanup EPIC-04 — abgeschlossen
 ---
 
 # Task State: sql-index-suggestions
 
 ## Uebersicht
 
-- **Task-Status:** `executing` — TD-004 als „won't fix" geschlossen (Nutzer-Entscheidung 2026-08-05), letzter offener Punkt in EPIC-04 ist step-007 (TD-006)
+- **Task-Status:** `executing` — alle Epics abgehakt, kein Fix ausstehend; globaler Abschluss-Check (Kritiker-Modus `global`) steht noch aus
 - **Fix-Runden gesamt:** 2 (Not-Anker bei `max_total_fix_rounds`, siehe Config)
-- **Aktueller Schritt:** `step-007` (TD-006 Test-1-Graceful-Toleranz, EPIC-04, offen)
-- **Roadmap:** siehe `roadmap.md` fuer den Epic-Fortschritt (EPIC-01 + EPIC-02 + EPIC-03 done, EPIC-04 fast fertig)
-- **Tech-Debt:** siehe `tech-debt.md` — nur noch TD-006 offen (TD-002 erledigt, TD-004 won't fix, beide entfernt)
+- **Aktueller Schritt:** `step-007` (TD-006, EPIC-04, `approved`) — EPIC-04 damit vollständig
+- **Roadmap:** siehe `roadmap.md` — EPIC-01 bis EPIC-04 alle `[x]` abgehakt
+- **Tech-Debt:** `tech-debt.md` ist leer — TD-002/TD-006 erledigt, TD-004 won't fix, TD-001/TD-003 bereits erledigt, TD-005/TD-007 grundsätzlich nicht
 - **Gestartet:** 2026-08-04T11:02:33+02:00
-- **Zuletzt aktualisiert:** 2026-08-05T18:00:00+02:00
+- **Zuletzt aktualisiert:** 2026-08-05T18:30:00+02:00
 
 ## Steps
 
@@ -36,7 +36,7 @@ eine Zeile.>
 | step-006 | EPIC-04 | blocked → won't fix | TD-004 — SQL-2019/2022-Syntax (Annahme widerlegt) | 1/3 | 2011331 | - | 2011331 |
 | step-006/fix-01 | EPIC-04 | blocked → won't fix | Versionsabhängige DMV-Query (Annahme erneut widerlegt) | 1/3 | 75fb296 | - | 75fb296 |
 | step-006/revert | EPIC-04 | done | TD-004-Versuche zurueckgesetzt, Nutzer-Entscheidung „won't fix" | - | 09fa038 | n/a (Revert, kein Review-Step) | 09fa038 |
-| step-007 | EPIC-04 | open | TD-006 — Test 1 Graceful-Degradation-Toleranz | 0/3 | - | - | - |
+| step-007 | EPIC-04 | done | TD-006 — Test 1 Graceful-Degradation-Toleranz | 0/3 | 0a71e9b | 2026-08-05 approved | 0a71e9b |
 
 ## Config (optional)
 
