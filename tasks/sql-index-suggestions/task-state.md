@@ -27,7 +27,7 @@ eine Zeile.>
 
 | Step | Epic | Status | Title | Fix-Runden | Coded | Reviewed | Commit |
 |------|------|--------|-------|------------|-------|----------|--------|
-| step-001 | - | open | (noch nicht geplant) | 0/3 | - | - | - |
+| step-001 | EPIC-01 | open | Parser-Erweiterung — vollständige CREATE NONCLUSTERED INDEX-Statements | 0/3 | - | - | - |
 
 ## Config (optional)
 
