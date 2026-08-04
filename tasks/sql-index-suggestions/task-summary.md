@@ -306,3 +306,66 @@ Behebung keinen Task-Block rechtfertigt.
   dokumentiert (6 offene + 1 erledigt). Keine globalen Konzept-Verletzungen,
   keine schweren Build-/Test-Probleme, keine offenen Muss-Haven-Punkte.
 - [ ] **aborted** — *nicht zutreffend*.
+
+## Post-Completion-Tech-Debt-Cleanup (step-004)
+
+Nach Abschluss des Tasks (`task-summary.md` Verdict `done`, alle 4 Steps
+approved, 522/522 Tests grün) hat der Nutzer am 2026-08-05 angeordnet, die in
+`tech-debt.md` gesammelten Tech-Debts nach Klassifikation (in-scope → fixen /
+out-of-scope → explizit markieren) zu adressieren. Die Klassifizierung wurde in
+der Orchestrator-Befragung 2026-08-05 abgestimmt; die Umsetzung erfolgt in
+`step-004` (Epic EPIC-03 „Post-Completion Tech-Debt Cleanup", Risiko `low`,
+kein Code-Change, kein Test-Change).
+
+### Ergebnis pro Tech-Debt
+
+- **TD-001** (Konzept-Index-Name-Format `IX_Orders_CustomerId_OrderDate` vs.
+  Code `IX_Orders_CustomerId__OrderDate`) — **erledigt in step-004**:
+  Konzept-Beispiel in `konzept.md` Zeile 172 an die implementierte Form
+  angepasst. Kein Code-Change, kein Test-Change, 522/522 Tests grün bleiben.
+  Konzept-Pfeil-Form war illustrativ; die `__`-Wahl in `step-001` war
+  deliberate (Planer-Begründung: „bessere Lesbarkeit bei mehreren Spalten").
+- **TD-002** (`DESC`-Sortierung in `ColumnGroup` ignoriert) — **out of scope,
+  won't fix in diesem Task**: Konzept schweigt über `DESC`, Konzept-Beispiel
+  hat keine absteigend indizierte Spalte. Eine Implementierung wäre eine
+  konzeptuelle Erweiterung (kein Bugfix).
+- **TD-003** (`IsShowplanPermissionError` generalisiert) — bereits in
+  `step-002` erledigt, unverändert.
+- **TD-004** (SQL-Server-2025-Spezifik, fehlende Versionsnotiz) — **out of
+  scope, won't fix in diesem Task**: Konzept schweigt über
+  SQL-Server-Mindestversion, die 2025-Spezifik ist emergente Eigenschaft der
+  Test-Instanz. Eine Versionsnotiz wäre Architektur-/Setup-Entscheidung.
+- **TD-005** (Test-Environment-Setup `GRANT VIEW SERVER STATE TO [Agent]`
+  nicht reproduzierbar) — **out of scope, won't fix in diesem Task**:
+  Test-Infrastruktur (CI/CD), kein Konzept-Gegenstand. Konzept verlangt nur
+  „Integrationstest gegen eine echte Test-DB".
+- **TD-006** (Test 1 akzeptiert Graceful-Degradation-Notiz nicht, Asymmetrie
+  zu Test 4) — **out of scope, won't fix in diesem Task**: Test-Design-Detail,
+  kein Konzept-Verstoß. Konzept verlangt nur „Tests vorhanden" für Graceful
+  Degradation, keine Aussage zur Test-Toleranz.
+- **TD-007** (`DmvMockConnectionFactory` deckt SQL-Syntaxfehler nicht ab,
+  systemischer Test-Coverage-Gap) — **out of scope, won't fix in diesem
+  Task**: Test-Strategie-/Architektur-Frage, Konzept schweigt. 80% des
+  Problems bereits durch TD-005+TD-006 adressierbar; restliche 20% (statische
+  Validierung) lohnen nur bei mehreren DMV-Tools.
+
+### Endgültige Tech-Debt-Statistik
+
+- **Vor step-004:** 6 offen + 1 erledigt (TD-003)
+- **Nach step-004:** 0 offen-unmarkiert + 2 erledigt (TD-003, TD-001) +
+  5 out-of-scope-markiert (TD-002, TD-004, TD-005, TD-006, TD-007)
+- **Build-/Test-Stand:** 522/522 Tests grün, `dotnet build` 0 Warnungen
+  (Smoke-Verifikation optional; bei Ausführung in `step-004/step-result.md`
+  festgehalten).
+
+### Epic- und Commit-Verweise
+
+- **Epic:** EPIC-03 „Post-Completion Tech-Debt Cleanup" in `roadmap.md` (mit
+  `step-004` abgehakt).
+- **Step:** `step-004` (verbraucht keine Fix-Runde; keine `fix-XX/`-Unterordner,
+  keine `issues`-Verdikte erwartet — der Step ist 100% Doku-Edit mit
+  deterministisch grünem Smoke-Test).
+- **Commits:** ein gemeinsamer Commit für alle Markdown-Edits +
+  `step-004/step-plan.md`-Status-Update (konzept.md, tech-debt.md,
+  task-summary.md, step-004/step-plan.md). Convention: `docs(task): …`,
+  deutsch, imperativ, Suffix `[sql-index-suggestions]`.

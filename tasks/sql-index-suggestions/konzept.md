@@ -169,7 +169,7 @@ setzt daraus ein vollständiges Statement zusammen, z. B.:
 </MissingIndexGroup>
 ```
 
-→ `CREATE NONCLUSTERED INDEX IX_Orders_CustomerId_OrderDate ON [dbo].[Orders] (CustomerId, OrderDate) INCLUDE (Amount, Status);`
+→ `CREATE NONCLUSTERED INDEX IX_Orders_CustomerId__OrderDate ON [dbo].[Orders] (CustomerId, OrderDate) INCLUDE (Amount, Status);`
 
 Das fertige Statement landet als zusätzliches Feld in `PerformancePlanWarning`.
 
