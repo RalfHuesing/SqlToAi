@@ -355,12 +355,15 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
                 switch (usage)
                 {
                     case "EQUALITY":
-                        equality.AddRange(cols);
+                        // Key columns honour the Descending attribute from the XML plan.
+                        equality.AddRange(WithDescendingSuffix(cg, ns, cols));
                         break;
                     case "INEQUALITY":
-                        inequality.AddRange(cols);
+                        // Key columns honour the Descending attribute from the XML plan.
+                        inequality.AddRange(WithDescendingSuffix(cg, ns, cols));
                         break;
                     case "INCLUDE":
+                        // INCLUDE columns carry no sort direction; take the name as-is.
                         include.AddRange(cols);
                         break;
                 }
@@ -375,6 +378,30 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
                 Impact: impact,
                 MissingIndexStatement: statement));
         }
+    }
+
+    /// <summary>
+    /// Returns the given key-column names with a " DESC" suffix appended for each
+    /// column whose sibling <c>Descending="True"</c> attribute is set on the
+    /// matching <c>&lt;Column&gt;</c> child of <paramref name="columnGroup"/>.
+    /// The check is case-insensitive and exact: anything other than the literal
+    /// string "True" leaves the column ascending. Order and count of
+    /// <paramref name="names"/> is preserved.
+    /// </summary>
+    private static List<string> WithDescendingSuffix(XElement columnGroup, XNamespace ns, List<string> names)
+    {
+        var columns = columnGroup.Elements(ns + "Column").ToList();
+        var result = new List<string>(names.Count);
+        for (int i = 0; i < names.Count; i++)
+        {
+            string name = names[i];
+            bool descending = i < columns.Count
+                && string.Equals(
+                    columns[i].Attribute("Descending")?.Value, "True",
+                    StringComparison.OrdinalIgnoreCase);
+            result.Add(descending ? name + " DESC" : name);
+        }
+        return result;
     }
 
     private static string? BuildCreateIndexStatement(
