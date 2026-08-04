@@ -242,6 +242,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService
         }
         await ExecuteSetOptionAsync(args.Connection, args.Transaction, "SET STATISTICS IO ON", cancellationToken);
         await ExecuteSetOptionAsync(args.Connection, args.Transaction, "SET STATISTICS TIME ON", cancellationToken);
+        await ExecuteSetOptionAsync(args.Connection, args.Transaction, $"SET ROWCOUNT {args.RowLimit}", cancellationToken);
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -251,19 +252,28 @@ public sealed partial class QueryExecutionService : IQueryExecutionService
         command.CommandTimeout = _options.CommandTimeoutSeconds;
         SqlParameterBinder.BindParameters(command, args.Parameters);
 
-        using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess | CommandBehavior.KeyInfo, cancellationToken);
-
-        var columnNames = GetColumnNames(reader);
-        var anonCtx = await ResolveAnonymizationContextAsync(reader, columnNames, args.Anonymize, args.DatabaseName, cancellationToken);
-
+        string[] columnNames;
+        AnonymizationContext anonCtx;
         var sb = new StringBuilder();
         int rowCount = 0;
         var tracker = new RowAnonymizationTracker();
 
-        while (rowCount < args.RowLimit && await reader.ReadAsync(cancellationToken))
+        try
         {
-            AppendSerializedRow(sb, reader, columnNames, anonCtx, tracker);
-            rowCount++;
+            using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess | CommandBehavior.KeyInfo, cancellationToken);
+
+            columnNames = GetColumnNames(reader);
+            anonCtx = await ResolveAnonymizationContextAsync(reader, columnNames, args.Anonymize, args.DatabaseName, cancellationToken);
+
+            while (rowCount < args.RowLimit && await reader.ReadAsync(cancellationToken))
+            {
+                AppendSerializedRow(sb, reader, columnNames, anonCtx, tracker);
+                rowCount++;
+            }
+        }
+        finally
+        {
+            await ExecuteSetOptionAsync(args.Connection, args.Transaction, "SET ROWCOUNT 0", cancellationToken);
         }
 
         stopwatch.Stop();
@@ -281,10 +291,11 @@ public sealed partial class QueryExecutionService : IQueryExecutionService
     }
 
     /// <summary>
-    /// Executes a single <c>SET ...</c> statement on the given connection/transaction. Mirrors
-    /// the identical helper in <see cref="PerformanceMeasurementService"/> — deliberately
-    /// duplicated locally rather than shared, since the method is too small to justify coupling
-    /// the two service classes together (see step-002 JIT context).
+    /// Executes a single <c>SET ...</c> statement on the given connection/transaction. Used for
+    /// <c>SET STATISTICS IO/TIME ON</c>, the server-side <c>SET ROWCOUNT</c> row-limit enforcement
+    /// (see step-002) and its <c>SET ROWCOUNT 0</c> reset. Mirrors the identical helper in
+    /// <see cref="PerformanceMeasurementService"/> — deliberately duplicated locally rather than
+    /// shared, since the method is too small to justify coupling the two service classes together.
     /// </summary>
     private static async Task ExecuteSetOptionAsync(DbConnection connection, DbTransaction transaction, string sql, CancellationToken ct)
     {

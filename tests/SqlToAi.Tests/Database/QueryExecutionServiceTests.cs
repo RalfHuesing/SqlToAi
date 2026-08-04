@@ -397,6 +397,61 @@ public sealed partial class QueryExecutionServiceTests
         Assert.Equal(45, factory.LastConnection?.LastCommand?.CommandTimeout);
     }
 
+    // -------------------------------------------------------------------------
+    // Tests: server-side SET ROWCOUNT enforcement (audit-hardening step-002)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldIssueSetRowCount_WithRequestedRowLimit_BeforeMainQuery()
+    {
+        var options = new SqlToAiOptions { QueryExecution = new QueryExecutionOptions { DefaultRowLimit = 100, MaxRowLimit = 100 } };
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("Col1\tVal1"));
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", 7, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(factory.ExecutedNonQueryCommands, c => string.Equals(c, "SET ROWCOUNT 7", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldIssueSetRowCount_WithDefaultRowLimit_WhenNoneRequested()
+    {
+        var options = new SqlToAiOptions { QueryExecution = new QueryExecutionOptions { DefaultRowLimit = 42, MaxRowLimit = 100 } };
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("Col1\tVal1"));
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(factory.ExecutedNonQueryCommands, c => string.Equals(c, "SET ROWCOUNT 42", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_ShouldResetRowCountToZero_AfterMainQuery_InCorrectOrder()
+    {
+        var options = new SqlToAiOptions { QueryExecution = new QueryExecutionOptions { DefaultRowLimit = 5, MaxRowLimit = 100 } };
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("Col1\tVal1"));
+        var service = new QueryExecutionService(
+            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
+            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        int setRowCountIndex = factory.ExecutedNonQueryCommands.IndexOf("SET ROWCOUNT 5");
+        int resetIndex = factory.ExecutedNonQueryCommands.IndexOf("SET ROWCOUNT 0");
+        Assert.True(setRowCountIndex >= 0, "SET ROWCOUNT {limit} was not issued.");
+        Assert.True(resetIndex > setRowCountIndex, "SET ROWCOUNT 0 reset must come after SET ROWCOUNT {limit}.");
+    }
+
     // Anonymization and tokenization tests continue in the second partial-class file:
     // see QueryExecutionServiceAnonymizationTests.cs.
 }
