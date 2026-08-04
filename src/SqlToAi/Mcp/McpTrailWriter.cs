@@ -78,15 +78,30 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
             "Failed to write MCP trail record for {CorrelationId}.");
 
     /// <summary>
-    /// JSON-RPC structural keys whose values are excluded from redaction so that trail
-    /// entries stay correlatable/readable (checked per object level, not globally by name).
+    /// JSON-RPC envelope keys whose values are excluded from redaction, but only when found
+    /// directly on the envelope root of an envelope document (<see cref="RedactionContext.IsEnvelopeRoot"/>)
+    /// — never for a same-named property found elsewhere in the tree (e.g. inside <c>arguments</c>).
     /// </summary>
-    private static readonly HashSet<string> StructuralKeys = new(StringComparer.Ordinal)
+    private static readonly HashSet<string> EnvelopeKeys = new(StringComparer.Ordinal)
     {
-        "jsonrpc", "id", "method", "type",
+        "jsonrpc", "id", "method",
     };
 
+    /// <summary>Discriminator key of an MCP content block, exempt only inside a direct <c>content[]</c> element.</summary>
+    private const string ContentBlockTypeKey = "type";
+
     private const string ArrayElementPlaceholderName = "value";
+
+    /// <summary>
+    /// Carries positional context through the redaction recursion so the structural-key
+    /// exemption can no longer be decided by name alone (the CRITICAL fix for the
+    /// audit-hardening EPIC-03 step-003 review finding): a same-named property found deeper
+    /// in free-form, LLM-authored content (e.g. an <c>arguments</c> value named <c>id</c>)
+    /// must still be redacted.
+    /// </summary>
+    /// <param name="IsEnvelopeRoot">True only for the root object of an envelope document (<see cref="RawRequestJson"/>/<see cref="ResponseJson"/>), never for <see cref="ArgumentsJson"/> or any nested object.</param>
+    /// <param name="IsContentBlock">True only for a direct object element of a <c>content</c> array, one recursion level deep.</param>
+    private readonly record struct RedactionContext(bool IsEnvelopeRoot, bool IsContentBlock);
 
     private readonly LoggingOptions _options;
     private readonly ILogger<McpTrailWriter> _logger;
@@ -123,9 +138,9 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
             // line and the pretty-printed companions are all fed from the same anonymized
             // source — a local agent reading the trail files directly must never see more
             // than what a ReadOnlyAnonymized database would expose via the MCP channel.
-            string? anonymizedArgs = AnonymizeJsonStrings(record.ArgumentsJson);
-            string? anonymizedRequest = AnonymizeJsonStrings(record.RawRequestJson);
-            string? anonymizedResponse = AnonymizeJsonStrings(record.ResponseJson);
+            string? anonymizedArgs = AnonymizeJsonStrings(record.ArgumentsJson, isEnvelope: false);
+            string? anonymizedRequest = AnonymizeJsonStrings(record.RawRequestJson, isEnvelope: true);
+            string? anonymizedResponse = AnonymizeJsonStrings(record.ResponseJson, isEnvelope: true);
 
             // The metadata line — one JSONL row per call, never truncated.
             string line = JsonSerializer.Serialize(ToJsonShape(record, anonymizedArgs, anonymizedResponse), typeof(McpCallRecordShape), CompactContext);
@@ -291,14 +306,21 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
     /// JSON, the original string is returned unchanged (the trail must never break on
     /// malformed JSON).
     /// </summary>
-    private string? AnonymizeJsonStrings(string? json)
+    /// <param name="isEnvelope">
+    /// True for the two JSON-RPC envelope documents (<see cref="McpCallRecord.RawRequestJson"/>,
+    /// <see cref="McpCallRecord.ResponseJson"/>) whose root object carries the structural
+    /// <c>jsonrpc</c>/<c>id</c>/<c>method</c> keys. False for <see cref="McpCallRecord.ArgumentsJson"/>,
+    /// whose root is already the free-form, LLM-authored <c>arguments</c> object — no envelope
+    /// exemption applies there, even at the root.
+    /// </param>
+    private string? AnonymizeJsonStrings(string? json, bool isEnvelope)
     {
         if (string.IsNullOrEmpty(json)) return json;
 
         try
         {
             JsonNode? node = JsonNode.Parse(json);
-            AnonymizeContainer(node);
+            AnonymizeContainer(node, new RedactionContext(IsEnvelopeRoot: isEnvelope, IsContentBlock: false));
             return node?.ToJsonString(CompactJsonOptions) ?? json;
         }
         catch (JsonException)
@@ -315,47 +337,71 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
     /// root (neither object nor array) are left as-is — the trail always wraps them in a
     /// JSON-RPC envelope, so this case does not occur in practice.
     /// </summary>
-    private void AnonymizeContainer(JsonNode? node)
+    private void AnonymizeContainer(JsonNode? node, RedactionContext context)
     {
         switch (node)
         {
             case JsonObject obj:
-                AnonymizeObjectProperties(obj);
+                AnonymizeObjectProperties(obj, context);
                 break;
             case JsonArray arr:
-                AnonymizeArrayElements(arr);
+                AnonymizeArrayElements(arr, context);
                 break;
         }
     }
 
-    private void AnonymizeObjectProperties(JsonObject obj)
+    private void AnonymizeObjectProperties(JsonObject obj, RedactionContext context)
     {
+        RedactionContext childContext = default;
+
         foreach (string key in obj.Select(static kvp => kvp.Key).ToList())
         {
-            if (StructuralKeys.Contains(key)) continue;
+            if (IsExemptStructuralKey(key, context)) continue;
 
             if (obj[key] is JsonValue value && value.TryGetValue(out string? stringValue))
             {
                 obj[key] = _anonymizer.Anonymize(key, stringValue);
             }
+            else if (key == "content" && obj[key] is JsonArray contentArray)
+            {
+                AnonymizeArrayElements(contentArray, childContext with { IsContentBlock = true });
+            }
             else
             {
-                AnonymizeContainer(obj[key]);
+                AnonymizeContainer(obj[key], childContext);
             }
         }
     }
 
-    private void AnonymizeArrayElements(JsonArray arr)
+    /// <summary>
+    /// Decides whether <paramref name="key"/> is exempt from redaction at the current
+    /// position: only a true JSON-RPC envelope key on the actual envelope root, or the
+    /// <c>type</c> discriminator directly inside a <c>content[]</c> element — never a
+    /// same-named property found anywhere else in the tree (e.g. inside <c>arguments</c>).
+    /// </summary>
+    private static bool IsExemptStructuralKey(string key, RedactionContext context) =>
+        (context.IsEnvelopeRoot && EnvelopeKeys.Contains(key))
+        || (context.IsContentBlock && key == ContentBlockTypeKey);
+
+    private void AnonymizeArrayElements(JsonArray arr, RedactionContext context)
     {
+        // The IsContentBlock marker applies only to the direct elements of this array (one
+        // recursion level deep) — children below that must not inherit it.
+        RedactionContext childContext = default;
+
         for (int i = 0; i < arr.Count; i++)
         {
             if (arr[i] is JsonValue value && value.TryGetValue(out string? stringValue))
             {
                 arr[i] = _anonymizer.Anonymize(ArrayElementPlaceholderName, stringValue);
             }
+            else if (arr[i] is JsonObject elementObj && context.IsContentBlock)
+            {
+                AnonymizeObjectProperties(elementObj, context with { IsEnvelopeRoot = false });
+            }
             else
             {
-                AnonymizeContainer(arr[i]);
+                AnonymizeContainer(arr[i], childContext);
             }
         }
     }
