@@ -1,21 +1,21 @@
 ---
-status: done  # executing | done | aborted
+status: executing  # executing | done | aborted
 task: sql-index-suggestions
 started_at: 2026-08-04T11:02:33+02:00
 last_updated: 2026-08-05T10:30:00+02:00
 rules_dir: .agents/rules  # aus konzept.md Frontmatter uebernommen
 total_fix_rounds: 1  # Summe aller Fix-Runden ueber alle Steps (Task-weiter Not-Anker, siehe Config)
-current_step: step-003
+current_step: step-004  # Reopen: Post-Completion-Tech-Debt-Cleanup
 ---
 
 # Task State: sql-index-suggestions
 
 ## Uebersicht
 
-- **Task-Status:** `done`
+- **Task-Status:** `executing` (Reopen für Post-Completion-Tech-Debt-Cleanup)
 - **Fix-Runden gesamt:** 1 (Not-Anker bei `max_total_fix_rounds`, siehe Config)
-- **Aktueller Schritt:** `step-003` (alle Schritte final approved; EPIC-02 abgeschlossen)
-- **Roadmap:** siehe `roadmap.md` fuer den Epic-Fortschritt (beide Epics abgehakt)
+- **Aktueller Schritt:** `step-004` (Post-Completion-Tech-Debt-Cleanup, alle Tech-Debts klassifiziert: in-scope fixen, out-of-scope dokumentiert)
+- **Roadmap:** siehe `roadmap.md` fuer den Epic-Fortschritt (EPIC-01 + EPIC-02 abgehakt, ggf. neues Mini-Epic fuer step-004)
 - **Tech-Debt:** siehe `tech-debt.md` fuer gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-04T11:02:33+02:00
 - **Zuletzt aktualisiert:** 2026-08-05T10:30:00+02:00
