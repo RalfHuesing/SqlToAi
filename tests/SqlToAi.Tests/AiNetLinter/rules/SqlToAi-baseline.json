@@ -120,7 +120,7 @@
     "tests/SqlToAi.Tests/Domain/TtlCacheTests.cs": "841897a7ca8845839a3e1b28764504d1da4e1c7ba819fd83ac0fc6d7cb755378",
     "tests/SqlToAi.Tests/GlobalUsings.cs": "bb9f2d321ebb4292cc3d151a4ebd5252662eedcb99a43195d3b8569441abf440",
     "tests/SqlToAi.Tests/Integration/AccessLevelProviderIntegrationTests.cs": "ddeb93a6cc46a281abdf52e4c746f4c25a9e9948871da7571fff76d7bee4e131",
-    "tests/SqlToAi.Tests/Integration/IndexSuggestionServiceIntegrationTests.cs": "3835ec2c77a5e0e88bb4528c246fc62409880f2df700e9c9c612e2f9faa625dd",
+    "tests/SqlToAi.Tests/Integration/IndexSuggestionServiceIntegrationTests.cs": "37493acc9bcdc93b07e4c63f31eb0f34d1ea487f65893646c0e37684c1be801d",
     "tests/SqlToAi.Tests/Integration/IntegrationAssertions.cs": "2a2f3825acf952bf6d1ab22757215b126bdd626f3258f62286e24d829c1f6075",
     "tests/SqlToAi.Tests/Integration/QueryExecutionServiceIntegrationTests.cs": "5d00056b04c272c1352eecfbb3ddf47ad6af315cebda9c2751dfcb354e461f87",
     "tests/SqlToAi.Tests/Integration/QueryValidationServiceIntegrationTests.cs": "13ef720c310c47ce33d76bfd30f3c51aa76b0b6874d685f4de62786feed8770b",

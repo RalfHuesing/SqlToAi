@@ -33,12 +33,13 @@ public sealed class IndexSuggestionServiceIntegrationTests
         Assert.NotEmpty(result.Value);
         Assert.Contains("# Missing Index Recommendations — " + _db, result.Value);
         Assert.Contains("cumulative since the last SQL Server restart", result.Value);
-        // Either "No missing-index recommendations found" OR Markdown table
-        // with "| Score |" header — both are valid tool outputs.
+        // Either the permission note, "No missing-index recommendations found",
+        // OR Markdown table with "| Score |" header — all three are valid tool outputs.
         Assert.True(
-            result.Value.Contains("No missing-index recommendations found", StringComparison.Ordinal)
+            result.Value.Contains("VIEW SERVER STATE", StringComparison.Ordinal)
+            || result.Value.Contains("No missing-index recommendations found", StringComparison.Ordinal)
             || result.Value.Contains("| Score |", StringComparison.Ordinal),
-            "Expected either 'No recommendations' message or Markdown table with Score header.");
+            "Expected permission note, 'No recommendations' message, or Markdown table with Score header.");
     }
 
     [Fact]
