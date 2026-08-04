@@ -87,33 +87,43 @@ obsolet markiert) — kein starres Vorab-Dokument.
       **Diese drei Tech-Debt-Einträge sind Beobachtungen, keine
       Pflicht-Findings — kein impliziter Nachzug in EPIC-02.**
 
-- [ ] EPIC-02: Neues Tool `sql_suggest_indexes` — serverweit
+- [x] EPIC-02: Neues Tool `sql_suggest_indexes` — serverweit
       kumulierte DMV-Index-Empfehlungen mit Graceful Degradation
-      — Idee 2 aus `konzept.md` (Muss-Haven, §Permission-Handling,
+      — Idee 2 aus `konzept.md` (Muss-Haben, §Permission-Handling,
       §Wie-Idee-2, §DoD).
       Neuer Service nach dem Muster bestehender DMV-Tools
       (Dapper/`SqlClient`-Zugriff, `Result<T>`-Rückgabe, Markdown-Output,
       Tool-Definition in `ToolRegistry`, Dispatch in `ToolDispatcher`,
       Konstanten in `McpConstants`); Abfrage von
       `sys.dm_db_missing_index_details` +
-      `sys.dm_db_missing_index_group_stats`, Berechnung des
+      `sys.dm_db_missing_index_group_stats` (CTE-basiert, Top-N auf
+      `index_handle`-Ebene, siehe `fix-01`), Berechnung des
       `improvement_score`, Filter/Top-Limit über die Parameter
       `database` (Pflicht), `table_name`, `min_score`, `top` (Default
       10). Pflichtbestandteil der Ausgabe: Restart-Hinweis (DMV
       akkumuliert seit letztem Server-Neustart). Bei fehlender
       `VIEW SERVER STATE`: Permission-Fehler analog zum
       `SHOWPLAN`-Pattern abfangen, strukturierte Notiz statt
-      Hard-Error. Testabdeckung: Unit-Tests (mit Mocks) +
+      Hard-Error. Testabdeckung: Unit-Tests (12 Tests, mit Mocks) +
       Integrationstest gegen echte Test-DB in
       `tests/SqlToAi.Tests/Integration/`, da DMV-Verhalten nicht
       sinnvoll mockbar ist. **Inkl. Doku-Sync für Idee 2:** neuer
-      Tool-Eintrag §4 Nr. 16 in `architecture-spec.md`,
-      `VIEW SERVER STATE` in §H, sowie das `sql_suggest_indexes`-
-      Feature-Bullet und die Tool-Zählung (15 → 16) in `README.md`.
-      *(in Arbeit → step-002: Service `IIndexSuggestionService` +
-      Dapper-Abfragen + Markdown-Renderer + Tool-Definition +
-      Dispatch + DI-Registrierung + Unit-Tests mit Mocks;
-      noch offen für step-003: Doku-Sync in
-      `architecture-spec.md` §4 Nr. 16 / §H und in `README.md`
-      sowie Integrationstest gegen echte Test-DB in
-      `tests/SqlToAi.Tests/Integration/`.)*
+      Tool-Eintrag §4 Nr. 16 in `architecture-spec.md` (Commit
+      `50437e2`), `VIEW SERVER STATE` in §H, sowie das
+      `sql_suggest_indexes`-Feature-Bullet und die Tool-Zählung
+      (15 → 16) in `README.md` — allesamt bereits in `step-002`
+      umgesetzt.
+      → **umgesetzt in step-002 + step-002/fix-01** (`verdict:
+      approved`, 2026-08-04, Commits `3195a17` Code + `50437e2` Doku
+      bzw. `bc488ec` Code + `1a412cb` Result für `fix-01`).
+      Code, Doku und Unit-Tests vollständig; CTE-Korrektur
+      (Top-N pro `index_handle`) verifiziert.
+      *(verbleibender Restbedarf — in Arbeit → step-003:
+      Integrationstest gegen echte Test-DB in
+      `tests/SqlToAi.Tests/Integration/`. Smoke-Test der DMV-Query
+      gegen den realen SQL-Server aus
+      `src/SqlToAi/appsettings.json` (`%COMPUTERNAME%\MSSQLSERVER2022` /
+      `Agent` / `Agent!` / `DemoDB`), mit `Assert.Skip`-konformer
+      Überspring-Logik analog `AiNetLinterTests.RecreateBaseline`,
+      falls die Test-DB nicht verfügbar ist. EPIC-02 abgeschlossen
+      nach step-003.)*
