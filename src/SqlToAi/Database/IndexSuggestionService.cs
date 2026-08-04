@@ -121,31 +121,40 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
         CancellationToken ct)
     {
         const string sql = """
+            WITH TopIndexes AS (
+                SELECT TOP (@Top)
+                    mid.statement AS Statement,
+                    mig.index_handle AS IndexHandle,
+                    migs.user_seeks AS UserSeeks,
+                    migs.user_scans AS UserScans,
+                    migs.last_user_seek AS LastUserSeek,
+                    migs.avg_total_user_cost AS AvgTotalUserCost,
+                    migs.avg_user_impact AS AvgUserImpact,
+                    (migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans)) AS ImprovementScore
+                FROM sys.dm_db_missing_index_group_stats AS migs
+                INNER JOIN sys.dm_db_missing_index_groups AS mig
+                    ON migs.index_group_handle = mig.index_group_handle
+                INNER JOIN sys.dm_db_missing_index_details AS mid
+                    ON mig.index_handle = mid.index_handle
+                WHERE mid.database_id = DB_ID()
+                  AND (@TableName IS NULL OR mid.statement LIKE '%' + @TableName + '%')
+                  AND (@MinScore IS NULL OR ImprovementScore >= @MinScore)
+                ORDER BY ImprovementScore DESC, mid.statement
+            )
             SELECT
-                mid.statement AS Statement,
-                mig.index_handle AS IndexHandle,
-                migs.user_seeks AS UserSeeks,
-                migs.user_scans AS UserScans,
-                migs.last_user_seek AS LastUserSeek,
-                migs.avg_total_user_cost AS AvgTotalUserCost,
-                migs.avg_user_impact AS AvgUserImpact,
+                ti.Statement,
+                ti.IndexHandle,
+                ti.UserSeeks,
+                ti.UserScans,
+                ti.LastUserSeek,
+                ti.AvgTotalUserCost,
+                ti.AvgUserImpact,
                 mic.column_id AS ColumnId,
                 mic.column_usage AS ColumnUsage
-            FROM sys.dm_db_missing_index_group_stats AS migs
-            INNER JOIN sys.dm_db_missing_index_groups AS mig
-                ON migs.index_group_handle = mig.index_group_handle
-            INNER JOIN sys.dm_db_missing_index_details AS mid
-                ON mig.index_handle = mid.index_handle
+            FROM TopIndexes AS ti
             INNER JOIN sys.dm_db_missing_index_columns AS mic
-                ON mid.index_handle = mic.index_handle
-            WHERE mid.database_id = DB_ID()
-              AND (@TableName IS NULL OR mid.statement LIKE '%' + @TableName + '%')
-              AND (@MinScore IS NULL OR
-                   (migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans)) >= @MinScore)
-            ORDER BY (migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans)) DESC,
-                     mid.statement,
-                     mic.column_id
-            OFFSET 0 ROWS FETCH NEXT @Top ROWS ONLY
+                ON ti.IndexHandle = mic.index_handle
+            ORDER BY ti.ImprovementScore DESC, ti.Statement, mic.column_id
             """;
 
         var parameters = new

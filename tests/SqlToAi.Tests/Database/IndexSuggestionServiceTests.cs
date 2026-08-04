@@ -169,6 +169,52 @@ public sealed class IndexSuggestionServiceTests
     }
 
     // -------------------------------------------------------------------------
+    // Test (fix-01): Top-N semantics per index_handle - all columns preserved
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SuggestIndexesAsync_MultipleHandlesWithDifferentColumnCounts_AllColumnsPerHandlePreserved()
+    {
+        // Three handles with different column counts. Handle 2 has 5 columns — the
+        // CTE-anchored query applies TOP at handle granularity, so all 5 column-IDs
+        // of Handle 2 must survive end-to-end (the previous OFFSET/FETCH-on-joined
+        // query would have truncated it mid-stream).
+        var rows = new List<DmvRow>
+        {
+            new("[dbo].[Orders]", 1, 45230, 12, null, 10.5, 25.0, [new DmvColumn(2, "EQUALITY"), new DmvColumn(3, "EQUALITY")]),
+            new("[dbo].[OrderItems]", 2, 30000, 5, null, 8.0, 30.0, [new DmvColumn(10, "EQUALITY"), new DmvColumn(11, "EQUALITY"), new DmvColumn(12, "INCLUDE"), new DmvColumn(13, "INCLUDE"), new DmvColumn(14, "INCLUDE")]),
+            new("[dbo].[Customers]", 3, 20000, 0, null, 5.0, 20.0, [new DmvColumn(20, "EQUALITY"), new DmvColumn(21, "INEQUALITY"), new DmvColumn(22, "INCLUDE")]),
+        };
+        var service = BuildService(rows: rows);
+        var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs("DemoDB", Top: 10), TestContext.Current.CancellationToken);
+        Assert.True(result.IsSuccess);
+        string md = result.Value;
+        // All three handles appear.
+        Assert.Contains("[dbo].[Orders]", md);
+        Assert.Contains("[dbo].[OrderItems]", md);
+        Assert.Contains("[dbo].[Customers]", md);
+        // Handle 1: 2 EQUALITY columns preserved.
+        Assert.Contains("2, 3", md);
+        // Handle 2: 2 EQUALITY + 3 INCLUDE columns all preserved (regression guard).
+        Assert.Contains("10, 11", md);
+        Assert.Contains("12, 13, 14", md);
+        // Handle 3: one column in each bucket.
+        Assert.Contains("20", md);
+        Assert.Contains("21", md);
+        Assert.Contains("22", md);
+        // Markdown structure smoke test.
+        Assert.Contains("| Score |", md);
+        Assert.Contains("| Table |", md);
+        Assert.Contains("| Equality Columns |", md);
+        Assert.Contains("| Inequality Columns |", md);
+        Assert.Contains("| Include Columns |", md);
+        Assert.Contains("| Seeks |", md);
+        Assert.Contains("| Scans |", md);
+        Assert.Contains("| Last Seek |", md);
+        Assert.Contains("since the last SQL Server restart", md);
+    }
+
+    // -------------------------------------------------------------------------
     // Test 7: table_name filter - passed as LIKE parameter
     // -------------------------------------------------------------------------
 
