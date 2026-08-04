@@ -2,7 +2,7 @@
 status: executing  # executing | done | aborted
 task: sql-index-suggestions
 started_at: 2026-08-04T11:02:33+02:00
-last_updated: 2026-08-04T11:02:33+02:00
+last_updated: 2026-08-04T13:35:00+02:00
 rules_dir: .agents/rules  # aus konzept.md Frontmatter uebernommen
 total_fix_rounds: 0  # Summe aller Fix-Runden ueber alle Steps (Task-weiter Not-Anker, siehe Config)
 current_step: step-001
@@ -27,7 +27,7 @@ eine Zeile.>
 
 | Step | Epic | Status | Title | Fix-Runden | Coded | Reviewed | Commit |
 |------|------|--------|-------|------------|-------|----------|--------|
-| step-001 | EPIC-01 | open | Parser-Erweiterung — vollständige CREATE NONCLUSTERED INDEX-Statements | 0/3 | - | - | - |
+| step-001 | EPIC-01 | done | Parser-Erweiterung — vollständige CREATE NONCLUSTERED INDEX-Statements | 0/3 | 86c0e48 | 2026-08-04 approved | 86c0e48 |
 
 ## Config (optional)
 
