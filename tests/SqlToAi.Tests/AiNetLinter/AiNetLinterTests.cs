@@ -9,7 +9,7 @@ public sealed class AiNetLinterTests
     private const string LinterExePath = @"C:\Daten\AiNetLinter-win-x64\AiNetLinter.exe";
 
     [Fact]
-    public async Task RunLinterShouldBeCleanOrBaselineMatch()
+    public async Task RunLinterShouldBeClean()
     {
         // 1. Skip test if the linter executable is not present on this machine
         if (!File.Exists(LinterExePath))
@@ -85,35 +85,6 @@ public sealed class AiNetLinterTests
         }
 
         Assert.True(File.Exists(targetRulesFile), $"Rules file was not found at target location: {targetRulesFile}");
-    }
-
-    [Fact]
-    public async Task RecreateBaseline()
-    {
-        if (!File.Exists(LinterExePath))
-        {
-            Assert.Skip("AiNetLinter.exe was not found at path: " + LinterExePath);
-            return;
-        }
-
-        string solutionRoot = FindSolutionRoot();
-        string configPath = Path.Combine(solutionRoot, "tests", "SqlToAi.Tests", "AiNetLinter", "rules", "SqlToAi.rules.json");
-        string baselinePath = Path.Combine(solutionRoot, "tests", "SqlToAi.Tests", "AiNetLinter", "rules", "SqlToAi-baseline.json");
-
-        var baselineArgs = new[]
-        {
-            "--config", $"\"{configPath}\"",
-            "--path", $"\"{solutionRoot}\"",
-            "--create-baseline", $"\"{baselinePath}\""
-        };
-
-        var (exitCode, stdout, stderr) = await RunLinterProcessAsync(
-            string.Join(" ", baselineArgs), solutionRoot, TestContext.Current.CancellationToken);
-
-        if (exitCode != 0)
-        {
-            Assert.Fail($"AiNetLinter baseline creation failed with exit code {exitCode}.\r\nErrors:\r\n{stderr}\r\n{stdout}");
-        }
     }
 
     private static async Task<(int ExitCode, string Stdout, string Stderr)> RunLinterProcessAsync(

@@ -71,16 +71,7 @@ dotnet run            # Starten (als MCP Server)
 - **Zero-Warning-Direktive:** Das Projekt nutzt `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`. Neuer Code darf keine Compiler-Warnungen einführen.
 - **Linter-Konformität:** Der Code muss den Linter-Richtlinien in [.agents/rules/AiNetLinter.mdc](AiNetLinter.mdc) (wie `sealed` Klassen, Methoden-Längen, etc.) entsprechen.
 - **Result-Pattern:** Bevorzuge `Result<T>` für die Fehlerbehandlung, besonders an den Schnittstellen der MCP-Tools (Error-Catalog).
-- **Baseline-Aktualisierung (`SqlToAi-baseline.json`) — KEIN manuelles Hash-Rechnen:**
-  Der Test `AiNetLinterTests.RecreateBaseline` ruft `AiNetLinter.exe --create-baseline` auf und
-  schreibt die komplette Baseline-Datei automatisch neu. Dieser Test läuft **bereits als Teil
-  jedes normalen `dotnet test`-Laufs mit** (auch unter `--filter "Category!=Integration"` — er
-  ist in keiner Kategorie ausgeschlossen). Nach jeder Code-Änderung genügt der ohnehin fällige
-  Test-Lauf, damit `SqlToAi-baseline.json` wieder synchron ist. **Niemals** SHA-256-Hashes von
-  Hand berechnen (`Get-FileHash` o. ä.) oder manuell in die JSON eintragen — das ist unnötige
-  Arbeit und fehleranfälliger als der automatische Weg. Fehlt `AiNetLinter.exe` auf der Maschine,
-  werden sowohl `RunLinterShouldBeCleanOrBaselineMatch` als auch `RecreateBaseline` per
-  `Assert.Skip` übersprungen (kein Fehler, aber auch keine Baseline-Prüfung/-Aktualisierung).
+- **Baseline-Freiheit & Clean-Check:** Das Projekt wird vollständig baseline-frei geführt. Jeder Build und Testlauf erzwingt strikte Null-Toleranz (0 Fehler, 0 Warnungen) gegen die Linter-Regeln in [.agents/rules/AiNetLinter.mdc](AiNetLinter.mdc). Fehlt `AiNetLinter.exe` auf der Maschine, wird `RunLinterShouldBeClean` per `Assert.Skip` übersprungen.
 
 ## 6. Agentische Planung & Mitdenken (Agentic Planning)
 
