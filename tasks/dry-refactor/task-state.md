@@ -27,8 +27,7 @@ current_step: step-005
 | step-001 | EPIC-01 | done | Baseline-Eliminierung & Zero-Warning-Setup | - | 90d7a89 | - | 90d7a89 |
 | step-002 | EPIC-02 | done | Linter-Errors & Core C#-Fixes | - | 7197664 | - | 7197664 |
 | step-003 | EPIC-03 | done | DRY-Konsolidierung (Produktionscode) | - | d154370 | - | d154370 |
-| step-004 | EPIC-04 | done | Architektur: Facade & Dispatcher-Entlastung | - | f65b765 | - | f65b765 |
-| step-005 | EPIC-05 | open | Test-Infrastruktur & Testklassen-Splits | - | - | - | - |
+| step-005 | EPIC-05 | done | Test-Infrastruktur & Testklassen-Splits | - | 45ae0a0 | - | 45ae0a0 |
 
 ## Config
 

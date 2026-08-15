@@ -29,5 +29,5 @@ created_by_model_knowledge_cutoff: 2026-01
 - [x] EPIC-02: Linter-Errors & Core C#-Fixes — `sealed` Ergänzungen (`McpJsonContext`, `FakeDbConnection`) und Parameter-Records in `PerformanceMeasurementService`. (→ step-002)
 - [x] EPIC-03: DRY-Konsolidierung (Produktionscode) — Migration von `QueryDeconstructor` und `SqlMultiStatementDetector` auf `SqlCharScanner`, Vereinheitlichung von `ExecuteSetOptionAsync`. (→ step-003)
 - [x] EPIC-04: Architektur: Facade & Dispatcher-Entlastung — Einführung von `IDatabaseAnalysisService` / `DatabaseAnalysisServices` zur Entlastung des `ToolDispatcher`. (→ step-004)
-- [ ] EPIC-05: Test-Infrastruktur & Testklassen-Splits — Zentrale Test-Helper in `TestSupport`, Aufteilung überbreiter Testklassen (`QueryExecutionServiceTests`, `SchemaServiceTests`, `SchemaServiceIntegrationTests`, `ToolDispatcherTests`), `GlobMatcherTests`-Bereinigung.
+- [x] EPIC-05: Test-Infrastruktur & Testklassen-Splits — Zentrale Test-Helper in `TestSupport`, Aufteilung überbreiter Testklassen (`QueryExecutionServiceTests`, `SchemaServiceTests`, `SchemaServiceIntegrationTests`, `ToolDispatcherTests`), `GlobMatcherTests`-Bereinigung. (→ step-005)
 - [ ] EPIC-06: Neutralitäts-Audit & Safeguard 10/10 Gate — Neutrale englische Sprache in Docs/Kommentaren, Verifikation aller Tests und Safeguard Score 10.00/10, globaler Kritiker-Review.
