@@ -6,7 +6,7 @@ last_updated: 2026-08-15T21:34:00+02:00
 rules_dir: .agents/rules
 total_steps: 2
 current_step: step-003
-in_progress_step: (none)
+in_progress_step: step-003
 ---
 
 # Task State: audit-try-magicvalues
@@ -28,6 +28,7 @@ in_progress_step: (none)
 |------|------|--------|-------|----------|-------|----------|--------|
 | step-001 | EPIC-01 | done | Konstanten-Zentralisierung & Boilerplate-Cleanup (Quick Wins, 10-Item batch) | - | 0f6f99a (code), be4a0f0 (doku) | approved | approved |
 | step-002 | EPIC-02 | done | Guardrail-Pipeline-Extraktion (IQuerySafetyValidator, 4-Item batch) | - | b3cd090 (code), 139f775 (doku) | approved | approved |
+| step-003 | EPIC-03 | in_progress | Test-Suite-Konsolidierung (Fakes, ShowPlan-Helper, ValidatorTests) | - | - | - | - |
 
 ## Config
 
