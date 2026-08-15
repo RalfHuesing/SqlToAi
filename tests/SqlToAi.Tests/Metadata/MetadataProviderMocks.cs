@@ -20,24 +20,21 @@ internal sealed class DummyConnectionFactory : SqlToAi.Database.IDatabaseConnect
     {
         ConnectionCreatedCount++;
         LastDatabaseName = databaseName;
-        return _connectionToReturn ?? new MockMetadataConnection();
+        return _connectionToReturn ?? MockMetadataConnection.Create();
     }
 }
 
 /// <summary>
-/// Mock connection for <c>MetadataProvider</c>, built on the shared
-/// <see cref="FakeDbConnection"/>/<see cref="FakeDbCommand"/>/<see cref="FakeDbDataReader"/>
-/// plumbing. Kept as a named subclass (rather than a plain <see cref="FakeDbConnection"/>
-/// instance) because other test files construct it directly by name with these exact optional
-/// parameters.
+/// Factory for <c>MetadataProvider</c> mock connections, built on the shared
+/// <see cref="FakeDbConnection"/>/<see cref="FakeDbCommand"/>/<see cref="FakeDbDataReader"/> plumbing.
 /// </summary>
-internal sealed class MockMetadataConnection : FakeDbConnection
+internal static class MockMetadataConnection
 {
-    public MockMetadataConnection(string tableDesc = "", Dictionary<string, string>? columnDescs = null)
-        : base(conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(
-            ExecuteScalar: _ => tableDesc,
-            ExecuteReader: cmd => Dispatch(cmd, tableDesc, columnDescs ?? new Dictionary<string, string>()))))
+    public static FakeDbConnection Create(string tableDesc = "", Dictionary<string, string>? columnDescs = null)
     {
+        return new FakeDbConnection(conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(
+            ExecuteScalar: _ => tableDesc,
+            ExecuteReader: cmd => Dispatch(cmd, tableDesc, columnDescs ?? new Dictionary<string, string>()))));
     }
 
     private static FakeDbDataReader Dispatch(FakeDbCommand cmd, string tableDesc, Dictionary<string, string> columnDescs)

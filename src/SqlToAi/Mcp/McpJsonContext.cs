@@ -60,4 +60,4 @@ namespace SqlToAi.Mcp;
 [JsonSerializable(typeof(Guid))]
 [JsonSerializable(typeof(byte[]))]
 [JsonSerializable(typeof(byte))]
-internal partial class McpJsonContext : JsonSerializerContext;
+internal sealed partial class McpJsonContext : JsonSerializerContext;

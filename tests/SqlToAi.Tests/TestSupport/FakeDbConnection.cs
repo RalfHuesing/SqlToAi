@@ -24,13 +24,9 @@ internal sealed record FakeDbConnectionOptions(
 /// <summary>
 /// Generic <see cref="DbConnection"/> fake shared by every ADO.NET test double in this project.
 /// Holds the common plumbing (connection string/identity/state, open/close, transaction tracking)
-/// and delegates command creation to a per-test-class factory, so each mock connection only has to
-/// author the command dispatch logic that is actually specific to the service under test. Not
-/// sealed: a handful of tests (e.g. rule/exclusion/metadata provider mocks) are constructed by name
-/// with test-specific optional parameters from other test files, so they subclass this to keep
-/// their existing public constructor shape while reusing all of the plumbing below.
+/// and delegates command creation to a per-test-class factory.
 /// </summary>
-internal class FakeDbConnection : DbConnection
+internal sealed class FakeDbConnection : DbConnection
 {
     private readonly Func<FakeDbConnection, DbCommand> _commandFactory;
     private readonly FakeDbConnectionOptions _options;

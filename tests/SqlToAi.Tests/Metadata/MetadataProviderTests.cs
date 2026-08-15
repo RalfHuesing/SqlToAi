@@ -43,7 +43,7 @@ public sealed class MetadataProviderTests
         var options = new SqlToAiOptions();
         options.MetadataProvider.Enabled = true;
 
-        var mockConn = new MockMetadataConnection(tableDesc: "Test Table Description");
+        var mockConn = MockMetadataConnection.Create(tableDesc: "Test Table Description");
         var mockFactory = new DummyConnectionFactory(mockConn);
         var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
 
@@ -67,7 +67,7 @@ public sealed class MetadataProviderTests
             { "Id", "Primary Key" },
             { "Name", "Customer Name" }
         };
-        var mockConn = new MockMetadataConnection(columnDescs: columnsData);
+        var mockConn = MockMetadataConnection.Create(columnDescs: columnsData);
         var mockFactory = new DummyConnectionFactory(mockConn);
         var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
 
@@ -110,7 +110,7 @@ public sealed class MetadataProviderTests
         options.MetadataProvider.Enabled = true;
         options.MetadataProvider.TableMetadataQuery = "SELECT Description FROM TableMetadata WHERE TableName = @TableName";
 
-        var mockConn = new MockMetadataConnection(tableDesc: "Metadata description");
+        var mockConn = MockMetadataConnection.Create(tableDesc: "Metadata description");
         var mockFactory = new DummyConnectionFactory(mockConn);
         var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
 
@@ -132,7 +132,7 @@ public sealed class MetadataProviderTests
         options.MetadataProvider.Enabled = true;
         options.MetadataProvider.ColumnMetadataQuery = "SELECT ColumnName, Description FROM ColumnMetadata WHERE TableName = @TableName";
 
-        var mockConn = new MockMetadataConnection(columnDescs: new Dictionary<string, string> { { "Col1", "Desc1" } });
+        var mockConn = MockMetadataConnection.Create(columnDescs: new Dictionary<string, string> { { "Col1", "Desc1" } });
         var mockFactory = new DummyConnectionFactory(mockConn);
         var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
 

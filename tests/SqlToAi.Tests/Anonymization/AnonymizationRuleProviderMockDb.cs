@@ -24,26 +24,23 @@ internal sealed class DummyConnectionFactory : IDatabaseConnectionFactory
     public DbConnection CreateConnection(string? databaseName = null)
     {
         ConnectionCreatedCount++;
-        return _connectionToReturn ?? new MockConnection([]);
+        return _connectionToReturn ?? MockConnection.Create([]);
     }
 }
 
 /// <summary>
-/// Mock connection for <c>AnonymizationRuleProvider</c>, built on the shared
-/// <see cref="FakeDbConnection"/>/<see cref="FakeDbCommand"/>/<see cref="FakeDbDataReader"/>
-/// plumbing. Kept as a named subclass (rather than a plain <see cref="FakeDbConnection"/>
-/// instance) because other test files construct it directly by name with these exact optional
-/// parameters.
+/// Factory for <c>AnonymizationRuleProvider</c> mock connections, built on the shared
+/// <see cref="FakeDbConnection"/>/<see cref="FakeDbCommand"/>/<see cref="FakeDbDataReader"/> plumbing.
 /// </summary>
-internal sealed class MockConnection : FakeDbConnection
+internal static class MockConnection
 {
-    public MockConnection(
+    public static FakeDbConnection Create(
         List<RuleRowData> rows,
         MockConnectionFlags? flags = null,
         string? simulatedTableName = "dbo.AnonymizationRules")
-        : base(conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(
-            ExecuteReader: cmd => Dispatch(cmd, rows, flags ?? new MockConnectionFlags(), simulatedTableName))))
     {
+        return new FakeDbConnection(conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(
+            ExecuteReader: cmd => Dispatch(cmd, rows, flags ?? new MockConnectionFlags(), simulatedTableName))));
     }
 
     private static FakeDbDataReader Dispatch(FakeDbCommand cmd, List<RuleRowData> rows, MockConnectionFlags flags, string? simulatedTableName)
