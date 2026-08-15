@@ -25,7 +25,7 @@ created_by_model_knowledge_cutoff: 2026-01
 
 ## Epics
 
-- [ ] EPIC-01: Baseline-Eliminierung & Zero-Warning-Setup — Löschen der Baseline-Datei, Bereinigung der Linter-Tests und Richtliniendokumente. (→ step-001)
+- [x] EPIC-01: Baseline-Eliminierung & Zero-Warning-Setup — Löschen der Baseline-Datei, Bereinigung der Linter-Tests und Richtliniendokumente. (→ step-001)
 - [ ] EPIC-02: Linter-Errors & Core C#-Fixes — `sealed` Ergänzungen (`McpJsonContext`, `FakeDbConnection`) und Parameter-Records in `PerformanceMeasurementService`.
 - [ ] EPIC-03: DRY-Konsolidierung (Produktionscode) — Migration von `QueryDeconstructor` und `SqlMultiStatementDetector` auf `SqlCharScanner`, Vereinheitlichung von `ExecuteSetOptionAsync`.
 - [ ] EPIC-04: Architektur: Facade & Dispatcher-Entlastung — Einführung von `IDatabaseAnalysisService` / `DatabaseAnalysisServices` zur Entlastung des `ToolDispatcher`.
