@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 
 // @covers SqlToAi.Database.TableSchemaRenderer
 namespace SqlToAi.Tests.Database;
@@ -38,11 +38,11 @@ public sealed class TableSchemaRendererTests
     }
 
     [Theory]
-    [InlineData("decimal", 0, 18, 2, "decimal(18,2)")]
-    [InlineData("numeric", 0, 10, 4, "numeric(10,4)")]
-    public void FormatTypeString_Decimal_IncludesPrecisionAndScale(string type, int maxLength, int precision, int scale, string expected)
+    [InlineData("decimal", 18, 2, "decimal(18,2)")]
+    [InlineData("numeric", 10, 4, "numeric(10,4)")]
+    public void FormatTypeString_Decimal_IncludesPrecisionAndScale(string type, int precision, int scale, string expected)
     {
-        string actual = InvokeFormatTypeString(type, maxLength, precision, scale);
+        string actual = InvokeFormatTypeString(type, 0, precision, scale);
         Assert.Equal(expected, actual);
     }
 

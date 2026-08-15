@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
 using SqlToAi.Mcp;
+using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Mcp;
 
@@ -218,7 +219,7 @@ public sealed class McpTrailWriterTests : IDisposable
         var writer = new McpTrailWriter(
             Microsoft.Extensions.Options.Options.Create(options),
             NullLogger<McpTrailWriter>.Instance,
-            CreateAnonymizer(anonymizerEnabled: false));
+            McpTrailTestHelper.CreateAnonymizer(anonymizerEnabled: false));
 
         // Must not throw — fire-and-forget contract.
         var ex = Record.Exception(() => writer.Record(new McpCallRecord("c1", "tools/list", null, null, null, null, 1, true)));
@@ -274,28 +275,6 @@ public sealed class McpTrailWriterTests : IDisposable
     /// sibling <see cref="McpTrailWriterRedactionTests"/> class, which opts into a real,
     /// enabled <see cref="Anonymizer"/>.
     /// </summary>
-    private McpTrailWriter CreateWriter(bool enabled, bool anonymizerEnabled = false)
-    {
-        var options = new SqlToAiOptions
-        {
-            Logging = new LoggingOptions
-            {
-                Directory = _logRoot,
-                McpTrail = new McpTrailOptions { Enabled = enabled, Directory = "mcp", RetainedDays = 14 }
-            }
-        };
-        return new McpTrailWriter(
-            Microsoft.Extensions.Options.Options.Create(options),
-            NullLogger<McpTrailWriter>.Instance,
-            CreateAnonymizer(anonymizerEnabled));
-    }
-
-    private static Anonymizer CreateAnonymizer(bool anonymizerEnabled)
-    {
-        var options = new SqlToAiOptions
-        {
-            Anonymizer = new AnonymizerOptions { Enabled = anonymizerEnabled, DefaultMode = "ScramblePattern" },
-        };
-        return new Anonymizer(Microsoft.Extensions.Options.Options.Create(options), new TokenVault());
-    }
+    private McpTrailWriter CreateWriter(bool enabled, bool anonymizerEnabled = false) =>
+        McpTrailTestHelper.CreateWriter(_logRoot, enabled, anonymizerEnabled);
 }

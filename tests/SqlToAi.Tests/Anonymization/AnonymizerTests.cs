@@ -3,6 +3,7 @@
 using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
+using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Anonymization;
 
@@ -103,18 +104,10 @@ public sealed class AnonymizerTests
     // Tests: Tokenize
     // -------------------------------------------------------------------------
 
-    private static SqlToAiOptions BuildTokenizationOptions(bool enabled = true)
-    {
-        var options = new SqlToAiOptions();
-        options.Anonymizer.Enabled = true;
-        options.Anonymizer.Tokenization.Enabled = enabled;
-        return options;
-    }
-
     [Fact]
     public void Tokenize_ShouldReturnOriginalValue_WhenValueIsEmptyOrNull()
     {
-        var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), new TokenVault());
+        var anonymizer = new Anonymizer(Options.Create(AnonymizationTestHelper.BuildTokenizationOptions()), new TokenVault());
 
         Assert.Equal("", anonymizer.Tokenize("IBAN", ""));
     }
@@ -122,7 +115,7 @@ public sealed class AnonymizerTests
     [Fact]
     public void Tokenize_ShouldBeDeterministic_ForTheSameValue()
     {
-        var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), new TokenVault());
+        var anonymizer = new Anonymizer(Options.Create(AnonymizationTestHelper.BuildTokenizationOptions()), new TokenVault());
 
         var token1 = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
         var token2 = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
@@ -133,7 +126,7 @@ public sealed class AnonymizerTests
     [Fact]
     public void Tokenize_ShouldProduceCompactShortToken()
     {
-        var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), new TokenVault());
+        var anonymizer = new Anonymizer(Options.Create(AnonymizationTestHelper.BuildTokenizationOptions()), new TokenVault());
 
         var token = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
 
@@ -143,7 +136,7 @@ public sealed class AnonymizerTests
     [Fact]
     public void Tokenize_ShouldProduceDifferentTokens_ForDifferentValues()
     {
-        var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), new TokenVault());
+        var anonymizer = new Anonymizer(Options.Create(AnonymizationTestHelper.BuildTokenizationOptions()), new TokenVault());
 
         var token1 = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
         var token2 = anonymizer.Tokenize("IBAN", "DE11520513735120710131");
@@ -156,7 +149,7 @@ public sealed class AnonymizerTests
     [Fact]
     public void Tokenize_ShouldWrapTokenInConfiguredPrefixAndSuffix()
     {
-        var options = BuildTokenizationOptions();
+        var options = AnonymizationTestHelper.BuildTokenizationOptions();
         options.Anonymizer.Tokenization.Prefix = "<<";
         options.Anonymizer.Tokenization.Suffix = ">>";
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
@@ -172,7 +165,7 @@ public sealed class AnonymizerTests
     public void Tokenize_ShouldStoreValueInVault_SoItCanBeResolvedBack()
     {
         var vault = new TokenVault();
-        var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions()), vault);
+        var anonymizer = new Anonymizer(Options.Create(AnonymizationTestHelper.BuildTokenizationOptions()), vault);
 
         var token = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
 
@@ -183,7 +176,7 @@ public sealed class AnonymizerTests
     [Fact]
     public void Tokenize_ShouldFallBackToMasking_WhenTokenizationDisabled()
     {
-        var anonymizer = new Anonymizer(Options.Create(BuildTokenizationOptions(enabled: false)), new TokenVault());
+        var anonymizer = new Anonymizer(Options.Create(AnonymizationTestHelper.BuildTokenizationOptions(enabled: false)), new TokenVault());
 
         var result = anonymizer.Tokenize("Name", "Ralf");
 
@@ -194,7 +187,7 @@ public sealed class AnonymizerTests
     [Fact]
     public void Tokenize_ShouldReturnOriginalValue_WhenGloballyDisabled()
     {
-        var options = BuildTokenizationOptions();
+        var options = AnonymizationTestHelper.BuildTokenizationOptions();
         options.Anonymizer.Enabled = false;
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 

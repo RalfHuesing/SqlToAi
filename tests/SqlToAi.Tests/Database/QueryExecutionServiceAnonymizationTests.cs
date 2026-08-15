@@ -7,16 +7,14 @@ using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
 using SqlToAi.Database;
 using SqlToAi.Domain;
+using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Database;
 
 /// <summary>
-/// Anonymization and tokenization tests for <see cref="QueryExecutionService"/>. Split out of
-/// <see cref="QueryExecutionServiceTests"/> (see that file for input-validation, security, and
-/// row-limit tests) purely to stay within the project's per-file line-count budget — this is a
-/// second partial-class file, not a separate test subject.
+/// Anonymization and tokenization tests for <see cref="QueryExecutionService"/>.
 /// </summary>
-public sealed partial class QueryExecutionServiceTests
+public sealed class QueryExecutionServiceAnonymizationTests
 {
     // -------------------------------------------------------------------------
     // Tests: anonymization
@@ -125,14 +123,6 @@ public sealed partial class QueryExecutionServiceTests
     // Tests: searchable tokenization (egress + ingress)
     // -------------------------------------------------------------------------
 
-    private static SqlToAiOptions BuildTokenizationOptions(bool enabled = true)
-    {
-        var options = new SqlToAiOptions();
-        options.Anonymizer.Enabled = true;
-        options.Anonymizer.Tokenization.Enabled = enabled;
-        return options;
-    }
-
     private static (QueryExecutionService Service, MockQueryConnectionFactory Factory, TokenVault Vault) BuildTokenizingService(
         SqlToAiOptions options, string stringValue, string columnName = "IBAN", string? baseColumnName = null)
     {
@@ -169,7 +159,7 @@ public sealed partial class QueryExecutionServiceTests
         // No column-name configuration anywhere — tokenization is a blanket mode switch, exactly
         // like DefaultMode, so an arbitrarily named column gets tokenized automatically.
         const string realValue = "DE89370400440532013000";
-        var options = BuildTokenizationOptions();
+        var options = AnonymizationTestHelper.BuildTokenizationOptions();
         var (service, _, vault) = BuildTokenizingService(options, realValue, columnName: "SomeArbitraryColumn");
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT SomeArbitraryColumn FROM Whatever", null, TestContext.Current.CancellationToken);
@@ -191,7 +181,7 @@ public sealed partial class QueryExecutionServiceTests
     public async Task ExecuteQueryAsync_ShouldUseRegularMasking_WhenTokenizationDisabled()
     {
         const string original = "Ralf Huesing";
-        var options = BuildTokenizationOptions(enabled: false);
+        var options = AnonymizationTestHelper.BuildTokenizationOptions(enabled: false);
         var (service, _, _) = BuildTokenizingService(options, original, columnName: "Name");
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
@@ -203,12 +193,10 @@ public sealed partial class QueryExecutionServiceTests
         Assert.Empty(result.Value.SearchableTokenColumns);
     }
 
-
-
     [Fact]
     public async Task ExecuteQueryAsync_ShouldResolveToken_BackToRealValue_BeforeExecution()
     {
-        var options = BuildTokenizationOptions();
+        var options = AnonymizationTestHelper.BuildTokenizationOptions();
         var (service, factory, vault) = BuildTokenizingService(options, "unused");
         vault.Store("§§§preissued§§§", "DE89370400440532013000");
 
@@ -224,7 +212,7 @@ public sealed partial class QueryExecutionServiceTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldLeaveUnknownToken_UnresolvedInExecutedQuery()
     {
-        var options = BuildTokenizationOptions();
+        var options = AnonymizationTestHelper.BuildTokenizationOptions();
         var (service, factory, _) = BuildTokenizingService(options, "unused");
 
         await service.ExecuteQueryAsync(
@@ -238,7 +226,7 @@ public sealed partial class QueryExecutionServiceTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldNotResolveTokens_WhenAccessLevelIsNotAnonymized()
     {
-        var options = BuildTokenizationOptions();
+        var options = AnonymizationTestHelper.BuildTokenizationOptions();
         var vault = new TokenVault();
         vault.Store("§§§preissued§§§", "DE89370400440532013000");
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("unused"));
@@ -261,7 +249,7 @@ public sealed partial class QueryExecutionServiceTests
     public async Task ExecuteQueryAsync_ShouldRoundTripToken_FromEgressQueryIntoIngressQuery()
     {
         const string iban = "DE89370400440532013000";
-        var options = BuildTokenizationOptions();
+        var options = AnonymizationTestHelper.BuildTokenizationOptions();
         var (service, factory, _) = BuildTokenizingService(options, iban);
 
         // 1. Egress: a first query hands the AI a token instead of the real IBAN.

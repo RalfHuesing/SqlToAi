@@ -14,7 +14,8 @@ public sealed class GlobMatcherTests
     [InlineData("Demo", "Demo_*", false)] // literal text without trailing '_' does not satisfy "Demo_*"
     public void IsMatch_ShouldHandleStarWildcard(string text, string pattern, bool expected)
     {
-        Assert.Equal(expected, GlobMatcher.IsMatch(text, pattern));
+        bool actual = GlobMatcher.IsMatch(text, pattern);
+        Assert.Equal(expected, actual);
     }
 
     [Theory]
@@ -23,7 +24,8 @@ public sealed class GlobMatcherTests
     [InlineData("Demo_", "Demo_?", false)] // '?' requires exactly one character; empty does not satisfy
     public void IsMatch_ShouldHandleQuestionMarkWildcard(string text, string pattern, bool expected)
     {
-        Assert.Equal(expected, GlobMatcher.IsMatch(text, pattern));
+        bool actual = GlobMatcher.IsMatch(text, pattern);
+        Assert.Equal(expected, actual);
     }
 
     [Theory]
@@ -33,7 +35,8 @@ public sealed class GlobMatcherTests
     [InlineData("MyServer.", "MyServer?", true)] // '?' substitutes the literal '.'
     public void IsMatch_ShouldEscapeRegexMetacharacters(string text, string pattern, bool expected)
     {
-        Assert.Equal(expected, GlobMatcher.IsMatch(text, pattern));
+        bool actual = GlobMatcher.IsMatch(text, pattern);
+        Assert.Equal(expected, actual);
     }
 
     [Theory]
@@ -42,26 +45,30 @@ public sealed class GlobMatcherTests
     [InlineData("DEMO_App", "demo_*", true)]
     public void IsMatch_ShouldBeCaseInsensitive(string text, string pattern, bool expected)
     {
-        Assert.Equal(expected, GlobMatcher.IsMatch(text, pattern));
+        bool actual = GlobMatcher.IsMatch(text, pattern);
+        Assert.Equal(expected, actual);
     }
 
     [Fact]
     public void IsMatch_ShouldReturnFalse_OnEmptyPattern()
     {
-        Assert.False(GlobMatcher.IsMatch("Demo_App", ""));
+        bool actual = GlobMatcher.IsMatch("Demo_App", "");
+        Assert.False(actual);
     }
 
     [Fact]
     public void IsMatch_ShouldReturnFalse_OnEmptyText()
     {
         // Empty text never matches a non-empty pattern (anchors ^...$ require at least one char).
-        Assert.False(GlobMatcher.IsMatch(string.Empty, "Demo_*"));
+        bool actual = GlobMatcher.IsMatch(string.Empty, "Demo_*");
+        Assert.False(actual);
     }
 
     [Fact]
     public void IsMatch_ShouldReturnFalse_OnBothEmpty()
     {
         // Empty pattern short-circuits to false before the regex is built.
-        Assert.False(GlobMatcher.IsMatch(string.Empty, string.Empty));
+        bool actual = GlobMatcher.IsMatch(string.Empty, string.Empty);
+        Assert.False(actual);
     }
 }
