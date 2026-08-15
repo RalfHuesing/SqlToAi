@@ -1,8 +1,8 @@
 ---
-status: completed
+status: done
 task: dry-refactor
 started_at: 2026-08-15T18:20:00+02:00
-last_updated: 2026-08-15T18:45:00+02:00
+last_updated: 2026-08-15T18:50:00+02:00
 rules_dir: .agents/rules
 total_steps: 6
 current_step: step-006
@@ -12,14 +12,17 @@ current_step: step-006
 
 ## Übersicht
 
-- **Task-Status:** `completed`
-- **Steps gesamt:** 6
+- **Task-Status:** `done`
+- **Steps gesamt:** 6 (regulär + Korrekturen — weicher Check-in bei
+  jedem Vielfachen von `soft_step_checkin_interval`, siehe Config)
 - **Aktueller Schritt:** `step-006` (abgeschlossen)
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
-- **Kritiker-Review:** siehe `kritiker-review.md` für die Gesamtbewertung
+- **Task-Summary:** siehe `task-summary.md` für den globalen Kritiker-Bericht (Verdict: `approved`)
+- **Kritiker-Review (Self-Audit step-006):** siehe `kritiker-review.md`
 - **Linter-Feedback:** siehe `ainetlinter-feedback.md` für Beobachtungen zum AiNetLinter
+- **Tech-Debt:** siehe `tech-debt.md` (leer nach globalem Review)
 - **Gestartet:** 2026-08-15T18:20:00+02:00
-- **Abgeschlossen:** 2026-08-15T18:45:00+02:00
+- **Abgeschlossen:** 2026-08-15T18:50:00+02:00
 
 ## Steps
 
