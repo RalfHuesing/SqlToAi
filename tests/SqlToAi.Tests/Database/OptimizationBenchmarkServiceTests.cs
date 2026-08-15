@@ -48,7 +48,7 @@ public sealed class OptimizationBenchmarkServiceTests
         var result = await service.BenchmarkOptimizationAsync(new QueryBenchmarkArgs("TestDb", "A", "B"), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("Recommended", result.Value.Verdict);
+        Assert.Equal(BenchmarkVerdict.Recommended, result.Value.Verdict);
         Assert.Equal(-60.0, result.Value.Deltas.CpuTime.PercentageDelta);
         Assert.Equal(-80.0, result.Value.Deltas.LogicalReads.PercentageDelta);
     }
@@ -65,7 +65,7 @@ public sealed class OptimizationBenchmarkServiceTests
         var result = await service.BenchmarkOptimizationAsync(new QueryBenchmarkArgs("TestDb", "A", "B"), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("UnsafeDueToDataMismatch", result.Value.Verdict);
+        Assert.Equal(BenchmarkVerdict.UnsafeDueToDataMismatch, result.Value.Verdict);
     }
 
     [Fact]
@@ -80,6 +80,6 @@ public sealed class OptimizationBenchmarkServiceTests
         var result = await service.BenchmarkOptimizationAsync(new QueryBenchmarkArgs("TestDb", "A", "B"), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("NotRecommended", result.Value.Verdict);
+        Assert.Equal(BenchmarkVerdict.NotRecommended, result.Value.Verdict);
     }
 }

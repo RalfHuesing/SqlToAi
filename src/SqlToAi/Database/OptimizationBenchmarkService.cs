@@ -101,7 +101,7 @@ public sealed class OptimizationBenchmarkService : IOptimizationBenchmarkService
         if (!comparison.IsEqual)
         {
             return (
-                Verdict: "UnsafeDueToDataMismatch",
+                Verdict: BenchmarkVerdict.UnsafeDueToDataMismatch,
                 Summary: "Candidate query (Query B) produces different results or schema compared to baseline query (Query A). Cannot replace query."
             );
         }
@@ -112,7 +112,7 @@ public sealed class OptimizationBenchmarkService : IOptimizationBenchmarkService
         if (cpuImprovedOrSame && readsImprovedOrSame && (deltas.CpuTime.AbsoluteDelta < 0 || deltas.LogicalReads.AbsoluteDelta < 0))
         {
             return (
-                Verdict: "Recommended",
+                Verdict: BenchmarkVerdict.Recommended,
                 Summary: $"Candidate query is 100% equivalent and reduces CPU time by {Math.Abs(deltas.CpuTime.PercentageDelta):F1}% and logical reads by {Math.Abs(deltas.LogicalReads.PercentageDelta):F1}%."
             );
         }
@@ -120,13 +120,13 @@ public sealed class OptimizationBenchmarkService : IOptimizationBenchmarkService
         if (deltas.CpuTime.AbsoluteDelta > 0 || deltas.LogicalReads.AbsoluteDelta > 0)
         {
             return (
-                Verdict: "NotRecommended",
+                Verdict: BenchmarkVerdict.NotRecommended,
                 Summary: "Candidate query is equivalent, but consumed more CPU time or logical reads than baseline query."
             );
         }
 
         return (
-            Verdict: "Neutral",
+            Verdict: BenchmarkVerdict.Neutral,
             Summary: "Candidate query is equivalent and showed identical resource utilization."
         );
     }

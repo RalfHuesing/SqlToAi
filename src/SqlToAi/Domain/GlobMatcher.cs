@@ -1,5 +1,6 @@
 #nullable enable
 using System.Text.RegularExpressions;
+using SqlToAi.Security;
 
 namespace SqlToAi.Domain;
 
@@ -14,7 +15,7 @@ namespace SqlToAi.Domain;
 /// </summary>
 internal static class GlobMatcher
 {
-    private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan RegexTimeout = SecurityConstants.DefaultRegexTimeout;
 
     /// <summary>
     /// Returns <c>true</c> when <paramref name="text"/> matches the glob

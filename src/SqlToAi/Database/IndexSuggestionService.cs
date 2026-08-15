@@ -288,8 +288,8 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
     /// <c>VIEW SERVER STATE</c> phrase as a reliable secondary signal.
     /// </summary>
     private static bool IsViewServerStatePermissionError(SqlException ex) =>
-        PerformanceMeasurementService.IsPermissionError(ex, 300, "VIEW SERVER STATE")
-        || PerformanceMeasurementService.IsPermissionError(ex, 297, "VIEW SERVER STATE");
+        PerformanceMeasurementService.IsPermissionError(ex, SqlServerErrorCode.InsufficientPermission, "VIEW SERVER STATE")
+        || PerformanceMeasurementService.IsPermissionError(ex, SqlServerErrorCode.ActionPermissionDenied, "VIEW SERVER STATE");
 
     private sealed class MissingIndexRow
     {

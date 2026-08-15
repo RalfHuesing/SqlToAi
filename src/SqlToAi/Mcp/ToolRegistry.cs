@@ -1,5 +1,7 @@
 #nullable enable
 
+using SqlToAi.Database;
+
 namespace SqlToAi.Mcp;
 
 /// <summary>
@@ -92,7 +94,7 @@ public sealed class ToolRegistry
             {
                 [McpConstants.ArgSearchTerm] = StringParam("Partial object name to search for."),
                 [McpConstants.ArgMaxResults] = new() { Type = "integer", Description = "Maximum number of results to return. Optional." },
-                [McpConstants.ArgObjectType] = OptionalStringParam(
+                [McpConstants.ArgObjectType] = StringParam(
                     "Optional filter on SQL Server type_desc. Common values: 'USER_TABLE', 'VIEW', " +
                     "'SQL_STORED_PROCEDURE', 'SQL_TRIGGER', 'SQL_SCALAR_FUNCTION'. Supports LIKE wildcards (e.g. 'SQL_%')."),
                 [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
@@ -116,50 +118,14 @@ public sealed class ToolRegistry
         }
     };
 
-    private static ToolDefinition BuildGetSchemaForeignKeys() => new()
-    {
-        Name = McpConstants.ToolGetSchemaForeignKeys,
-        Description = "Returns all inbound and outbound foreign keys for a table as a Markdown table.",
-        InputSchema = new ToolInputSchema
-        {
-            Properties = new Dictionary<string, ToolParameterDefinition>
-            {
-                [McpConstants.ArgObjectName] = StringParam("The name of the target table."),
-                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
-            },
-            Required = [McpConstants.ArgObjectName, McpConstants.ArgDatabase]
-        }
-    };
+    private static ToolDefinition BuildGetSchemaForeignKeys() =>
+        BuildObjectDetailTool(McpConstants.ToolGetSchemaForeignKeys, "Returns all inbound and outbound foreign keys for a table as a Markdown table.");
 
-    private static ToolDefinition BuildGetSchemaIndexes() => new()
-    {
-        Name = McpConstants.ToolGetSchemaIndexes,
-        Description = "Returns all indexes (PK, Unique, Non-Clustered) including key and included columns for a table.",
-        InputSchema = new ToolInputSchema
-        {
-            Properties = new Dictionary<string, ToolParameterDefinition>
-            {
-                [McpConstants.ArgObjectName] = StringParam("The name of the target table."),
-                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
-            },
-            Required = [McpConstants.ArgObjectName, McpConstants.ArgDatabase]
-        }
-    };
+    private static ToolDefinition BuildGetSchemaIndexes() =>
+        BuildObjectDetailTool(McpConstants.ToolGetSchemaIndexes, "Returns all indexes (PK, Unique, Non-Clustered) including key and included columns for a table.");
 
-    private static ToolDefinition BuildGetSchemaConstraints() => new()
-    {
-        Name = McpConstants.ToolGetSchemaConstraints,
-        Description = "Returns all Default and Check constraints including their definition texts for a table.",
-        InputSchema = new ToolInputSchema
-        {
-            Properties = new Dictionary<string, ToolParameterDefinition>
-            {
-                [McpConstants.ArgObjectName] = StringParam("The name of the target table."),
-                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
-            },
-            Required = [McpConstants.ArgObjectName, McpConstants.ArgDatabase]
-        }
-    };
+    private static ToolDefinition BuildGetSchemaConstraints() =>
+        BuildObjectDetailTool(McpConstants.ToolGetSchemaConstraints, "Returns all Default and Check constraints including their definition texts for a table.");
 
     private static ToolDefinition BuildGetTriggerDefinition() => new()
     {
@@ -177,35 +143,11 @@ public sealed class ToolRegistry
         }
     };
 
-    private static ToolDefinition BuildGetObjectReferences() => new()
-    {
-        Name = McpConstants.ToolGetObjectReferences,
-        Description = "Returns all objects that reference or are referenced by the specified table or view.",
-        InputSchema = new ToolInputSchema
-        {
-            Properties = new Dictionary<string, ToolParameterDefinition>
-            {
-                [McpConstants.ArgObjectName] = StringParam("The name of the target table or view."),
-                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
-            },
-            Required = [McpConstants.ArgObjectName, McpConstants.ArgDatabase]
-        }
-    };
+    private static ToolDefinition BuildGetObjectReferences() =>
+        BuildObjectDetailTool(McpConstants.ToolGetObjectReferences, "Returns all objects that reference or are referenced by the specified table or view.");
 
-    private static ToolDefinition BuildGetRoutineParameters() => new()
-    {
-        Name = McpConstants.ToolGetRoutineParameters,
-        Description = "Returns all parameters (name, type, direction) of a stored procedure or function.",
-        InputSchema = new ToolInputSchema
-        {
-            Properties = new Dictionary<string, ToolParameterDefinition>
-            {
-                [McpConstants.ArgObjectName] = StringParam("The name of the stored procedure or function."),
-                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
-            },
-            Required = [McpConstants.ArgObjectName, McpConstants.ArgDatabase]
-        }
-    };
+    private static ToolDefinition BuildGetRoutineParameters() =>
+        BuildObjectDetailTool(McpConstants.ToolGetRoutineParameters, "Returns all parameters (name, type, direction) of a stored procedure or function.");
 
     private static ToolDefinition BuildExecuteQuery() => new()
     {
@@ -285,9 +227,9 @@ public sealed class ToolRegistry
         Description = "Runs a full optimization benchmark comparing baseline (Query A) vs candidate (Query B): checks " +
             "result set equivalence (via sql_compare_queries semantics) and measures both queries' performance " +
             "(same mechanism as sql_measure_performance, using warmup_runs/execution_runs). Returns JSON with " +
-            "verdict (one of \"Recommended\" — equivalent and candidate uses less or equal CPU/logical reads " +
-            "with at least one strictly improved; \"NotRecommended\" — equivalent but candidate uses more CPU or " +
-            "logical reads; \"Neutral\" — equivalent with identical resource usage; \"UnsafeDueToDataMismatch\" — " +
+            $"verdict (one of \"{BenchmarkVerdict.Recommended}\" — equivalent and candidate uses less or equal CPU/logical reads " +
+            $"with at least one strictly improved; \"{BenchmarkVerdict.NotRecommended}\" — equivalent but candidate uses more CPU or " +
+            $"logical reads; \"{BenchmarkVerdict.Neutral}\" — equivalent with identical resource usage; \"{BenchmarkVerdict.UnsafeDueToDataMismatch}\" — " +
             "candidate produces different results or schema, cannot replace baseline), summary (human-readable " +
             "explanation), comparison (schema/row-count/EXCEPT diff result), performance_a/performance_b (full " +
             "sql_measure_performance-style results for each query), and deltas (cpu_time/elapsed_time/ " +
@@ -329,7 +271,7 @@ public sealed class ToolRegistry
                 Properties = new Dictionary<string, ToolParameterDefinition>
                 {
                     [McpConstants.ArgDatabase]  = StringParam("Target database name. Required."),
-                    [McpConstants.ArgTableName] = OptionalStringParam("Optional LIKE filter on the DMV 'statement' column (e.g. 'Orders' or 'dbo.%'). Case-insensitive substring match."),
+                    [McpConstants.ArgTableName] = StringParam("Optional LIKE filter on the DMV 'statement' column (e.g. 'Orders' or 'dbo.%'). Case-insensitive substring match."),
                     [McpConstants.ArgMinScore]  = new() { Type = "number", Description = "Optional minimum improvement_score threshold; rows below it are excluded. Default 0 (no threshold)." },
                     [McpConstants.ArgTop]       = new() { Type = "integer", Description = "Maximum number of recommendations to return. Default 10." }
                 },
@@ -353,9 +295,24 @@ public sealed class ToolRegistry
         Description = description
     };
 
-    private static ToolParameterDefinition OptionalStringParam(string description) => new()
+    /// <summary>
+    /// Builds a standard "object-detail" tool that takes an <c>object_name</c> and a
+    /// <c>database</c> as required parameters. The five MCP detail tools share this
+    /// exact schema; the trigger tool has an additional <c>trigger_name</c> parameter
+    /// and therefore does not use this helper.
+    /// </summary>
+    private static ToolDefinition BuildObjectDetailTool(string name, string description) => new()
     {
-        Type = "string",
-        Description = description
+        Name = name,
+        Description = description,
+        InputSchema = new ToolInputSchema
+        {
+            Properties = new Dictionary<string, ToolParameterDefinition>
+            {
+                [McpConstants.ArgObjectName] = StringParam("The name of the target object."),
+                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
+            },
+            Required = [McpConstants.ArgObjectName, McpConstants.ArgDatabase]
+        }
     };
 }

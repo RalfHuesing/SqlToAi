@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
+using SqlToAi.Security;
 
 namespace SqlToAi.Database;
 
@@ -74,6 +75,6 @@ public sealed class QueryTokenResolver : IQueryTokenResolver
     private static Regex BuildTokenPattern(TokenizationOptions options)
     {
         string pattern = Regex.Escape(options.Prefix) + "[A-Za-z0-9_-]+" + Regex.Escape(options.Suffix);
-        return new Regex(pattern, RegexOptions.None, TimeSpan.FromMilliseconds(200));
+        return new Regex(pattern, RegexOptions.None, SecurityConstants.DefaultRegexTimeout);
     }
 }

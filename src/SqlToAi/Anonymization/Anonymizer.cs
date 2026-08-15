@@ -85,7 +85,7 @@ public sealed class Anonymizer : IAnonymizer
 
     private static string RunAnonymization(string value, string mode)
     {
-        if (string.Equals(mode, "Hash", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(mode, AnonymizationMode.Hash, StringComparison.OrdinalIgnoreCase))
         {
             return HashValue(value);
         }
@@ -123,11 +123,15 @@ public sealed class Anonymizer : IAnonymizer
 
     private static int GetStableHashCode(string val)
     {
-        uint hash = 2166136261;
+        // 32-bit FNV-1a constants — see http://www.isthe.com/chongo/tech/comp/fnv/
+        const uint FnvOffsetBasis32 = 2166136261u;
+        const uint FnvPrime32 = 16777619u;
+
+        uint hash = FnvOffsetBasis32;
         foreach (char c in val)
         {
             hash ^= c;
-            hash *= 16777619;
+            hash *= FnvPrime32;
         }
         return (int)hash;
     }

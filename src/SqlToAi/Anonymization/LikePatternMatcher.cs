@@ -2,6 +2,7 @@
 
 using System.Text;
 using System.Text.RegularExpressions;
+using SqlToAi.Security;
 
 namespace SqlToAi.Anonymization;
 
@@ -12,7 +13,7 @@ namespace SqlToAi.Anonymization;
 /// </summary>
 internal static class LikePatternMatcher
 {
-    private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan RegexTimeout = SecurityConstants.DefaultRegexTimeout;
 
     /// <summary>Checks whether <paramref name="text"/> matches the SQL <c>LIKE</c>-style <paramref name="pattern"/>.</summary>
     public static bool IsMatch(string text, string pattern)

@@ -10,9 +10,6 @@ namespace SqlToAi.Database;
 
 internal sealed class TableSchemaRenderer
 {
-    private const string DdlUnavailableNote =
-        "*Definition not available — either the object is encrypted, or the configured login lacks VIEW DEFINITION permission on it.*";
-
     /// <summary>SQL Server types whose values are read as .NET strings and are therefore ever subject to anonymization.</summary>
     private static readonly HashSet<string> AnonymizableSqlTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -224,7 +221,7 @@ internal sealed class TableSchemaRenderer
         }
         else
         {
-            sb.AppendLine(DdlUnavailableNote);
+            sb.AppendLine(DetailSchemaRenderer.DdlUnavailableNote);
         }
         return sb.ToString();
     }
@@ -254,7 +251,7 @@ internal sealed class TableSchemaRenderer
         }
         else
         {
-            sb.AppendLine(DdlUnavailableNote);
+            sb.AppendLine(DetailSchemaRenderer.DdlUnavailableNote);
         }
 
         return sb.ToString();

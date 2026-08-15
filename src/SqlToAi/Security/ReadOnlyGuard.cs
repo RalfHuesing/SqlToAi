@@ -21,7 +21,7 @@ public sealed class ReadOnlyGuard : IReadOnlyGuard
     private static readonly Regex MutatingKeywordsRegex = new(
         @"\b(insert|update|delete|drop|alter|truncate|create|merge|grant|revoke|reconfigure|checkpoint|backup|restore|dbcc|exec|execute|sp_executesql|into)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(200));
+        SecurityConstants.DefaultRegexTimeout);
 
     /// <summary>
     /// Checks if a query is safe for read-only execution by stripping comments and string

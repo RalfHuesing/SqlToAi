@@ -45,7 +45,9 @@ public static class SqlToAiErrorMapper
             return true;
         }
 
-        if (ex is SqlException sqlEx && (sqlEx.Number == -2 || sqlEx.Number == 121 || sqlEx.Number == 258))
+        if (ex is SqlException sqlEx && (sqlEx.Number == SqlServerErrorCode.ClientQueryTimeout
+            || sqlEx.Number == SqlServerErrorCode.SemaphoreTimeout
+            || sqlEx.Number == SqlServerErrorCode.WaitTimeout))
         {
             return true;
         }
@@ -72,7 +74,14 @@ public static class SqlToAiErrorMapper
 
             return sqlEx.Number switch
             {
-                20 or 40 or 53 or 233 or 10054 or 10060 or 10061 or 18456 => true,
+                SqlServerErrorCode.InstanceNotFound
+                    or SqlServerErrorCode.StatementTooComplex
+                    or SqlServerErrorCode.ServerNotFound
+                    or SqlServerErrorCode.ConnectionInitializationError
+                    or SqlServerErrorCode.ConnectionReset
+                    or SqlServerErrorCode.ConnectionTimedOut
+                    or SqlServerErrorCode.ConnectionRefused
+                    or SqlServerErrorCode.LoginFailed => true,
                 _ => false
             };
         }

@@ -286,8 +286,15 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
     /// mutually non-dominated rules that are equally (non-)protective (see
     /// <see cref="FindMostSpecificMatch"/>). Not used to rank comparable rules anymore.
     /// </summary>
+    private const int DatabaseDimensionWeight = 1000;
+    private const int SchemaDimensionWeight = 100;
+    private const int TableDimensionWeight = 10;
+
     private static int WeightedScore(int[] scores) =>
-        (scores[0] * 1000) + (scores[1] * 100) + (scores[2] * 10) + scores[3];
+        (scores[0] * DatabaseDimensionWeight)
+        + (scores[1] * SchemaDimensionWeight)
+        + (scores[2] * TableDimensionWeight)
+        + scores[3];
 
     private sealed class RuleRow
     {

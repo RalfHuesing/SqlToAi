@@ -182,7 +182,7 @@ internal sealed class FakeOptimizationBenchmarkService : IOptimizationBenchmarkS
         var comp = new QueryComparisonResult(true, true, true, 10, 10, Array.Empty<string>(), "[]", "[]");
         var perf = new PerformanceMeasurementResult(args.DatabaseName, 1, 1, new PerformanceMetrics(10, 15, 100, 0, 0), Array.Empty<PerformancePlanWarning>(), true, null);
         var deltas = new BenchmarkMetricsDelta(new MetricDelta(10, 5, -5, -50.0), new MetricDelta(15, 10, -5, -33.3), new MetricDelta(100, 50, -50, -50.0), new MetricDelta(0, 0, 0, 0.0));
-        var res = new OptimizationBenchmarkResult(args.DatabaseName, "Recommended", "Summary", comp, perf, perf, deltas);
+        var res = new OptimizationBenchmarkResult(args.DatabaseName, BenchmarkVerdict.Recommended, "Summary", comp, perf, perf, deltas);
         return Task.FromResult(Result<OptimizationBenchmarkResult>.Success(res));
     }
 }

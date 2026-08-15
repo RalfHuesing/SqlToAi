@@ -8,7 +8,7 @@ namespace SqlToAi.Database;
 
 internal static class DetailSchemaRenderer
 {
-    private const string DdlUnavailableNote =
+    internal const string DdlUnavailableNote =
         "*Definition not available — either the object is encrypted, or the configured login lacks VIEW DEFINITION permission on it.*";
 
     /// <summary>
@@ -27,7 +27,7 @@ internal static class DetailSchemaRenderer
             return SqlToAiError.ObjectNotFound(objectName);
         }
 
-        if (objectType != "U" && objectType != "V")
+        if (objectType != SqlServerObjectType.UserTable && objectType != SqlServerObjectType.View)
         {
             return SqlToAiError.InvalidDetailQueryType(objectName);
         }
@@ -248,7 +248,7 @@ internal static class DetailSchemaRenderer
             return SqlToAiError.ObjectNotFound(objectName);
         }
 
-        if (objectType != "U" && objectType != "V")
+        if (objectType != SqlServerObjectType.UserTable && objectType != SqlServerObjectType.View)
         {
             return SqlToAiError.InvalidReferenceType(objectName);
         }

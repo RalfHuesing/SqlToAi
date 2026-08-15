@@ -165,7 +165,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             {
                 await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS XML ON", ct);
             }
-            catch (SqlException ex) when (IsPermissionError(ex, 262, "SHOWPLAN"))
+            catch (SqlException ex) when (IsPermissionError(ex, SqlServerErrorCode.ShowplanPermissionMissing, "SHOWPLAN"))
             {
                 hasShowplanPermission = false;
                 showplanNote = "SHOWPLAN permission missing; performance metrics captured without XML plan analysis.";
@@ -227,7 +227,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             {
                 await RunQueryOnceAsync(context.Connection, context.Transaction, context.Args, ct);
             }
-            catch (SqlException ex) when (context.HasPermission && IsPermissionError(ex, 262, "SHOWPLAN"))
+            catch (SqlException ex) when (context.HasPermission && IsPermissionError(ex, SqlServerErrorCode.ShowplanPermissionMissing, "SHOWPLAN"))
             {
                 context.HasPermission = false;
                 context.Note = "SHOWPLAN permission missing; performance metrics captured without XML plan analysis.";
@@ -257,7 +257,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
                 }
                 perRunMessages.Add([.. context.Messages]);
             }
-            catch (SqlException ex) when (context.HasPermission && IsPermissionError(ex, 262, "SHOWPLAN"))
+            catch (SqlException ex) when (context.HasPermission && IsPermissionError(ex, SqlServerErrorCode.ShowplanPermissionMissing, "SHOWPLAN"))
             {
                 context.HasPermission = false;
                 context.Note = "SHOWPLAN permission missing; performance metrics captured without XML plan analysis.";
