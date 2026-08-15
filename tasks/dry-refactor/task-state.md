@@ -4,8 +4,8 @@ task: dry-refactor
 started_at: 2026-08-15T18:20:00+02:00
 last_updated: 2026-08-15T18:20:00+02:00
 rules_dir: .agents/rules
-total_steps: 3
-current_step: step-004
+total_steps: 4
+current_step: step-005
 ---
 
 # Task State: dry-refactor
@@ -13,12 +13,12 @@ current_step: step-004
 ## Übersicht
 
 - **Task-Status:** `executing`
-- **Steps gesamt:** 3
-- **Aktueller Schritt:** `step-004`
+- **Steps gesamt:** 4
+- **Aktueller Schritt:** `step-005`
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-15T18:20:00+02:00
-- **Zuletzt aktualisiert:** 2026-08-15T18:27:00+02:00
+- **Zuletzt aktualisiert:** 2026-08-15T18:30:00+02:00
 
 ## Steps
 
@@ -27,7 +27,8 @@ current_step: step-004
 | step-001 | EPIC-01 | done | Baseline-Eliminierung & Zero-Warning-Setup | - | 90d7a89 | - | 90d7a89 |
 | step-002 | EPIC-02 | done | Linter-Errors & Core C#-Fixes | - | 7197664 | - | 7197664 |
 | step-003 | EPIC-03 | done | DRY-Konsolidierung (Produktionscode) | - | d154370 | - | d154370 |
-| step-004 | EPIC-04 | open | Architektur: Facade & Dispatcher-Entlastung | - | - | - | - |
+| step-004 | EPIC-04 | done | Architektur: Facade & Dispatcher-Entlastung | - | f65b765 | - | f65b765 |
+| step-005 | EPIC-05 | open | Test-Infrastruktur & Testklassen-Splits | - | - | - | - |
 
 ## Config
 
