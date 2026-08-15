@@ -4,8 +4,8 @@ task: dry-refactor
 started_at: 2026-08-15T18:20:00+02:00
 last_updated: 2026-08-15T18:20:00+02:00
 rules_dir: .agents/rules
-total_steps: 1
-current_step: step-002
+total_steps: 2
+current_step: step-003
 ---
 
 # Task State: dry-refactor
@@ -13,19 +13,20 @@ current_step: step-002
 ## Übersicht
 
 - **Task-Status:** `executing`
-- **Steps gesamt:** 1
-- **Aktueller Schritt:** `step-002`
+- **Steps gesamt:** 2
+- **Aktueller Schritt:** `step-003`
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-15T18:20:00+02:00
-- **Zuletzt aktualisiert:** 2026-08-15T18:21:00+02:00
+- **Zuletzt aktualisiert:** 2026-08-15T18:24:00+02:00
 
 ## Steps
 
 | Step | Epic | Status | Title | Corrects | Coded | Reviewed | Commit |
 |------|------|--------|-------|----------|-------|----------|--------|
 | step-001 | EPIC-01 | done | Baseline-Eliminierung & Zero-Warning-Setup | - | 90d7a89 | - | 90d7a89 |
-| step-002 | EPIC-02 | open | Linter-Errors & Core C#-Fixes | - | - | - | - |
+| step-002 | EPIC-02 | done | Linter-Errors & Core C#-Fixes | - | 7197664 | - | 7197664 |
+| step-003 | EPIC-03 | open | DRY-Konsolidierung (Produktionscode) | - | - | - | - |
 
 ## Config
 
