@@ -48,8 +48,8 @@ SQL Server instances typically host multiple databases. By default, the MCP serv
 
 ---
 
-### C. Konfigurierbarer Schreibschutz (Read-Only Guard)
-Für jede Datenbank außer solchen mit Access Level `ReadWrite` (Abschnitt B) wird ein mehrstufiger Schreibschutz erzwungen:
+### B. Konfigurierbarer Schreibschutz (Read-Only Guard)
+Für jede Datenbank außer solchen mit Access Level `ReadWrite` (Abschnitt A) wird ein mehrstufiger Schreibschutz erzwungen:
 
 1. **Parser-Ebene:** Der Server validiert Statements vor der Ausführung per robusten Regulären Ausdrücken (String-Literale und Kommentare werden dabei ausgeblendet, damit z. B. `SELECT 'DELETE' AS Status` nicht fälschlich blockiert wird). Mutierende SQL-Befehle (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `EXEC`/`EXECUTE` etc.) werden abgewiesen und brechen mit `SQL-AI-0107` ab.
 2. **Transaktions-Ebene:** Alle Abfragen werden innerhalb einer expliziten Transaktion ausgeführt. Am Ende der Ausführung wird ein `ROLLBACK` ausgeführt, sodass versehentliche oder böswillige Datenänderungen verworfen werden.
@@ -59,7 +59,7 @@ Für jede Datenbank außer solchen mit Access Level `ReadWrite` (Abschnitt B) wi
 
 ---
 
-### D. Per-DB String-Anonymisierung (AccessLevel-gesteuert)
+### C. Per-DB String-Anonymisierung (AccessLevel-gesteuert)
 Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server String-Werte im Arbeitsspeicher, bevor sie an den KI-Agenten übertragen werden. Die Entscheidung *ob* anonymisiert wird, fällt pro Datenbank am `AccessLevel` (siehe Abschnitt A): Befindet sich die Datenbank in der Liste `ReadOnlyAnonymized`, wird jede zurückgegebene String-Spalte anonymisiert; bei `ReadOnly` (Klartext) nicht.
 
 * **Konfiguration:**
@@ -70,7 +70,7 @@ Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server
   }
   ```
 * **Verhalten:**
-  Jede String-Spalte wird anonymisiert, sofern `Enabled: true` ist und das AccessLevel der Zieldatenbank `ReadOnlyAnonymized` ergibt, es sei denn, eine passende Regel in `AnonymizationRules` schließt die Spalte explizit von der Anonymisierung aus (`Anonymize=0`, siehe Abschnitt E).
+  Jede String-Spalte wird anonymisiert, sofern `Enabled: true` ist und das AccessLevel der Zieldatenbank `ReadOnlyAnonymized` ergibt, es sei denn, eine passende Regel in `AnonymizationRules` schließt die Spalte explizit von der Anonymisierung aus (`Anonymize=0`, siehe Abschnitt D).
 * **Algorithmen:**
   * **ScramblePattern:** Erhält das strukturelle Muster des Strings. Großbuchstaben werden durch ein zufälliges `'X'`, Kleinbuchstaben durch `'x'` und Ziffern durch `'9'` ersetzt (z. B. `Max.Mustermann@mail.de` $\rightarrow$ `Xxx.Xxxxxxxxxx@xxxx.xx`). E-Mail-Adressen, Postleitzahlen und Telefonnummern bleiben für die KI strukturell erkennbar, enthalten aber keinerlei PII mehr.
   * **Hash (Consistency-Hashing):** Generiert einen eindeutigen, reproduzierbaren SHA-256-Hash-Wert pro Text. Dadurch bleiben Relationen und Gruppen (z. B. gleiche Kundennamen in verschiedenen Tabellen) für das LLM logisch verknüpfbar.
@@ -78,7 +78,7 @@ Zum Schutz von PII (Personally Identifiable Information) anonymisiert der Server
 
 ---
 
-### E. Zentrale Anonymisierungsregeln (`AnonymizationRules`, optional)
+### D. Zentrale Anonymisierungsregeln (`AnonymizationRules`, optional)
 
 Sämtliche Anonymisierungs-Regeln und -Ausschlüsse werden zentral über die `AnonymizationRules`-Konfiguration gesteuert (Server/Datenbank/Zugangsdaten getrennt von der Kundenverbindung — analog zu `MetadataProvider`).
 
@@ -115,11 +115,11 @@ Sämtliche Anonymisierungs-Regeln und -Ausschlüsse werden zentral über die `An
 
 ---
 
-### F. Reversible, durchsuchbare Tokenisierung (`Anonymizer.Tokenization`, optional)
+### E. Reversible, durchsuchbare Tokenisierung (`Anonymizer.Tokenization`, optional)
 
-Normale Anonymisierung (Abschnitt D) ist bewusst eine Einbahnstraße: Der Server maskiert einen Wert beim Herausgeben, kann ihn aber nicht zurückrechnen. Bei vielen Datenbanken mit hunderten Tabellen kann das zu restriktiv sein — die KI soll denselben Wert über mehere Tabellen hinweg wiederfinden können (`WHERE`, `JOIN`, `LIKE`, Bereichsvergleiche), ohne den Klartext je zu sehen. `Tokenization` löst das durch reversible, hochkompakte Kurz-Tokens.
+Normale Anonymisierung (Abschnitt C) ist bewusst eine Einbahnstraße: Der Server maskiert einen Wert beim Herausgeben, kann ihn aber nicht zurückrechnen. Bei vielen Datenbanken mit hunderten Tabellen kann das zu restriktiv sein — die KI soll denselben Wert über mehere Tabellen hinweg wiederfinden können (`WHERE`, `JOIN`, `LIKE`, Bereichsvergleiche), ohne den Klartext je zu sehen. `Tokenization` löst das durch reversible, hochkompakte Kurz-Tokens.
 
-* **Globaler Modus-Schalter, kein Pro-Spalten-Opt-in:** `Tokenization.Enabled` funktioniert genau wie `DefaultMode` — ist es aktiv, wird *jede* Spalte, die ohnehin anonymisiert würde, tokenisiert statt maskiert. Es gibt bewusst keine Spalten-Allowlist zu pflegen. *Ob* eine Spalte überhaupt anonymisiert wird, entscheiden ausschließlich die `AnonymizationRules` (mit `Anonymize=0`, siehe Abschnitt E) — `Tokenization` ändert nur *wie* eine bereits anonymisierte Spalte anonymisiert wird.
+* **Globaler Modus-Schalter, kein Pro-Spalten-Opt-in:** `Tokenization.Enabled` funktioniert genau wie `DefaultMode` — ist es aktiv, wird *jede* Spalte, die ohnehin anonymisiert würde, tokenisiert statt maskiert. Es gibt bewusst keine Spalten-Allowlist zu pflegen. *Ob* eine Spalte überhaupt anonymisiert wird, entscheiden ausschließlich die `AnonymizationRules` (mit `Anonymize=0`, siehe Abschnitt D) — `Tokenization` ändert nur *wie* eine bereits anonymisierte Spalte anonymisiert wird.
 * **Funktionsweise:**
   1. **Ausgabe (Egress):** Für jede anonymisierte Spalte erzeugt der Server ein kompaktes Kurz-Token Schema (`§§§T1§§§`, `§§§T2§§§`, etc. mit ~7 Zeichen / 2-3 LLM Tokens) anstelle langer Base64 Hashes. Derselbe Wert innerhalb einer Sitzung ergibt über den bi-direktionalen `TokenVault` garantiert immer dasselbe Kurz-Token. Der Server merkt sich `Wert ↔ Token` im In-Memory `TokenVault` für die Laufzeit des Prozesses.
   2. **Eingabe (Ingress):** Bevor eine Abfrage gegen `sql_execute_query` ausgeführt wird, durchsucht der Server jedes String-Literal (niemals Kommentare, `[...]`-Bezeichner oder SQL-Schlüsselwörter) nach dem Token-Muster. Ein erkanntes, im Vault bekanntes Token wird durch den Realwert ersetzt — SQL Server sieht danach eine ganz normale Abfrage gegen echte Daten. Ein unbekanntes (geratenes/gefälschtes) Token bleibt unverändert stehen; das Prädikat findet dann schlicht keine Treffer, statt einen Fehler zu werfen.
@@ -141,15 +141,15 @@ Normale Anonymisierung (Abschnitt D) ist bewusst eine Einbahnstraße: Der Server
   * **Speicherung:** Der Token-Vault lebt nur im Arbeitsspeicher des laufenden Server-Prozesses (kein Neustart-Überstand) — ausreichend für eine laufende Analyse-Sitzung.
   * Gilt, wie die reguläre Anonymisierung, nur für String-Werte.
 
-### G. Proaktive Kennzeichnung & agentische Verhaltenssteuerung
+### F. Proaktive Kennzeichnung & agentische Verhaltenssteuerung
 
-* **`sql_get_schema` markiert Spalten proaktiv:** Die Spalten-Tabelle enthält eine zusätzliche Spalte **„Anonymized“** mit drei möglichen Werten — `No`, `Yes` (Scramble/Hash-Maskierung), oder `Yes (searchable)` (reversibles Token, siehe Abschnitt F) — berechnet über dieselben Ausschluss-/Tokenisierungs-Quellen wie zur Abfragezeit. Das LLM sieht so schon beim Schema-Erkunden, welche Spalten maskiert *oder* tokenisiert würden, bevor überhaupt eine Query geschrieben wird. Nicht-String-Typen (siehe Bekannte Grenze oben) werden immer als `No` ausgewiesen.
-* **`sql_execute_query`-Hinweis referenziert konkrete Spalten:** Die Anonymisierungs-Notiz (siehe Tool-Spezifikation unten) nennt betroffene Spalten als `Tabelle.Spalte` (sofern die Basistabelle auflösbar ist) statt nur des Spalten-Alias, und enthält eine konkrete Handlungsanweisung: den Nutzer informieren und eine Freischaltung vorschlagen, statt den maskierten Wert als echte Daten zu behandeln. Bei Sichten/Aggregationen wird das LLM angehalten, zunächst mit `sql_get_object_references` die tatsächliche Quelltabelle zu ermitteln. Sind darunter Spalten mit reversiblem Token (Abschnitt F), ergänzt die Notiz einen zweiten, nur dann angehängten Satz: welche der genannten Spalten Tokens statt maskierten Text liefern, und dass dieser Wert unverändert in eine spätere `WHERE`/`JOIN`/`LIKE`/`IN`/Bereichs-Bedingung übernommen werden kann — der Server löst ihn vor der Ausführung zum Realwert auf. Ohne tokenisierte Spalten im Ergebnis entfällt dieser Satz komplett (Token-Effizienz).
+* **`sql_get_schema` markiert Spalten proaktiv:** Die Spalten-Tabelle enthält eine zusätzliche Spalte **„Anonymized“** mit drei möglichen Werten — `No`, `Yes` (Scramble/Hash-Maskierung), oder `Yes (searchable)` (reversibles Token, siehe Abschnitt E) — berechnet über dieselben Ausschluss-/Tokenisierungs-Quellen wie zur Abfragezeit. Das LLM sieht so schon beim Schema-Erkunden, welche Spalten maskiert *oder* tokenisiert würden, bevor überhaupt eine Query geschrieben wird. Nicht-String-Typen (siehe Bekannte Grenze oben) werden immer als `No` ausgewiesen.
+* **`sql_execute_query`-Hinweis referenziert konkrete Spalten:** Die Anonymisierungs-Notiz (siehe Tool-Spezifikation unten) nennt betroffene Spalten als `Tabelle.Spalte` (sofern die Basistabelle auflösbar ist) statt nur des Spalten-Alias, und enthält eine konkrete Handlungsanweisung: den Nutzer informieren und eine Freischaltung vorschlagen, statt den maskierten Wert als echte Daten zu behandeln. Bei Sichten/Aggregationen wird das LLM angehalten, zunächst mit `sql_get_object_references` die tatsächliche Quelltabelle zu ermitteln. Sind darunter Spalten mit reversiblem Token (Abschnitt E), ergänzt die Notiz einen zweiten, nur dann angehängten Satz: welche der genannten Spalten Tokens statt maskierten Text liefern, und dass dieser Wert unverändert in eine spätere `WHERE`/`JOIN`/`LIKE`/`IN`/Bereichs-Bedingung übernommen werden kann — der Server löst ihn vor der Ausführung zum Realwert auf. Ohne tokenisierte Spalten im Ergebnis entfällt dieser Satz komplett (Token-Effizienz).
 * **MCP `instructions`-Feld:** Die `initialize`-Antwort enthält ein `instructions`-Feld mit genau dieser Verhaltensrichtlinie in kompakter Form — einmalig beim Verbindungsaufbau an den Client übergeben, statt in jeder Tool-Beschreibung oder jedem Ergebnis wiederholt zu werden. Es erklärt seit Einführung der Tokenisierung zusätzlich, dass ein Token unverändert wiederverwendet werden darf/soll, aber nie selbst konstruiert oder verändert werden darf.
 
 ---
 
-### H. Empfohlene SQL-Server-Berechtigungen für den DB-User
+### G. Empfohlene SQL-Server-Berechtigungen für den DB-User
 
 Für eine optimale Analysefähigkeit des KI-Agenten bei minimalem Rechtetransfer (Least Privilege) werden folgende SQL Server-Berechtigungen auf der Zieldatenbank empfohlen:
 
@@ -227,7 +227,7 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Argumente:** `object_name` (String, Pflicht), `database` (String, Pflicht)
 * **Zweck:** Liefert das primäre Schema eines Objekts als Markdown-Dokument, angereichert mit Extended Properties / Metadaten.
 * **Inhalt:**
-  * **TABLE/VIEW:** Spalten-Tabelle (Typ, Nullable, PK, Identity, **Anonymized** (proaktive Kennzeichnung, siehe Abschnitt 2.G), Custom-Beschreibung) + Trigger-Übersicht (Name, Events, Disabled-Status) + **Discovery-Index** (Zähler für Fremdschlüssel, Indizes, Constraints, sowie die Trigger-Namen selbst zur direkten Verwendung mit `sql_get_trigger_definition`).
+  * **TABLE/VIEW:** Spalten-Tabelle (Typ, Nullable, PK, Identity, **Anonymized** (proaktive Kennzeichnung, siehe Abschnitt 2.F), Custom-Beschreibung) + Trigger-Übersicht (Name, Events, Disabled-Status) + **Discovery-Index** (Zähler für Fremdschlüssel, Indizes, Constraints, sowie die Trigger-Namen selbst zur direkten Verwendung mit `sql_get_trigger_definition`).
   * **PROCEDURE/FUNCTION:** DDL-Definitionstext aus `sys.sql_modules` + **Routine-Parameter-Discovery**.
 
 ### 6. `sql_get_schema_foreign_keys`
@@ -263,9 +263,9 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Zweck:** Führt ein einzelnes SQL-SELECT-Statement aus.
 * **Statement-Struktur & DECLARE-Support:** Vorangestellte T-SQL `DECLARE @Variable Typ = Wert;`-Anweisungen am Anfang lesender Abfragen (z. B. in bestehenden Skriptdateien) werden unterstützt, sofern am Ende exakt eine lesende Hauptabfrage steht. Mehrere lesende Hauptabfragen (`SELECT 1; SELECT 2;`) führen weiterhin zu Fehler `SQL-AI-0101`.
 * **Datenverarbeitung:** Anwendbare Limits greifen (Default: 100 Zeilen). String-Spalten werden anonymisiert, falls aktiviert und passend zu den Regeln.
-* **Token-Auflösung (falls `Anonymizer.Tokenization` aktiv):** Bevor die Abfrage ausgeführt wird, löst der Server jedes erkannte, gültige Anonymisierungs-Token in String-Literalen zum Realwert auf (siehe Abschnitt 2.F). Die KI kann so mit zuvor erhaltenen Tokens filtern/joinen, ohne den Wert je zu kennen.
+* **Token-Auflösung (falls `Anonymizer.Tokenization` aktiv):** Bevor die Abfrage ausgeführt wird, löst der Server jedes erkannte, gültige Anonymisierungs-Token in String-Literalen zum Realwert auf (siehe Abschnitt 2.E). Die KI kann so mit zuvor erhaltenen Tokens filtern/joinen, ohne den Wert je zu kennen.
 * **Mehrfach-Content-Rückgabe & Laufzeit-Metadaten:** Das Tool liefert strukturierte Inhaltsblöcke (`Content` im MCP-Protokoll) zurück:
-  1. Einen Anonymisierungs-Hinweis (sofern Spalten anonymisiert wurden; siehe Abschnitt 2.G).
+  1. Einen Anonymisierungs-Hinweis (sofern Spalten anonymisiert wurden; siehe Abschnitt 2.F).
   2. Einen `Execution Info`-Header: `Execution Info: X rows returned in Y ms | cpu: Z ms | logical reads: W.`
      `cpu_time_ms`/`logical_reads` werden serverseitig bei jedem Aufruf über `SET STATISTICS IO/TIME`
      gemessen (kein Parameter nötig, kein zusätzlicher Roundtrip). `Y` bleibt die reine
@@ -311,9 +311,9 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
 * **Argumente:** `database` (String, Pflicht), `table_name` (String, optional — `LIKE`-Substring-Filter auf die `statement`-Spalte der DMV, z. B. `Orders` oder `dbo.%`, case-insensitive), `min_score` (Number, optional — Mindest-`improvement_score`; Zeilen darunter werden ausgeschlossen, Default 0 = kein Filter), `top` (Int, optional — Maximalanzahl zurückgegebener Empfehlungen, Default 10).
 * **Zweck:** Liefert die serverweit kumulierten, seit dem letzten SQL-Server-Neustart akkumulierten Missing-Index-Empfehlungen aus den DMVs `sys.dm_db_missing_index_group_stats`, `sys.dm_db_missing_index_details` und `sys.dm_db_missing_index_columns`. Pro Empfehlung wird ein `improvement_score` (Formel `avg_total_user_cost × avg_user_impact × (user_seeks + user_scans)`) berechnet und das Ergebnis absteigend nach Score sortiert. Pro Zeile werden Tabelle, Equality-/Inequality-/Include-Spaltenlisten, Seek-/Scan-Counts und der Last-Seek-Zeitstempel ausgegeben.
 * **Restart-Hinweis:** Die Ausgabe beginnt mit einem festen Hinweis-Block, dass die DMV-Daten seit dem letzten Server-Neustart akkumuliert werden — auf frisch gestarteten Servern liefert das Tool entsprechend wenig oder nichts, auf lang laufenden Produktionsservern ist es aussagekräftig.
-* **Graceful Degradation:** Fehlt dem DB-User die server-scoped `VIEW SERVER STATE`-Berechtigung, gibt das Tool eine strukturierte Markdown-Notiz (inkl. Restart-Hinweis) zurück statt eines harten Fehlers. Die für diese Permission nötige Grant-Anweisung ist in §H dokumentiert.
+* **Graceful Degradation:** Fehlt dem DB-User die server-scoped `VIEW SERVER STATE`-Berechtigung, gibt das Tool eine strukturierte Markdown-Notiz (inkl. Restart-Hinweis) zurück statt eines harten Fehlers. Die für diese Permission nötige Grant-Anweisung ist in §G dokumentiert.
 * **Rückgabeformat:** Markdown — `# Missing Index Recommendations — <database>`, Restart-Hinweis-Block, optional Hinweis „No missing-index recommendations found", sonst Tabelle mit Spalten `Score | Table | Equality Columns | Inequality Columns | Include Columns | Seeks | Scans | Last Seek`. `Score` ist auf eine Ganzzahl gerundet (`improvement_score`), `Last Seek` ist `yyyy-MM-dd` oder `-`, Spaltenlisten sind kommagetrennte Spalten-IDs aus `sys.dm_db_missing_index_columns` (gruppiert nach `column_usage`: EQUALITY / INEQUALITY / INCLUDE).
-* **Berechtigungen:** `VIEW SERVER STATE` (server-scoped) — siehe §H.
+* **Berechtigungen:** `VIEW SERVER STATE` (server-scoped) — siehe §G.
 
 ---
 
@@ -327,7 +327,7 @@ Tritt bei der Ausführung eines Tools ein Fehler auf, wird das Tool-Ergebnis als
 | **SQL-AI-0101** | Mehrfach-Statements verboten | Die Ausführung von mehreren SQL-Statements (z. B. getrennt durch `;`) ist nicht erlaubt. |
 | **SQL-AI-0102** | Abfragefehler | Der SQL-Server hat einen Fehler bei der Syntax oder Ausführung der Query gemeldet. |
 | **SQL-AI-0103** | Objekt nicht gefunden | Das angeforderte Datenbankobjekt (Tabelle, Prozedur etc.) existiert nicht. |
-| **SQL-AI-0104** | Safety-Check fehlgeschlagen | Die Zieldatenbank wurde durch die statische Whitelist blockiert oder der dynamische `AccessCheckSql` lieferte das Level `None`/`0`. |
+| **SQL-AI-0104** | Safety-Check fehlgeschlagen | Die Zieldatenbank ist in keiner erlaubten Zugriffsstufe konfiguriert (ergibt `AccessLevel.None`) oder wurde durch ein Ausschlussmuster (`ExcludedDatabases`) blockiert. |
 | **SQL-AI-0105** | Infrastrukturfehler | Verbindung zum SQL-Server konnte nicht aufgebaut werden oder brach ab. |
 | **SQL-AI-0106** | Timeout | Die Ausführung der SQL-Abfrage hat das konfigurierte Zeitlimit überschritten. |
 | **SQL-AI-0107** | Schreiboperation blockiert | Ein mutierendes Statement wurde im Read-Only-Modus abgewiesen oder der Zugriff auf Datenabfragen wurde durch das Access-Level `SchemaOnly` blockiert. |

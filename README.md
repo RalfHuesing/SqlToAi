@@ -54,11 +54,11 @@ output. The root section is `SqlToAi`, which contains the following sub-sections
 | Section | Purpose |
 | :--- | :--- |
 | `Databases` | Level-based database access lists (`ReadWrite`, `ReadOnly`, `ReadOnlyAnonymized`, `SchemaOnly`) and `CacheTtlSeconds`. |
-| `SqlServer` | Connection parameters (`Server`, `IntegratedSecurity`, `UserId`, `Password`, `ConnectTimeoutSeconds`). Values support environment variable interpolation (e.g. `%COMPUTERNAME%`). |
+| `SqlServer` | Connection parameters (`Server`, `IntegratedSecurity`, `UserId`, `Password`, `ConnectTimeoutSeconds`, `ExcludedDatabases`). Values support environment variable interpolation (e.g. `%COMPUTERNAME%`). |
 | `Anonymizer` | Master switch (`Enabled`), the algorithm (`DefaultMode`: `ScramblePattern` or `Hash`), and the optional `Tokenization` sub-section below. |
-| `Anonymizer.Tokenization` | Optional global mode switch (`Enabled`, `Prefix`/`Suffix`) that replaces `DefaultMode` masking with reversible tokens for every anonymized column. See [architecture-spec.md](docs/architecture-spec.md#f-reversible-durchsuchbare-tokenisierung-anonymizertokenization-optional). |
-| `AnonymizationRules` | Optional central, cross-database rules (`Enabled`, separate `Server`/`Database`/credentials, `TableName`, `CacheTtlSeconds`). See [architecture-spec.md](docs/architecture-spec.md#e-zentrale-datenbankübergreifende-anonymisierungsregeln-anonymizationrules-optional). |
-| `MetadataProvider` | Optional custom queries and separate database credentials (`Server`, `Database`, `UserId`, `Password`, `IntegratedSecurity`, etc.) for table/column documentation enrichment. |
+| `Anonymizer.Tokenization` | Optional global mode switch (`Enabled`, `Prefix`/`Suffix`) that replaces `DefaultMode` masking with reversible tokens for every anonymized column. See [architecture-spec.md](docs/architecture-spec.md#e-reversible-durchsuchbare-tokenisierung-anonymizertokenization-optional). |
+| `AnonymizationRules` | Optional central, cross-database rules (`Enabled`, separate `Server`/`Database`/credentials, `TableName`, `CommandTimeoutSeconds`, `CacheTtlSeconds`). See [architecture-spec.md](docs/architecture-spec.md#d-zentrale-anonymisierungsregeln-anonymizationrules-optional). |
+| `MetadataProvider` | Optional custom queries and separate database credentials (`Server`, `Database`, `UserId`, `Password`, `IntegratedSecurity`, `CommandTimeoutSeconds`, etc.) for table/column documentation enrichment. |
 | `QueryExecution` | `DefaultRowLimit`, `MaxRowLimit`, and `CommandTimeoutSeconds` for `sql_execute_query`. |
 | `Logging` | File-based logging root directory, app/error rolling sinks, and the MCP-trail settings. See [Logging](#logging) below. |
 
@@ -131,7 +131,6 @@ GRANT VIEW SERVER STATE TO [SqlToAiUser];
       "DefaultMode": "ScramblePattern",
       "Tokenization": {
         "Enabled": false,
-        "Secret": "",
         "Prefix": "§§§",
         "Suffix": "§§§"
       }
@@ -144,6 +143,7 @@ GRANT VIEW SERVER STATE TO [SqlToAiUser];
       "Password": "...",
       "IntegratedSecurity": false,
       "TableName": "dbo.AnonymizationRules",
+      "CommandTimeoutSeconds": 30,
       "CacheTtlSeconds": 300
     },
     "MetadataProvider": {
@@ -153,12 +153,34 @@ GRANT VIEW SERVER STATE TO [SqlToAiUser];
       "UserId": "Agent",
       "Password": "Agent!",
       "IntegratedSecurity": false,
+      "CommandTimeoutSeconds": 30,
       "TableMetadataQuery": "SELECT Description FROM dbo.TableDocs WHERE TableName = @TableName",
       "ColumnMetadataQuery": "SELECT ColumnName, Description FROM dbo.ColumnDocs WHERE TableName = @TableName"
     },
     "QueryExecution": {
       "DefaultRowLimit": 100,
-      "MaxRowLimit": 1000
+      "MaxRowLimit": 1000,
+      "CommandTimeoutSeconds": 30
+    },
+    "Logging": {
+      "Directory": "log",
+      "AppLog": {
+        "Enabled": true,
+        "Level": "Information",
+        "RollingInterval": "Day",
+        "RetainedFileCount": 30
+      },
+      "ErrorLog": {
+        "Enabled": true,
+        "Level": "Warning",
+        "RollingInterval": "Day",
+        "RetainedFileCount": 90
+      },
+      "McpTrail": {
+        "Enabled": true,
+        "Directory": "mcp",
+        "RetainedDays": 14
+      }
     }
   }
 }

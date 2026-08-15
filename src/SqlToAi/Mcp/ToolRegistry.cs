@@ -265,7 +265,7 @@ public sealed class ToolRegistry
                 "DMV 'statement' column, e.g. 'Orders' or 'dbo.%'; case-insensitive substring match), min_score (optional " +
                 "improvement_score threshold, default 0 = no threshold), top (maximum number of recommendations to return, " +
                 "default 10). Degrades gracefully (returns a structured permission note instead of a hard error) if the database " +
-                "user lacks the server-scoped VIEW SERVER STATE permission — see docs/architecture-spec.md §H for the grant.",
+                "user lacks the server-scoped VIEW SERVER STATE permission — see docs/architecture-spec.md §G for the grant.",
             InputSchema = new ToolInputSchema
             {
                 Properties = new Dictionary<string, ToolParameterDefinition>

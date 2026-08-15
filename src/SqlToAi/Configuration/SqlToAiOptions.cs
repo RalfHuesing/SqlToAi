@@ -51,8 +51,8 @@ public sealed class DatabasesOptions
 /// excluded (<c>Anonymize == false</c>) for the resolved database/schema/table/column. There is
 /// no local, options-based exclusion list anymore (see <c>AnonymizerExclusionProvider</c>
 /// removal, 2026-07-25) — the central rule table is the single source of truth. Per-database
-/// opt-out is configured via the dynamic <c>AccessCheckSql</c> returning
-/// <c>ReadOnly</c> (raw) versus <c>ReadOnlyAnonymized</c>.
+/// opt-out is configured via the database access level (<c>Databases.ReadOnly</c> for raw versus
+/// <c>Databases.ReadOnlyAnonymized</c>).
 /// </para>
 /// </summary>
 public sealed class AnonymizerOptions

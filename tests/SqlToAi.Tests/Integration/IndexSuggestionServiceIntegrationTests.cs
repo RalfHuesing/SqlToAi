@@ -67,7 +67,7 @@ public sealed class IndexSuggestionServiceIntegrationTests
     public async Task SuggestIndexesAsync_ShouldReturnPermissionNote_IfViewServerStateMissing_OtherwiseMarkdown()
     {
         // Opportune probe: the configured 'Agent' login typically has VIEW SERVER STATE
-        // (per architecture-spec.md §H). If it doesn't, the service must still return
+        // (per architecture-spec.md §G). If it doesn't, the service must still return
         // a structured permission note (graceful degradation). Both outcomes are IsSuccess=true.
         var result = await _fx.IndexSuggestionService.SuggestIndexesAsync(
             _db, cancellationToken: TestContext.Current.CancellationToken);
