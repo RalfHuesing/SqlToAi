@@ -19,20 +19,18 @@ public sealed class ToolDispatcherTests
         FakeSchemaService? schema = null,
         FakeQueryExecutionService? exec = null,
         FakeQueryValidationService? validation = null,
-        FakeQueryComparisonService? comparison = null,
-        FakePerformanceMeasurementService? perf = null,
-        FakeOptimizationBenchmarkService? benchmark = null,
-        FakeIndexSuggestionService? indexSuggestion = null)
+        DatabaseAnalysisServices? analysis = null)
     {
         var options = new SqlToAiOptions();
         return new ToolDispatcher(
             schema ?? new FakeSchemaService(),
             exec   ?? new FakeQueryExecutionService(),
             validation ?? new FakeQueryValidationService(),
-            comparison ?? new FakeQueryComparisonService(),
-            perf       ?? new FakePerformanceMeasurementService(),
-            benchmark  ?? new FakeOptimizationBenchmarkService(),
-            indexSuggestion ?? new FakeIndexSuggestionService(),
+            analysis ?? new DatabaseAnalysisServices(
+                new FakePerformanceMeasurementService(),
+                new FakeQueryComparisonService(),
+                new FakeOptimizationBenchmarkService(),
+                new FakeIndexSuggestionService()),
             Options.Create(options),
             NullLogger<ToolDispatcher>.Instance);
     }

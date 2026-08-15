@@ -52,20 +52,17 @@ public sealed class ToolDispatcher : IToolDispatcher
         ISchemaService schemaService,
         IQueryExecutionService queryExecutionService,
         IQueryValidationService queryValidationService,
-        IQueryComparisonService queryComparisonService,
-        IPerformanceMeasurementService performanceMeasurementService,
-        IOptimizationBenchmarkService benchmarkService,
-        IIndexSuggestionService indexSuggestionService,
+        DatabaseAnalysisServices analysisServices,
         IOptions<SqlToAiOptions> options,
         ILogger<ToolDispatcher> logger)
     {
         _schemaService = schemaService;
         _queryExecutionService = queryExecutionService;
         _queryValidationService = queryValidationService;
-        _queryComparisonService = queryComparisonService;
-        _performanceMeasurementService = performanceMeasurementService;
-        _benchmarkService = benchmarkService;
-        _indexSuggestionService = indexSuggestionService;
+        _queryComparisonService = analysisServices.QueryComparison;
+        _performanceMeasurementService = analysisServices.PerformanceMeasurement;
+        _benchmarkService = analysisServices.Benchmark;
+        _indexSuggestionService = analysisServices.IndexSuggestion;
         _dbOptions = options.Value.Databases;
         _logger = logger;
 
