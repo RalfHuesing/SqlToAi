@@ -1,11 +1,11 @@
 ---
-status: executing
+status: done
 task: audit-try-magicvalues
 started_at: 2026-08-15T21:34:00+02:00
-last_updated: 2026-08-15T21:34:00+02:00
+last_updated: 2026-08-15T23:00:00+02:00
 rules_dir: .agents/rules
 total_steps: 4
-current_step: (none — Planer-Abbruch-Signal ausstehend)
+current_step: (done — Loop beendet)
 in_progress_step: (none)
 ---
 
