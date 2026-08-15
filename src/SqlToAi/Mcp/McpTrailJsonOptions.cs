@@ -19,7 +19,7 @@ internal static class McpTrailJsonOptions
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         WriteIndented = false,
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        TypeInfoResolver = McpJsonContext.Default
+        TypeInfoResolver = McpTrailJsonContext.Default
     };
 
     /// <summary>Pretty options: indented, relaxed escaping.</summary>
@@ -27,12 +27,12 @@ internal static class McpTrailJsonOptions
     {
         WriteIndented = true,
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        TypeInfoResolver = McpJsonContext.Default
+        TypeInfoResolver = McpTrailJsonContext.Default
     };
 
     /// <summary>Compact context instance derived from <see cref="Compact"/>.</summary>
-    internal static readonly McpJsonContext CompactContext = new(Compact);
+    internal static readonly McpTrailJsonContext CompactContext = new(Compact);
 
     /// <summary>Pretty context instance derived from <see cref="Pretty"/>.</summary>
-    internal static readonly McpJsonContext PrettyContext = new(Pretty);
+    internal static readonly McpTrailJsonContext PrettyContext = new(Pretty);
 }

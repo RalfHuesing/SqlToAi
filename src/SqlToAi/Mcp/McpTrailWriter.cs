@@ -70,8 +70,8 @@ public sealed class McpTrailWriter : IMcpTrailWriter, IDisposable
 {
     private static readonly JsonSerializerOptions CompactJsonOptions = McpTrailJsonOptions.Compact;
     private static readonly JsonSerializerOptions PrettyJsonOptions = McpTrailJsonOptions.Pretty;
-    private static readonly McpJsonContext CompactContext = McpTrailJsonOptions.CompactContext;
-    private static readonly McpJsonContext PrettyContext = McpTrailJsonOptions.PrettyContext;
+    private static readonly McpTrailJsonContext CompactContext = McpTrailJsonOptions.CompactContext;
+    private static readonly McpTrailJsonContext PrettyContext = McpTrailJsonOptions.PrettyContext;
 
     private static readonly Action<ILogger, string, Exception?> LogWriteFailed =
         LoggerMessage.Define<string>(LogLevel.Error, new EventId(1, "WriteFailed"),

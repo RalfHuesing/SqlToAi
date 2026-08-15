@@ -172,7 +172,7 @@ public sealed class ToolDispatcher : IToolDispatcher
                         GetObject(paramsObj, McpConstants.ArgParameters),
                         GetInt(paramsObj, McpConstants.ArgMaxDiffRows) ?? 5),
                     ct),
-                    res => JsonSerializer.Serialize(res, typeof(QueryComparisonResult), McpJsonContext.Default)),
+                    res => JsonSerializer.Serialize(res, typeof(QueryComparisonResult), McpAnalysisJsonContext.Default)),
 
             [McpConstants.ToolMeasurePerformance] = (paramsObj, ct) =>
                 CallAsync(() => _performanceMeasurementService.MeasurePerformanceAsync(
@@ -184,7 +184,7 @@ public sealed class ToolDispatcher : IToolDispatcher
                         GetInt(paramsObj, McpConstants.ArgExecutionRuns) ?? 1,
                         GetBool(paramsObj, McpConstants.ArgIncludePlanAnalysis) ?? true),
                     ct),
-                    res => JsonSerializer.Serialize(res, typeof(PerformanceMeasurementResult), McpJsonContext.Default)),
+                    res => JsonSerializer.Serialize(res, typeof(PerformanceMeasurementResult), McpAnalysisJsonContext.Default)),
 
             [McpConstants.ToolBenchmarkOptimization] = (paramsObj, ct) =>
                 CallAsync(() => _benchmarkService.BenchmarkOptimizationAsync(
@@ -198,7 +198,7 @@ public sealed class ToolDispatcher : IToolDispatcher
                         GetInt(paramsObj, McpConstants.ArgWarmupRuns) ?? 1,
                         GetInt(paramsObj, McpConstants.ArgExecutionRuns) ?? 1),
                     ct),
-                    res => JsonSerializer.Serialize(res, typeof(OptimizationBenchmarkResult), McpJsonContext.Default)),
+                    res => JsonSerializer.Serialize(res, typeof(OptimizationBenchmarkResult), McpAnalysisJsonContext.Default)),
 
             [McpConstants.ToolSuggestIndexes] = (paramsObj, ct) =>
                 CallAsync(() => _indexSuggestionService.SuggestIndexesAsync(
