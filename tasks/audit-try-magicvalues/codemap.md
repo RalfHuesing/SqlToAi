@@ -2,7 +2,7 @@
 task: audit-try-magicvalues
 type: codemap
 maintained_by: planer, coder, kritiker
-last_updated: 2026-08-15T21:55:00+02:00
+last_updated: 2026-08-15T22:42:00+02:00
 ---
 
 # CodeMap: audit-try-magicvalues
@@ -73,6 +73,7 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
 - **`src/SqlToAi/Domain/`** — `GlobMatcher` (DRY-5/MV-5 Regex-Timeout, kein Merge mit `LikePatternMatcher`), `SqlToAiError` (Error-Katalog `SQL-AI-*` bleibt unangetastet, MV-P3), `Result` (Result-Pattern, Pflicht).
 - **`src/SqlToAi/Mcp/`** — `ToolRegistry` (DRY-3 `OptionalStringParam`-Cleanup, DRY-4 `BuildDetailTool`-Helper, MV-2 Verdict-Strings, MV-7 Objekttyp-Strings), `McpHost` (DRY-P3 Positivbefund, AOT-Source-Generator — nicht anfassen), `ToolDispatcher`.
 - **`src/SqlToAi/Configuration/`** — `SqlToAiOptions` (MV-P1 Positivbefund, Property-Initializer bleiben einzig autorisierter Ort für Defaults), `AppSettingsMigrator` (MV-P2 `"Password"`-Schlüsselname, kein Klartext).
-- **`tests/SqlToAi.Tests/Database/`** — `*ServiceTests` (DRY-T3 33 redundante Guardrail-Negativ-Tests, step-002: auf neuen `FakeQuerySafetyValidator` umgestellt, Inhalt unveraendert, Konsolidierung folgt in EPIC-03), `QueryExecutionServiceMockDb` (enthaelt seit step-002 `FakeQuerySafetyValidator`), `SchemaServiceMockDb`, `PerformanceMeasurementServiceTests` (DRY-T2 8 duplizierte ShowPlan-XML-Blöcke), `OptimizationBenchmarkServiceTests` (MV-2 Testseite).
-- **`tests/SqlToAi.Tests/Mcp/`** — `ToolDispatcherTestFakes` (DRY-T1 zentrale Fakes), `McpTrailWriterTests`/`McpTrailWriterRedactionTests` (DRY-T1 `GetDayDir()`-Duplikat).
-- **`tests/SqlToAi.Tests/TestSupport/`** — gemeinsame Fakes (`AnonymizationTestHelper`, `McpTrailTestHelper`, `FakeDb*`); Bündelungsziel für DRY-T1.
+- **`tests/SqlToAi.Tests/Database/`** — `*ServiceTests` (DRY-T3 25 reine Pipeline-Cases nach step-003 in `QuerySafetyValidatorTests` umgezogen, Service-Tests verbleiben mit Service-Behavior-Tests), `QueryExecutionServiceMockDb` (enthaelt seit step-002 `FakeQuerySafetyValidator`, die 3 Legacy-Security-Fakes in step-003 nach `TestSupport/LegacySecurityFakes.cs` ausgelagert), `SchemaServiceMockDb`, `PerformanceMeasurementServiceTests` (DRY-T2 in step-003: 7 von 8 ShowPlan-XML-Blöcken via `ShowPlanTestHelper.BuildShowPlanXml`, 1 Test bleibt mit Hand-Block wegen `<RelOp>`/`<Warnings>`-Pfaden), `OptimizationBenchmarkServiceTests` (MV-2 Testseite).
+  - **`tests/SqlToAi.Tests/Database/QuerySafetyValidatorTests.cs`** (neu, step-003) — `public sealed class QuerySafetyValidatorTests` als Single-Source-of-Truth der 6-stufigen Guardrail-Pipeline-Tests, 13 Testmethoden mit 25 individual test cases ueber `[Theory]`/`[InlineData]`. Pipeline-Assert lebt hier, Service-Assert (`Assert.Null(factory.LastConnection)`) bleibt in den Service-Tests.
+- **`tests/SqlToAi.Tests/Mcp/`** — `ToolDispatcherTestFakes` (DRY-T1 zentrale Fakes), `McpTrailWriterTests`/`McpTrailWriterRedactionTests` (DRY-T1 in step-003 aufgeloest: `GetDayDir()`-Methode privat geloescht, beide rufen `McpTrailTestHelper.GetDayDir(_logRoot)` + `McpTrailTestHelper.CreateIsolatedLogRoot(suffix)`, MV-T1: `McpModelsTests` `-32601` durch `JsonRpcError.MethodNotFound.ToString(CultureInfo.InvariantCulture)` ersetzt).
+- **`tests/SqlToAi.Tests/TestSupport/`** — gemeinsame Fakes und Helpers (`AnonymizationTestHelper`, `McpTrailTestHelper`, `FakeDb*`); step-003 erweitert um `LegacySecurityFakes` (3 `internal sealed class` fuer `ISecurityGuard`/`IAccessLevelProvider`/`IReadOnlyGuard`, aus `QueryExecutionServiceMockDb` ausgelagert, von `IndexSuggestionServiceTests` und `FakeQuerySafetyValidator` weiterhin konsumiert), `ShowPlanTestHelper` (Builder fuer ShowPlan-XML), `ColumnSpec` (internal sealed record, AiNetLinter `BanPublicNestedTypes` zwingt Datei-Level), `McpTrailTestWriterConfig` (sealed record, AiNetLinter `MaxBoolParameterCount=1` zwingt Bündelung der 2 bool-Parameter von `McpTrailTestHelper.CreateWriter`).
