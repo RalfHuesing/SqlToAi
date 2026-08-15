@@ -7,6 +7,7 @@ using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Database;
 
+// @covers SqlToAi.Database.QuerySafetyValidator
 /// <summary>
 /// Single source of truth for the 6-stage guardrail-pipeline tests. Replaces 31 individual
 /// negative test cases that used to be duplicated across <c>QueryExecutionServiceTests</c>,
@@ -21,7 +22,7 @@ public sealed class QuerySafetyValidatorTests
     private static QuerySafetyValidator BuildValidator(
         bool isAllowed = true,
         AccessLevel accessLevel = AccessLevel.ReadOnly) =>
-        new(
+        new QuerySafetyValidator(
             new FakeSecurityGuard(isAllowed),
             new FakeAccessLevelProvider(accessLevel),
             new ReadOnlyGuard());
