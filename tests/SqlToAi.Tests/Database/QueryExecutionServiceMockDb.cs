@@ -51,30 +51,13 @@ internal sealed class CapturingLogger<T> : ILogger<T>
     }
 }
 
-internal sealed class FakeSecurityGuard(bool allowed) : ISecurityGuard
-{
-    public bool IsDatabaseAllowed(string databaseName) => allowed;
-}
-
-internal sealed class FakeAccessLevelProvider(AccessLevel level) : IAccessLevelProvider
-{
-    public Task<AccessLevel> GetAccessLevelAsync(string databaseName, CancellationToken cancellationToken = default)
-        => Task.FromResult(level);
-}
-
-internal sealed class FakeReadOnlyGuard(bool safe) : IReadOnlyGuard
-{
-    public bool IsQuerySafe(string query) => safe;
-}
-
 /// <summary>
-/// Test double for <see cref="IQuerySafetyValidator"/>. Replaces the
-/// <see cref="FakeSecurityGuard"/> / <see cref="FakeAccessLevelProvider"/> /
-/// <see cref="FakeReadOnlyGuard"/> triple in the four guardrail-service tests (item-04, step-002)
-/// so each test pins the pipeline outcome directly instead of composing three independent fakes.
-/// The legacy fakes above are intentionally preserved for <c>IndexSuggestionServiceTests</c> and
-/// other consumers that still call into the security interfaces directly (EPIC-03 / DRY-T1 will
-/// bundle them into a shared <c>TestSupport</c> helper).
+/// Test double for <see cref="IQuerySafetyValidator"/>. Replaces the legacy
+/// <c>FakeSecurityGuard</c> / <c>FakeAccessLevelProvider</c> / <c>FakeReadOnlyGuard</c> triple
+/// (now in <c>TestSupport/LegacySecurityFakes.cs</c>, step-003 / DRY-T1) in the four
+/// guardrail-service tests so each test pins the pipeline outcome directly instead of composing
+/// three independent fakes. The legacy fakes themselves are still consumed by
+/// <c>IndexSuggestionServiceTests</c> and by this class's happy-path constructor below.
 /// </summary>
 internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
 {

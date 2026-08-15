@@ -11,8 +11,15 @@ using SqlToAi.Tests.TestSupport;
 namespace SqlToAi.Tests.Database;
 
 /// <summary>
-/// Unit tests for <see cref="PerformanceMeasurementService"/>, verifying security guards,
-/// empty parameter validation, and XML plan parsing logic.
+/// Unit tests for <see cref="PerformanceMeasurementService"/>, focused on the ShowPlan XML
+/// parsing logic. The pure pipeline outcomes (empty parameters, blocked database, access level,
+/// mutating-keyword detection, multi-statement detection) are covered end-to-end in the dedicated
+/// <c>QuerySafetyValidatorTests</c> class (step-003 / DRY-T3). The 7 of 8 ShowPlan XML fixtures
+/// are built via <see cref="ShowPlanTestHelper.BuildShowPlanXml"/> (DRY-T2); the 8th fixture
+/// (<c>ParseExecutionPlanXml_MissingIndexAndImplicitConversion_ParsesWarningsCorrectly</c>) keeps
+/// its hand-rolled XML block because it exercises non-<c>&lt;MissingIndex&gt;</c> paths
+/// (<c>&lt;RelOp&gt;</c>, <c>&lt;Warnings&gt;</c>, <c>&lt;PlanAffectingConvert&gt;</c>) that the
+/// helper does not model.
 /// </summary>
 public sealed class PerformanceMeasurementServiceTests
 {
@@ -38,68 +45,12 @@ public sealed class PerformanceMeasurementServiceTests
     }
 
     [Fact]
-    public async Task MeasurePerformanceAsync_EmptyDatabase_ReturnsInvalidParameters()
-    {
-        var service = BuildService();
-        var result = await service.MeasurePerformanceAsync("", "SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
-    }
-
-    [Fact]
-    public async Task MeasurePerformanceAsync_EmptyQuery_ReturnsInvalidParameters()
-    {
-        var service = BuildService();
-        var result = await service.MeasurePerformanceAsync("TestDb", "", cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
-    }
-
-    [Fact]
-    public async Task MeasurePerformanceAsync_DatabaseNotAllowed_ReturnsSafetyCheckFailed()
-    {
-        var service = BuildService(isAllowed: false);
-        var result = await service.MeasurePerformanceAsync("ForbiddenDb", "SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
-    }
-
-    [Fact]
-    public async Task MeasurePerformanceAsync_AccessLevelNone_ReturnsWriteOperationBlocked()
-    {
-        var service = BuildService(accessLevel: AccessLevel.None);
-        var result = await service.MeasurePerformanceAsync("TestDb", "SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
-    }
-
-    [Fact]
-    public async Task MeasurePerformanceAsync_MutatingQuery_ReturnsWriteOperationBlocked()
-    {
-        var service = BuildService(accessLevel: AccessLevel.ReadOnly);
-        var result = await service.MeasurePerformanceAsync("TestDb", "DROP TABLE Users", cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
-    }
-
-    [Fact]
-    public async Task MeasurePerformanceAsync_MultiStatement_ReturnsMultipleStatementsForbidden()
-    {
-        var service = BuildService(accessLevel: AccessLevel.ReadOnly);
-        var result = await service.MeasurePerformanceAsync("TestDb", "SELECT 1; SELECT 2", cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, result.Error.Code);
-    }
-
-    [Fact]
     public void ParseExecutionPlanXml_MissingIndexAndImplicitConversion_ParsesWarningsCorrectly()
     {
+        // Intentional hand-rolled XML block: this is the one ShowPlan fixture that exercises
+        // non-<MissingIndex> paths (<RelOp LogicalOp="Table Scan">, <Warnings>,
+        // <PlanAffectingConvert>) outside the scope of ShowPlanTestHelper. The other 7 fixtures
+        // are built via the helper.
         string sampleXml = """
         <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan">
           <BatchSequence>
@@ -136,29 +87,10 @@ public sealed class PerformanceMeasurementServiceTests
     [Fact]
     public void ParseExecutionPlanXml_MissingIndex_EqualityOnly_BuildsStatement()
     {
-        string sampleXml = """
-        <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan">
-          <BatchSequence>
-            <Batch>
-              <Statements>
-                <StmtSimple>
-                  <QueryPlan>
-                    <MissingIndexes>
-                      <MissingIndexGroup Impact="72.5">
-                        <MissingIndex Table="[dbo].[Orders]">
-                          <ColumnGroup Usage="EQUALITY">
-                            <Column Name="CustomerId" />
-                          </ColumnGroup>
-                        </MissingIndex>
-                      </MissingIndexGroup>
-                    </MissingIndexes>
-                  </QueryPlan>
-                </StmtSimple>
-              </Statements>
-            </Batch>
-          </BatchSequence>
-        </ShowPlanXML>
-        """;
+        string sampleXml = ShowPlanTestHelper.BuildShowPlanXml(
+            impact: 72.5,
+            table: "[dbo].[Orders]",
+            columns: [new ColumnSpec("CustomerId", "EQUALITY")]);
 
         var warnings = PerformanceMeasurementService.ParseExecutionPlanXml(sampleXml);
 
@@ -174,36 +106,16 @@ public sealed class PerformanceMeasurementServiceTests
     [Fact]
     public void ParseExecutionPlanXml_MissingIndex_EqualityPlusInequalityPlusInclude_BuildsFullStatement()
     {
-        string sampleXml = """
-        <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan">
-          <BatchSequence>
-            <Batch>
-              <Statements>
-                <StmtSimple>
-                  <QueryPlan>
-                    <MissingIndexes>
-                      <MissingIndexGroup Impact="85.7">
-                        <MissingIndex Table="[dbo].[Orders]">
-                          <ColumnGroup Usage="EQUALITY">
-                            <Column Name="CustomerId" />
-                          </ColumnGroup>
-                          <ColumnGroup Usage="INEQUALITY">
-                            <Column Name="OrderDate" />
-                          </ColumnGroup>
-                          <ColumnGroup Usage="INCLUDE">
-                            <Column Name="Amount" />
-                            <Column Name="Status" />
-                          </ColumnGroup>
-                        </MissingIndex>
-                      </MissingIndexGroup>
-                    </MissingIndexes>
-                  </QueryPlan>
-                </StmtSimple>
-              </Statements>
-            </Batch>
-          </BatchSequence>
-        </ShowPlanXML>
-        """;
+        string sampleXml = ShowPlanTestHelper.BuildShowPlanXml(
+            impact: 85.7,
+            table: "[dbo].[Orders]",
+            columns:
+            [
+                new ColumnSpec("CustomerId", "EQUALITY"),
+                new ColumnSpec("OrderDate", "INEQUALITY"),
+                new ColumnSpec("Amount", "INCLUDE"),
+                new ColumnSpec("Status", "INCLUDE"),
+            ]);
 
         var warnings = PerformanceMeasurementService.ParseExecutionPlanXml(sampleXml);
 
@@ -219,33 +131,15 @@ public sealed class PerformanceMeasurementServiceTests
     [Fact]
     public void ParseExecutionPlanXml_MissingIndex_EqualityOnlyWithInclude_BuildsStatementWithInclude()
     {
-        string sampleXml = """
-        <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan">
-          <BatchSequence>
-            <Batch>
-              <Statements>
-                <StmtSimple>
-                  <QueryPlan>
-                    <MissingIndexes>
-                      <MissingIndexGroup Impact="60.0">
-                        <MissingIndex Table="[dbo].[Orders]">
-                          <ColumnGroup Usage="EQUALITY">
-                            <Column Name="CustomerId" />
-                          </ColumnGroup>
-                          <ColumnGroup Usage="INCLUDE">
-                            <Column Name="Amount" />
-                            <Column Name="Status" />
-                          </ColumnGroup>
-                        </MissingIndex>
-                      </MissingIndexGroup>
-                    </MissingIndexes>
-                  </QueryPlan>
-                </StmtSimple>
-              </Statements>
-            </Batch>
-          </BatchSequence>
-        </ShowPlanXML>
-        """;
+        string sampleXml = ShowPlanTestHelper.BuildShowPlanXml(
+            impact: 60.0,
+            table: "[dbo].[Orders]",
+            columns:
+            [
+                new ColumnSpec("CustomerId", "EQUALITY"),
+                new ColumnSpec("Amount", "INCLUDE"),
+                new ColumnSpec("Status", "INCLUDE"),
+            ]);
 
         var warnings = PerformanceMeasurementService.ParseExecutionPlanXml(sampleXml);
 
@@ -259,35 +153,15 @@ public sealed class PerformanceMeasurementServiceTests
     [Fact]
     public void ParseExecutionPlanXml_MissingIndex_DescendingColumn_RendersDescSuffix()
     {
-        string sampleXml = """
-        <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan">
-          <BatchSequence>
-            <Batch>
-              <Statements>
-                <StmtSimple>
-                  <QueryPlan>
-                    <MissingIndexes>
-                      <MissingIndexGroup Impact="75.0">
-                        <MissingIndex Table="[dbo].[Orders]">
-                          <ColumnGroup Usage="EQUALITY">
-                            <Column Name="CustomerId" />
-                          </ColumnGroup>
-                          <ColumnGroup Usage="INEQUALITY">
-                            <Column Name="OrderDate" Descending="True" />
-                          </ColumnGroup>
-                          <ColumnGroup Usage="INCLUDE">
-                            <Column Name="Amount" />
-                          </ColumnGroup>
-                        </MissingIndex>
-                      </MissingIndexGroup>
-                    </MissingIndexes>
-                  </QueryPlan>
-                </StmtSimple>
-              </Statements>
-            </Batch>
-          </BatchSequence>
-        </ShowPlanXML>
-        """;
+        string sampleXml = ShowPlanTestHelper.BuildShowPlanXml(
+            impact: 75.0,
+            table: "[dbo].[Orders]",
+            columns:
+            [
+                new ColumnSpec("CustomerId", "EQUALITY"),
+                new ColumnSpec("OrderDate", "INEQUALITY", Descending: true),
+                new ColumnSpec("Amount", "INCLUDE"),
+            ]);
 
         var warnings = PerformanceMeasurementService.ParseExecutionPlanXml(sampleXml);
 
@@ -302,32 +176,14 @@ public sealed class PerformanceMeasurementServiceTests
     [Fact]
     public void ParseExecutionPlanXml_MissingIndex_DescendingFalse_IsAscendingLikeBefore()
     {
-        string sampleXml = """
-        <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan">
-          <BatchSequence>
-            <Batch>
-              <Statements>
-                <StmtSimple>
-                  <QueryPlan>
-                    <MissingIndexes>
-                      <MissingIndexGroup Impact="60.0">
-                        <MissingIndex Table="[dbo].[Orders]">
-                          <ColumnGroup Usage="EQUALITY">
-                            <Column Name="CustomerId" Descending="False" />
-                          </ColumnGroup>
-                          <ColumnGroup Usage="INCLUDE">
-                            <Column Name="Amount" />
-                          </ColumnGroup>
-                        </MissingIndex>
-                      </MissingIndexGroup>
-                    </MissingIndexes>
-                  </QueryPlan>
-                </StmtSimple>
-              </Statements>
-            </Batch>
-          </BatchSequence>
-        </ShowPlanXML>
-        """;
+        string sampleXml = ShowPlanTestHelper.BuildShowPlanXml(
+            impact: 60.0,
+            table: "[dbo].[Orders]",
+            columns:
+            [
+                new ColumnSpec("CustomerId", "EQUALITY", Descending: false),
+                new ColumnSpec("Amount", "INCLUDE"),
+            ]);
 
         var warnings = PerformanceMeasurementService.ParseExecutionPlanXml(sampleXml);
 
@@ -341,30 +197,14 @@ public sealed class PerformanceMeasurementServiceTests
     [Fact]
     public void ParseExecutionPlanXml_MissingIndex_AllColumnsDescending_RendersAllDesc()
     {
-        string sampleXml = """
-        <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan">
-          <BatchSequence>
-            <Batch>
-              <Statements>
-                <StmtSimple>
-                  <QueryPlan>
-                    <MissingIndexes>
-                      <MissingIndexGroup Impact="80.0">
-                        <MissingIndex Table="[dbo].[Orders]">
-                          <ColumnGroup Usage="EQUALITY">
-                            <Column Name="ColA" Descending="True" />
-                            <Column Name="ColB" Descending="True" />
-                          </ColumnGroup>
-                        </MissingIndex>
-                      </MissingIndexGroup>
-                    </MissingIndexes>
-                  </QueryPlan>
-                </StmtSimple>
-              </Statements>
-            </Batch>
-          </BatchSequence>
-        </ShowPlanXML>
-        """;
+        string sampleXml = ShowPlanTestHelper.BuildShowPlanXml(
+            impact: 80.0,
+            table: "[dbo].[Orders]",
+            columns:
+            [
+                new ColumnSpec("ColA", "EQUALITY", Descending: true),
+                new ColumnSpec("ColB", "EQUALITY", Descending: true),
+            ]);
 
         var warnings = PerformanceMeasurementService.ParseExecutionPlanXml(sampleXml);
 
@@ -377,32 +217,14 @@ public sealed class PerformanceMeasurementServiceTests
     [Fact]
     public void ParseExecutionPlanXml_MissingIndex_DescendingInInclude_IsIgnored()
     {
-        string sampleXml = """
-        <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan">
-          <BatchSequence>
-            <Batch>
-              <Statements>
-                <StmtSimple>
-                  <QueryPlan>
-                    <MissingIndexes>
-                      <MissingIndexGroup Impact="55.0">
-                        <MissingIndex Table="[dbo].[Orders]">
-                          <ColumnGroup Usage="EQUALITY">
-                            <Column Name="CustomerId" />
-                          </ColumnGroup>
-                          <ColumnGroup Usage="INCLUDE">
-                            <Column Name="Amount" Descending="True" />
-                          </ColumnGroup>
-                        </MissingIndex>
-                      </MissingIndexGroup>
-                    </MissingIndexes>
-                  </QueryPlan>
-                </StmtSimple>
-              </Statements>
-            </Batch>
-          </BatchSequence>
-        </ShowPlanXML>
-        """;
+        string sampleXml = ShowPlanTestHelper.BuildShowPlanXml(
+            impact: 55.0,
+            table: "[dbo].[Orders]",
+            columns:
+            [
+                new ColumnSpec("CustomerId", "EQUALITY"),
+                new ColumnSpec("Amount", "INCLUDE", Descending: true),
+            ]);
 
         var warnings = PerformanceMeasurementService.ParseExecutionPlanXml(sampleXml);
 
@@ -413,4 +235,3 @@ public sealed class PerformanceMeasurementServiceTests
         Assert.EndsWith(";", missing.MissingIndexStatement);
     }
 }
-

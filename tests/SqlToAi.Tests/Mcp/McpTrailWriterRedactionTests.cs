@@ -22,7 +22,7 @@ public sealed class McpTrailWriterRedactionTests : IDisposable
 
     public McpTrailWriterRedactionTests()
     {
-        _logRoot = Path.Combine(Path.GetTempPath(), "SqlToAiMcpTrailRedactionTests_" + Guid.NewGuid().ToString("N"));
+        _logRoot = McpTrailTestHelper.CreateIsolatedLogRoot("RedactionTests");
         Directory.CreateDirectory(_logRoot);
     }
 
@@ -31,11 +31,8 @@ public sealed class McpTrailWriterRedactionTests : IDisposable
         try { Directory.Delete(_logRoot, recursive: true); } catch { /* best effort */ }
     }
 
-    private string GetDayDir() =>
-        Path.Combine(_logRoot, "mcp", DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
-
     private McpTrailWriter CreateWriter(bool enabled, bool anonymizerEnabled = false) =>
-        McpTrailTestHelper.CreateWriter(_logRoot, enabled, anonymizerEnabled);
+        McpTrailTestHelper.CreateWriter(_logRoot, new McpTrailTestWriterConfig(enabled, anonymizerEnabled));
 
     [Fact]
     public void Record_ShouldRedactResponseText_AcrossAllCompanionFiles()
@@ -49,7 +46,7 @@ public sealed class McpTrailWriterRedactionTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         string jsonlContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-call.jsonl").Single());
         string responseJsonContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-response.json").Single());
         string responseMdContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-response.md").Single());
@@ -73,7 +70,7 @@ public sealed class McpTrailWriterRedactionTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         string requestContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-request.json").Single());
         string jsonlContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-call.jsonl").Single());
 
@@ -91,7 +88,7 @@ public sealed class McpTrailWriterRedactionTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         string requestContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-request.json").Single());
         string responseContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-response.json").Single());
 
@@ -114,7 +111,7 @@ public sealed class McpTrailWriterRedactionTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         string jsonlContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-call.jsonl").Single());
 
         Assert.Contains("row_limit\\\":42", jsonlContent, StringComparison.Ordinal);
@@ -133,7 +130,7 @@ public sealed class McpTrailWriterRedactionTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         string jsonlContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-call.jsonl").Single());
 
         Assert.Contains("PlainTextSecret", jsonlContent, StringComparison.Ordinal);
@@ -163,7 +160,7 @@ public sealed class McpTrailWriterRedactionTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         string requestContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-request.json").Single());
         string jsonlContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-call.jsonl").Single());
 
@@ -199,7 +196,7 @@ public sealed class McpTrailWriterRedactionTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         string jsonlContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-call.jsonl").Single());
 
         Assert.DoesNotContain(sensitiveValue, jsonlContent, StringComparison.Ordinal);
@@ -218,7 +215,7 @@ public sealed class McpTrailWriterRedactionTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         string responseContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-response.json").Single());
 
         Assert.Contains("\"type\": \"text\"", responseContent, StringComparison.Ordinal);
@@ -238,7 +235,7 @@ public sealed class McpTrailWriterRedactionTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         string responseContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-response.json").Single());
 
         Assert.DoesNotContain(sensitiveValue, responseContent, StringComparison.Ordinal);
@@ -261,7 +258,7 @@ public sealed class McpTrailWriterRedactionTests : IDisposable
         var ex = Record.Exception(() => writer.Record(record));
         Assert.Null(ex);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         // Fail-safe: the invalid JSON is written through unchanged rather than dropped.
         string requestContent = File.ReadAllText(Directory.GetFiles(dayDir, "*-request.json").Single());
         Assert.Equal("{not valid json", requestContent);

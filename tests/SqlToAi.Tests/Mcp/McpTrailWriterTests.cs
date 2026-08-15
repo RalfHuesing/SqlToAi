@@ -20,7 +20,7 @@ public sealed class McpTrailWriterTests : IDisposable
 
     public McpTrailWriterTests()
     {
-        _logRoot = Path.Combine(Path.GetTempPath(), "SqlToAiMcpTrailTests_" + Guid.NewGuid().ToString("N"));
+        _logRoot = McpTrailTestHelper.CreateIsolatedLogRoot("Tests");
         Directory.CreateDirectory(_logRoot);
     }
 
@@ -28,9 +28,6 @@ public sealed class McpTrailWriterTests : IDisposable
     {
         try { Directory.Delete(_logRoot, recursive: true); } catch { /* best effort */ }
     }
-
-    private string GetDayDir() =>
-        Path.Combine(_logRoot, "mcp", DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
 
     [Fact]
     public void Record_ShouldCreatePerDayDirectory_AndWriteJsonlFile()
@@ -48,7 +45,7 @@ public sealed class McpTrailWriterTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         Assert.True(Directory.Exists(dayDir), $"Expected day directory {dayDir} to exist.");
 
         var files = Directory.GetFiles(dayDir, "*-call.jsonl");
@@ -76,7 +73,7 @@ public sealed class McpTrailWriterTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
 
         string requestFile = Directory.GetFiles(dayDir, "*-request.json").Single();
         string requestText = File.ReadAllText(requestFile);
@@ -110,7 +107,7 @@ public sealed class McpTrailWriterTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         string mdFile = Directory.GetFiles(dayDir, "*-response.md").Single();
         string content = File.ReadAllText(mdFile);
 
@@ -140,7 +137,7 @@ public sealed class McpTrailWriterTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         Assert.Empty(Directory.GetFiles(dayDir, "*-response.md"));
     }
 
@@ -160,7 +157,7 @@ public sealed class McpTrailWriterTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         Assert.Empty(Directory.GetFiles(dayDir, "*-request.json"));
         // response.json still gets written
         Assert.Single(Directory.GetFiles(dayDir, "*-response.json"));
@@ -185,7 +182,7 @@ public sealed class McpTrailWriterTests : IDisposable
 
         writer.Record(record);
 
-        string file = Directory.GetFiles(Path.Combine(_logRoot, "mcp", DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)), "*-call.jsonl").Single();
+        string file = Directory.GetFiles(McpTrailTestHelper.GetDayDir(_logRoot), "*-call.jsonl").Single();
         string content = File.ReadAllText(file);
 
         // The response and args are stored verbatim — no truncation. The whole line is
@@ -238,7 +235,7 @@ public sealed class McpTrailWriterTests : IDisposable
 
         writer.Record(record);
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         var files = Directory.GetFiles(dayDir, "*-call.jsonl");
         Assert.Single(files);
 
@@ -263,7 +260,7 @@ public sealed class McpTrailWriterTests : IDisposable
                 Success: true));
         });
 
-        string dayDir = GetDayDir();
+        string dayDir = McpTrailTestHelper.GetDayDir(_logRoot);
         var files = Directory.GetFiles(dayDir, "*-call.jsonl");
         Assert.Equal(50, files.Length);
     }
@@ -276,5 +273,5 @@ public sealed class McpTrailWriterTests : IDisposable
     /// enabled <see cref="Anonymizer"/>.
     /// </summary>
     private McpTrailWriter CreateWriter(bool enabled, bool anonymizerEnabled = false) =>
-        McpTrailTestHelper.CreateWriter(_logRoot, enabled, anonymizerEnabled);
+        McpTrailTestHelper.CreateWriter(_logRoot, new McpTrailTestWriterConfig(enabled, anonymizerEnabled));
 }

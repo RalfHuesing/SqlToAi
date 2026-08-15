@@ -8,19 +8,19 @@ using SqlToAi.Configuration;
 using SqlToAi.Database;
 using SqlToAi.Domain;
 using SqlToAi.Security;
+using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Database;
 
 /// <summary>
-/// Unit tests for <see cref="QueryExecutionService"/>.
-/// Uses a test double for the connection factory and a <see cref="FakeQuerySafetyValidator"/>
-/// that pins the guardrail-pipeline outcome directly â€” the three legacy
-/// <c>FakeSecurityGuard</c> / <c>FakeAccessLevelProvider</c> / <c>FakeReadOnlyGuard</c> fakes
-/// were removed from <see cref="BuildService"/> in step-002 (item-04) once
-/// <see cref="QueryExecutionService"/> started consuming the new
-/// <see cref="IQuerySafetyValidator"/> pipeline. Anonymization/tokenization tests live in the
-/// second partial-class file <c>QueryExecutionServiceAnonymizationTests.cs</c> â€” split purely to
-/// stay within the project's per-file line-count budget.
+/// Unit tests for <see cref="QueryExecutionService"/>, focused on the service's own behaviour:
+/// transaction commit/rollback, ReadWrite override, multi-statement enforcement at write-allowed
+/// levels, and single-statement positive coverage. The pure pipeline outcomes (empty parameters,
+/// blocked database, AccessLevel.None/SchemaOnly, sp_executesql/mutating-keyword detection,
+/// multi-statement detection) are covered end-to-end in the dedicated
+/// <c>QuerySafetyValidatorTests</c> class (step-003 / DRY-T3). Anonymization/tokenization tests
+/// live in the second partial-class file <c>QueryExecutionServiceAnonymizationTests.cs</c> —
+/// split purely to stay within the project's per-file line-count budget.
 /// </summary>
 public sealed class QueryExecutionServiceTests
 {
@@ -28,13 +28,6 @@ public sealed class QueryExecutionServiceTests
     // Helpers: build service with configurable fakes
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Maps the historical three-fake combination (security guard / access level / read-only
-    /// guard) onto a single <see cref="FakeQuerySafetyValidator"/>. Mirrors the legacy
-    /// <see cref="FakeReadOnlyGuard"/> semantics — the read-only guard is faked, not real, so
-    /// the <c>MultipleStatements</c> Theory can still observe the multi-statement rejection
-    /// independently of the read-only guard.
-    /// </summary>
     private static FakeQuerySafetyValidator BuildSafetyValidator(
         AccessLevel accessLevel,
         bool isAllowed,
@@ -69,79 +62,12 @@ public sealed class QueryExecutionServiceTests
     }
 
     // -------------------------------------------------------------------------
-    // Tests: input validation
+    // Tests: multi-statement positive coverage — false-positive guard for the detector.
     // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task ExecuteQueryAsync_ShouldFail_WhenDatabaseNameIsEmpty()
-    {
-        var service = BuildService();
-        var result = await service.ExecuteQueryAsync("", "SELECT 1", null, TestContext.Current.CancellationToken);
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
-    }
-
-    [Fact]
-    public async Task ExecuteQueryAsync_ShouldFail_WhenQueryIsEmpty()
-    {
-        var service = BuildService();
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "   ", null, TestContext.Current.CancellationToken);
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
-    }
-
-    // -------------------------------------------------------------------------
-    // Tests: security checks
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task ExecuteQueryAsync_ShouldFail_WhenDatabaseNotAllowed()
-    {
-        var service = BuildService(isAllowed: false);
-        var result = await service.ExecuteQueryAsync("BlockedDb", "SELECT 1", null, TestContext.Current.CancellationToken);
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
-    }
-
-    [Theory]
-    [InlineData(AccessLevel.None)]
-    [InlineData(AccessLevel.SchemaOnly)]
-    public async Task ExecuteQueryAsync_ShouldFail_WhenAccessLevelTooLow(AccessLevel level)
-    {
-        var service = BuildService(accessLevel: level);
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
-    }
-
-    [Fact]
-    public async Task ExecuteQueryAsync_ShouldFail_WhenQueryIsMutating()
-    {
-        var service = BuildService(readOnlySafe: false);
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "DELETE FROM Customers", null, TestContext.Current.CancellationToken);
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
-    }
-
-    // -------------------------------------------------------------------------
-    // Tests: multi-statement detection
-    // -------------------------------------------------------------------------
-
-    [Theory]
-    [InlineData("SELECT 1; SELECT 2")]
-    [InlineData("SELECT 1 ; DROP TABLE Foo")]
-    [InlineData("SELECT 'hello'; SELECT 'world'")]
-    public async Task ExecuteQueryAsync_ShouldFail_WhenMultipleStatements(string query)
-    {
-        var service = BuildService();
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, query, null, TestContext.Current.CancellationToken);
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, result.Error.Code);
-    }
 
     [Theory]
     [InlineData("SELECT 1")]
-    [InlineData("SELECT 1;")]           // trailing semicolon only â€” allowed
+    [InlineData("SELECT 1;")]           // trailing semicolon only — allowed
     [InlineData("SELECT 'hello;world'")] // semicolon inside string literal
     [InlineData("SELECT 1 -- note; comment")]
     public async Task ExecuteQueryAsync_ShouldSucceed_WhenSingleStatement(string query)
@@ -218,4 +144,3 @@ public sealed class QueryExecutionServiceTests
     }
 
 }
-

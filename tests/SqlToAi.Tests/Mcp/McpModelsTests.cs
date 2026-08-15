@@ -1,5 +1,6 @@
 #nullable enable
 
+using System.Globalization;
 using System.Text.Json;
 using SqlToAi.Mcp;
 
@@ -93,7 +94,7 @@ public sealed class McpModelsTests
 
         string json = JsonSerializer.Serialize(error, Options);
 
-        Assert.Contains("-32601", json);
+        Assert.Contains(JsonRpcError.MethodNotFound.ToString(CultureInfo.InvariantCulture), json);
         Assert.Contains("Method not found", json);
     }
 
