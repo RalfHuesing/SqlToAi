@@ -240,9 +240,9 @@ public sealed partial class QueryExecutionService : IQueryExecutionService
         {
             sqlConn.InfoMessage += (_, e) => messages.Add(e.Message);
         }
-        await ExecuteSetOptionAsync(args.Connection, args.Transaction, "SET STATISTICS IO ON", cancellationToken);
-        await ExecuteSetOptionAsync(args.Connection, args.Transaction, "SET STATISTICS TIME ON", cancellationToken);
-        await ExecuteSetOptionAsync(args.Connection, args.Transaction, $"SET ROWCOUNT {args.RowLimit}", cancellationToken);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, args.Transaction, "SET STATISTICS IO ON", cancellationToken);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, args.Transaction, "SET STATISTICS TIME ON", cancellationToken);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, args.Transaction, $"SET ROWCOUNT {args.RowLimit}", cancellationToken);
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -273,7 +273,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService
         }
         finally
         {
-            await ExecuteSetOptionAsync(args.Connection, args.Transaction, "SET ROWCOUNT 0", cancellationToken);
+            await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, args.Transaction, "SET ROWCOUNT 0", cancellationToken);
         }
 
         stopwatch.Stop();
@@ -288,21 +288,6 @@ public sealed partial class QueryExecutionService : IQueryExecutionService
         return new QueryExecutionResult(
             sb.ToString().TrimEnd(), tracker.WasAnonymized, tracker.AnonymizedColumns, _anonymizationMode, tracker.SearchableTokenColumns,
             ElapsedMs: stopwatch.ElapsedMilliseconds, RowCount: rowCount, CpuTimeMs: cpu, LogicalReads: logical);
-    }
-
-    /// <summary>
-    /// Executes a single <c>SET ...</c> statement on the given connection/transaction. Used for
-    /// <c>SET STATISTICS IO/TIME ON</c>, the server-side <c>SET ROWCOUNT</c> row-limit enforcement
-    /// (see step-002) and its <c>SET ROWCOUNT 0</c> reset. Mirrors the identical helper in
-    /// <see cref="PerformanceMeasurementService"/> — deliberately duplicated locally rather than
-    /// shared, since the method is too small to justify coupling the two service classes together.
-    /// </summary>
-    private static async Task ExecuteSetOptionAsync(DbConnection connection, DbTransaction transaction, string sql, CancellationToken ct)
-    {
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Transaction = transaction;
-        await cmd.ExecuteNonQueryAsync(ct);
     }
 
 }

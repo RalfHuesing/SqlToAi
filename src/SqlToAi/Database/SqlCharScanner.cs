@@ -123,4 +123,118 @@ internal static class SqlCharScanner
         if (c == '[') return SqlCharState.Bracket;
         return SqlCharState.Normal;
     }
+
+    /// <summary>
+    /// Returns the zero-based indices of all top-level semicolons in the SQL string.
+    /// </summary>
+    public static List<int> GetSemicolonIndices(string query)
+    {
+        var indices = new List<int>();
+        foreach (var ev in Scan(query))
+        {
+            if (ev.State == SqlCharState.Normal && ev.Character == ';')
+            {
+                indices.Add(ev.Index);
+            }
+        }
+        return indices;
+    }
+
+    /// <summary>
+    /// Splits the SQL string into segments based on the given semicolon indices.
+    /// </summary>
+    public static List<string> SplitIntoSegments(string query, List<int> semicolonIndices)
+    {
+        var segments = new List<string>();
+        int lastIndex = 0;
+        foreach (int idx in semicolonIndices)
+        {
+            segments.Add(query[lastIndex..idx]);
+            lastIndex = idx + 1;
+        }
+        if (lastIndex <= query.Length)
+        {
+            segments.Add(query[lastIndex..]);
+        }
+        return segments;
+    }
+
+    /// <summary>
+    /// Returns the index of the last non-empty segment.
+    /// </summary>
+    public static int GetLastNonEmptySegmentIndex(List<string> segments)
+    {
+        int index = segments.Count - 1;
+        while (index >= 0 && string.IsNullOrWhiteSpace(segments[index]))
+        {
+            index--;
+        }
+        return index;
+    }
+
+    /// <summary>
+    /// Strips leading comments and whitespace from the given SQL string.
+    /// </summary>
+    public static string StripLeadingCommentsAndWhitespace(string sql)
+    {
+        int index = 0;
+        while (index < sql.Length)
+        {
+            if (char.IsWhiteSpace(sql[index]))
+            {
+                index++;
+                continue;
+            }
+
+            if (TrySkipComment(sql, ref index))
+            {
+                continue;
+            }
+
+            break;
+        }
+
+        return sql[index..];
+    }
+
+    private static bool TrySkipComment(string sql, ref int index) =>
+        TrySkipLineComment(sql, ref index) || TrySkipBlockComment(sql, ref index);
+
+    private static bool TrySkipLineComment(string sql, ref int index)
+    {
+        if (index + 1 >= sql.Length || sql[index] != '-' || sql[index + 1] != '-')
+        {
+            return false;
+        }
+
+        index += 2;
+        while (index < sql.Length && sql[index] != '\n')
+        {
+            index++;
+        }
+        if (index < sql.Length && sql[index] == '\n')
+        {
+            index++;
+        }
+        return true;
+    }
+
+    private static bool TrySkipBlockComment(string sql, ref int index)
+    {
+        if (index + 1 >= sql.Length || sql[index] != '/' || sql[index + 1] != '*')
+        {
+            return false;
+        }
+
+        index += 2;
+        while (index + 1 < sql.Length && !(sql[index] == '*' && sql[index + 1] == '/'))
+        {
+            index++;
+        }
+        if (index + 1 < sql.Length)
+        {
+            index += 2;
+        }
+        return true;
+    }
 }

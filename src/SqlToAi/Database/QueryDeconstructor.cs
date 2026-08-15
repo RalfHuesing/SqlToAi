@@ -17,7 +17,7 @@ internal static class QueryDeconstructor
     {
         var (preamble, body) = ExtractPreambleAndBody(query);
 
-        string trimmedBody = StripLeadingCommentsAndWhitespace(body);
+        string trimmedBody = SqlCharScanner.StripLeadingCommentsAndWhitespace(body);
         if (!trimmedBody.StartsWith("WITH", StringComparison.OrdinalIgnoreCase))
         {
             return new DeconstructedQuery(preamble, string.Empty, body);
@@ -71,14 +71,14 @@ internal static class QueryDeconstructor
 
     private static (string Preamble, string Body) ExtractPreambleAndBody(string query)
     {
-        var semicolonIndices = GetSemicolonIndices(query);
+        var semicolonIndices = SqlCharScanner.GetSemicolonIndices(query);
         if (semicolonIndices.Count == 0)
         {
             return (string.Empty, query.Trim());
         }
 
-        var segments = GetSegmentsFromIndices(query, semicolonIndices);
-        int lastNonEmptyIndex = GetLastNonEmptyIndex(segments);
+        var segments = SqlCharScanner.SplitIntoSegments(query, semicolonIndices);
+        int lastNonEmptyIndex = SqlCharScanner.GetLastNonEmptySegmentIndex(segments);
 
         if (lastNonEmptyIndex <= 0)
         {
@@ -86,45 +86,6 @@ internal static class QueryDeconstructor
         }
 
         return BuildPreambleAndBody(segments, lastNonEmptyIndex);
-    }
-
-    private static List<int> GetSemicolonIndices(string query)
-    {
-        var indices = new List<int>();
-        foreach (var ev in SqlCharScanner.Scan(query))
-        {
-            if (ev.State == SqlCharState.Normal && ev.Character == ';')
-            {
-                indices.Add(ev.Index);
-            }
-        }
-        return indices;
-    }
-
-    private static List<string> GetSegmentsFromIndices(string query, List<int> semicolonIndices)
-    {
-        var segments = new List<string>();
-        int lastIndex = 0;
-        foreach (int idx in semicolonIndices)
-        {
-            segments.Add(query[lastIndex..idx]);
-            lastIndex = idx + 1;
-        }
-        if (lastIndex <= query.Length)
-        {
-            segments.Add(query[lastIndex..]);
-        }
-        return segments;
-    }
-
-    private static int GetLastNonEmptyIndex(List<string> segments)
-    {
-        int index = segments.Count - 1;
-        while (index >= 0 && string.IsNullOrWhiteSpace(segments[index]))
-        {
-            index--;
-        }
-        return index;
     }
 
     private static (string Preamble, string Body) BuildPreambleAndBody(List<string> segments, int lastNonEmptyIndex)
@@ -200,76 +161,11 @@ internal static class QueryDeconstructor
 
     private static string StripWithPrefix(string ctes)
     {
-        string trimmed = StripLeadingCommentsAndWhitespace(ctes);
+        string trimmed = SqlCharScanner.StripLeadingCommentsAndWhitespace(ctes);
         if (trimmed.StartsWith("WITH", StringComparison.OrdinalIgnoreCase))
         {
             return trimmed[4..].Trim();
         }
         return ctes;
-    }
-
-    private static string StripLeadingCommentsAndWhitespace(string sql)
-    {
-        int index = 0;
-        while (index < sql.Length)
-        {
-            if (char.IsWhiteSpace(sql[index]))
-            {
-                index++;
-                continue;
-            }
-
-            if (TrySkipComment(sql, ref index))
-            {
-                continue;
-            }
-
-            break;
-        }
-
-        return sql[index..];
-    }
-
-    private static bool TrySkipComment(string sql, ref int index)
-    {
-        return TrySkipLineComment(sql, ref index) || TrySkipBlockComment(sql, ref index);
-    }
-
-    private static bool TrySkipLineComment(string sql, ref int index)
-    {
-        if (index + 1 >= sql.Length || sql[index] != '-' || sql[index + 1] != '-')
-        {
-            return false;
-        }
-
-        index += 2;
-        while (index < sql.Length && sql[index] != '\n')
-        {
-            index++;
-        }
-        if (index < sql.Length && sql[index] == '\n')
-        {
-            index++;
-        }
-        return true;
-    }
-
-    private static bool TrySkipBlockComment(string sql, ref int index)
-    {
-        if (index + 1 >= sql.Length || sql[index] != '/' || sql[index + 1] != '*')
-        {
-            return false;
-        }
-
-        index += 2;
-        while (index + 1 < sql.Length && !(sql[index] == '*' && sql[index + 1] == '/'))
-        {
-            index++;
-        }
-        if (index + 1 < sql.Length)
-        {
-            index += 2;
-        }
-        return true;
     }
 }

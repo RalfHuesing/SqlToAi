@@ -163,7 +163,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
         {
             try
             {
-                await ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS XML ON", ct);
+                await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS XML ON", ct);
             }
             catch (SqlException ex) when (IsPermissionError(ex, 262, "SHOWPLAN"))
             {
@@ -172,8 +172,8 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             }
         }
 
-        await ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS IO ON", ct);
-        await ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS TIME ON", ct);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS IO ON", ct);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS TIME ON", ct);
 
         int warmupRuns = Math.Max(0, args.WarmupRuns);
         var runContext = new MeasurementContext
@@ -231,7 +231,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             {
                 context.HasPermission = false;
                 context.Note = "SHOWPLAN permission missing; performance metrics captured without XML plan analysis.";
-                await ExecuteSetOptionAsync(context.Connection, context.Transaction, "SET STATISTICS XML OFF", ct);
+                await DatabaseCommandExecutor.ExecuteSetOptionAsync(context.Connection, context.Transaction, "SET STATISTICS XML OFF", ct);
                 context.Messages.Clear();
                 i--;
             }
@@ -261,7 +261,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             {
                 context.HasPermission = false;
                 context.Note = "SHOWPLAN permission missing; performance metrics captured without XML plan analysis.";
-                await ExecuteSetOptionAsync(context.Connection, context.Transaction, "SET STATISTICS XML OFF", ct);
+                await DatabaseCommandExecutor.ExecuteSetOptionAsync(context.Connection, context.Transaction, "SET STATISTICS XML OFF", ct);
                 context.Messages.Clear();
                 i--;
             }
@@ -278,14 +278,6 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
     /// </summary>
     internal static bool IsPermissionError(SqlException ex, int errorNumber, string keyword) =>
         ex.Number == errorNumber || ex.Message.Contains(keyword, StringComparison.OrdinalIgnoreCase);
-
-    private static async Task ExecuteSetOptionAsync(DbConnection connection, DbTransaction transaction, string sql, CancellationToken ct)
-    {
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Transaction = transaction;
-        await cmd.ExecuteNonQueryAsync(ct);
-    }
 
     private static async Task<string?> RunQueryOnceAsync(DbConnection connection, DbTransaction transaction, QueryPerformanceArgs args, CancellationToken ct)
     {
