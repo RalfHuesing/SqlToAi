@@ -14,6 +14,7 @@ last_updated: 2026-08-15T18:20:00+02:00
 - **`src/SqlToAi/Database/SqlMultiStatementDetector.cs`** — Multi-Statement-Erkennung (Duplikate zu `QueryDeconstructor`).
 - **`src/SqlToAi/Database/PerformanceMeasurementService.cs`** — Performance-Messdienst (`ExecuteSetOptionAsync`-Duplikat, Methoden mit >6 Parametern).
 - **`src/SqlToAi/Database/QueryExecutionService.cs`** — Query-Ausführungsdienst (`ExecuteSetOptionAsync`-Duplikat).
+- **`src/SqlToAi/Database/DatabaseCommandExecutor.cs`** — Shared DB-Kommandoausführung (SET-Optionen).
 - **`src/SqlToAi/Database/IDatabaseAnalysisService.cs`** — Geplante Facade zur Bündelung der Analyse-Dienste.
 - **`tests/SqlToAi.Tests/TestSupport/FakeDbConnection.cs`** — Fake-Db-Implementierung für Unit-Tests (fehlt `sealed`).
 - **`tests/SqlToAi.Tests/AiNetLinter/AiNetLinterTests.cs`** — Linter-Integrationsprüfungen (Baseline-Test entfernen).
