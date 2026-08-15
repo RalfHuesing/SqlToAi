@@ -11,7 +11,6 @@ using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
 using SqlToAi.Domain;
 using SqlToAi.Mcp;
-using SqlToAi.Security;
 
 namespace SqlToAi.Database;
 
@@ -43,9 +42,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService
             "Query execution failed for database {Database}. Query: {Query}");
 
     private readonly IDatabaseConnectionFactory _connectionFactory;
-    private readonly ISecurityGuard _securityGuard;
-    private readonly IAccessLevelProvider _accessLevelProvider;
-    private readonly IReadOnlyGuard _readOnlyGuard;
+    private readonly IQuerySafetyValidator _querySafetyValidator;
     private readonly IAnonymizer _anonymizer;
     private readonly IAnonymizationRuleProvider? _anonymizationRuleProvider;
     private readonly IQueryTokenResolver? _queryTokenResolver;
@@ -57,17 +54,13 @@ public sealed partial class QueryExecutionService : IQueryExecutionService
     /// <summary>Initializes a new instance of <see cref="QueryExecutionService"/>.</summary>
     public QueryExecutionService(
         IDatabaseConnectionFactory connectionFactory,
-        ISecurityGuard securityGuard,
-        IAccessLevelProvider accessLevelProvider,
-        IReadOnlyGuard readOnlyGuard,
+        IQuerySafetyValidator querySafetyValidator,
         AnonymizationDependencies anonymization,
         IOptions<SqlToAiOptions> options,
         ILogger<QueryExecutionService> logger)
     {
         _connectionFactory = connectionFactory;
-        _securityGuard = securityGuard;
-        _accessLevelProvider = accessLevelProvider;
-        _readOnlyGuard = readOnlyGuard;
+        _querySafetyValidator = querySafetyValidator;
         _anonymizer = anonymization.Anonymizer;
         _anonymizationRuleProvider = anonymization.RuleProvider;
         _queryTokenResolver = anonymization.TokenResolver;
@@ -95,45 +88,16 @@ public sealed partial class QueryExecutionService : IQueryExecutionService
         object? parameters,
         CancellationToken cancellationToken = default)
     {
-        // 1. Validate inputs
-        if (string.IsNullOrWhiteSpace(databaseName))
+        // 1-5. Run the shared 6-stage guardrail pipeline (single source of truth).
+        var safetyResult = await _querySafetyValidator
+            .ValidateQuerySafetyAsync(databaseName, query, allowSchemaOnly: false, cancellationToken)
+            .ConfigureAwait(false);
+        if (safetyResult.IsFailure)
         {
-            return SqlToAiError.InvalidParameters("Database name must not be empty.");
+            return safetyResult.Error;
         }
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            return SqlToAiError.InvalidParameters("Query must not be empty.");
-        }
-
-        // 2. Static whitelist check
-        if (!_securityGuard.IsDatabaseAllowed(databaseName))
-        {
-            return SqlToAiError.SafetyCheckFailed(databaseName);
-        }
-
-        // 3. Dynamic access level check
-        var accessLevel = await _accessLevelProvider.GetAccessLevelAsync(databaseName, cancellationToken);
-
-        if (accessLevel == AccessLevel.None || accessLevel == AccessLevel.SchemaOnly)
-        {
-            return SqlToAiError.WriteOperationBlocked($"Database '{databaseName}' does not permit query execution (AccessLevel: {accessLevel}).");
-        }
-
-        // 4. Read-only guard: reject mutating statements, unless this database is fully
-        //    unlocked via AccessCheckSql returning ReadWrite.
-        bool writeAllowed = accessLevel == AccessLevel.ReadWrite;
-
-        if (!writeAllowed && !_readOnlyGuard.IsQuerySafe(query))
-        {
-            return SqlToAiError.WriteOperationBlocked("The query contains mutating SQL keywords and was rejected.");
-        }
-
-        // 5. Single-statement validation — always enforced, write-allowed or not, to keep
-        //    the blast radius of a single call limited to one statement.
-        if (SqlMultiStatementDetector.ContainsMultipleStatements(query))
-        {
-            return SqlToAiError.MultipleStatementsForbidden();
-        }
+        var accessLevel = safetyResult.Value.AccessLevel;
+        var writeAllowed = safetyResult.Value.IsWriteAllowed;
 
         // 6. Resolve effective row limit (caller request capped by configured maximum)
         int effectiveLimit = requestedRowLimit.HasValue

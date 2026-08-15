@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -19,14 +19,20 @@ public sealed class PerformanceMeasurementServiceTests
     private static PerformanceMeasurementService BuildService(
         bool isAllowed = true,
         AccessLevel accessLevel = AccessLevel.ReadOnly,
-        IReadOnlyGuard? readOnlyGuard = null)
+        SqlToAiError? error = null)
     {
         var options = new SqlToAiOptions();
+
+        IQuerySafetyValidator safetyValidator = error != null
+            ? new FakeQuerySafetyValidator(error)
+            : new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(isAllowed),
+                new FakeAccessLevelProvider(accessLevel),
+                new ReadOnlyGuard());
+
         return new PerformanceMeasurementService(
             new ValidationMockConnectionFactory(),
-            new FakeSecurityGuard(isAllowed),
-            new FakeAccessLevelProvider(accessLevel),
-            readOnlyGuard ?? new ReadOnlyGuard(),
+            safetyValidator,
             Options.Create(options),
             NullLogger<PerformanceMeasurementService>.Instance);
     }
@@ -407,3 +413,4 @@ public sealed class PerformanceMeasurementServiceTests
         Assert.EndsWith(";", missing.MissingIndexStatement);
     }
 }
+

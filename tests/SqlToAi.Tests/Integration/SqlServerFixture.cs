@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 using System.IO;
 using Microsoft.Extensions.Configuration;
@@ -15,7 +15,7 @@ namespace SqlToAi.Tests.Integration;
 /// <summary>
 /// Shared fixture for integration tests that exercise the real services against a live SQL Server.
 /// Reads configuration from <c>src/SqlToAi/appsettings.json</c> (the same file the runtime uses)
-/// and builds the real DI graph — no mocks, no test doubles.
+/// and builds the real DI graph â€” no mocks, no test doubles.
 /// </summary>
 public sealed class SqlServerFixture
 {
@@ -24,6 +24,7 @@ public sealed class SqlServerFixture
     public SecurityGuard SecurityGuard { get; }
     public AccessLevelProvider AccessLevelProvider { get; }
     public ReadOnlyGuard ReadOnlyGuard { get; }
+    public IQuerySafetyValidator QuerySafetyValidator { get; }
     public MetadataProvider MetadataProvider { get; }
     public SchemaService SchemaService { get; }
     public QueryExecutionService QueryExecutionService { get; }
@@ -58,8 +59,9 @@ public sealed class SqlServerFixture
         TokenVault          = new TokenVault();
         QueryTokenResolver  = new QueryTokenResolver(TokenVault, optionsWrapper);
         Anonymizer          = new Anonymizer(optionsWrapper, TokenVault);
-        QueryExecutionService = new QueryExecutionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, new AnonymizationDependencies(Anonymizer, AnonymizationRuleProvider, QueryTokenResolver), optionsWrapper, NullLogger<QueryExecutionService>.Instance);
-        QueryValidationService = new QueryValidationService(ConnectionFactory, SecurityGuard, AccessLevelProvider, ReadOnlyGuard, optionsWrapper, NullLogger<QueryValidationService>.Instance);
+        QuerySafetyValidator = new QuerySafetyValidator(SecurityGuard, AccessLevelProvider, ReadOnlyGuard);
+        QueryExecutionService = new QueryExecutionService(ConnectionFactory, QuerySafetyValidator, new AnonymizationDependencies(Anonymizer, AnonymizationRuleProvider, QueryTokenResolver), optionsWrapper, NullLogger<QueryExecutionService>.Instance);
+        QueryValidationService = new QueryValidationService(ConnectionFactory, QuerySafetyValidator, optionsWrapper, NullLogger<QueryValidationService>.Instance);
         IndexSuggestionService = new IndexSuggestionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, optionsWrapper, NullLogger<IndexSuggestionService>.Instance);
     }
 
@@ -88,3 +90,4 @@ public sealed class SqlServerCollectionFixture : ICollectionFixture<SqlServerFix
 {
     public const string Name = "SqlServer";
 }
+

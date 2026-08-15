@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
 using SqlToAi.Domain;
-using SqlToAi.Security;
 
 namespace SqlToAi.Database;
 
@@ -23,25 +22,19 @@ public sealed class QueryValidationService : IQueryValidationService
             "Query validation failed for database {Database}. Query: {Query}");
 
     private readonly IDatabaseConnectionFactory _connectionFactory;
-    private readonly ISecurityGuard _securityGuard;
-    private readonly IAccessLevelProvider _accessLevelProvider;
-    private readonly IReadOnlyGuard _readOnlyGuard;
+    private readonly IQuerySafetyValidator _querySafetyValidator;
     private readonly QueryExecutionOptions _queryExecutionOptions;
     private readonly ILogger<QueryValidationService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="QueryValidationService"/>.</summary>
     public QueryValidationService(
         IDatabaseConnectionFactory connectionFactory,
-        ISecurityGuard securityGuard,
-        IAccessLevelProvider accessLevelProvider,
-        IReadOnlyGuard readOnlyGuard,
+        IQuerySafetyValidator querySafetyValidator,
         IOptions<SqlToAiOptions> options,
         ILogger<QueryValidationService> logger)
     {
         _connectionFactory = connectionFactory;
-        _securityGuard = securityGuard;
-        _accessLevelProvider = accessLevelProvider;
-        _readOnlyGuard = readOnlyGuard;
+        _querySafetyValidator = querySafetyValidator;
         _queryExecutionOptions = options.Value.QueryExecution;
         _logger = logger;
     }
@@ -63,44 +56,15 @@ public sealed class QueryValidationService : IQueryValidationService
         object? parameters,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(databaseName))
+        // 1-5. Run the shared 6-stage guardrail pipeline. QueryValidationService is the only
+        // service that allows SchemaOnly access — it is meant to validate schema queries
+        // without ever touching data.
+        var safetyResult = await _querySafetyValidator
+            .ValidateQuerySafetyAsync(databaseName, query, allowSchemaOnly: true, cancellationToken)
+            .ConfigureAwait(false);
+        if (safetyResult.IsFailure)
         {
-            return SqlToAiError.InvalidParameters("Database name must not be empty.");
-        }
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            return SqlToAiError.InvalidParameters("Query must not be empty.");
-        }
-
-        if (!_securityGuard.IsDatabaseAllowed(databaseName))
-        {
-            return SqlToAiError.SafetyCheckFailed(databaseName);
-        }
-
-        var accessLevel = await _accessLevelProvider.GetAccessLevelAsync(databaseName, cancellationToken);
-        if (accessLevel == AccessLevel.None)
-        {
-            return SqlToAiError.WriteOperationBlocked($"Database '{databaseName}' has AccessLevel None.");
-        }
-
-        // Read-only guard: reject mutating statements, unless this database is fully unlocked
-        // via AccessCheckSql returning ReadWrite. This mirrors QueryExecutionService's layer 4 —
-        // defense-in-depth on top of SET PARSEONLY, which alone should already prevent any
-        // statement from actually executing, but whose exact semantics are not something this
-        // tool's safety should rest on unverified and unaided.
-        bool writeAllowed = accessLevel == AccessLevel.ReadWrite;
-
-        if (!writeAllowed && !_readOnlyGuard.IsQuerySafe(query))
-        {
-            return SqlToAiError.WriteOperationBlocked("The query contains mutating SQL keywords and was rejected.");
-        }
-
-        // Multi-statement validation — always enforced, write-allowed or not, same as
-        // QueryExecutionService, to keep the blast radius of a single call limited to one
-        // statement regardless of PARSEONLY's actual behavior.
-        if (SqlMultiStatementDetector.ContainsMultipleStatements(query))
-        {
-            return SqlToAiError.MultipleStatementsForbidden();
+            return safetyResult.Error;
         }
 
         try

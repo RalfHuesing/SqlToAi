@@ -10,7 +10,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
 using SqlToAi.Domain;
-using SqlToAi.Security;
 
 namespace SqlToAi.Database;
 
@@ -26,25 +25,19 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             "Performance measurement failed for database {Database}.");
 
     private readonly IDatabaseConnectionFactory _connectionFactory;
-    private readonly ISecurityGuard _securityGuard;
-    private readonly IAccessLevelProvider _accessLevelProvider;
-    private readonly IReadOnlyGuard _readOnlyGuard;
+    private readonly IQuerySafetyValidator _querySafetyValidator;
     private readonly QueryExecutionOptions _options;
     private readonly ILogger<PerformanceMeasurementService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="PerformanceMeasurementService"/>.</summary>
     public PerformanceMeasurementService(
         IDatabaseConnectionFactory connectionFactory,
-        ISecurityGuard securityGuard,
-        IAccessLevelProvider accessLevelProvider,
-        IReadOnlyGuard readOnlyGuard,
+        IQuerySafetyValidator querySafetyValidator,
         IOptions<SqlToAiOptions> options,
         ILogger<PerformanceMeasurementService> logger)
     {
         _connectionFactory = connectionFactory;
-        _securityGuard = securityGuard;
-        _accessLevelProvider = accessLevelProvider;
-        _readOnlyGuard = readOnlyGuard;
+        _querySafetyValidator = querySafetyValidator;
         _options = options.Value.QueryExecution;
         _logger = logger;
     }
@@ -69,16 +62,13 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             return validationError;
         }
 
-        if (!_securityGuard.IsDatabaseAllowed(args.DatabaseName))
+        // 1-5. Run the shared 6-stage guardrail pipeline (single source of truth).
+        var safetyResult = await _querySafetyValidator
+            .ValidateQuerySafetyAsync(args.DatabaseName, args.Query, allowSchemaOnly: false, cancellationToken)
+            .ConfigureAwait(false);
+        if (safetyResult.IsFailure)
         {
-            return SqlToAiError.SafetyCheckFailed(args.DatabaseName);
-        }
-
-        var accessLevel = await _accessLevelProvider.GetAccessLevelAsync(args.DatabaseName, cancellationToken);
-        var guardError = ValidateSecurityGuards(args, accessLevel);
-        if (guardError != null)
-        {
-            return guardError;
+            return safetyResult.Error;
         }
 
         try
@@ -120,27 +110,6 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
         {
             return SqlToAiError.InvalidParameters("Query must not be empty.");
         }
-        return null;
-    }
-
-    private SqlToAiError? ValidateSecurityGuards(QueryPerformanceArgs args, AccessLevel accessLevel)
-    {
-        if (accessLevel == AccessLevel.None || accessLevel == AccessLevel.SchemaOnly)
-        {
-            return SqlToAiError.WriteOperationBlocked($"Database '{args.DatabaseName}' does not permit performance measurement (AccessLevel: {accessLevel}).");
-        }
-
-        bool writeAllowed = accessLevel == AccessLevel.ReadWrite;
-        if (!writeAllowed && !_readOnlyGuard.IsQuerySafe(args.Query))
-        {
-            return SqlToAiError.WriteOperationBlocked("The query contains mutating SQL keywords and was rejected.");
-        }
-
-        if (SqlMultiStatementDetector.ContainsMultipleStatements(args.Query))
-        {
-            return SqlToAiError.MultipleStatementsForbidden();
-        }
-
         return null;
     }
 

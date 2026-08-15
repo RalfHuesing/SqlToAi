@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -6,7 +6,6 @@ using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
 using SqlToAi.Database;
 using SqlToAi.Domain;
-using SqlToAi.Security;
 
 namespace SqlToAi.Tests.Database;
 
@@ -21,8 +20,9 @@ public sealed class QueryExecutionServiceOptionsTests
     {
         options ??= new SqlToAiOptions();
         return new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            factory,
+            new FakeQuerySafetyValidator(new QuerySafetyCheckResult(AccessLevel.ReadOnly, IsWriteAllowed: false)),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
     }
 
@@ -148,3 +148,4 @@ public sealed class QueryExecutionServiceOptionsTests
         Assert.True(resetIndex > setRowCountIndex, "SET ROWCOUNT 0 reset must come after SET ROWCOUNT {limit}.");
     }
 }
+

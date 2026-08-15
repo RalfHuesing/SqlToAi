@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -12,21 +12,30 @@ namespace SqlToAi.Tests.Database;
 
 /// <summary>
 /// Unit tests for <see cref="QueryComparisonService"/>, validating security guards, empty arguments,
-/// and access-level checks for the query comparison engine.
+/// and access-level checks for the query comparison engine. The service runs the
+/// <see cref="IQuerySafetyValidator"/> pipeline twice (once for QueryA, once for QueryB) and
+/// short-circuits on the first failure, so most tests here can stand in for a single
+/// <see cref="FakeQuerySafetyValidator"/> whose error the service surfaces unchanged.
 /// </summary>
 public sealed class QueryComparisonServiceTests
 {
     private static QueryComparisonService BuildService(
         bool isAllowed = true,
         AccessLevel accessLevel = AccessLevel.ReadOnly,
-        IReadOnlyGuard? readOnlyGuard = null)
+        SqlToAiError? error = null)
     {
         var options = new SqlToAiOptions();
+
+        IQuerySafetyValidator safetyValidator = error != null
+            ? new FakeQuerySafetyValidator(error)
+            : new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(isAllowed),
+                new FakeAccessLevelProvider(accessLevel),
+                new ReadOnlyGuard());
+
         return new QueryComparisonService(
             new ValidationMockConnectionFactory(),
-            new FakeSecurityGuard(isAllowed),
-            new FakeAccessLevelProvider(accessLevel),
-            readOnlyGuard ?? new ReadOnlyGuard(),
+            safetyValidator,
             Options.Create(options),
             NullLogger<QueryComparisonService>.Instance);
     }
@@ -91,3 +100,4 @@ public sealed class QueryComparisonServiceTests
         Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, result.Error.Code);
     }
 }
+

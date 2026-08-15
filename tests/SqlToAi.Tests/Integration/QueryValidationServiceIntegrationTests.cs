@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 using SqlToAi.Database;
 using SqlToAi.Domain;
@@ -53,7 +53,7 @@ public sealed class QueryValidationServiceIntegrationTests
     [Fact]
     public async Task ValidateQueryAsync_ShouldSucceed_ForSyntacticallyValidMutation()
     {
-        // The validation service deliberately does NOT block mutating statements — it only
+        // The validation service deliberately does NOT block mutating statements â€” it only
         // checks syntax via PARSEONLY. The read-only guard is enforced at execution time
         // (QueryExecutionService). A well-formed DROP is a valid SQL statement.
         var result = await _fx.QueryValidationService.ValidateQueryAsync(
@@ -75,11 +75,10 @@ public sealed class QueryValidationServiceIntegrationTests
         // SET PARSEONLY, closing the gap where this tool's safety previously rested solely on
         // unverified PARSEONLY semantics.
         var customAccessProvider = new FakeAccessLevelProvider(AccessLevel.ReadOnly);
+        var customValidator = new QuerySafetyValidator(_fx.SecurityGuard, customAccessProvider, _fx.ReadOnlyGuard);
         var service = new QueryValidationService(
             _fx.ConnectionFactory,
-            _fx.SecurityGuard,
-            customAccessProvider,
-            _fx.ReadOnlyGuard,
+            customValidator,
             Microsoft.Extensions.Options.Options.Create(_fx.Options),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryValidationService>.Instance);
 
@@ -98,3 +97,4 @@ public sealed class QueryValidationServiceIntegrationTests
             => Task.FromResult(level);
     }
 }
+

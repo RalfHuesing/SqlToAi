@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
@@ -51,15 +51,14 @@ public sealed class QueryExecutionServiceIntegrationTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldBlock_MutatingStatement()
     {
-        // Even though the rollback protects the DB, the ReadOnlyGuard must reject the statement
+        // Even though the rollback protects the DB, the pipeline must reject the statement
         // up front so it never reaches the server.
-        // We force ReadOnly access level to test the ReadOnlyGuard.
+        // We force ReadOnly access level to test the read-only guard.
         var customAccessProvider = new FakeAccessLevelProvider(AccessLevel.ReadOnly);
+        var customValidator = new QuerySafetyValidator(_fx.SecurityGuard, customAccessProvider, _fx.ReadOnlyGuard);
         var service = new QueryExecutionService(
             _fx.ConnectionFactory,
-            _fx.SecurityGuard,
-            customAccessProvider,
-            _fx.ReadOnlyGuard,
+            customValidator,
             new AnonymizationDependencies(_fx.Anonymizer),
             Microsoft.Extensions.Options.Options.Create(_fx.Options),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryExecutionService>.Instance);
@@ -80,17 +79,16 @@ public sealed class QueryExecutionServiceIntegrationTests
         // Reproduces the exact documented bypass (audit finding 2) end-to-end against the real
         // SQL Server: sp_executesql with an embedded COMMIT, sent against a database forced to a
         // non-ReadWrite AccessLevel while still using the real 'Agent' SQL login from
-        // appsettings.json — which, per AccessCheckSql, genuinely has DELETE rights on DemoDB
+        // appsettings.json â€” which, per AccessCheckSql, genuinely has DELETE rights on DemoDB
         // (ReadWrite is only withheld here by our own AccessLevelProvider override, not by
-        // underlying SQL permissions) — exactly the "shared login controlled via AccessCheckSql"
+        // underlying SQL permissions) â€” exactly the "shared login controlled via AccessCheckSql"
         // scenario the finding describes. Proves both that the call is rejected AND that no row
         // was actually deleted.
         var customAccessProvider = new FakeAccessLevelProvider(AccessLevel.ReadOnly);
+        var customValidator = new QuerySafetyValidator(_fx.SecurityGuard, customAccessProvider, _fx.ReadOnlyGuard);
         var service = new QueryExecutionService(
             _fx.ConnectionFactory,
-            _fx.SecurityGuard,
-            customAccessProvider,
-            _fx.ReadOnlyGuard,
+            customValidator,
             new AnonymizationDependencies(_fx.Anonymizer),
             Microsoft.Extensions.Options.Options.Create(_fx.Options),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryExecutionService>.Instance);
@@ -171,14 +169,14 @@ public sealed class QueryExecutionServiceIntegrationTests
     public async Task ExecuteQueryAsync_ShouldAnonymizePii_AgainstRealTable()
     {
         // Pick a table with a varchar column likely to contain real values. We do not assert
-        // specific content — only that the call succeeds and the output is well-formed JSON.
+        // specific content â€” only that the call succeeds and the output is well-formed JSON.
         var result = await _fx.QueryExecutionService.ExecuteQueryAsync(
             _db,
             "SELECT TOP 1 Ausfuehrer FROM dbo.FakeContacts",
             null,
             TestContext.Current.CancellationToken);
 
-        // The table may be empty — that is a valid result, no anonymization assertion possible.
+        // The table may be empty â€” that is a valid result, no anonymization assertion possible.
         // We only assert the call did not fail (would indicate the service is mis-wired).
         Assert.True(
             result.IsSuccess || result.Error.Code == SqlToAiError.QueryErrorCode,
@@ -218,11 +216,13 @@ public sealed class QueryExecutionServiceIntegrationTests
     private QueryExecutionService BuildExecutionServiceWithOptions(SqlToAi.Configuration.SqlToAiOptions options, IAccessLevelProvider? customAccessProvider = null)
     {
         var optionsWrapper = Microsoft.Extensions.Options.Options.Create(options);
-        return new QueryExecutionService(
-            _fx.ConnectionFactory,
+        var safetyValidator = new QuerySafetyValidator(
             _fx.SecurityGuard,
             customAccessProvider ?? _fx.AccessLevelProvider,
-            _fx.ReadOnlyGuard,
+            _fx.ReadOnlyGuard);
+        return new QueryExecutionService(
+            _fx.ConnectionFactory,
+            safetyValidator,
             new AnonymizationDependencies(new Anonymizer(optionsWrapper, new TokenVault())),
             optionsWrapper,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryExecutionService>.Instance);
@@ -237,3 +237,4 @@ public sealed class QueryExecutionServiceIntegrationTests
             => Task.FromResult(level);
     }
 }
+

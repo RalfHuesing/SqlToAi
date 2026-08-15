@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -10,12 +10,12 @@ using SqlToAi.Domain;
 namespace SqlToAi.Tests.Database;
 
 /// <summary>
-/// Schema-scoped exclusion/rule matching regression tests (audit finding — see
+/// Schema-scoped exclusion/rule matching regression tests (audit finding â€” see
 /// tasks/audit-2026-07-24/02-anonymisierung-tokenisierung.md, Finding "Ausschluss-/Regel-Abgleich
-/// ist schema-blind — gleichnamige Tabelle in anderem Schema erbt fremde Freigabe"). Reproduces the
+/// ist schema-blind â€” gleichnamige Tabelle in anderem Schema erbt fremde Freigabe"). Reproduces the
 /// exact audit scenario: two same-named "Kunden" tables in different schemas, one exempted from
 /// anonymization, the other not. Split into its own file (not a third partial of
-/// <see cref="QueryExecutionServiceTests"/> — see <c>MaxPartialClassFiles</c>) reusing the shared
+/// <see cref="QueryExecutionServiceTests"/> â€” see <c>MaxPartialClassFiles</c>) reusing the shared
 /// mock DB fakes from <c>QueryExecutionServiceMockDb.cs</c>.
 /// </summary>
 public sealed class QueryExecutionServiceSchemaScopeTests
@@ -23,8 +23,8 @@ public sealed class QueryExecutionServiceSchemaScopeTests
     private static QueryExecutionService BuildSchemaScopedService(
         SqlToAiOptions options, MockQueryConnectionFactory factory, IAnonymizationRuleProvider? ruleProvider = null) =>
         new(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true),
+            factory,
+            new FakeQuerySafetyValidator(new QuerySafetyCheckResult(AccessLevel.ReadOnlyAnonymized, IsWriteAllowed: false)),
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault()), ruleProvider),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
@@ -56,3 +56,4 @@ public sealed class QueryExecutionServiceSchemaScopeTests
         Assert.True(archivResult.Value.WasAnonymized);
     }
 }
+

@@ -9,7 +9,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
 using SqlToAi.Domain;
-using SqlToAi.Security;
 
 namespace SqlToAi.Database;
 
@@ -26,25 +25,19 @@ public sealed class QueryComparisonService : IQueryComparisonService
             "Query comparison failed for database {Database}.");
 
     private readonly IDatabaseConnectionFactory _connectionFactory;
-    private readonly ISecurityGuard _securityGuard;
-    private readonly IAccessLevelProvider _accessLevelProvider;
-    private readonly IReadOnlyGuard _readOnlyGuard;
+    private readonly IQuerySafetyValidator _querySafetyValidator;
     private readonly QueryExecutionOptions _options;
     private readonly ILogger<QueryComparisonService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="QueryComparisonService"/>.</summary>
     public QueryComparisonService(
         IDatabaseConnectionFactory connectionFactory,
-        ISecurityGuard securityGuard,
-        IAccessLevelProvider accessLevelProvider,
-        IReadOnlyGuard readOnlyGuard,
+        IQuerySafetyValidator querySafetyValidator,
         IOptions<SqlToAiOptions> options,
         ILogger<QueryComparisonService> logger)
     {
         _connectionFactory = connectionFactory;
-        _securityGuard = securityGuard;
-        _accessLevelProvider = accessLevelProvider;
-        _readOnlyGuard = readOnlyGuard;
+        _querySafetyValidator = querySafetyValidator;
         _options = options.Value.QueryExecution;
         _logger = logger;
     }
@@ -70,16 +63,23 @@ public sealed class QueryComparisonService : IQueryComparisonService
             return validationError;
         }
 
-        if (!_securityGuard.IsDatabaseAllowed(args.DatabaseName))
+        // 1-5. Run the shared 6-stage guardrail pipeline once per query — the pipeline is
+        // single-query, so QueryComparisonService is the only consumer that calls it twice
+        // (once for QueryA, once for QueryB) and short-circuits on the first failure.
+        var safetyResultA = await _querySafetyValidator
+            .ValidateQuerySafetyAsync(args.DatabaseName, args.QueryA, allowSchemaOnly: false, cancellationToken)
+            .ConfigureAwait(false);
+        if (safetyResultA.IsFailure)
         {
-            return SqlToAiError.SafetyCheckFailed(args.DatabaseName);
+            return safetyResultA.Error;
         }
 
-        var accessLevel = await _accessLevelProvider.GetAccessLevelAsync(args.DatabaseName, cancellationToken);
-        var guardError = ValidateSecurityGuards(args, accessLevel);
-        if (guardError != null)
+        var safetyResultB = await _querySafetyValidator
+            .ValidateQuerySafetyAsync(args.DatabaseName, args.QueryB, allowSchemaOnly: false, cancellationToken)
+            .ConfigureAwait(false);
+        if (safetyResultB.IsFailure)
         {
-            return guardError;
+            return safetyResultB.Error;
         }
 
         object? effectiveParamsA = args.ParametersA ?? args.SharedParameters;
@@ -128,27 +128,6 @@ public sealed class QueryComparisonService : IQueryComparisonService
         {
             return SqlToAiError.InvalidParameters("Both Query A and Query B must be specified.");
         }
-        return null;
-    }
-
-    private SqlToAiError? ValidateSecurityGuards(QueryComparisonArgs args, AccessLevel accessLevel)
-    {
-        if (accessLevel == AccessLevel.None || accessLevel == AccessLevel.SchemaOnly)
-        {
-            return SqlToAiError.WriteOperationBlocked($"Database '{args.DatabaseName}' does not permit query comparison (AccessLevel: {accessLevel}).");
-        }
-
-        bool writeAllowed = accessLevel == AccessLevel.ReadWrite;
-        if (!writeAllowed && (!_readOnlyGuard.IsQuerySafe(args.QueryA) || !_readOnlyGuard.IsQuerySafe(args.QueryB)))
-        {
-            return SqlToAiError.WriteOperationBlocked("One or both queries contain mutating SQL keywords and were rejected.");
-        }
-
-        if (SqlMultiStatementDetector.ContainsMultipleStatements(args.QueryA) || SqlMultiStatementDetector.ContainsMultipleStatements(args.QueryB))
-        {
-            return SqlToAiError.MultipleStatementsForbidden();
-        }
-
         return null;
     }
 

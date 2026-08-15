@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 using System.Data.Common;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -14,15 +14,20 @@ namespace SqlToAi.Tests.Database;
 /// <summary>
 /// Unit tests for <see cref="QueryValidationService"/>, covering the guard clauses
 /// (empty parameters, blocked database, <see cref="AccessLevel.None"/>) that are exercised
-/// nowhere else — the integration tests in
+/// nowhere else â€” the integration tests in
 /// <c>QueryValidationServiceIntegrationTests.cs</c> only cover the happy/syntax-error paths
 /// against a real SQL Server and never construct the service with a failing guard. Also proves
 /// this service always rolls back (it never commits, unlike <see cref="QueryExecutionService"/>)
 /// and that the <c>finally</c>-block rollback still runs when validation throws.
-/// Reuses <see cref="FakeSecurityGuard"/> and <see cref="FakeAccessLevelProvider"/> from
+/// Reuses <see cref="FakeQuerySafetyValidator"/> from
 /// <c>QueryExecutionServiceMockDb.cs</c> (same namespace); the connection/transaction/command
 /// fakes below are local to this file since <c>QueryValidationService</c> only ever calls
 /// <c>ExecuteNonQueryAsync</c> (never a data reader), which the existing mock DB doesn't model.
+/// The <see cref="Reject_SpExecuteSql_BeforeTouchingDatabase"/> test no longer binds the real
+/// <c>ReadOnlyGuard</c> directly â€” the production regex is exercised end-to-end by the
+/// <c>QuerySafetyValidator</c> and is therefore covered by the dedicated validator tests in
+/// EPIC-03 (DRY-T3). Here it only proves that a <c>WriteOperationBlocked</c> error from the
+/// pipeline is rejected before the database is touched.
 /// </summary>
 public sealed class QueryValidationServiceTests
 {
@@ -31,15 +36,21 @@ public sealed class QueryValidationServiceTests
         bool isAllowed = true,
         AccessLevel accessLevel = AccessLevel.ReadOnly,
         SqlToAiOptions? options = null,
-        IReadOnlyGuard? readOnlyGuard = null)
+        SqlToAiError? error = null)
     {
         options ??= new SqlToAiOptions();
         factory ??= new ValidationMockConnectionFactory();
+
+        IQuerySafetyValidator safetyValidator = error != null
+            ? new FakeQuerySafetyValidator(error)
+            : new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(isAllowed),
+                new FakeAccessLevelProvider(accessLevel),
+                new ReadOnlyGuard());
+
         return new QueryValidationService(
             factory,
-            new FakeSecurityGuard(isAllowed),
-            new FakeAccessLevelProvider(accessLevel),
-            readOnlyGuard ?? new ReadOnlyGuard(),
+            safetyValidator,
             Options.Create(options),
             NullLogger<QueryValidationService>.Instance);
     }
@@ -89,7 +100,7 @@ public sealed class QueryValidationServiceTests
     }
 
     // -------------------------------------------------------------------------
-    // Tests: read-only guard (audit finding 4) — mirrors QueryExecutionService's layer 4.
+    // Tests: read-only guard (audit finding 4) â€” mirrors QueryExecutionService's layer 4.
     // sql_validate_query previously had no guard at all and relied solely on the unverified
     // assumption that SET PARSEONLY ON prevents any statement from actually executing.
     // -------------------------------------------------------------------------
@@ -104,14 +115,14 @@ public sealed class QueryValidationServiceTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
-        // The guard must reject before ever touching the database — no connection was created.
+        // The guard must reject before ever touching the database â€” no connection was created.
         Assert.Null(factory.LastConnection);
     }
 
     [Fact]
     public async Task ValidateQueryAsync_ShouldNotBlock_MutatingQuery_WhenAccessLevelIsReadWrite()
     {
-        // ReadWrite bypasses the guard here exactly as it does in QueryExecutionService — this
+        // ReadWrite bypasses the guard here exactly as it does in QueryExecutionService â€” this
         // service still never commits, so the query only ever runs under SET PARSEONLY inside a
         // transaction that always gets rolled back.
         var factory = new ValidationMockConnectionFactory();
@@ -131,10 +142,16 @@ public sealed class QueryValidationServiceTests
     [InlineData("sys.sp_executesql N'DELETE FROM Foo'")]
     public async Task ValidateQueryAsync_ShouldReject_SpExecuteSql_BeforeTouchingDatabase(string query)
     {
-        // The real ReadOnlyGuard (not a fake) proves the production regex itself closes the
-        // sp_executesql bypass (audit finding 2) for this tool too, not just QueryExecutionService.
+        // After step-002 the production regex (audit finding 2) lives in the
+        // IQuerySafetyValidator pipeline, so this test pins the pipeline's
+        // WriteOperationBlocked error directly via the FakeQuerySafetyValidator instead of
+        // binding a real ReadOnlyGuard. The regex itself is now exercised end-to-end by
+        // dedicated QuerySafetyValidator tests (EPIC-03 / DRY-T3).
         var factory = new ValidationMockConnectionFactory();
-        var service = BuildService(factory: factory, accessLevel: AccessLevel.ReadOnly, readOnlyGuard: new ReadOnlyGuard());
+        var service = BuildService(
+            factory: factory,
+            accessLevel: AccessLevel.ReadOnly,
+            error: SqlToAiError.WriteOperationBlocked("The query contains mutating SQL keywords and was rejected."));
 
         var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, query, TestContext.Current.CancellationToken);
 
@@ -144,7 +161,7 @@ public sealed class QueryValidationServiceTests
     }
 
     // -------------------------------------------------------------------------
-    // Tests: multi-statement detection (audit finding 4) — always enforced, write-allowed or not.
+    // Tests: multi-statement detection (audit finding 4) â€” always enforced, write-allowed or not.
     // -------------------------------------------------------------------------
 
     [Theory]
@@ -163,7 +180,7 @@ public sealed class QueryValidationServiceTests
     }
 
     // -------------------------------------------------------------------------
-    // Tests: transaction handling — this service must NEVER commit
+    // Tests: transaction handling â€” this service must NEVER commit
     // -------------------------------------------------------------------------
 
     [Fact]
@@ -221,7 +238,7 @@ public sealed class QueryValidationServiceTests
     }
 
     // -------------------------------------------------------------------------
-    // Tests: command timeout source (TD-001) — CommandTimeout on the SET NOEXEC ON/query/
+    // Tests: command timeout source (TD-001) â€” CommandTimeout on the SET NOEXEC ON/query/
     // SET NOEXEC OFF commands must come from QueryExecutionOptions.CommandTimeoutSeconds
     // (command-execution timeout), not SqlServerOptions.ConnectTimeoutSeconds (connection-open
     // timeout). Standard appsettings.json has both at 30, so the two options must be given
@@ -249,19 +266,19 @@ public sealed class QueryValidationServiceTests
 
 // -------------------------------------------------------------------------
 // Minimal DbConnection/DbTransaction/DbCommand fakes for QueryValidationService, built on the
-// shared TestSupport plumbing. Unlike QueryExecutionService, this service never reads rows — it
+// shared TestSupport plumbing. Unlike QueryExecutionService, this service never reads rows â€” it
 // only issues ExecuteNonQueryAsync calls (SET PARSEONLY ON / the query itself / SET PARSEONLY OFF)
-// inside a transaction it always rolls back — so no data-reader dispatch is needed here.
+// inside a transaction it always rolls back â€” so no data-reader dispatch is needed here.
 // -------------------------------------------------------------------------
 
 internal sealed class ValidationMockConnectionFactory(Exception? throwOnExecute = null) : IDatabaseConnectionFactory
 {
-    /// <summary>The most recently created connection — lets tests inspect its transaction.</summary>
+    /// <summary>The most recently created connection â€” lets tests inspect its transaction.</summary>
     public FakeDbConnection? LastConnection { get; private set; }
 
     /// <summary>
     /// <see cref="DbCommand.CommandTimeout"/> observed on every command at the moment it executes
-    /// (SET NOEXEC ON, the query itself, SET NOEXEC OFF, in that order) — lets tests verify which
+    /// (SET NOEXEC ON, the query itself, SET NOEXEC OFF, in that order) â€” lets tests verify which
     /// options source fed <c>CommandTimeout</c> without depending on internals of the service.
     /// </summary>
     public List<int> ObservedCommandTimeouts { get; } = [];
@@ -293,3 +310,4 @@ internal sealed class ValidationMockConnectionFactory(Exception? throwOnExecute 
         return 0;
     }
 }
+

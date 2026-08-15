@@ -27,8 +27,12 @@ public sealed class QueryExecutionServiceAnonymizationTests
         options.Anonymizer.Enabled = true;
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("Ralf Huesing"));
         var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            factory,
+            new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(true),
+                new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+                new FakeReadOnlyGuard(true)),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
@@ -45,8 +49,12 @@ public sealed class QueryExecutionServiceAnonymizationTests
         options.Anonymizer.Enabled = true;
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("Ralf Huesing"));
         var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            factory,
+            new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(true),
+                new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+                new FakeReadOnlyGuard(true)),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         const string declareQuery = "DECLARE @Id int = 1; SELECT Name FROM Customers WHERE Id = @Id";
@@ -65,8 +73,12 @@ public sealed class QueryExecutionServiceAnonymizationTests
         options.Anonymizer.Enabled = true;
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original));
         var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            factory,
+            new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(true),
+                new FakeAccessLevelProvider(AccessLevel.ReadOnly),
+                new FakeReadOnlyGuard(true)),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
@@ -85,8 +97,12 @@ public sealed class QueryExecutionServiceAnonymizationTests
         options.Anonymizer.Enabled = true;
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("Ralf Huesing", Origin: new MockSchemaOrigin(BaseTableName: "FakeConsultants")));
         var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            factory,
+            new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(true),
+                new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+                new FakeReadOnlyGuard(true)),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM FakeConsultants", null, TestContext.Current.CancellationToken);
@@ -104,8 +120,11 @@ public sealed class QueryExecutionServiceAnonymizationTests
         options.Anonymizer.Enabled = true;
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original, Origin: new MockSchemaOrigin(BaseTableName: "FakeConsultants")));
         var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true),
+            factory,
+            new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(true),
+                new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+                new FakeReadOnlyGuard(true)),
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault()), RuleProvider: new AlwaysExcludeRuleProvider()),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
@@ -135,8 +154,11 @@ public sealed class QueryExecutionServiceAnonymizationTests
         var anonymizer = new Anonymizer(Options.Create(options), vault);
         var resolver = new QueryTokenResolver(vault, Options.Create(options));
         var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true),
+            factory,
+            new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(true),
+                new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+                new FakeReadOnlyGuard(true)),
             new AnonymizationDependencies(anonymizer, TokenResolver: resolver),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
         return (service, factory, vault);
@@ -233,8 +255,12 @@ public sealed class QueryExecutionServiceAnonymizationTests
         var anonymizer = new Anonymizer(Options.Create(options), vault);
         var resolver = new QueryTokenResolver(vault, Options.Create(options));
         var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnly), // plain ReadOnly, not anonymized
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(anonymizer, TokenResolver: resolver),
+            factory,
+            new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(true),
+                new FakeAccessLevelProvider(AccessLevel.ReadOnly), // plain ReadOnly, not anonymized
+                new FakeReadOnlyGuard(true)),
+            new AnonymizationDependencies(anonymizer, TokenResolver: resolver),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         await service.ExecuteQueryAsync(
@@ -285,8 +311,12 @@ public sealed class QueryExecutionServiceAnonymizationTests
         var options = new SqlToAiOptions();
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(ThrowOnExecute: BuildSensitiveException()));
         var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            factory,
+            new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(true),
+                new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+                new FakeReadOnlyGuard(true)),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE AccountRef = '1'", null, TestContext.Current.CancellationToken);
@@ -304,8 +334,12 @@ public sealed class QueryExecutionServiceAnonymizationTests
         var options = new SqlToAiOptions();
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(ThrowOnExecute: BuildSensitiveException()));
         var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(accessLevel),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            factory,
+            new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(true),
+                new FakeAccessLevelProvider(accessLevel),
+                new FakeReadOnlyGuard(true)),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE AccountRef = '1'", null, TestContext.Current.CancellationToken);
@@ -325,8 +359,12 @@ public sealed class QueryExecutionServiceAnonymizationTests
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(ThrowOnExecute: sensitiveException));
         var logger = new CapturingLogger<QueryExecutionService>();
         var service = new QueryExecutionService(
-            factory, new FakeSecurityGuard(true), new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
-            new FakeReadOnlyGuard(true), new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            factory,
+            new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(true),
+                new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+                new FakeReadOnlyGuard(true)),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), logger);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE AccountRef = '1'", null, TestContext.Current.CancellationToken);
