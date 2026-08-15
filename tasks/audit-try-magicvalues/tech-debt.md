@@ -2,7 +2,7 @@
 task: audit-try-magicvalues
 type: tech-debt-log
 maintained_by: kritiker
-last_updated: 2026-08-15T22:35:00+02:00
+last_updated: 2026-08-15T23:25:00+02:00
 ---
 
 # Tech-Debt-Log: audit-try-magicvalues
@@ -32,7 +32,7 @@ eigener Sweep. Default bei Unsicherheit ist `nein`.
 |---|---|---|---|---|
 | TD-001 | `src/SqlToAi/Database/PerformanceMeasurementService.cs:296-299` | niedrig | nein | `ParseExecutionPlanXml` schluckt XML-Parse-Fehler in leerem `catch (Exception ignored)` (EnforceNoSilentCatch-Verletzung) |
 | TD-002 | `src/SqlToAi/Database/QuerySafetyValidator.cs:97-98` | niedrig | nein | Vereinheitlichter `WriteOperationBlocked`-Text (operations-agnostisch) ersetzt 4 operationsspezifische Texte der vorherigen Inline-Validierungen |
-| TD-003 | `tests/SqlToAi.Tests/Database/QueryComparisonServiceTests.cs` (komplette Datei, 44 Z.) | mittel | nein | Datei nach step-003-Refactor ohne Testmethoden; 2-Query-Flow weder unit- noch integration-getestet; Coder-Bericht verweist fälschlich auf `QueryComparisonServiceIntegrationTests.cs` |
+| TD-003 | `tests/SqlToAi.Tests/Database/QueryComparisonServiceTests.cs` | mittel | nein | **erledigt in step-004** — 9 Service-Level-Tests ergänzt (Pre-Pipeline Args, Pipeline Stages 3-4, Mutating/Multi-Statement in Q_A vs. Q_B); fakten-falscher Doc-Kommentar ersetzt. Happy-Path-Execution (Schema/Count/EXCEPT-Diff) bleibt bewusst ungetestet auf Unit-Ebene. |
 
 ## Einträge
 
@@ -62,12 +62,15 @@ eigener Sweep. Default bei Unsicherheit ist `nein`.
 
 **Vorgeschlagene Maßnahme (nicht in step-002 umgesetzt).** Eigenständiger Diskussions- oder Korrektur-Step, falls der Nutzer die operationsspezifischen Texte zurückhaben will. Vorab klären: (a) ob Downstream-Tools (z. B. Logging, Alerting) die Texte parsen, (b) ob die strukturierten Felder (Code, Database, AccessLevel) bereits ausreichen, um den Operations-Kontext zu rekonstruieren. Falls nein → optionaler `operation`-Parameter im Validator oder in der Factory.
 
-### TD-003 — `QueryComparisonServiceTests` ist Skelett ohne Testmethoden; 2-Query-Flow aktuell ungetestet
+### TD-003 — `QueryComparisonServiceTests` war Skelett ohne Testmethoden; 2-Query-Flow aktuell ungetestet
 
-**Bereich:** `tests/SqlToAi.Tests/Database/QueryComparisonServiceTests.cs` (komplette Datei, 44 Zeilen)
+**Status: erledigt in step-004** (Korrektur-Step `corrects: step-003`, siehe `step-004/step-review.md` Verdict `approved`).
+
+**Bereich:** `tests/SqlToAi.Tests/Database/QueryComparisonServiceTests.cs` (jetzt 159 Zeilen, 9 Testmethoden)
 **Priorität:** mittel
 **Auto-Fixable:** nein
 **Beobachtet in:** step-003 Review (EPIC-03 Test-Suite-Konsolidierung)
+**Behoben in:** step-004 Review (EPIC-03 Korrektur — `corrects: step-003`)
 
 **Befund.** Nach step-003 enthält `QueryComparisonServiceTests.cs` **keine einzige** `[Fact]`- oder `[Theory]`-Methode. Die Datei besteht nur aus dem privaten `BuildService`-Helper (24 Zeilen) plus Boilerplate (Kommentar, Klassen-Header, using-Block). Die 6 vorherigen Tests in der Datei waren alle reine Pipeline-Cases, die im step-003 planmäßig nach `QuerySafetyValidatorTests` migriert wurden. Die Service-Identität (2-Query-Behavior, Short-Circuit-Logik bei der ersten Query-Failure, einheitliche AccessLevel-Probe für beide Queries, Result-Aufbau mit beiden Outputs nebeneinander) ist seit dem Refactor **weder unit- noch integration-getestet** — die im step-003-Result zitierte Datei `QueryComparisonServiceIntegrationTests.cs` existiert im Projekt nicht (verifiziert via `Get-ChildItem tests\SqlToAi.Tests\Integration\*.cs`: kein Treffer; das Integration-Verzeichnis enthält Integration-Tests für `AccessLevelProvider`, `IndexSuggestionService`, `QueryExecutionService`, `QueryValidationService`, `SchemaService*` — kein `QueryComparisonService`).
 
@@ -76,3 +79,5 @@ eigener Sweep. Default bei Unsicherheit ist `nein`.
 **Warum nicht auto_fixable.** Das Schreiben der 2-Query-Behavior-Tests ist Architektur-Ermessen: die Tests müssen die Service-Identität exakt pinnen (z. B. "Pipeline wird zweimal aufgerufen", "Short-Circuit bei der ersten Failure", "zwei verschiedene AccessLevel-Ergebnisse pro Query"). Diese Festlegungen erfordern bewusste Designentscheidungen (welche Service-Verzweigungen sind testwürdig, welche sind trivial) und sind nicht entscheidungsfrei aus dem Bestand extrahierbar. Außerdem: der `BuildService`-Helper selbst (24 Zeilen) muss möglicherweise umgeschrieben werden, wenn die Tests die `FakeQuerySafetyValidator`-Konstrukte nutzen sollen (die `BuildService`-Signatur bietet bereits `error: SqlToAiError?` als Service-Failure-Pin an, das ist die richtige Grundlage).
 
 **Vorgeschlagene Maßnahme (nicht in step-003 umgesetzt).** Eigener Korrektur-Step, der die fehlenden 2-Query-Behavior-Tests ergänzt — oder die Datei ganz löscht und den Helper in den Integration-Test-Tree verschiebt (falls dort ein `QueryComparisonServiceIntegrationTests` angelegt wird, kann der Helper dort als private Methode dienen). Vorab klären: (a) Soll die Service-Logik von `QueryComparisonService.CompareQueriesAsync` überhaupt unit-getestet werden, oder deckt das die Pipeline-Stufe in `QuerySafetyValidatorTests` + ein späterer Integration-Test ab? (b) Falls ja: welche 2-3 spezifischen Verzweigungen sind testwürdig (Short-Circuit, symmetrische AccessLevel-Probe, Result-Aufbau)? Falls nein: `QueryComparisonServiceTests.cs` löschen, `using`-Block im nicht-existenten Caller aufräumen, Helper ggf. in den Integration-Test-Tree verlagern.
+
+**Auflösung in step-004.** 9 Service-Level-Tests ergänzt (1 × `[Theory]` `EmptyDatabase` mit 2 InlineData, 8 × `[Fact]`: `EmptyQueryA`, `EmptyQueryB`, `DatabaseNotAllowed`, `AccessLevelNone`, `MutatingQueryInQueryA/B`, `MultipleStatementsInQueryA/B`). Pre-Pipeline-Args (Tests 1-3) pinnen `ValidateArgs`-Reihenfolge und kombinierten Oder-Check; Pipeline-Stage-Tests (4-5) pinnen Whitelist + AccessLevel; 2-Query-spezifische Tests (6-9) pinnen via asymmetrischer Anordnung implizit die QueryA-first/QueryB-second-Short-Circuit-Logik. `BuildService`-Helper 1:1 unverändert (Real-Pipeline-Pfad mit `FakeSecurityGuard`/`FakeAccessLevelProvider` aus `TestSupport/LegacySecurityFakes.cs` + echter `ReadOnlyGuard` für regex-basierte Mutating-Detection). Fakten-falscher Doc-Kommentar am Klassenkopf durch korrekte Service-Identitäts-Beschreibung ersetzt. Test-Anzahl 523 → 533. Happy-Path-Execution (Schema/Count/EXCEPT-Diff) bleibt **bewusst ungetestet** auf Unit-Ebene — Mock-Infrastruktur (~80-120 Zeilen `QueryComparisonMockConnectionFactory`) außerhalb des "low risk"-Scopes dieses Korrektur-Steps; falls der Nutzer den Happy-Path explizit möchte, ist das ein eigenständiger Folge-Step.
