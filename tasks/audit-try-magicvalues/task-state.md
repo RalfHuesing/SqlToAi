@@ -5,8 +5,8 @@ started_at: 2026-08-15T21:34:00+02:00
 last_updated: 2026-08-15T21:34:00+02:00
 rules_dir: .agents/rules
 total_steps: 2
-current_step: step-003
-in_progress_step: step-003
+current_step: step-004
+in_progress_step: step-004
 ---
 
 # Task State: audit-try-magicvalues
@@ -28,7 +28,8 @@ in_progress_step: step-003
 |------|------|--------|-------|----------|-------|----------|--------|
 | step-001 | EPIC-01 | done | Konstanten-Zentralisierung & Boilerplate-Cleanup (Quick Wins, 10-Item batch) | - | 0f6f99a (code), be4a0f0 (doku) | approved | approved |
 | step-002 | EPIC-02 | done | Guardrail-Pipeline-Extraktion (IQuerySafetyValidator, 4-Item batch) | - | b3cd090 (code), 139f775 (doku) | approved | approved |
-| step-003 | EPIC-03 | in_progress | Test-Suite-Konsolidierung (Fakes, ShowPlan-Helper, ValidatorTests) | - | - | - | - |
+| step-003 | EPIC-03 | issues | Test-Suite-Konsolidierung (Fakes, ShowPlan-Helper, ValidatorTests) | - | 267cbfb (code), bb1fc47 (doku) | - | issues (1 MAJOR) |
+| step-004 | EPIC-03 | in_progress | Korrektur: 2-Query-Pipeline-Tests in QueryComparisonServiceTests (DRY-T3 Lückenschluss) | step-003 | - | - | - |
 
 ## Config
 
