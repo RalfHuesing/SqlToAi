@@ -7,7 +7,7 @@ title: "EPIC-03 Korrektur — QueryComparisonServiceTests.cs mit 2-Query-Service
 result: success
 commits:
   code: a0c8c60
-  docs: <pending>
+  docs: a3c0b26
 created_by: coder
 created_by_model: MiniMax-M3
 created_by_model_knowledge_cutoff: 2026-01
