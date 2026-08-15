@@ -2,7 +2,7 @@
 task: audit-try-magicvalues
 type: codemap
 maintained_by: planer, coder, kritiker
-last_updated: 2026-08-15T21:38:00+02:00
+last_updated: 2026-08-15T21:55:00+02:00
 ---
 
 # CodeMap: audit-try-magicvalues
@@ -61,8 +61,13 @@ wenigstens sichtbar und begründungspflichtig statt stillschweigend.
 ## Karte
 
 - **`src/SqlToAi/Database/`** — `QueryExecutionService`, `QueryValidationService`, `PerformanceMeasurementService`, `QueryComparisonService` (alle 4 Guardrail-Services für EPIC-02), `IndexSuggestionService` (MV-1 Error-Codes 297/300), `OptimizationBenchmarkService` (MV-2 Verdicts), `SqlToAiErrorMapper` (MV-1 Codes −2/121/258/233/18456), `SchemaService` + `TableSchemaRenderer` + `DetailSchemaRenderer` (DRY-2 `DdlUnavailableNote`).
+  - **`src/SqlToAi/Database/SqlServerErrorCode.cs`** (neu, step-001) — `internal static class` mit benannten `const int` für SQL-Server-Fehlernummern (Permissions, Timeouts, Connection-Resets, Auth, Instance-/Server-Lookup).
+  - **`src/SqlToAi/Database/BenchmarkVerdict.cs`** (neu, step-001) — `internal static class` mit `const string`-Verdicts (`Recommended`, `NotRecommended`, `Neutral`, `UnsafeDueToDataMismatch`) für den MCP-Output-Vertrag.
+  - **`src/SqlToAi/Database/SqlServerObjectType.cs`** (neu, step-001) — `internal static class` mit `const string` für `sys.objects.type` (`UserTable = "U"`, `View = "V"`).
 - **`src/SqlToAi/Anonymization/`** — `Anonymizer` (MV-4 FNV-1a Konstanten, MV-6 `Hash`/`Scramble`-Modi), `AnonymizationRuleProvider` (MV-3 Gewichtungsfaktoren 1000/100/10), `LikePatternMatcher` (DRY-5/MV-5 Regex-Timeout).
+  - **`src/SqlToAi/Anonymization/AnonymizationMode.cs`** (neu, step-001) — `internal static class` mit den Anonymisierungs-Modus-Konstanten (`Hash`, `Scramble`).
 - **`src/SqlToAi/Security/`** — `ReadOnlyGuard` (MV-5 `TimeSpan.FromMilliseconds(200)`), `ISecurityGuard`, `IAccessLevelProvider` (alle in EPIC-02-Pipeline-Constructor zu reduzieren).
+  - **`src/SqlToAi/Security/SecurityConstants.cs`** (neu, step-001) — `public static class` mit `DefaultRegexTimeout` als zentrale ReDoS-Schutzgrenze (200 ms), genutzt von `ReadOnlyGuard`, `GlobMatcher`, `LikePatternMatcher`, `QueryTokenResolver`.
 - **`src/SqlToAi/Domain/`** — `GlobMatcher` (DRY-5/MV-5 Regex-Timeout, kein Merge mit `LikePatternMatcher`), `SqlToAiError` (Error-Katalog `SQL-AI-*` bleibt unangetastet, MV-P3), `Result` (Result-Pattern, Pflicht).
 - **`src/SqlToAi/Mcp/`** — `ToolRegistry` (DRY-3 `OptionalStringParam`-Cleanup, DRY-4 `BuildDetailTool`-Helper, MV-2 Verdict-Strings, MV-7 Objekttyp-Strings), `McpHost` (DRY-P3 Positivbefund, AOT-Source-Generator — nicht anfassen), `ToolDispatcher`.
 - **`src/SqlToAi/Configuration/`** — `SqlToAiOptions` (MV-P1 Positivbefund, Property-Initializer bleiben einzig autorisierter Ort für Defaults), `AppSettingsMigrator` (MV-P2 `"Password"`-Schlüsselname, kein Klartext).
