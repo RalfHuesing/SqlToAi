@@ -24,7 +24,7 @@ current_step: step-001
 
 | Step | Epic | Status | Title | Corrects | Coded | Reviewed | Commit |
 |------|------|--------|-------|----------|-------|----------|--------|
-| step-001 | EPIC-01 | open | ScriptDom NuGet-Paket einbinden und SqlScriptDomParser-Helper erstellen | - | - | - | - |
+| step-001 | EPIC-01 | done | ScriptDom NuGet-Paket einbinden und SqlScriptDomParser-Helper erstellen | - | 702d139 | approved | 702d139 |
 
 ## Config (optional)
 
