@@ -28,7 +28,7 @@ current_step: step-005
 | step-002 | EPIC-02 | done | SqlMultiStatementDetector auf ScriptDom AST umstellen | - | 19da170 | approved | 19da170 |
 | step-003 | EPIC-03 | done | ReadOnlyGuard auf ScriptDom AST-Visitor umstellen | - | a6d5280 | approved | a6d5280 |
 | step-004 | EPIC-04 | done | QueryDeconstructor auf ScriptDom AST-Navigation umstellen | - | e1f158c | approved | e1f158c |
-| step-005 | EPIC-05 | open | Dokumentation synchronisieren und Gesamtabnahme | - | - | - | - |
+| step-005 | EPIC-05 | done | Dokumentation synchronisieren und Gesamtabnahme | - | 6093ed1 | approved | 6093ed1 |
 
 ## Config (optional)
 
