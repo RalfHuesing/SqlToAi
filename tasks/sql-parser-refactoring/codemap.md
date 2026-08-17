@@ -24,7 +24,7 @@ Bevor der Planer im Step-Modus einen neuen Step plant, gleicht er sein Vorhaben 
 
 - **`src/SqlToAi/SqlToAi.csproj`** — Projektdatei mit Paket-Referenzen (`Microsoft.SqlServer.TransactSql.ScriptDom`). (zuletzt: step-001)
 - **`src/SqlToAi/Database/SqlScriptDomParser.cs`** — Zentraler AST-Parser-Helper für TSql150Parser und ScriptDom-Infrastruktur. (neu in step-001)
-- **`src/SqlToAi/Security/ReadOnlyGuard.cs`** — Read-Only Guard Validierung zur Blockierung mutierender SQL-Befehle via AST-Visitor. (initial)
+- **`src/SqlToAi/Security/ReadOnlyGuard.cs`** — Read-Only Guard Validierung zur Blockierung mutierender SQL-Befehle via AST-Visitor. (zuletzt: step-003)
 - **`src/SqlToAi/Security/IReadOnlyGuard.cs`** — Interface für den Read-Only Guard. (initial)
 - **`src/SqlToAi/Database/SqlMultiStatementDetector.cs`** — Erkennung von Multi-Statement-Batches und Preamble (`DECLARE`, `SET`, `USE`) via AST. (zuletzt: step-002)
 - **`src/SqlToAi/Database/QueryDeconstructor.cs`** — Zerlegung von Queries in Preamble, CTEs (`WITH`) und Haupt-SELECT. (initial)
