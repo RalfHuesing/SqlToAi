@@ -7,6 +7,7 @@
     <!-- Data access -->
     <PackageVersion Include="Dapper" Version="2.1.79" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+    <PackageVersion Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="170.3.0" />
     <!-- Microsoft.Extensions -->
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.9" />
