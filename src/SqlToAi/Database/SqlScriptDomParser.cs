@@ -7,6 +7,22 @@ using Microsoft.SqlServer.TransactSql.ScriptDom;
 namespace SqlToAi.Database;
 
 /// <summary>
+/// Result of an AST parse operation containing the fragment (or null) and any parse errors.
+/// </summary>
+internal readonly record struct SqlParseResult(TSqlFragment? Fragment, IList<ParseError> Errors)
+{
+    public bool Success => Errors.Count == 0 && Fragment is not null;
+}
+
+/// <summary>
+/// Result of a script parse operation containing the TSqlScript AST (or null) and any parse errors.
+/// </summary>
+internal readonly record struct SqlScriptParseResult(TSqlScript? Script, IList<ParseError> Errors)
+{
+    public bool Success => Errors.Count == 0 && Script is not null;
+}
+
+/// <summary>
 /// Provides shared AST parsing methods using Microsoft.SqlServer.TransactSql.ScriptDom with TSql150 compatibility.
 /// </summary>
 internal static class SqlScriptDomParser
@@ -23,30 +39,28 @@ internal static class SqlScriptDomParser
     /// Parses a SQL string into a TSqlFragment AST.
     /// </summary>
     /// <param name="sql">The SQL query string.</param>
-    /// <param name="errors">Output collection of parse errors.</param>
-    /// <returns>The root TSqlFragment, or null if the input is null or whitespace.</returns>
-    public static TSqlFragment? Parse(string? sql, out IList<ParseError> errors)
+    /// <returns>A parse result containing the AST fragment and any parse errors.</returns>
+    public static SqlParseResult Parse(string? sql)
     {
         if (string.IsNullOrWhiteSpace(sql))
         {
-            errors = [];
-            return null;
+            return new SqlParseResult(null, []);
         }
 
         var parser = CreateParser();
         using var reader = new StringReader(sql);
-        return parser.Parse(reader, out errors);
+        var fragment = parser.Parse(reader, out IList<ParseError> errors);
+        return new SqlParseResult(fragment, errors);
     }
 
     /// <summary>
     /// Parses a SQL string specifically into a TSqlScript AST.
     /// </summary>
     /// <param name="sql">The SQL query string.</param>
-    /// <param name="errors">Output collection of parse errors.</param>
-    /// <returns>The root TSqlScript if parsed, or null if empty or incompatible.</returns>
-    public static TSqlScript? ParseScript(string? sql, out IList<ParseError> errors)
+    /// <returns>A parse result containing the TSqlScript and any parse errors.</returns>
+    public static SqlScriptParseResult ParseScript(string? sql)
     {
-        var fragment = Parse(sql, out errors);
-        return fragment as TSqlScript;
+        var result = Parse(sql);
+        return new SqlScriptParseResult(result.Fragment as TSqlScript, result.Errors);
     }
 }

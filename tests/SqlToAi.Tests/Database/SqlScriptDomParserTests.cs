@@ -14,34 +14,39 @@ public sealed class SqlScriptDomParserTests
     [Fact]
     public void Parse_NullOrWhitespace_ReturnsNullAndEmptyErrors()
     {
-        var resultNull = SqlScriptDomParser.Parse(null, out var errorsNull);
-        var resultEmpty = SqlScriptDomParser.Parse("   ", out var errorsEmpty);
+        var resultNull = SqlScriptDomParser.Parse(null);
+        var resultEmpty = SqlScriptDomParser.Parse("   ");
 
-        Assert.Null(resultNull);
-        Assert.Empty(errorsNull);
-        Assert.Null(resultEmpty);
-        Assert.Empty(errorsEmpty);
+        Assert.Null(resultNull.Fragment);
+        Assert.Empty(resultNull.Errors);
+        Assert.False(resultNull.Success);
+
+        Assert.Null(resultEmpty.Fragment);
+        Assert.Empty(resultEmpty.Errors);
+        Assert.False(resultEmpty.Success);
     }
 
     [Fact]
     public void ParseScript_ValidSelect_ReturnsTSqlScriptWithNoErrors()
     {
         const string sql = "SELECT Id, [Name] FROM dbo.Users WHERE Active = 1";
-        var script = SqlScriptDomParser.ParseScript(sql, out var errors);
+        var result = SqlScriptDomParser.ParseScript(sql);
 
-        Assert.NotNull(script);
-        Assert.Empty(errors);
-        Assert.Single(script.Batches);
-        Assert.Single(script.Batches[0].Statements);
+        Assert.True(result.Success);
+        Assert.NotNull(result.Script);
+        Assert.Empty(result.Errors);
+        Assert.Single(result.Script.Batches);
+        Assert.Single(result.Script.Batches[0].Statements);
     }
 
     [Fact]
     public void ParseScript_InvalidSql_ReturnsErrors()
     {
         const string sql = "SELECT FROM WHERE";
-        var script = SqlScriptDomParser.ParseScript(sql, out var errors);
+        var result = SqlScriptDomParser.ParseScript(sql);
 
-        Assert.NotEmpty(errors);
+        Assert.False(result.Success);
+        Assert.NotEmpty(result.Errors);
     }
 
     [Fact]
