@@ -1,23 +1,23 @@
 #nullable enable
 
 using SqlToAi.Security;
+using Xunit;
 
 namespace SqlToAi.Tests.Security;
 
 // @covers SqlToAi.Security.ReadOnlyGuard
 public sealed class ReadOnlyGuardTests
 {
-    private static readonly Type TargetType = typeof(ReadOnlyGuard);
+    private static readonly System.Type TargetType = typeof(ReadOnlyGuard);
 
     [Fact]
     public void IsQuerySafe_ShouldReturnFalse_ForEmptyOrNullQuery()
     {
-        // Arrange
         var guard = new ReadOnlyGuard();
 
-        // Act & Assert
         Assert.False(guard.IsQuerySafe(""));
         Assert.False(guard.IsQuerySafe("   "));
+        Assert.False(guard.IsQuerySafe(null!));
     }
 
     [Theory]
@@ -32,17 +32,20 @@ public sealed class ReadOnlyGuardTests
     [InlineData("SELECT * FROM Customers WHERE Status = 'UPDATE'")]
     [InlineData("SELECT HAS_PERMS_BY_NAME('T', 'OBJECT', 'EXECUTE') AS CanExec")]
     [InlineData("SELECT 'it''s a delete-like value' AS Note")]
-    // step-004/fix-01: harmlose Bracket-Identifier muessen safe bleiben. Bracket-Inhalt wird
-    // an die Regex durchgereicht, aber das Wort in den Klammern ist nicht im Mutating-Set.
     [InlineData("SELECT [My Column With Spaces] FROM t")]
     [InlineData("SELECT [Order Date] FROM [Customer Orders]")]
     [InlineData("SELECT * FROM [dbo].[Customers]")]
+    // Bracket-Identifier mit Schlüsselwort-Namen sind im echten AST reguläre Identifier (Spalten-/Tabellennamen)
+    [InlineData("SELECT [insert] FROM t")]
+    [InlineData("SELECT [drop] FROM t")]
+    [InlineData("SELECT * FROM [delete]")]
+    [InlineData("SELECT [update] FROM t WHERE [truncate] = 1")]
+    // EXECUTE AS impersonation ist keine modifizierende Procedure-Execution
+    [InlineData("EXECUTE AS USER = 'ReadOnlyUser'")]
+    [InlineData("EXECUTE AS CALLER")]
     public void IsQuerySafe_ShouldReturnTrue_ForSafeQueries(string query)
     {
-        // Arrange
         var guard = new ReadOnlyGuard();
-
-        // Act & Assert
         Assert.True(guard.IsQuerySafe(query));
     }
 
@@ -58,12 +61,9 @@ public sealed class ReadOnlyGuardTests
     [InlineData("EXEC dbo.MyStoredProcedure")]
     [InlineData("EXECUTE dbo.MyStoredProcedure")]
     [InlineData("SELECT * INTO NewTable FROM OldTable")]
+    [InlineData("SELECT Id INTO #Temp FROM Users")]
     [InlineData("INSERT INTO Logs VALUES (1) -- comment")]
     [InlineData("/* comment */ DELETE FROM Logs")]
-    // sp_executesql bypass (audit finding 2): one contiguous token, so "exec" never appears as
-    // its own bounded match inside it, and T-SQL allows it as a batch's sole statement with no
-    // EXEC/EXECUTE prefix at all — must be rejected outright, regardless of prefix/case/schema
-    // qualifier, and regardless of what the dynamic SQL literal argument contains.
     [InlineData("sp_executesql N'SELECT 1'")]
     [InlineData("EXEC sp_executesql N'SELECT 1'")]
     [InlineData("EXECUTE sp_executesql N'SELECT 1'")]
@@ -71,21 +71,14 @@ public sealed class ReadOnlyGuardTests
     [InlineData("SP_EXECUTESQL N'SELECT 1'")]
     [InlineData("Sp_ExecuteSql N'SELECT 1'")]
     [InlineData("sp_executesql N'DELETE FROM dbo.Customers; COMMIT'")]
-    // step-004/fix-01: Bracket-Identifier mit mutating-keyword-aehnlichem Inhalt muessen
-    // abgewiesen werden. .NET-Regex-Wortgrenzen \b bilden sich an '[' und ']', sodass insert
-    // innerhalb von [insert] als eigenstaendiges Token matcht. Ohne Bracket-Pass-Through
-    // waeren diese Queries faelschlich als safe eingestuft worden.
-    [InlineData("SELECT [insert] FROM t")]
-    [InlineData("SELECT [drop] FROM t")]
-    [InlineData("SELECT * FROM [delete]")]
-    [InlineData("SELECT [update] FROM t WHERE [truncate] = 1")]
     [InlineData("INSERT INTO [insert] VALUES (1)")]
+    [InlineData("GRANT SELECT ON Customers TO GuestUser")]
+    [InlineData("REVOKE SELECT ON Customers FROM GuestUser")]
+    [InlineData("BACKUP DATABASE db TO DISK = 'c:\\backup.bak'")]
+    [InlineData("DBCC CHECKDB")]
     public void IsQuerySafe_ShouldReturnFalse_ForMutatingQueries(string query)
     {
-        // Arrange
         var guard = new ReadOnlyGuard();
-
-        // Act & Assert
         Assert.False(guard.IsQuerySafe(query));
     }
 }
