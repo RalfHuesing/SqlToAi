@@ -1,9 +1,9 @@
 ---
-status: active
+status: done
 task: sql-parser-refactoring
 derived_from: konzept.md
 created_at: "2026-08-17T16:26:30+02:00"
-last_updated: "2026-08-17T16:26:30+02:00"
+last_updated: "2026-08-17T16:44:20+02:00"
 created_by_model: gemini-3.7-flash
 created_by_model_knowledge_cutoff: "2026-01"
 ---
@@ -31,4 +31,4 @@ Grober Anker, kein Detailplan — Detail-Steps entstehen erst JIT im Step-Modus 
 - [x] EPIC-02: SqlMultiStatementDetector auf ScriptDom umstellen — AST-basierte Batch-/Statement-Auswertung (`TSqlScript.Batches[].Statements`) statt Semikolon-Zählung; Preamble-Erweiterung (`SET`, `USE`, `DECLARE`). (→ step-002)
 - [x] EPIC-03: ReadOnlyGuard auf ScriptDom AST-Visitor umstellen — `TSqlFragmentVisitor` (`DmlStatement`, `DDLStatement`, `AlterStatement`, etc.) statt Keyword-Regex; Edge-Cases wie `EXECUTE AS`, `SELECT INTO` vs. `INSERT INTO`. (→ step-003)
 - [x] EPIC-04: QueryDeconstructor auf ScriptDom umstellen — AST-Navigation (`SelectStatement.WithCtesAndXmlNamespaces`) statt `StartsWith("WITH")` und String-Scanning. (→ step-004)
-- [ ] EPIC-05: Doku-Synchronisation & Gesamtabnahme — `docs/architecture-spec.md` und `README.md` mit den neuen AST-Parser-Details synchronisieren; Gesamttestnetz validieren. (Bezug: `konzept.md` §Definition of Done)
+- [x] EPIC-05: Doku-Synchronisation & Gesamtabnahme — `docs/architecture-spec.md` und `README.md` mit den neuen AST-Parser-Details synchronisieren; Gesamttestnetz validieren. (→ step-005)

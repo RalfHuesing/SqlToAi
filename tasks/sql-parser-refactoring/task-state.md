@@ -1,8 +1,8 @@
 ---
-status: executing
+status: done
 task: sql-parser-refactoring
 started_at: "2026-08-17T16:26:00+02:00"
-last_updated: "2026-08-17T16:26:00+02:00"
+last_updated: "2026-08-17T16:45:00+02:00"
 rules_dir: .agents/rules
 total_steps: 5
 current_step: step-005
@@ -12,13 +12,13 @@ current_step: step-005
 
 ## Übersicht
 
-- **Task-Status:** `executing`
+- **Task-Status:** `done`
 - **Steps gesamt:** 5 (regulär + Korrekturen — weicher Check-in bei jedem Vielfachen von `soft_step_checkin_interval`, siehe Config)
 - **Aktueller Schritt:** `step-005`
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-17T16:26:00+02:00
-- **Zuletzt aktualisiert:** 2026-08-17T16:42:20+02:00
+- **Zuletzt aktualisiert:** 2026-08-17T16:45:00+02:00
 
 ## Steps
 
