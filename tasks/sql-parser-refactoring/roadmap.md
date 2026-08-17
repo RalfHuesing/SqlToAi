@@ -29,6 +29,6 @@ Grober Anker, kein Detailplan — Detail-Steps entstehen erst JIT im Step-Modus 
 
 - [x] EPIC-01: NuGet-Dependency ScriptDom & TSql150Parser Helper — `Microsoft.SqlServer.TransactSql.ScriptDom` in `SqlToAi.csproj` einbinden und gemeinsamen Parser-Helper/Infrastruktur bereitstellen. (→ step-001)
 - [x] EPIC-02: SqlMultiStatementDetector auf ScriptDom umstellen — AST-basierte Batch-/Statement-Auswertung (`TSqlScript.Batches[].Statements`) statt Semikolon-Zählung; Preamble-Erweiterung (`SET`, `USE`, `DECLARE`). (→ step-002)
-- [ ] EPIC-03: ReadOnlyGuard auf ScriptDom AST-Visitor umstellen — `TSqlFragmentVisitor` (`DmlStatement`, `DDLStatement`, `AlterStatement`, etc.) statt Keyword-Regex; Edge-Cases wie `EXECUTE AS`, `SELECT INTO` vs. `INSERT INTO`. (Bezug: `konzept.md` §Muss-Haben)
+- [x] EPIC-03: ReadOnlyGuard auf ScriptDom AST-Visitor umstellen — `TSqlFragmentVisitor` (`DmlStatement`, `DDLStatement`, `AlterStatement`, etc.) statt Keyword-Regex; Edge-Cases wie `EXECUTE AS`, `SELECT INTO` vs. `INSERT INTO`. (→ step-003)
 - [ ] EPIC-04: QueryDeconstructor auf ScriptDom umstellen — AST-Navigation (`SelectStatement.WithCtesAndXmlNamespaces`) statt `StartsWith("WITH")` und String-Scanning. (Bezug: `konzept.md` §Muss-Haben)
 - [ ] EPIC-05: Doku-Synchronisation & Gesamtabnahme — `docs/architecture-spec.md` und `README.md` mit den neuen AST-Parser-Details synchronisieren; Gesamttestnetz validieren. (Bezug: `konzept.md` §Definition of Done)
