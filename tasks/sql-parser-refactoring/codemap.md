@@ -27,7 +27,7 @@ Bevor der Planer im Step-Modus einen neuen Step plant, gleicht er sein Vorhaben 
 - **`src/SqlToAi/Security/ReadOnlyGuard.cs`** — Read-Only Guard Validierung zur Blockierung mutierender SQL-Befehle via AST-Visitor. (zuletzt: step-003)
 - **`src/SqlToAi/Security/IReadOnlyGuard.cs`** — Interface für den Read-Only Guard. (initial)
 - **`src/SqlToAi/Database/SqlMultiStatementDetector.cs`** — Erkennung von Multi-Statement-Batches und Preamble (`DECLARE`, `SET`, `USE`) via AST. (zuletzt: step-002)
-- **`src/SqlToAi/Database/QueryDeconstructor.cs`** — Zerlegung von Queries in Preamble, CTEs (`WITH`) und Haupt-SELECT. (initial)
+- **`src/SqlToAi/Database/QueryDeconstructor.cs`** — Zerlegung von Queries in Preamble, CTEs (`WITH`) und Haupt-SELECT via AST-Navigation. (zuletzt: step-004)
 - **`src/SqlToAi/Database/SqlCharScanner.cs`** — Zeichenweise State-Machine für Quotes, Kommentare, Brackets (bleibt für Anonymisierung unverändert). (initial)
 - **`src/SqlToAi/Database/SqlLiteralScanner.cs`** — Literal-Scanner für Token-Substitution (bleibt unverändert). (initial)
 - **`tests/SqlToAi.Tests/Security/ReadOnlyGuardTests.cs`** — Testsuite für ReadOnlyGuard inklusive Mutations- und Edge-Case-Tests. (initial)
