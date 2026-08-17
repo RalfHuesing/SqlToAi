@@ -33,5 +33,5 @@ Bevor der Planer im Step-Modus einen neuen Step plant, gleicht er sein Vorhaben 
 - **`tests/SqlToAi.Tests/Security/ReadOnlyGuardTests.cs`** — Testsuite für ReadOnlyGuard inklusive Mutations- und Edge-Case-Tests. (initial)
 - **`tests/SqlToAi.Tests/Database/SqlMultiStatementDetectorTests.cs`** — Testsuite für SqlMultiStatementDetector. (initial)
 - **`tests/SqlToAi.Tests/Database/QueryDeconstructorTests.cs`** — Testsuite für QueryDeconstructor. (initial)
-- **`docs/architecture-spec.md`** — Architekturspezifikation des Projekts (anzupassen bei Parser-Änderungen). (initial)
-- **`README.md`** — Hauptdokumentation des Projekts. (initial)
+- **`docs/architecture-spec.md`** — Architekturspezifikation des Projekts (Read-Only Guard AST-Doku aktualisiert). (zuletzt: step-005)
+- **`README.md`** — Hauptdokumentation des Projekts (Read-Only Guard AST-Doku aktualisiert). (zuletzt: step-005)
