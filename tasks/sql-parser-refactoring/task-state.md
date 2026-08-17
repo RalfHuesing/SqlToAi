@@ -25,7 +25,7 @@ current_step: step-002
 | Step | Epic | Status | Title | Corrects | Coded | Reviewed | Commit |
 |------|------|--------|-------|----------|-------|----------|--------|
 | step-001 | EPIC-01 | done | ScriptDom NuGet-Paket einbinden und SqlScriptDomParser-Helper erstellen | - | 702d139 | approved | 702d139 |
-| step-002 | EPIC-02 | open | SqlMultiStatementDetector auf ScriptDom AST umstellen | - | - | - | - |
+| step-002 | EPIC-02 | done | SqlMultiStatementDetector auf ScriptDom AST umstellen | - | 19da170 | approved | 19da170 |
 
 ## Config (optional)
 
