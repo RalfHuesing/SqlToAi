@@ -72,15 +72,47 @@ dotnet run            # Starten (als MCP Server)
 - **Commits (Pflicht):** Commits werden **autonom in sinnvollen Abständen** gemacht — nach jedem abgeschlossenen Feature, nach jedem behobenen Fehler, nach jedem grünen Test-Lauf. Kein Warten auf explizite Aufforderung. Jeder Commit-Vorschlag schließt mit `### Commit-Vorschlag` (Conventional Commit, Deutsch, imperativ).
 - **Keine hartkodierten Werte (No Magic Values) & AppSettings-Pflicht:** Numerische Limits, Timeouts, Default-Werte und konfigurierbare Strings dürfen **niemals direkt in `.cs`-Dateien** eingetragen werden. Alle Konfigurationswerte kommen aus der `appsettings.json` (gebunden via `IOptions<T>`). Defaults werden als Property-Initializer in der jeweiligen `*Options`-Klasse gesetzt und sind dort dokumentiert — nie im aufrufenden Code. **Jede neu eingeführte Konfigurationsoption muss zwingend auch lückenlos in der Haupt-`appsettings.json` mit sinnvollen Defaults definiert sein**, um die automatische Startup-Synchronisierung (`AppSettingsMigrator`) zu gewährleisten.
 
-## 5. Qualitätsdrift-Prävention (AiNetLinter)
+## 5. Qualitätsdrift-Prävention & AiNetLinter MCP Server
 
 - **Zero-Warning-Direktive:** Das Projekt nutzt `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`. Neuer Code darf keine Compiler-Warnungen einführen.
 - **Linter-Konformität:** Der Code muss den Linter-Richtlinien in [.agents/rules/AiNetLinter.mdc](AiNetLinter.mdc) (wie `sealed` Klassen, Methoden-Längen, etc.) entsprechen.
 - **Result-Pattern:** Bevorzuge `Result<T>` für die Fehlerbehandlung, besonders an den Schnittstellen der MCP-Tools (Error-Catalog).
 - **Baseline-Freiheit & Clean-Check:** Das Projekt wird vollständig baseline-frei geführt. Jeder Build und Testlauf erzwingt strikte Null-Toleranz (0 Fehler, 0 Warnungen) gegen die Linter-Regeln in [.agents/rules/AiNetLinter.mdc](AiNetLinter.mdc). Fehlt `AiNetLinter.exe` auf der Maschine, wird `RunLinterShouldBeClean` per `Assert.Skip` übersprungen.
+- **AiNetLinter MCP Server (Semantische C#-Code-Intelligence & Analyse):**
+  Der `ainetlinter` MCP Server hält die geladene Solution resident im Speicher und stellt Roslyn-gestützte semantische Werkzeuge bereit. Diese sind für C#-Code den generischen Text-/Grep-Tools stets vorzuziehen, da sie typ- und symbolgenau arbeiten und massiv Kontext-Tokens sparen.
+  
+  ### Tool-Kategorien & Einsatzbereiche:
+  - **Code-Erkundung & Struktur (Exploration):**
+    - `get_index_scope` & `metrics_tree`: Schneller Überblick über Solution-Aufbau, Dateitypen und Metriken (Code-Größe, Komplexität, Violations) ohne unhandliche Dumps.
+    - `get_hotspots`: Vor Änderungen prüfen, ob eine Datei dem Zeilenlimit (`MaxLineCount`) nahe ist.
+    - `get_file_skeleton`: Liefert Typ- und Methodensignaturen einer `.cs`-Datei ohne Bodies (inkl. stabiler IDs für Folgeabfragen) — ideal zur ersten Orientierung.
+    - `get_class_structure`: Tabellarische Übersicht über alle Member einer Klasse (Kind, Visibility, LOC, Start-/Endzeile).
+    - `get_symbol_body`: Liest gezielt den Methoden-/Symbol-Body statt ganzer Dateien.
+  - **Semantische Suche, Navigation & Abhängigkeiten:**
+    - `find_symbol`: Semantische Suche nach C#-Symbolen (Klassen, Methoden, Properties, Interfaces) per Name/Substring.
+    - `find_references`: Findet alle echten Aufrufstellen eines Symbols (optional transitiv via `depth`).
+    - `get_call_tree`: Liefert den echten hierarchischen Caller-Baum (ASCII oder Mermaid) bis Tiefe 5.
+    - `dependency_graph`: Echte SemanticModel-Typreferenzen einer Datei oder eines Typs (eingehend/ausgehend/beides), weit präziser als `using`-Direktiven.
+    - `get_type_hierarchy`: Zeigt Basisklassen, Interfaces, abgeleitete Typen und DI-Registrierungen.
+    - `search_pattern`: Text-/Regex-Suche als universeller Fallback über alle Dateitypen (inkl. Nicht-C# wie `.json`, `.md`, `.sql`).
+  - **Impact- & Refactoring-Analyse:**
+    - `get_impact`: Vor/nach Refactorings ausführen — findet betroffene Aufrufstellen geänderter Signaturen via Git-Diff (uncommittete Änderungen) oder für ein bestimmtes Symbol.
+    - `find_duplicates`: DRY-Audit für Code-Klone (`mode="clone"`) und Refactoring-Drift (`mode="refactoring-drift"` mit `helperSymbol` für Helper, die nachgebaut statt aufgerufen werden) — siehe auch Skill [.agents/skills/drift-audit/SKILL.md](../skills/drift-audit/SKILL.md).
+    - `find_magic_values`: On-Demand-Audit nach hartkodierten Werten (Strings, Zahlen, Timeouts, Pfade, Statuscodes) zur Durchsetzung von §4 (*Keine hartkodierten Werte / AppSettings-Pflicht*).
+  - **Quality-Gates & Pre-Commit-Check:**
+    - `get_violations`: Liefert aktuelle Linter-Regelverstöße (nach jedem Edit aufrufen, Null-Toleranz sicherstellen).
+    - `pattern_detect`: Gruppierte Audit-Sicht nach Fehlermustern (God-Classes, `async void`, lange Methoden, unkommentierte Public APIs, leere Catch-Blöcke, Feature Envy).
+    - `safeguard`: Deterministischer Quality-Score (0–10) + Pass/Fail-Threshold als abschließendes Quality-Gate.
+    - `reload_config`: Lädt `rules.json` zur Laufzeit neu ein, falls Konfigurationen angepasst wurden.
+
+  ### Best Practices & Richtlinien:
+  - **Sufficiency-Doctrine:** Liefert ein MCP-Tool vollständige/finale Daten für den angefragten Scope (Hinweis im Tool-Output beachten), diese **nicht redundant per `view_file` oder `grep_search` nachprüfen**. Bei trunkierten Daten Parameter (`maxResults`, `depth`) anpassen.
+  - **C#-Scope & Fallback:** Semantische Tools arbeiten ausschließlich auf `.cs`-Code (Roslyn-Symbolgraph). Für Nicht-C#-Dateien (z. B. `.json`, `.md`, `.sql`, `.razor`) `search_pattern` oder Standard-Tools verwenden.
+  - **Pre-Commit-Routine:** Vor jedem Commit mit `get_violations` oder `safeguard` sicherstellen, dass 0 Regelverstöße vorliegen.
 
 ## 6. Agentische Planung & Mitdenken (Agentic Planning)
 
 - **Aktives Mitdenken:** Bei der agentischen Planung, Konzeption oder Besprechung von Aufgaben sollst du proaktiv mitdenken.
 - **Interaktive Rückfragen:** Stelle bei Bedarf interaktive Fragen, die eine klare Beschreibung des Problems/Szenarios sowie konkrete Handlungsempfehlungen beinhalten, um Unklarheiten zu beseitigen und das beste Design zu wählen.
+
 
