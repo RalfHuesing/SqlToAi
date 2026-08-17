@@ -21,7 +21,7 @@ Designed specifically for developers analyzing ERP systems, optimizing SQL queri
 * 🌐 **Central & Default Anonymization Rules:** Global default scrambling with optional central database rules (`AnonymizationRules`) supporting `LIKE`-style wildcard patterns and specificity-based rule resolution.
 
 ### 🔒 Enterprise Security & Access Control
-* 🔒 **Read-Only Guard & Rollback Safety:** Regex command validation blocks modifying queries (`INSERT`, `UPDATE`, `DROP`, `EXEC`, etc.) inside rollback transactions unless a database is explicitly declared in the `ReadWrite` level list.
+* 🔒 **Read-Only Guard & Rollback Safety:** AST-based command validation (`Microsoft.SqlServer.TransactSql.ScriptDom`, `TSql150Parser`) blocks modifying queries (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `MERGE`, `EXEC`, etc.) inside rollback transactions unless a database is explicitly declared in the `ReadWrite` level list.
 * 🚦 **Level-Based Database Access Control:** Granular access lists (`ReadWrite`, `ReadOnly`, `ReadOnlyAnonymized`, `SchemaOnly`) in `appsettings.json` with fail-safe default-deny (`AccessLevel.None`).
 
 ### 🔎 Schema Discovery & Developer Experience

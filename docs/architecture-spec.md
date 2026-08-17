@@ -51,7 +51,7 @@ SQL Server instances typically host multiple databases. By default, the MCP serv
 ### B. Konfigurierbarer Schreibschutz (Read-Only Guard)
 Für jede Datenbank außer solchen mit Access Level `ReadWrite` (Abschnitt A) wird ein mehrstufiger Schreibschutz erzwungen:
 
-1. **Parser-Ebene:** Der Server validiert Statements vor der Ausführung per robusten Regulären Ausdrücken (String-Literale und Kommentare werden dabei ausgeblendet, damit z. B. `SELECT 'DELETE' AS Status` nicht fälschlich blockiert wird). Mutierende SQL-Befehle (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `EXEC`/`EXECUTE` etc.) werden abgewiesen und brechen mit `SQL-AI-0107` ab.
+1. **Parser-Ebene:** Der Server validiert Statements vor der Ausführung mittels echtem T-SQL AST-Parsing (`Microsoft.SqlServer.TransactSql.ScriptDom`, `TSql150Parser`) und AST-Visitor (`TSqlFragmentVisitor`). Mutierende SQL-Befehle (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `MERGE`, `EXEC`/`EXECUTE`, `sp_executesql`, `SELECT ... INTO` etc.) werden typgenau abgewiesen und brechen mit `SQL-AI-0107` ab.
 2. **Transaktions-Ebene:** Alle Abfragen werden innerhalb einer expliziten Transaktion ausgeführt. Am Ende der Ausführung wird ein `ROLLBACK` ausgeführt, sodass versehentliche oder böswillige Datenänderungen verworfen werden.
 3. **Least-Privilege-Empfehlung:** Der Schreibschutz des Servers dient als "Defense-in-Depth". Die primäre Absicherung muss stets über einen SQL-Login mit minimalen Rechten (z. B. nur Mitgliedschaft in der Rolle `db_datareader`) realisiert werden.
 
