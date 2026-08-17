@@ -26,7 +26,7 @@ current_step: step-003
 |------|------|--------|-------|----------|-------|----------|--------|
 | step-001 | EPIC-01 | done | ScriptDom NuGet-Paket einbinden und SqlScriptDomParser-Helper erstellen | - | 702d139 | approved | 702d139 |
 | step-002 | EPIC-02 | done | SqlMultiStatementDetector auf ScriptDom AST umstellen | - | 19da170 | approved | 19da170 |
-| step-003 | EPIC-03 | open | ReadOnlyGuard auf ScriptDom AST-Visitor umstellen | - | - | - | - |
+| step-003 | EPIC-03 | done | ReadOnlyGuard auf ScriptDom AST-Visitor umstellen | - | a6d5280 | approved | a6d5280 |
 
 ## Config (optional)
 
