@@ -104,7 +104,7 @@ internal sealed class QuerySafetyValidator : IQuerySafetyValidator
         if (!writeAllowed && !_readOnlyGuard.IsQuerySafe(query))
         {
             return SqlToAiError.WriteOperationBlocked(
-                "The query contains mutating SQL keywords and was rejected.");
+                "The query contains mutating SQL statements (e.g. INSERT, UPDATE, DELETE, MERGE, DDL, EXEC) and was rejected in read-only mode.");
         }
 
         // Stage 6: always enforce single-statement regardless of write allowance — keeps the

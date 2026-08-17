@@ -15,6 +15,7 @@ public sealed class SqlMultiStatementDetectorTests
     {
         Assert.False(SqlMultiStatementDetector.ContainsMultipleStatements(""));
         Assert.False(SqlMultiStatementDetector.ContainsMultipleStatements("   "));
+        Assert.False(SqlMultiStatementDetector.ContainsMultipleStatements(null!));
     }
 
     [Theory]
@@ -23,6 +24,12 @@ public sealed class SqlMultiStatementDetectorTests
     [InlineData("SELECT * FROM Customers;;;   ", false)]
     [InlineData("SELECT 'hello; world' AS Msg", false)]
     [InlineData("SELECT 'hello; world' AS Msg;", false)]
+    [InlineData("SELECT ';', ';;;' FROM t WHERE col = ';'", false)]
+    [InlineData("SELECT 1 UNION ALL SELECT 2 UNION SELECT 3", false)]
+    [InlineData("SELECT 1 EXCEPT SELECT 2", false)]
+    [InlineData("SELECT 1 INTERSECT SELECT 2", false)]
+    [InlineData("-- comment with ;\nSELECT 1", false)]
+    [InlineData("/* multi \n ; \n line */ SELECT 1", false)]
     public void SingleStatement_ReturnsFalse(string query, bool expected)
     {
         bool result = SqlMultiStatementDetector.ContainsMultipleStatements(query);
@@ -35,6 +42,7 @@ public sealed class SqlMultiStatementDetectorTests
     [InlineData("UPDATE TableA SET Col = 1; DELETE FROM TableB", true)]
     [InlineData("DECLARE @x INT = 1; SELECT 1; SELECT 2", true)]
     [InlineData("SET @x = 1; SELECT 1; SELECT 2", true)]
+    [InlineData("USE [MyDb]; SELECT 1; SELECT 2;", true)]
     [InlineData("SELECT 1\nGO\nSELECT 2", true)]
     public void MultipleMainStatements_ReturnsTrue(string query, bool expected)
     {

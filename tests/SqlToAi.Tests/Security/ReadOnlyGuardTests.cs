@@ -40,6 +40,7 @@ public sealed class ReadOnlyGuardTests
     [InlineData("SELECT [drop] FROM t")]
     [InlineData("SELECT * FROM [delete]")]
     [InlineData("SELECT [update] FROM t WHERE [truncate] = 1")]
+    [InlineData("SELECT 1 AS [select], 2 AS [from], 3 AS [where]")]
     // EXECUTE AS impersonation ist keine modifizierende Procedure-Execution
     [InlineData("EXECUTE AS USER = 'ReadOnlyUser'")]
     [InlineData("EXECUTE AS CALLER")]
@@ -76,6 +77,9 @@ public sealed class ReadOnlyGuardTests
     [InlineData("REVOKE SELECT ON Customers FROM GuestUser")]
     [InlineData("BACKUP DATABASE db TO DISK = 'c:\\backup.bak'")]
     [InlineData("DBCC CHECKDB")]
+    [InlineData("WITH cte AS (SELECT 1 AS X) DELETE FROM Customers")]
+    [InlineData("WITH cte AS (SELECT 1 AS X) UPDATE Customers SET Name = 'X'")]
+    [InlineData("SELECT 1; UPDATE Customers SET Name = 'X'")]
     public void IsQuerySafe_ShouldReturnFalse_ForMutatingQueries(string query)
     {
         var guard = new ReadOnlyGuard();

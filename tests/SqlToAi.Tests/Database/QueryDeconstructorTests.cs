@@ -66,6 +66,17 @@ public sealed class QueryDeconstructorTests
     }
 
     [Fact]
+    public void Deconstruct_CteWithExplicitColumns_ExtractsCtes()
+    {
+        const string sql = "WITH C1 (ColA, ColB) AS (SELECT 1 AS A, 2 AS B) SELECT ColA, ColB FROM C1;";
+        var result = QueryDeconstructor.Deconstruct(sql);
+
+        Assert.Equal(string.Empty, result.Preamble);
+        Assert.Equal("WITH C1 (ColA, ColB) AS (SELECT 1 AS A, 2 AS B)", result.Ctes);
+        Assert.Equal("SELECT ColA, ColB FROM C1", result.MainSelect);
+    }
+
+    [Fact]
     public void Deconstruct_DeclareAndCteAndSelect_ExtractsPreambleAndCtes()
     {
         const string sql = "DECLARE @x INT = 1;\nWITH Sub AS (SELECT Id FROM Customers WHERE Id = @x) SELECT * FROM Sub";
@@ -85,6 +96,17 @@ public sealed class QueryDeconstructorTests
         Assert.Equal(string.Empty, result.Preamble);
         Assert.Equal("WITH C1 AS (SELECT 1 AS A), C2 AS (SELECT A FROM C1 WHERE A IN (SELECT 1))", result.Ctes);
         Assert.Equal("/* inline */ SELECT * FROM C2", result.MainSelect);
+    }
+
+    [Fact]
+    public void Deconstruct_WithXmlNamespaces_ExtractsClause()
+    {
+        const string sql = "WITH XMLNAMESPACES ('http://example.com' AS ns) SELECT 1 AS X;";
+        var result = QueryDeconstructor.Deconstruct(sql);
+
+        Assert.Equal(string.Empty, result.Preamble);
+        Assert.Equal("WITH XMLNAMESPACES ('http://example.com' AS ns)", result.Ctes);
+        Assert.Equal("SELECT 1 AS X", result.MainSelect);
     }
 
     [Fact]

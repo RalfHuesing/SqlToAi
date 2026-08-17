@@ -24,7 +24,7 @@ public sealed record SqlToAiError(string Code, string Message)
         new(InvalidParametersCode, $"Invalid parameters: {details}");
 
     public static SqlToAiError MultipleStatementsForbidden() =>
-        new(MultipleStatementsForbiddenCode, "Execution of multiple SQL statements (e.g. separated by ';') is not allowed.");
+        new(MultipleStatementsForbiddenCode, "Execution of multiple main SQL statements or multi-batch scripts (e.g. 'GO' or multiple SELECTs) is not allowed. Only a single main query (with optional DECLARE/SET preamble) is permitted.");
 
     public static SqlToAiError QueryError(string message) =>
         new(QueryErrorCode, $"Query error: {message}");
