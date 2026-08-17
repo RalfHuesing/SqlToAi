@@ -4,8 +4,8 @@ task: sql-parser-refactoring
 started_at: "2026-08-17T16:26:00+02:00"
 last_updated: "2026-08-17T16:26:00+02:00"
 rules_dir: .agents/rules
-total_steps: 4
-current_step: step-004
+total_steps: 5
+current_step: step-005
 ---
 
 # Task State: sql-parser-refactoring
@@ -13,12 +13,12 @@ current_step: step-004
 ## Übersicht
 
 - **Task-Status:** `executing`
-- **Steps gesamt:** 4 (regulär + Korrekturen — weicher Check-in bei jedem Vielfachen von `soft_step_checkin_interval`, siehe Config)
-- **Aktueller Schritt:** `step-004`
+- **Steps gesamt:** 5 (regulär + Korrekturen — weicher Check-in bei jedem Vielfachen von `soft_step_checkin_interval`, siehe Config)
+- **Aktueller Schritt:** `step-005`
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-17T16:26:00+02:00
-- **Zuletzt aktualisiert:** 2026-08-17T16:39:30+02:00
+- **Zuletzt aktualisiert:** 2026-08-17T16:42:20+02:00
 
 ## Steps
 
@@ -28,6 +28,7 @@ current_step: step-004
 | step-002 | EPIC-02 | done | SqlMultiStatementDetector auf ScriptDom AST umstellen | - | 19da170 | approved | 19da170 |
 | step-003 | EPIC-03 | done | ReadOnlyGuard auf ScriptDom AST-Visitor umstellen | - | a6d5280 | approved | a6d5280 |
 | step-004 | EPIC-04 | done | QueryDeconstructor auf ScriptDom AST-Navigation umstellen | - | e1f158c | approved | e1f158c |
+| step-005 | EPIC-05 | open | Dokumentation synchronisieren und Gesamtabnahme | - | - | - | - |
 
 ## Config (optional)
 
