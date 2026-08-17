@@ -4,8 +4,8 @@ task: sql-parser-refactoring
 started_at: "2026-08-17T16:26:00+02:00"
 last_updated: "2026-08-17T16:26:00+02:00"
 rules_dir: .agents/rules
-total_steps: 2
-current_step: step-002
+total_steps: 3
+current_step: step-003
 ---
 
 # Task State: sql-parser-refactoring
@@ -13,12 +13,12 @@ current_step: step-002
 ## Übersicht
 
 - **Task-Status:** `executing`
-- **Steps gesamt:** 2 (regulär + Korrekturen — weicher Check-in bei jedem Vielfachen von `soft_step_checkin_interval`, siehe Config)
-- **Aktueller Schritt:** `step-002`
+- **Steps gesamt:** 3 (regulär + Korrekturen — weicher Check-in bei jedem Vielfachen von `soft_step_checkin_interval`, siehe Config)
+- **Aktueller Schritt:** `step-003`
 - **Roadmap:** siehe `roadmap.md` für den Epic-Fortschritt
 - **Tech-Debt:** siehe `tech-debt.md` für gesammelte, bewusst nicht gefixte Funde
 - **Gestartet:** 2026-08-17T16:26:00+02:00
-- **Zuletzt aktualisiert:** 2026-08-17T16:30:20+02:00
+- **Zuletzt aktualisiert:** 2026-08-17T16:33:45+02:00
 
 ## Steps
 
@@ -26,6 +26,7 @@ current_step: step-002
 |------|------|--------|-------|----------|-------|----------|--------|
 | step-001 | EPIC-01 | done | ScriptDom NuGet-Paket einbinden und SqlScriptDomParser-Helper erstellen | - | 702d139 | approved | 702d139 |
 | step-002 | EPIC-02 | done | SqlMultiStatementDetector auf ScriptDom AST umstellen | - | 19da170 | approved | 19da170 |
+| step-003 | EPIC-03 | open | ReadOnlyGuard auf ScriptDom AST-Visitor umstellen | - | - | - | - |
 
 ## Config (optional)
 
