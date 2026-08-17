@@ -2,37 +2,60 @@
 
 using System;
 using System.Collections.Generic;
+using Microsoft.SqlServer.TransactSql.ScriptDom;
 
 namespace SqlToAi.Database;
 
 internal readonly record struct DeconstructedQuery(string Preamble, string Ctes, string MainSelect);
 
 /// <summary>
-/// Deconstructs SQL queries into Preamble (DECLARE statements), CTE definitions (WITH clauses),
-/// and the main SELECT statement for database-side query comparison and subquery wrapping.
+/// Deconstructs SQL queries into Preamble (DECLARE, SET statements), CTE definitions (WITH clauses),
+/// and the main SELECT statement using AST navigation for database-side query comparison and subquery wrapping.
 /// </summary>
 internal static class QueryDeconstructor
 {
     public static DeconstructedQuery Deconstruct(string query)
     {
-        var (preamble, body) = ExtractPreambleAndBody(query);
-
-        string trimmedBody = SqlCharScanner.StripLeadingCommentsAndWhitespace(body);
-        if (!trimmedBody.StartsWith("WITH", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(query))
         {
-            return new DeconstructedQuery(preamble, string.Empty, body);
+            return new DeconstructedQuery(string.Empty, string.Empty, string.Empty);
         }
 
-        int selectIndex = FindMainSelectIndex(body);
-        if (selectIndex <= 0)
+        var parseResult = SqlScriptDomParser.ParseScript(query);
+        if (parseResult.Script is null || parseResult.Script.Batches.Count == 0)
         {
-            return new DeconstructedQuery(preamble, string.Empty, body);
+            return new DeconstructedQuery(string.Empty, string.Empty, CleanMainSelect(query));
         }
 
-        string ctes = body[..selectIndex].Trim();
-        string mainSelect = body[selectIndex..].Trim();
+        var allStatements = new List<TSqlStatement>();
+        foreach (var batch in parseResult.Script.Batches)
+        {
+            allStatements.AddRange(batch.Statements);
+        }
 
-        return new DeconstructedQuery(preamble, ctes, mainSelect);
+        if (allStatements.Count == 0)
+        {
+            return new DeconstructedQuery(string.Empty, string.Empty, CleanMainSelect(query));
+        }
+
+        int mainIndex = allStatements.Count - 1;
+        string preamble = ExtractPreamble(query, allStatements, mainIndex);
+        var mainStatement = allStatements[mainIndex];
+
+        if (mainStatement is SelectStatement selectStatement && selectStatement.WithCtesAndXmlNamespaces is not null)
+        {
+            var withClause = selectStatement.WithCtesAndXmlNamespaces;
+            string ctes = query.Substring(withClause.StartOffset, withClause.FragmentLength).Trim();
+
+            int selectStart = withClause.StartOffset + withClause.FragmentLength;
+            int selectLength = (mainStatement.StartOffset + mainStatement.FragmentLength) - selectStart;
+            string mainSelect = CleanMainSelect(query.Substring(selectStart, selectLength));
+
+            return new DeconstructedQuery(preamble, ctes, mainSelect);
+        }
+
+        string singleMainSelect = CleanMainSelect(query.Substring(mainStatement.StartOffset, mainStatement.FragmentLength));
+        return new DeconstructedQuery(preamble, string.Empty, singleMainSelect);
     }
 
     public static string CombinePreambles(string preambleA, string preambleB)
@@ -69,103 +92,38 @@ internal static class QueryDeconstructor
         return $"WITH {bodyA}, {bodyB}";
     }
 
-    private static (string Preamble, string Body) ExtractPreambleAndBody(string query)
-    {
-        var semicolonIndices = SqlCharScanner.GetSemicolonIndices(query);
-        if (semicolonIndices.Count == 0)
-        {
-            return (string.Empty, query.Trim());
-        }
-
-        var segments = SqlCharScanner.SplitIntoSegments(query, semicolonIndices);
-        int lastNonEmptyIndex = SqlCharScanner.GetLastNonEmptySegmentIndex(segments);
-
-        if (lastNonEmptyIndex <= 0)
-        {
-            return (string.Empty, query.Trim());
-        }
-
-        return BuildPreambleAndBody(segments, lastNonEmptyIndex);
-    }
-
-    private static (string Preamble, string Body) BuildPreambleAndBody(List<string> segments, int lastNonEmptyIndex)
+    private static string ExtractPreamble(string query, List<TSqlStatement> statements, int mainIndex)
     {
         var preambleParts = new List<string>();
-        for (int i = 0; i < lastNonEmptyIndex; i++)
+        for (int i = 0; i < mainIndex; i++)
         {
-            if (!string.IsNullOrWhiteSpace(segments[i]))
+            var stmt = statements[i];
+            string stmtText = query.Substring(stmt.StartOffset, stmt.FragmentLength).Trim();
+            if (!string.IsNullOrWhiteSpace(stmtText))
             {
-                preambleParts.Add(segments[i].Trim() + ";");
+                if (!stmtText.EndsWith(';'))
+                {
+                    stmtText += ";";
+                }
+                preambleParts.Add(stmtText);
             }
         }
 
-        var bodyParts = new List<string>();
-        for (int i = lastNonEmptyIndex; i < segments.Count; i++)
-        {
-            if (!string.IsNullOrWhiteSpace(segments[i]))
-            {
-                bodyParts.Add(segments[i].Trim());
-            }
-        }
-
-        return (string.Join("\n", preambleParts), string.Join(";\n", bodyParts));
+        return string.Join("\n", preambleParts);
     }
 
-    private static int FindMainSelectIndex(string sql)
+    private static string CleanMainSelect(string sql)
     {
-        int depth = 0;
-        foreach (var ev in SqlCharScanner.Scan(sql))
-        {
-            if (ev.State == SqlCharState.Normal)
-            {
-                if (ev.Character == '(')
-                {
-                    depth++;
-                }
-                else if (ev.Character == ')')
-                {
-                    if (depth > 0) depth--;
-                }
-                else if (depth == 0 && IsWordAt(sql, ev.Index, "SELECT"))
-                {
-                    return ev.Index;
-                }
-            }
-        }
-
-        return -1;
-    }
-
-    private static bool IsWordAt(string sql, int index, string word)
-    {
-        if (index + word.Length > sql.Length) return false;
-
-        if (string.Compare(sql, index, word, 0, word.Length, StringComparison.OrdinalIgnoreCase) != 0)
-        {
-            return false;
-        }
-
-        if (index > 0 && (char.IsLetterOrDigit(sql[index - 1]) || sql[index - 1] == '_'))
-        {
-            return false;
-        }
-
-        int nextIndex = index + word.Length;
-        if (nextIndex < sql.Length && (char.IsLetterOrDigit(sql[nextIndex]) || sql[nextIndex] == '_'))
-        {
-            return false;
-        }
-
-        return true;
+        return sql.TrimEnd(';', ' ', '\t', '\r', '\n').Trim();
     }
 
     private static string StripWithPrefix(string ctes)
     {
-        string trimmed = SqlCharScanner.StripLeadingCommentsAndWhitespace(ctes);
+        string trimmed = ctes.Trim();
         if (trimmed.StartsWith("WITH", StringComparison.OrdinalIgnoreCase))
         {
             return trimmed[4..].Trim();
         }
-        return ctes;
+        return trimmed;
     }
 }

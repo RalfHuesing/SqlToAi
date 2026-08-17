@@ -5,8 +5,11 @@ using Xunit;
 
 namespace SqlToAi.Tests.Database;
 
+// @covers SqlToAi.Database.QueryDeconstructor
 public sealed class QueryDeconstructorTests
 {
+    private static readonly System.Type TargetType = typeof(QueryDeconstructor);
+
     [Fact]
     public void Deconstruct_PlainSelect_ReturnsEmptyPreambleAndCtes()
     {
@@ -19,12 +22,34 @@ public sealed class QueryDeconstructorTests
     }
 
     [Fact]
+    public void Deconstruct_PlainSelectWithSemicolon_TrimsSemicolonFromMainSelect()
+    {
+        const string sql = "SELECT Id, Name FROM Customers;   ";
+        var result = QueryDeconstructor.Deconstruct(sql);
+
+        Assert.Equal(string.Empty, result.Preamble);
+        Assert.Equal(string.Empty, result.Ctes);
+        Assert.Equal("SELECT Id, Name FROM Customers", result.MainSelect);
+    }
+
+    [Fact]
     public void Deconstruct_DeclarePreambleAndSelect_ExtractsPreamble()
     {
         const string sql = "DECLARE @x INT = 1;\nSELECT * FROM Customers WHERE Id = @x";
         var result = QueryDeconstructor.Deconstruct(sql);
 
         Assert.Equal("DECLARE @x INT = 1;", result.Preamble);
+        Assert.Equal(string.Empty, result.Ctes);
+        Assert.Equal("SELECT * FROM Customers WHERE Id = @x", result.MainSelect);
+    }
+
+    [Fact]
+    public void Deconstruct_MultiplePreamblesAndSelect_ExtractsAllPreambles()
+    {
+        const string sql = "DECLARE @x INT = 1;\nSET @x = 2;\nSELECT * FROM Customers WHERE Id = @x;";
+        var result = QueryDeconstructor.Deconstruct(sql);
+
+        Assert.Equal("DECLARE @x INT = 1;\nSET @x = 2;", result.Preamble);
         Assert.Equal(string.Empty, result.Ctes);
         Assert.Equal("SELECT * FROM Customers WHERE Id = @x", result.MainSelect);
     }
@@ -52,6 +77,17 @@ public sealed class QueryDeconstructorTests
     }
 
     [Fact]
+    public void Deconstruct_ComplexNestedCteAndComments_ExtractsAccurately()
+    {
+        const string sql = "-- Header Comment\nWITH C1 AS (SELECT 1 AS A), C2 AS (SELECT A FROM C1 WHERE A IN (SELECT 1)) /* inline */ SELECT * FROM C2;";
+        var result = QueryDeconstructor.Deconstruct(sql);
+
+        Assert.Equal(string.Empty, result.Preamble);
+        Assert.Equal("WITH C1 AS (SELECT 1 AS A), C2 AS (SELECT A FROM C1 WHERE A IN (SELECT 1))", result.Ctes);
+        Assert.Equal("/* inline */ SELECT * FROM C2", result.MainSelect);
+    }
+
+    [Fact]
     public void CombineCtes_JoinsTwoCtesWithSingleWith()
     {
         const string cteA = "WITH C1 AS (SELECT 1 AS A)";
@@ -59,5 +95,15 @@ public sealed class QueryDeconstructorTests
 
         string combined = QueryDeconstructor.CombineCtes(cteA, cteB);
         Assert.Equal("WITH C1 AS (SELECT 1 AS A), C2 AS (SELECT 2 AS B)", combined);
+    }
+
+    [Fact]
+    public void CombinePreambles_DeDuplicatesStatements()
+    {
+        const string pA = "DECLARE @x INT = 1;\nDECLARE @y INT = 2;";
+        const string pB = "DECLARE @x INT = 1;\nDECLARE @z INT = 3;";
+
+        string combined = QueryDeconstructor.CombinePreambles(pA, pB);
+        Assert.Equal("DECLARE @x INT = 1;\nDECLARE @y INT = 2;\nDECLARE @z INT = 3;", combined);
     }
 }
