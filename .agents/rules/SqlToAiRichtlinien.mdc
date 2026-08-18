@@ -99,16 +99,25 @@ dotnet run            # Starten (als MCP Server)
     - `get_impact`: Vor/nach Refactorings ausführen — findet betroffene Aufrufstellen geänderter Signaturen via Git-Diff (uncommittete Änderungen) oder für ein bestimmtes Symbol.
     - `find_duplicates`: DRY-Audit für Code-Klone (`mode="clone"`) und Refactoring-Drift (`mode="refactoring-drift"` mit `helperSymbol` für Helper, die nachgebaut statt aufgerufen werden) — siehe auch Skill [.agents/skills/drift-audit/SKILL.md](../skills/drift-audit/SKILL.md).
     - `find_magic_values`: On-Demand-Audit nach hartkodierten Werten (Strings, Zahlen, Timeouts, Pfade, Statuscodes) zur Durchsetzung von §4 (*Keine hartkodierten Werte / AppSettings-Pflicht*).
+    - `find_dead_code`: Findet unreferenzierten/toten Code (Typen, Methoden, Properties, Felder) mit Confidence-Stufen (`high`/`low`) und False-Positive-Schutz.
   - **Quality-Gates & Pre-Commit-Check:**
     - `get_violations`: Liefert aktuelle Linter-Regelverstöße (nach jedem Edit aufrufen, Null-Toleranz sicherstellen).
     - `pattern_detect`: Gruppierte Audit-Sicht nach Fehlermustern (God-Classes, `async void`, lange Methoden, unkommentierte Public APIs, leere Catch-Blöcke, Feature Envy).
     - `safeguard`: Deterministischer Quality-Score (0–10) + Pass/Fail-Threshold als abschließendes Quality-Gate.
     - `reload_config`: Lädt `rules.json` zur Laufzeit neu ein, falls Konfigurationen angepasst wurden.
+  - **Observability, Health & Proaktives Feedback:**
+    - `get_server_health`: Statusprüfung des MCP-Servers (LoadState, Uptime, Solution-Refreshes, Observability-Status).
+    - `report_observability_feedback`: Proaktives Melden von Problemen oder Verbesserungswünschen zu diesem MCP-Server (Bugs, False-Positives, unerwartete Ergebnisse, fehlende Fähigkeiten).
 
   ### Best Practices & Richtlinien:
   - **Sufficiency-Doctrine:** Liefert ein MCP-Tool vollständige/finale Daten für den angefragten Scope (Hinweis im Tool-Output beachten), diese **nicht redundant per `view_file` oder `grep_search` nachprüfen**. Bei trunkierten Daten Parameter (`maxResults`, `depth`) anpassen.
   - **C#-Scope & Fallback:** Semantische Tools arbeiten ausschließlich auf `.cs`-Code (Roslyn-Symbolgraph). Für Nicht-C#-Dateien (z. B. `.json`, `.md`, `.sql`, `.razor`) `search_pattern` oder Standard-Tools verwenden.
   - **Pre-Commit-Routine:** Vor jedem Commit mit `get_violations` oder `safeguard` sicherstellen, dass 0 Regelverstöße vorliegen.
+  - **Proaktives MCP-Feedback & Observability-Reporting (Pflicht):**
+    - Wann immer bei der Nutzung des `AiNetLinter` MCP-Servers Probleme auftreten (Bugs, False-Positives, irreführende/unklare Outputs, Parsing-Fehler) oder nützliche Features/Erweiterungen fehlen, soll der Agent **proaktiv und unmittelbar `report_observability_feedback` aufrufen**.
+    - Die Rückmeldungen werden im Hintergrund gespeichert und gezielt zur Verbesserung des `AiNetLinter` MCP-Servers ausgewertet.
+    - Strukturierte Parameter übergeben: `feedbackType` (`"issue"` | `"feature_request"`), `title` (prägnant, max. 120 Zeichen), `description`, `severity` (`"low"` | `"medium"` | `"high"`), `relatedTool` (betroffenes Tool), `expectedBehavior`, `actualBehavior` und `additionalContext`.
+    - Nach dem Absenden des Reports bricht der Agent nicht ab, sondern setzt die aktuelle Aufgabe mit dem besten verfügbaren Fallback/Workaround fort.
 
 ## 6. Agentische Planung & Mitdenken (Agentic Planning)
 
