@@ -23,13 +23,6 @@ public interface IToolDispatcher
 /// <inheritdoc/>
 public sealed class ToolDispatcher : IToolDispatcher
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        TypeInfoResolver = McpJsonContext.Default
-    };
-
     private static readonly Action<ILogger, string, Exception?> LogUnknownTool =
         LoggerMessage.Define<string>(
             LogLevel.Warning,

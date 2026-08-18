@@ -39,17 +39,6 @@ internal static class McpConstants
         """;
 
     // -------------------------------------------------------------------------
-    // JSON-RPC methods
-    // -------------------------------------------------------------------------
-
-    internal const string MethodInitialize = "initialize";
-    internal const string MethodInitialized = "notifications/initialized";
-    internal const string MethodRootsListChanged = "notifications/roots/list_changed";
-    internal const string MethodToolsList = "tools/list";
-    internal const string MethodToolsCall = "tools/call";
-    internal const string MethodPing = "ping";
-
-    // -------------------------------------------------------------------------
     // Tool names (must match architecture-spec.md exactly)
     // -------------------------------------------------------------------------
 

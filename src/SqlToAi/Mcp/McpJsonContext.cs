@@ -12,26 +12,12 @@ namespace SqlToAi.Mcp;
     PropertyNameCaseInsensitive = true,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
 )]
-[JsonSerializable(typeof(JsonRpcRequest))]
-[JsonSerializable(typeof(JsonRpcResponse))]
-[JsonSerializable(typeof(JsonRpcErrorResponse))]
-[JsonSerializable(typeof(JsonRpcError))]
-[JsonSerializable(typeof(JsonRpcNotification))]
-[JsonSerializable(typeof(InitializeParams))]
-[JsonSerializable(typeof(InitializeResult))]
-[JsonSerializable(typeof(ClientInfo))]
-[JsonSerializable(typeof(ClientCapabilities))]
-[JsonSerializable(typeof(ServerInfo))]
-[JsonSerializable(typeof(ServerCapabilities))]
-[JsonSerializable(typeof(ToolsCapability))]
-[JsonSerializable(typeof(ToolListResult))]
 [JsonSerializable(typeof(ToolDefinition))]
 [JsonSerializable(typeof(ToolInputSchema))]
 [JsonSerializable(typeof(ToolParameterDefinition))]
 [JsonSerializable(typeof(ToolCallParams))]
 [JsonSerializable(typeof(ToolCallResult))]
 [JsonSerializable(typeof(ToolContent))]
-[JsonSerializable(typeof(EmptyResult))]
 
 
 [JsonSerializable(typeof(Dictionary<string, object?>))]
