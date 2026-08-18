@@ -27,12 +27,20 @@ public sealed class SqlToAiOptionsTests
         Assert.NotNull(options.Databases);
         Assert.NotNull(options.Anonymizer);
         Assert.NotNull(options.MetadataProvider);
+        Assert.NotNull(options.Observability);
 
         Assert.False(options.SqlServer.IntegratedSecurity);
         Assert.False(options.MetadataProvider.IntegratedSecurity);
         Assert.True(options.Anonymizer.Enabled);
         Assert.True(options.MetadataProvider.Enabled);
         Assert.Equal("ScramblePattern", options.Anonymizer.DefaultMode);
+
+        Assert.True(options.Observability.Enabled);
+        Assert.True(options.Observability.EnableToolCallLogging);
+        Assert.True(options.Observability.EnableFeedbackTool);
+        Assert.Null(options.Observability.LogDirectory);
+        Assert.True(options.Observability.EnableResponseLogging);
+        Assert.Equal(0, options.Observability.MaxResponseLength);
     }
 
     [Fact]
@@ -53,6 +61,13 @@ public sealed class SqlToAiOptionsTests
           "Anonymizer": {
             "Enabled": true,
             "DefaultMode": "Hash"
+          },
+          "Observability": {
+            "Enabled": true,
+            "EnableToolCallLogging": false,
+            "EnableFeedbackTool": true,
+            "LogDirectory": "custom_log",
+            "MaxResponseLength": 500
           }
         }
         """;
@@ -77,6 +92,12 @@ public sealed class SqlToAiOptionsTests
 
         Assert.True(options.Anonymizer.Enabled);
         Assert.Equal("Hash", options.Anonymizer.DefaultMode);
+
+        Assert.True(options.Observability.Enabled);
+        Assert.False(options.Observability.EnableToolCallLogging);
+        Assert.True(options.Observability.EnableFeedbackTool);
+        Assert.Equal("custom_log", options.Observability.LogDirectory);
+        Assert.Equal(500, options.Observability.MaxResponseLength);
     }
 
     [Fact]

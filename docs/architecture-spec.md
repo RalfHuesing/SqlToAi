@@ -337,16 +337,17 @@ Tritt bei der Ausführung eines Tools ein Fehler auf, wird das Tool-Ergebnis als
 
 ---
 
-## 6. Audit-Trail (MCP Call Log)
+## 6. Audit-Trail & Observability (`RalfHuesing.Mcp.Observability`)
 
-Neben dem JSON-RPC-Stream über `stdio` schreibt der Server für jede eingehende MCP-Methode
-einen strukturierten Eintrag in `log/mcp/YYYY-MM-DD/HH-MM-SS-{id}-call.jsonl`. Jeder Eintrag
-enthält Zeitstempel, Korrelations-ID (JSON-RPC-`id` oder generierte UUID für Notifications),
-Methode, Tool-Name (bei `tools/call`), Roh-Args und die **exakte Response, die an das LLM
-ging** — inklusive der ggf. angewendeten Anonymisierung. Damit ist der Trail eine 1:1-
-Reproduktion des LLM-Datenflusses, nicht eine Zusammenfassung.
+Neben dem MCP-Protokoll-Stream über `stdio` (ModelContextProtocol SDK 2.2.0) protokolliert das integrierte Paket `RalfHuesing.Mcp.Observability` (1.0.2) alle Tool-Aufrufe strukturiert in tägliche JSONL-Logdateien.
 
-Aufbewahrung und Pfad konfigurierbar unter `SqlToAi:Logging:McpTrail` in `appsettings.json`.
+### Eigenschaften & Features
+* **Tool-Call-Logging:** Jeder Tool-Aufruf erzeugt einen strukturierten Datensatz mit Zeitstempel, `serverName`, `toolName`, Ausführungsdauer, Erfolg/Fehler-Status und Response.
+* **Automatische PII- & Secret-Redaktion:** Sensible Parameterwerte (wie `password`, `secret`, `token`, `connectionString`, `key`, `credential`) werden automatisch durch den `ArgumentSanitizer` mit `***REDACTED***` maskiert.
+* **Agenten-Feedback-Tool (`report_observability_feedback`):** Bereitstellung des standardisierten MCP-Tools für strukturierte Rückmeldungen (Typen: `issue`, `positive`, `comment`, `suggestion`, `incident`) direkt in den Observability-Stream.
+* **Response-Größenlimits:** Konfigurierbare Begrenzung der protokollierten Response-Länge (`MaxResponseLength`) mit Kennzeichnung von Kürzungen (`responseTruncated`).
+
+Aufbewahrung und Verhalten sind unter `SqlToAi:Observability` in `appsettings.json` konfigurierbar.
 
 ---
 

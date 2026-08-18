@@ -5,6 +5,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
+using RalfHuesing.Mcp.Observability;
 using Serilog;
 using Serilog.Events;
 using SqlToAi.Anonymization;
@@ -86,27 +89,10 @@ internal static class Program
 
     private static async Task<int> RunServerAsync(ServiceProvider serviceProvider, CancellationToken cancellationToken)
     {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        Console.CancelKeyPress += (_, e) =>
-        {
-            e.Cancel = true;
-            cts.Cancel();
-        };
-
-        var host = serviceProvider.GetRequiredService<IMcpHost>();
-
-        // Ensure stdout uses UTF-8 without BOM so the MCP JSON stream stays clean.
-        Console.OutputEncoding = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
-
-        // Wrap stdin in a BOM-stripping StreamReader. Some clients (e.g. PowerShell)
-        // emit a UTF-8 BOM on the first write. detectEncodingFromByteOrderMarks:true
-        // transparently skips those bytes so the first JSON-RPC message is never lost.
-        using var stdinReader = new StreamReader(
-            Console.OpenStandardInput(),
-            new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-            detectEncodingFromByteOrderMarks: true);
-
-        await host.RunAsync(stdinReader, Console.Out, cts.Token);
+        var serverOptions = serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value;
+        var transport = new StdioServerTransport(serverOptions);
+        await using var server = McpServer.Create(transport, serverOptions, serviceProvider: serviceProvider);
+        await server.RunAsync(cancellationToken);
         return 0;
     }
 
@@ -207,15 +193,31 @@ internal static class Program
             sp.GetRequiredService<IAnonymizationRuleProvider>(),
             sp.GetRequiredService<IQueryTokenResolver>()));
 
-        // MCP
+        // MCP & Observability
         services.AddSingleton<ToolRegistry>();
         services.AddSingleton<IToolDispatcher, ToolDispatcher>();
-        services.AddSingleton<IMcpTrailWriter, McpTrailWriter>();
-        services.AddSingleton<IMcpHost, McpHost>();
         services.AddSingleton<LogRetentionService>(sp =>
             new LogRetentionService(
                 sp.GetRequiredService<SqlToAiOptions>().Logging,
                 sp.GetRequiredService<ILogger<LogRetentionService>>()));
+
+        services.AddMcpServer(serverOptions =>
+        {
+            serverOptions.ServerInfo = new Implementation
+            {
+                Name = McpConstants.ServerName,
+                Version = typeof(Program).Assembly.GetName().Version?.ToString() ?? McpConstants.ServerVersion
+            };
+            serverOptions.ServerInstructions = McpConstants.ServerInstructions;
+        })
+        .WithObservability(sqlToAiOptions.Observability);
+
+        services.AddSingleton<IConfigureOptions<McpServerOptions>>(sp =>
+            new ConfigureNamedOptions<McpServerOptions>(Options.DefaultName, options =>
+            {
+                var dispatcher = sp.GetRequiredService<IToolDispatcher>();
+                options.ToolCollection = SqlMcpToolRegistrations.BuildToolCollection(dispatcher);
+            }));
 
         return services.BuildServiceProvider();
     }

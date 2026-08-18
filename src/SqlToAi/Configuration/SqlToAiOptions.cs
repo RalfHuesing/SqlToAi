@@ -1,5 +1,7 @@
 #nullable enable
 
+using RalfHuesing.Mcp.Observability;
+
 namespace SqlToAi.Configuration;
 
 /// <summary>
@@ -14,6 +16,7 @@ public sealed class SqlToAiOptions
     public MetadataProviderOptions MetadataProvider { get; set; } = new();
     public QueryExecutionOptions QueryExecution { get; set; } = new();
     public LoggingOptions Logging { get; set; } = new();
+    public McpObservabilityOptions Observability { get; set; } = new();
 }
 
 /// <summary>

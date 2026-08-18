@@ -162,6 +162,15 @@ GRANT VIEW SERVER STATE TO [SqlToAiUser];
       "MaxRowLimit": 1000,
       "CommandTimeoutSeconds": 30
     },
+    "Observability": {
+      "Enabled": true,
+      "EnableToolCallLogging": true,
+      "EnableFeedbackTool": true,
+      "LogDirectory": null,
+      "EnableResponseLogging": true,
+      "MaxResponseLength": 0,
+      "FeedbackConfirmationMessage": "Feedback recorded. Thank you."
+    },
     "Logging": {
       "Directory": "log",
       "AppLog": {
@@ -175,11 +184,6 @@ GRANT VIEW SERVER STATE TO [SqlToAiUser];
         "Level": "Warning",
         "RollingInterval": "Day",
         "RetainedFileCount": 90
-      },
-      "McpTrail": {
-        "Enabled": true,
-        "Directory": "mcp",
-        "RetainedDays": 14
       }
     }
   }
@@ -254,62 +258,42 @@ suite, and publishes a self-contained single-file executable to `publish/`.
 
 ---
 
-## Logging
+## Logging & MCP Observability
 
-All log files live next to the executable, under `{exe-dir}/log/`. The layout is:
+Application and error logs live under `{exe-dir}/log/`:
 
 ```
 log/
 ├── app/
 │   ├── app-2026-07-12.log            # rolling daily, Information+, 30 days retention
 │   └── app-2026-07-11.log
-├── error/
-│   └── error-2026-07-12.log          # rolling daily, Warning+, 90 days retention
-└── mcp/
-    └── 2026-07-12/                   # one directory per UTC day
-        ├── 14-23-45-1-call.jsonl      # one JSONL file per MCP call
-        ├── 14-23-46-2-call.jsonl
-        └── ...
+└── error/
+    └── error-2026-07-12.log          # rolling daily, Warning+, 90 days retention
 ```
 
-The MCP trail records every method that crosses the host boundary — `initialize`, `tools/list`,
-`tools/call` (and the corresponding responses), plus notifications like `notifications/initialized`.
-Each line contains the JSON-RPC `id` (or a generated UUID when the request had none), the method,
-the tool name (for `tools/call`), the raw arguments as sent by the LLM, the exact response that was
-sent back, the wall-clock duration, and a success flag. **The recorded response is byte-for-byte
-what the LLM saw**, including any on-the-fly anonymization — so the trail is a faithful reproduction
-of the conversation, not a summary.
+### MCP Observability & Feedback (`RalfHuesing.Mcp.Observability`)
 
-Tune the sinks in `appsettings.json` under `SqlToAi:Logging`:
+MCP tool executions and agent feedback are logged using `RalfHuesing.Mcp.Observability`. By default, daily JSONL log files are written to `%LOCALAPPDATA%\RalfHuesing\McpObservability\SqlToAi\{yyyy-MM-dd}\` (or the configured `LogDirectory`).
+
+- **Tool Call Logging:** Records duration, success/error status, tool name, sanitized arguments (passwords/keys redacted automatically), and truncated responses.
+- **Feedback Tool (`report_observability_feedback`):** Standard tool allowing AI agents to submit feedback, issues, or compliments directly into the observability log.
+
+Configure under `SqlToAi:Observability` in `appsettings.json`:
 
 ```json
 {
   "SqlToAi": {
-    "Logging": {
-      "Directory": "log",
-      "AppLog":   { "Enabled": true, "Level": "Information", "RollingInterval": "Day", "RetainedFileCount": 30 },
-      "ErrorLog": { "Enabled": true, "Level": "Warning",    "RollingInterval": "Day", "RetainedFileCount": 90 },
-      "McpTrail": { "Enabled": true, "Directory": "mcp", "RetainedDays": 14 }
+    "Observability": {
+      "Enabled": true,
+      "EnableToolCallLogging": true,
+      "EnableFeedbackTool": true,
+      "LogDirectory": null,
+      "EnableResponseLogging": true,
+      "MaxResponseLength": 0,
+      "FeedbackConfirmationMessage": "Feedback recorded. Thank you."
     }
   }
 }
-```
-
-The MCP trail retention is enforced at server startup: day directories older than
-`McpTrail.RetainedDays` are deleted in full. The app and error logs use Serilog's built-in
-`retainedFileCountLimit`, so they are pruned continuously as new files roll in.
-
-To inspect the trail quickly:
-
-```powershell
-# Latest 5 calls
-Get-ChildItem log\mcp\ -Recurse -File | Sort-Object LastWriteTime -Desc | Select-Object -First 5 | Get-Content
-
-# All calls for a specific tool
-Select-String -Path log\mcp\**\*.jsonl -Pattern '"tool":"sql_execute_query"'
-
-# Failed calls only
-Select-String -Path log\mcp\**\*.jsonl -Pattern '"success":false'
 ```
 
 ---
