@@ -78,7 +78,7 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
                 _options.AnonymizationRules.IntegratedSecurity,
                 _options.AnonymizationRules.CommandTimeoutSeconds);
 
-            using var connection = SecondaryConnectionBuilder.Create(settings, "SqlToAi-AnonymizationRules", string.Empty, _connectionFactory);
+            using var connection = SecondaryConnectionBuilder.Create(settings, SecondaryConnectionBuilder.AnonymizationRulesApplicationName, string.Empty, _connectionFactory);
             await connection.OpenAsync(cancellationToken);
 
             string? safeTableName = await connection.QueryFirstOrDefaultAsync<string>(

@@ -191,6 +191,6 @@ public sealed class MetadataProvider : IMetadataProvider
             _options.MetadataProvider.IntegratedSecurity,
             _options.MetadataProvider.CommandTimeoutSeconds);
 
-        return SecondaryConnectionBuilder.Create(settings, "SqlToAi-Metadata", databaseName, _connectionFactory);
+        return SecondaryConnectionBuilder.Create(settings, SecondaryConnectionBuilder.MetadataApplicationName, databaseName, _connectionFactory);
     }
 }

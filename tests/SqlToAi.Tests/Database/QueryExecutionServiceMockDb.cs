@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 
 using System.Data.Common;
 using Microsoft.Extensions.Logging;
@@ -95,6 +95,24 @@ internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
     public FakeQuerySafetyValidator(SqlToAiError error)
     {
         _fixedFailure = error;
+    }
+
+    /// <summary>
+    /// Factory method building a <see cref="FakeQuerySafetyValidator"/> with the specified
+    /// security parameters, wrapping <see cref="FakeSecurityGuard"/>, <see cref="FakeAccessLevelProvider"/>,
+    /// and <see cref="ReadOnlyGuard"/> or fixed error.
+    /// </summary>
+    public static FakeQuerySafetyValidator Create(
+        bool isAllowed = true,
+        AccessLevel accessLevel = AccessLevel.ReadOnly,
+        SqlToAiError? error = null)
+    {
+        return error != null
+            ? new FakeQuerySafetyValidator(error)
+            : new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(isAllowed),
+                new FakeAccessLevelProvider(accessLevel),
+                new ReadOnlyGuard());
     }
 
     public Task<Result<QuerySafetyCheckResult>> ValidateQuerySafetyAsync(

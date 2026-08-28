@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -30,16 +30,9 @@ public sealed class QueryComparisonServiceTests
     {
         var options = new SqlToAiOptions();
 
-        IQuerySafetyValidator safetyValidator = error != null
-            ? new FakeQuerySafetyValidator(error)
-            : new FakeQuerySafetyValidator(
-                new FakeSecurityGuard(isAllowed),
-                new FakeAccessLevelProvider(accessLevel),
-                new ReadOnlyGuard());
-
         return new QueryComparisonService(
             new ValidationMockConnectionFactory(),
-            safetyValidator,
+            FakeQuerySafetyValidator.Create(isAllowed, accessLevel, error),
             Options.Create(options),
             NullLogger<QueryComparisonService>.Instance);
     }

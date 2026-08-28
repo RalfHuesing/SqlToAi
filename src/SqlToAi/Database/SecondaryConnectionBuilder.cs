@@ -25,6 +25,9 @@ internal sealed record SecondaryConnectionSettings(
 /// </summary>
 internal static class SecondaryConnectionBuilder
 {
+    internal const string AnonymizationRulesApplicationName = "SqlToAi-AnonymizationRules";
+    internal const string MetadataApplicationName = "SqlToAi-Metadata";
+
     /// <summary>
     /// Creates a connection for a secondary database. If <see cref="SecondaryConnectionSettings.Server"/>
     /// is not configured, falls back to <paramref name="fallbackConnectionFactory"/> against
