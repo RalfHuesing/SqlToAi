@@ -72,12 +72,18 @@ dotnet run            # Starten (als MCP Server)
 - **Commits (Pflicht):** Commits werden **autonom in sinnvollen Abständen** gemacht — nach jedem abgeschlossenen Feature, nach jedem behobenen Fehler, nach jedem grünen Test-Lauf. Kein Warten auf explizite Aufforderung. Jeder Commit-Vorschlag schließt mit `### Commit-Vorschlag` (Conventional Commit, Deutsch, imperativ).
 - **Keine hartkodierten Werte (No Magic Values) & AppSettings-Pflicht:** Numerische Limits, Timeouts, Default-Werte und konfigurierbare Strings dürfen **niemals direkt in `.cs`-Dateien** eingetragen werden. Alle Konfigurationswerte kommen aus der `appsettings.json` (gebunden via `IOptions<T>`). Defaults werden als Property-Initializer in der jeweiligen `*Options`-Klasse gesetzt und sind dort dokumentiert — nie im aufrufenden Code. **Jede neu eingeführte Konfigurationsoption muss zwingend auch lückenlos in der Haupt-`appsettings.json` mit sinnvollen Defaults definiert sein**, um die automatische Startup-Synchronisierung (`AppSettingsMigrator`) zu gewährleisten.
 
-## 5. Qualitätsdrift-Prävention (AiNetLinter)
+## 5. Qualitätsdrift-Prävention & Tech Debt (AiNetLinter)
 
 - **Zero-Warning-Direktive:** Das Projekt nutzt `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`. Neuer Code darf keine Compiler-Warnungen einführen.
 - **Linter-Konformität:** Der Code muss den Linter-Richtlinien in [.agents/rules/AiNetLinter.mdc](AiNetLinter.mdc) (wie `sealed` Klassen, Methoden-Längen, etc.) entsprechen.
 - **Result-Pattern:** Bevorzuge `Result<T>` für die Fehlerbehandlung, besonders an den Schnittstellen der MCP-Tools (Error-Catalog).
 - **Baseline-Freiheit & Clean-Check:** Das Projekt wird vollständig baseline-frei geführt. Jeder Build und Testlauf erzwingt strikte Null-Toleranz (0 Fehler, 0 Warnungen) gegen die Linter-Regeln in [.agents/rules/AiNetLinter.mdc](AiNetLinter.mdc). Fehlt `AiNetLinter.exe` auf der Maschine, wird `RunLinterShouldBeClean` per `Assert.Skip` übersprungen.
+- **Proaktiver Abbau von Technical Debt & Regelverstößen:**
+  - Code-Duplikationen (DRY-Verstöße / Duplicate Code), hartkodierte Werte (Magic Values / Magic Strings / Magic Numbers) und nicht verwendeter Code (Dead Code) gelten als **Technical Debt** und sind **proaktiv zu beheben**.
+  - Alle festgestellten Regelverstöße müssen gelöst werden.
+  - **Architektonische Qualität vor Symptombekämpfung:** Die Behebung muss architektonisch ordentlich und nachhaltig erfolgen (z. B. durch sinnvolle Abstraktionen, Helper-Klassen oder gezielte kleine Refactorings).
+  - **Kein Beheben nur des Behebens wegen:** Keine oberflächlichen Hacks, keine künstlichen Verrenkungen und kein vorschnelles Deaktivieren (`// ainetlinter-disable`) nur um Regeln formal zu befriedigen.
+  - **Meldepflicht bei größeren Refactorings:** Wenn die Behebung eines Verstoßes oder von Tech Debt ein **größeres oder strukturelles Refactoring** erfordert, ist dies nicht eigenmächtig durchzuführen, sondern dem Nutzer **transparent zu melden und vorab abzustimmen**.
 - **Semantische C#-Code-Intelligence (MCP Server):** Für alle C#-Symbol-, Referenz-, Impact-, Duplicate- und Regelprüfungen ist verbindlich der AiNetLinter MCP-Server gemäß [.agents/rules/AiNetLinter-McpWorkflow.mdc](AiNetLinter-McpWorkflow.mdc) zu nutzen.
 
 ## 6. Agentische Planung & Mitdenken (Agentic Planning)
