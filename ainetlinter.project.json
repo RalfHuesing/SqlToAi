@@ -1,0 +1,4 @@
+{
+  "solution": "SqlToAi.slnx",
+  "rules": "tests/SqlToAi.Tests/AiNetLinter/rules/SqlToAi.rules.json"
+}

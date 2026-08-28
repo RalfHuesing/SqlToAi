@@ -17,6 +17,7 @@ Projekt-Orientierung für KI-Coding-Assistenten.
 - Projektspezifische Richtlinien und Linter-Regeln befinden sich unter [.agents/rules/](.agents/rules/):
   - [.agents/rules/SqlToAiRichtlinien.mdc](.agents/rules/SqlToAiRichtlinien.mdc) — Entwicklungs- und Sicherheitsrichtlinien für SqlToAi
   - [.agents/rules/AiNetLinter.mdc](.agents/rules/AiNetLinter.mdc) — C#/.NET Linter-Vorgaben
+  - [.agents/rules/AiNetLinter-McpWorkflow.mdc](.agents/rules/AiNetLinter-McpWorkflow.mdc) — AiNetLinter MCP-Server-Nutzung & Semantische Analyse
 
 ## Commit- & PR-Konventionen
 

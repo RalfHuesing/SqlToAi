@@ -1,0 +1,65 @@
+---
+description: Dauerhafte Nutzungsregeln für die semantische .NET-Analyse mit dem AiNetLinter-MCP-Server.
+globs: *
+alwaysApply: true
+---
+# AiNetLinter MCP-Nutzung
+
+AiNetLinter analysiert .NET-Solutions mit Roslyn. Für semantische Fragen zu
+C#-Code gelten die folgenden verbindlichen Prioritäten; die AiNetLinter-MCP-
+Tools kennen Symbole, Typen, Referenzen und Abhängigkeiten.
+
+## Verbindliche Priorität
+
+Bei jeder Aufgabe, die C#-Symbole, Typen, Aufrufer, Referenzen, Abhängigkeiten,
+Impact, Codeverständnis oder Regelverstöße betrifft, MUSS zuerst das passende
+AiNetLinter-MCP-Tool aufgerufen werden. Die Werkzeugwahl richtet sich nach der
+Tabelle unten; `rg`/`grep`/Read oder interne Agenten-Tools dürfen ergänzend für
+konkreten Edit-/Diff-Kontext und exakte Textarbeit verwendet werden, ersetzen
+aber nicht die semantische MCP-Abfrage.
+
+## Standard
+
+- Für jeden projektbezogenen MCP-Tool-Aufruf den absoluten `projectRoot`
+  mitsenden. `get_server_health` darf ohne Projektfilter verwendet werden.
+- Die aktuellen Tool- und Parameterschemas aus der MCP-Tooldefinition verwenden
+  (typischerweise über `tools/list` bereitgestellt); diese Regel dupliziert keine
+  Toolschemas.
+- Nach einem vollständigen MCP-Ergebnis dieselbe semantische Frage nicht
+  redundant mit Read/rg/grep nachprüfen; bei Trunkierung den Scope oder die
+  Limits des MCP-Aufrufs verfeinern.
+
+## Werkzeugwahl
+
+| Anliegen | Zuerst verwenden |
+| :--- | :--- |
+| Physische Projektstruktur und Nicht-C#-Dateien entdecken | `get_file_tree` |
+| C#-Symbol oder Feature verstehen | `get_feature_context`; bei unbekanntem Namen `find_symbol` |
+| Signaturen und Struktur überblicken | `get_file_skeleton`, `get_class_structure`, dann `get_symbol_body` |
+| Öffentliche API einer lokalen .NET-DLL untersuchen | `inspect_assembly` |
+| Klassische Extension-Methoden einer lokalen .NET-DLL prüfen | `find_assembly_extensions` |
+| Aufrufer, Abhängigkeiten oder Tests prüfen | `find_references`, `get_impact`, `dependency_graph`, `get_test_context` |
+| Nach C#-Änderungen gezielt prüfen | `get_impact`, `get_violations`; bei Bedarf `metrics_lookup` |
+| Vor größerem Abschluss auditieren | `safeguard`; passend zum Risiko `find_duplicates`, `find_dead_code` oder `find_magic_values` |
+| Toolfehler oder fehlende Analysefähigkeit melden | `report_observability_feedback` |
+
+`get_file_tree` ist der erste Discovery-Schritt für die physische Projektstruktur:
+Er liefert relative Pfade, Verzeichnisaggregation, optionale Metadaten und
+sichtbare Completeness-/Trunkierungsangaben auch für Dateien außerhalb des
+Roslyn-Solutionindexes. Danach sind `get_index_scope` (Indexabdeckung),
+`search_pattern` (Inhalt/Text) und die semantischen C#-Tools gezielt einzusetzen.
+`rg`/`grep`, Read und interne Agenten-Tools bleiben für konkrete Edit-/Diff-
+Arbeit, Konfiguration und exakte Textarbeit erlaubt. Sie ersetzen bei
+C#-Symbol-, Referenz- und Impact-Fragen nicht die semantische MCP-Analyse.
+
+Für beide Assembly-Tools ist `assemblyPath` ein absoluter, lokaler DLL-Pfad;
+`projectRoot` ist optional und liefert den Consumer-Kontext. Die Analyse ist
+metadata-only und führt die DLL nicht aus. Bei `inspect_assembly` zuerst die
+öffentliche API untersuchen; `find_assembly_extensions` prüft klassische C#-
+Extensions und kann mit `receiverType` die Roslyn-Anwendbarkeit bewerten.
+`completeness` sowie Trunkierungsangaben beachten.
+
+Bei `PROJECT_NOT_INITIALIZED` oder `RULES_INVALID` nicht ungefragt eine
+Projektintegration durchführen. Nur bei einem ausdrücklichen
+Integrationsauftrag den einmaligen Leitfaden über `ainetlinter://agent-guide`
+lesen; er enthält den Bootstrap-Ablauf und die dauerhafte Regeldatei.

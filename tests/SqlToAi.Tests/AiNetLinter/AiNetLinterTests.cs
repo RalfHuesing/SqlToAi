@@ -6,15 +6,25 @@ namespace SqlToAi.Tests.AiNetLinter;
 
 public sealed class AiNetLinterTests
 {
-    private const string LinterExePath = @"C:\Daten\AiNetLinter-win-x64\AiNetLinter.exe";
+    private static readonly string[] CandidatePaths =
+    [
+        @"C:\Daten\Tools\AiNetLinter-win-x64\AiNetLinter.exe",
+        @"C:\Daten\Tools\Beta\AiNetLinter-win-x64\AiNetLinter.exe",
+        @"C:\Daten\AiNetLinter-win-x64\AiNetLinter.exe"
+    ];
+
+    private static string? ResolveLinterExePath()
+    {
+        return CandidatePaths.FirstOrDefault(File.Exists);
+    }
 
     [Fact]
     public async Task RunLinterShouldBeClean()
     {
-        // 1. Skip test if the linter executable is not present on this machine
-        if (!File.Exists(LinterExePath))
+        string? linterExePath = ResolveLinterExePath();
+        if (linterExePath == null)
         {
-            Assert.Skip("AiNetLinter.exe was not found at path: " + LinterExePath);
+            Assert.Skip("AiNetLinter.exe was not found in candidate paths.");
             return;
         }
 
@@ -36,7 +46,7 @@ public sealed class AiNetLinterTests
         };
 
         var (valExitCode, valStdout, valStderr) = await RunLinterProcessAsync(
-            string.Join(" ", validationArgs), solutionRoot, TestContext.Current.CancellationToken);
+            linterExePath, string.Join(" ", validationArgs), solutionRoot, TestContext.Current.CancellationToken);
 
         // 4. Always write report — even on failure, so the agent can read it
         var reportContent = new StringBuilder();
@@ -77,7 +87,7 @@ public sealed class AiNetLinterTests
         };
 
         var (syncExitCode, syncStdout, syncStderr) = await RunLinterProcessAsync(
-            string.Join(" ", syncArgs), solutionRoot, TestContext.Current.CancellationToken);
+            linterExePath, string.Join(" ", syncArgs), solutionRoot, TestContext.Current.CancellationToken);
 
         if (syncExitCode != 0)
         {
@@ -88,11 +98,11 @@ public sealed class AiNetLinterTests
     }
 
     private static async Task<(int ExitCode, string Stdout, string Stderr)> RunLinterProcessAsync(
-        string argumentsString, string solutionRoot, CancellationToken cancellationToken)
+        string exePath, string argumentsString, string solutionRoot, CancellationToken cancellationToken)
     {
         var startInfo = new ProcessStartInfo
         {
-            FileName = LinterExePath,
+            FileName = exePath,
             Arguments = argumentsString,
             WorkingDirectory = solutionRoot,
             RedirectStandardOutput = true,
