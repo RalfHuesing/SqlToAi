@@ -14,6 +14,7 @@ complete map of the repository.
 ## Map
 
 - **`src/SqlToAi/Database`** — database execution services, connection/command helpers, safety validation, transaction integrity, parameter binding, and performance metrics used by the batch execution engine.
+- **`src/SqlToAi/Database/SqlBatch.cs` and `src/SqlToAi/Database/SqlScriptBatchSplitter.cs`** — internal batch metadata and script-splitting foundation for later file-execution steps. (last: step-001)
 - **`src/SqlToAi/Security`** — access-level resolution and the read-only guard that define database authorization and mutation protection.
 - **`src/SqlToAi/Anonymization`** — anonymizer, token vault, token resolver, and rule/policy components needed for protected script result sets.
 - **`src/SqlToAi/Configuration`** — `SqlToAiOptions` and nested execution options where the script-size limit and related defaults belong.
