@@ -24,8 +24,9 @@ public sealed class ScriptExecutionServiceTests
         var result = await service.ExecuteAsync(
             BuildRequest("  \r\n  "), TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
+        Assert.Equal(ScriptExecutionStatus.Failed, result.Status);
+        Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error!.Code);
+        Assert.Equal(ScriptTransactionMode.NotStarted, result.Mode);
         Assert.Null(factory.LastConnection);
         Assert.Empty(safety.BatchQueries);
         Assert.Empty(executor.Calls);
@@ -44,8 +45,10 @@ public sealed class ScriptExecutionServiceTests
         var result = await service.ExecuteAsync(
             BuildRequest("SELECT 1\nGO\nSELECT 2"), TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
+        Assert.Equal(ScriptExecutionStatus.Failed, result.Status);
+        Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error!.Code);
+        Assert.Equal(ScriptBatchStatus.Failed, result.Batches[1].Status);
+        Assert.Equal(ScriptTransactionMode.NotStarted, result.Mode);
         Assert.Equal(2, safety.BatchQueries.Count);
         Assert.Null(factory.LastConnection);
         Assert.Empty(executor.Calls);
@@ -62,8 +65,10 @@ public sealed class ScriptExecutionServiceTests
         var result = await service.ExecuteAsync(
             BuildRequest("UPDATE A SET X = 1\nGO\nUPDATE B SET X = 2"), TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
+        Assert.Equal(ScriptExecutionStatus.Success, result.Status);
         Assert.Equal(2, executor.Calls.Count);
+        Assert.All(result.Batches, batch => Assert.Equal(ScriptBatchStatus.Success, batch.Status));
+        Assert.Equal(ScriptTransactionMode.ReadWriteAtomic, result.Mode);
         Assert.Same(executor.Calls[0].Transaction, executor.Calls[1].Transaction);
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.CommitCount);
         Assert.Equal(0, factory.LastConnection?.LastTransaction?.RollbackCount);
@@ -90,10 +95,11 @@ public sealed class ScriptExecutionServiceTests
             },
             TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
+        Assert.Equal(ScriptExecutionStatus.Success, result.Status);
         Assert.Equal(2, executor.Calls.Count);
         Assert.All(executor.Calls, call => Assert.Null(call.Transaction));
         Assert.Null(factory.LastConnection?.LastTransaction);
+        Assert.Equal(ScriptTransactionMode.ReadWriteProviderAutocommit, result.Mode);
     }
 
     [Fact]
@@ -113,11 +119,15 @@ public sealed class ScriptExecutionServiceTests
             },
             TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
+        Assert.Equal(ScriptExecutionStatus.Failed, result.Status);
+        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error!.Code);
         Assert.Equal(2, executor.Calls.Count);
         Assert.All(executor.Calls, call => Assert.Null(call.Transaction));
         Assert.Null(factory.LastConnection?.LastTransaction);
+        Assert.Equal(ScriptTransactionMode.ReadWriteProviderAutocommit, result.Mode);
+        Assert.Equal(ScriptBatchStatus.Success, result.Batches[0].Status);
+        Assert.Equal(ScriptBatchStatus.Failed, result.Batches[1].Status);
+        Assert.Equal(ScriptBatchStatus.NotExecuted, result.Batches[2].Status);
     }
 
     [Theory]
@@ -135,10 +145,13 @@ public sealed class ScriptExecutionServiceTests
         var result = await service.ExecuteAsync(
             BuildRequest("SELECT 1\nGO\nSELECT 2"), TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
+        Assert.Equal(ScriptExecutionStatus.Success, result.Status);
         Assert.All(executor.Calls, call => Assert.Equal(expectedAnonymize, call.Anonymize));
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);
         Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
+        Assert.Equal(
+            expectedAnonymize ? ScriptTransactionMode.ReadOnlyAnonymizedRollback : ScriptTransactionMode.ReadOnlyRollback,
+            result.Mode);
     }
 
     [Theory]
@@ -160,7 +173,7 @@ public sealed class ScriptExecutionServiceTests
             },
             TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
+        Assert.Equal(ScriptExecutionStatus.Success, result.Status);
         Assert.All(executor.Calls, call =>
         {
             Assert.NotNull(call.Transaction);
@@ -168,6 +181,9 @@ public sealed class ScriptExecutionServiceTests
         });
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);
         Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
+        Assert.Equal(
+            expectedAnonymize ? ScriptTransactionMode.ReadOnlyAnonymizedRollback : ScriptTransactionMode.ReadOnlyRollback,
+            result.Mode);
     }
 
     [Fact]
@@ -181,15 +197,37 @@ public sealed class ScriptExecutionServiceTests
         var result = await service.ExecuteAsync(
             BuildRequest("SELECT 1\nGO 2\nSELECT 2"), TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
+        Assert.Equal(ScriptExecutionStatus.Success, result.Status);
         Assert.Equal(3, executor.Calls.Count);
         Assert.Equal(2, safety.BatchQueries.Count);
-        Assert.Equal(2, result.Value[0].Batch.RepeatCount);
-        Assert.Equal(2, result.Value[0].Executions.Count);
-        Assert.Equal(1, result.Value[1].Batch.RepeatCount);
-        Assert.Equal(3, result.Value[1].Batch.StartLine);
-        Assert.Contains("SELECT 1", result.Value[0].Batch.Text, StringComparison.Ordinal);
+        Assert.Equal(2, result.Batches[0].Batch.RepeatCount);
+        Assert.Equal(2, result.Batches[0].Executions.Count);
+        Assert.Equal(1, result.Batches[1].Batch.RepeatCount);
+        Assert.Equal(3, result.Batches[1].Batch.StartLine);
+        Assert.Contains("SELECT 1", result.Batches[0].Batch.Text, StringComparison.Ordinal);
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.CommitCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SumsMetricsAcrossRepetitionsInReport()
+    {
+        var factory = new MockQueryConnectionFactory();
+        var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(AccessLevel.ReadWrite, true));
+        var executor = new RecordingBatchExecutor();
+        executor.EnqueueSuccess(new QueryExecutionResult("{\"id\":1}", false, [], "ScramblePattern", ElapsedMs: 11, RowCount: 1, CpuTimeMs: 7, LogicalReads: 13));
+        executor.EnqueueSuccess(new QueryExecutionResult("{\"id\":2}", false, [], "ScramblePattern", ElapsedMs: 17, RowCount: 1, CpuTimeMs: 5, LogicalReads: 19));
+        executor.EnqueueSuccess(new QueryExecutionResult("{\"id\":3}", false, [], "ScramblePattern", ElapsedMs: 23, RowCount: 1, CpuTimeMs: 3, LogicalReads: 29));
+        var service = BuildService(factory, safety, executor);
+
+        var result = await service.ExecuteAsync(
+            BuildRequest("SELECT 1\nGO 2\nSELECT 2"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(ScriptExecutionStatus.Success, result.Status);
+        Assert.Equal(51, result.ElapsedMs);
+        Assert.Equal(15, result.CpuTimeMs);
+        Assert.Equal(61, result.LogicalReads);
+        Assert.Equal(2, result.Batches[0].Executions.Count);
+        Assert.Equal("{\"id\":1}", result.Batches[0].Executions[0].Data);
     }
 
     [Fact]
@@ -205,11 +243,15 @@ public sealed class ScriptExecutionServiceTests
         var result = await service.ExecuteAsync(
             BuildRequest("SELECT 1\nGO\nSELECT 2\nGO\nSELECT 3"), TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
+        Assert.Equal(ScriptExecutionStatus.Failed, result.Status);
+        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error!.Code);
         Assert.Equal(2, executor.Calls.Count);
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);
         Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
+        Assert.Equal(ScriptBatchStatus.Success, result.Batches[0].Status);
+        Assert.Equal(ScriptBatchStatus.Failed, result.Batches[1].Status);
+        Assert.Equal(ScriptBatchStatus.NotExecuted, result.Batches[2].Status);
+        Assert.Equal(2, result.Batches[1].BatchNumber);
     }
 
     [Fact]
@@ -223,11 +265,12 @@ public sealed class ScriptExecutionServiceTests
         var result = await service.ExecuteAsync(
             BuildRequest("SELECT 1"), TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
+        Assert.Equal(ScriptExecutionStatus.Failed, result.Status);
+        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error!.Code);
         Assert.Single(executor.Calls);
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);
         Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
+        Assert.Equal(ScriptBatchStatus.Failed, result.Batches[0].Status);
     }
 
     [Fact]
@@ -258,11 +301,12 @@ public sealed class ScriptExecutionServiceTests
         var result = await service.ExecuteAsync(
             BuildRequest("SELECT 1"), TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
+        Assert.Equal(ScriptExecutionStatus.Failed, result.Status);
+        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error!.Code);
         Assert.Single(executor.Calls);
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);
         Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
+        Assert.Equal(ScriptBatchStatus.Failed, result.Batches[0].Status);
     }
 
     [Fact]
@@ -277,12 +321,13 @@ public sealed class ScriptExecutionServiceTests
         var result = await service.ExecuteAsync(
             BuildRequest("SELECT 1"), TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
+        Assert.Equal(ScriptExecutionStatus.Failed, result.Status);
+        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error!.Code);
         Assert.Single(executor.Calls);
         Assert.NotNull(executor.Calls[0].Transaction);
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);
         Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
+        Assert.Equal(ScriptBatchStatus.Failed, result.Batches[0].Status);
     }
 
     private static ScriptExecutionService BuildService(
@@ -351,6 +396,8 @@ public sealed class ScriptExecutionServiceTests
         }
 
         public void EnqueueSuccess() => _results.Enqueue(SuccessResult());
+
+        public void EnqueueSuccess(QueryExecutionResult result) => _results.Enqueue(result);
 
         public void EnqueueFailure(SqlToAiError error) => _results.Enqueue(error);
 

@@ -6,7 +6,7 @@ namespace SqlToAi.Database;
 
 internal interface IScriptExecutionService
 {
-    Task<Result<IReadOnlyList<ScriptBatchExecutionResult>>> ExecuteAsync(
+    Task<ScriptExecutionReport> ExecuteAsync(
         ScriptExecutionRequest request,
         CancellationToken cancellationToken = default);
 }
@@ -17,7 +17,3 @@ internal sealed record ScriptExecutionRequest(
     int? RequestedRowLimit = null,
     object? Parameters = null,
     bool UseTransaction = true);
-
-internal sealed record ScriptBatchExecutionResult(
-    SqlBatch Batch,
-    IReadOnlyList<QueryExecutionResult> Executions);
