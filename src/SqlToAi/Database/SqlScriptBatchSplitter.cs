@@ -16,15 +16,15 @@ internal static class SqlScriptBatchSplitter
 
         var batches = new List<SqlBatch>();
         var batchText = new StringBuilder();
-        var state = ScanState.Normal;
+        var state = new ScanState(ScanMode.Normal, 0);
         int startLine = 0;
         int endLine = 0;
 
         foreach (var line in EnumerateLines(script))
         {
-            if (state == ScanState.Normal && TryParseSeparator(line.Text, out int repeatCount))
+            if (state.IsNormal && TryParseSeparator(line.Text, out int repeatCount))
             {
-                AddBatch(batches, batchText, startLine, endLine, repeatCount);
+                AddBatch(batches, batchText, new BatchMetadata(startLine, endLine, repeatCount));
                 batchText.Clear();
                 startLine = 0;
                 endLine = 0;
@@ -41,24 +41,22 @@ internal static class SqlScriptBatchSplitter
             state = AdvanceState(line.Text, state);
         }
 
-        AddBatch(batches, batchText, startLine, endLine, 1);
+        AddBatch(batches, batchText, new BatchMetadata(startLine, endLine, 1));
         return batches;
     }
 
     private static void AddBatch(
         List<SqlBatch> batches,
         StringBuilder batchText,
-        int startLine,
-        int endLine,
-        int repeatCount)
+        BatchMetadata metadata)
     {
         string text = batchText.ToString();
-        if (startLine == 0 || string.IsNullOrWhiteSpace(text))
+        if (metadata.StartLine == 0 || string.IsNullOrWhiteSpace(text))
         {
             return;
         }
 
-        batches.Add(new SqlBatch(text, startLine, endLine, repeatCount));
+        batches.Add(new SqlBatch(text, metadata.StartLine, metadata.EndLine, metadata.RepeatCount));
     }
 
     private static IEnumerable<SqlLine> EnumerateLines(string script)
@@ -146,27 +144,45 @@ internal static class SqlScriptBatchSplitter
 
     private static bool TryReadTrailingComments(string line, ref int index)
     {
-        while (true)
+        int blockCommentDepth = 0;
+        while (index < line.Length)
         {
-            index = SkipWhitespace(line, index);
-            if (index >= line.Length || line[index] == '-' && index + 1 < line.Length && line[index + 1] == '-')
+            if (blockCommentDepth == 0)
             {
-                return true;
+                index = SkipWhitespace(line, index);
+                if (index >= line.Length || StartsLineComment(line, index))
+                {
+                    return true;
+                }
+
+                if (!StartsBlockComment(line, index))
+                {
+                    return false;
+                }
+
+                blockCommentDepth = 1;
+                index += 2;
+                continue;
             }
 
-            if (!StartsBlockComment(line, index))
+            if (StartsBlockComment(line, index))
             {
-                return false;
+                blockCommentDepth++;
+                index += 2;
+                continue;
             }
 
-            int commentEnd = line.IndexOf("*/", index + 2, StringComparison.Ordinal);
-            if (commentEnd < 0)
+            if (IsPair(line, index, '*', '/'))
             {
-                return false;
+                blockCommentDepth--;
+                index += 2;
+                continue;
             }
 
-            index = commentEnd + 2;
+            index++;
         }
+
+        return blockCommentDepth == 0;
     }
 
     private static int SkipWhitespace(string line, int start)
@@ -229,18 +245,21 @@ internal static class SqlScriptBatchSplitter
 
     private static bool TryAdvanceSpecialState(string line, ref ScanState state, ref int index)
     {
-        switch (state)
+        if (state.BlockCommentDepth > 0)
         {
-            case ScanState.BlockComment:
-                AdvanceBlockComment(line, ref state, ref index);
-                return true;
-            case ScanState.SingleQuote:
+            AdvanceBlockComment(line, ref state, ref index);
+            return true;
+        }
+
+        switch (state.Mode)
+        {
+            case ScanMode.SingleQuote:
                 AdvanceSingleQuote(line, ref state, ref index);
                 return true;
-            case ScanState.BracketIdentifier:
+            case ScanMode.BracketIdentifier:
                 AdvanceBracketIdentifier(line, ref state, ref index);
                 return true;
-            case ScanState.DoubleQuote:
+            case ScanMode.DoubleQuote:
                 AdvanceDoubleQuote(line, ref state, ref index);
                 return true;
             default:
@@ -250,9 +269,14 @@ internal static class SqlScriptBatchSplitter
 
     private static void AdvanceBlockComment(string line, ref ScanState state, ref int index)
     {
-        if (IsPair(line, index, '*', '/'))
+        if (StartsBlockComment(line, index))
         {
-            state = ScanState.Normal;
+            state = state with { BlockCommentDepth = state.BlockCommentDepth + 1 };
+            index++;
+        }
+        else if (IsPair(line, index, '*', '/'))
+        {
+            state = state with { BlockCommentDepth = state.BlockCommentDepth - 1 };
             index++;
         }
     }
@@ -265,7 +289,7 @@ internal static class SqlScriptBatchSplitter
         }
         else if (line[index] == '\'')
         {
-            state = ScanState.Normal;
+            state = state with { Mode = ScanMode.Normal };
         }
     }
 
@@ -277,7 +301,7 @@ internal static class SqlScriptBatchSplitter
         }
         else if (line[index] == ']')
         {
-            state = ScanState.Normal;
+            state = state with { Mode = ScanMode.Normal };
         }
     }
 
@@ -289,7 +313,7 @@ internal static class SqlScriptBatchSplitter
         }
         else if (line[index] == '"')
         {
-            state = ScanState.Normal;
+            state = state with { Mode = ScanMode.Normal };
         }
     }
 
@@ -298,14 +322,14 @@ internal static class SqlScriptBatchSplitter
         if (StartsBlockComment(line, index))
         {
             index++;
-            return ScanState.BlockComment;
+            return state with { BlockCommentDepth = 1 };
         }
 
         return line[index] switch
         {
-            '\'' => ScanState.SingleQuote,
-            '[' => ScanState.BracketIdentifier,
-            '"' => ScanState.DoubleQuote,
+            '\'' => state with { Mode = ScanMode.SingleQuote },
+            '[' => state with { Mode = ScanMode.BracketIdentifier },
+            '"' => state with { Mode = ScanMode.DoubleQuote },
             _ => state
         };
     }
@@ -315,14 +339,20 @@ internal static class SqlScriptBatchSplitter
         return index + 1 < line.Length && line[index] == first && line[index + 1] == second;
     }
 
-    private enum ScanState
+    private enum ScanMode
     {
         Normal,
-        BlockComment,
         SingleQuote,
         BracketIdentifier,
         DoubleQuote
     }
+
+    private readonly record struct ScanState(ScanMode Mode, int BlockCommentDepth)
+    {
+        public bool IsNormal => Mode == ScanMode.Normal && BlockCommentDepth == 0;
+    }
+
+    private readonly record struct BatchMetadata(int StartLine, int EndLine, int RepeatCount);
 
     private readonly record struct SqlLine(string Text, string Terminator, int Number);
 }

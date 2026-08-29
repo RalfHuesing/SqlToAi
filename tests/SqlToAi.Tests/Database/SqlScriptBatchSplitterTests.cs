@@ -113,6 +113,38 @@ public sealed class SqlScriptBatchSplitterTests
     }
 
     [Fact]
+    public void NestedMultilineBlockComment_DoesNotSplitAtInnerGo()
+    {
+        const string script = "SELECT 1;\nGO\n/* outer\n   /* nested\n   */\n   GO\n*/";
+
+        var batches = SqlScriptBatchSplitter.Split(script);
+
+        Assert.Equal(2, batches.Count);
+        Assert.Equal("SELECT 1;\n", batches[0].Text);
+        Assert.Equal(1, batches[0].StartLine);
+        Assert.Equal(1, batches[0].EndLine);
+        Assert.Equal("/* outer\n   /* nested\n   */\n   GO\n*/", batches[1].Text);
+        Assert.Equal(3, batches[1].StartLine);
+        Assert.Equal(7, batches[1].EndLine);
+    }
+
+    [Fact]
+    public void NestedTrailingBlockComment_IsAcceptedAsSeparator()
+    {
+        const string script = "SELECT 1\nGO /* outer /* nested */ */\nSELECT 2";
+
+        var batches = SqlScriptBatchSplitter.Split(script);
+
+        Assert.Equal(2, batches.Count);
+        Assert.Equal("SELECT 1\n", batches[0].Text);
+        Assert.Equal(1, batches[0].StartLine);
+        Assert.Equal(1, batches[0].EndLine);
+        Assert.Equal("SELECT 2", batches[1].Text);
+        Assert.Equal(3, batches[1].StartLine);
+        Assert.Equal(3, batches[1].EndLine);
+    }
+
+    [Fact]
     public void EmptySectionsBetweenSeparators_AreOmitted()
     {
         const string script = "GO\n\nGO\n   \nGO\nSELECT 1";
