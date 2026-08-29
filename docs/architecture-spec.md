@@ -351,7 +351,7 @@ Tritt bei der Ausführung eines Tools ein Fehler auf, wird das Tool-Ergebnis als
 | **SQL-AI-0101** | Mehrfach-Statements verboten | Die Ausführung von mehreren SQL-Statements (z. B. getrennt durch `;`) ist nicht erlaubt. |
 | **SQL-AI-0102** | Abfragefehler | Der SQL-Server hat einen Fehler bei der Syntax oder Ausführung der Query gemeldet. |
 | **SQL-AI-0103** | Objekt nicht gefunden | Das angeforderte Datenbankobjekt (Tabelle, Prozedur etc.) existiert nicht. |
-| **SQL-AI-0104** | Safety-Check fehlgeschlagen | Die Zieldatenbank ist in keiner erlaubten Zugriffsstufe konfiguriert (ergibt `AccessLevel.None`) oder wurde durch ein Ausschlussmuster (`ExcludedDatabases`) blockiert. |
+| **SQL-AI-0104** | Safety-Check fehlgeschlagen | Die Zieldatenbank ist in keiner erlaubten Zugriffsstufe konfiguriert (ergibt `AccessLevel.None`), wurde durch ein Ausschlussmuster (`ExcludedDatabases`) blockiert oder ein unerlaubter Datenbank-Kontextwechsel (`USE`) wurde versucht. |
 | **SQL-AI-0105** | Infrastrukturfehler | Verbindung zum SQL-Server konnte nicht aufgebaut werden oder brach ab. |
 | **SQL-AI-0106** | Timeout | Die Ausführung der SQL-Abfrage hat das konfigurierte Zeitlimit überschritten. |
 | **SQL-AI-0107** | Schreiboperation blockiert | Ein mutierendes Statement wurde im Read-Only-Modus abgewiesen oder der Zugriff auf Datenabfragen wurde durch das Access-Level `SchemaOnly` blockiert. |

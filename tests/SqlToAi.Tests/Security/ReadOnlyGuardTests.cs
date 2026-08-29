@@ -80,6 +80,8 @@ public sealed class ReadOnlyGuardTests
     [InlineData("WITH cte AS (SELECT 1 AS X) DELETE FROM Customers")]
     [InlineData("WITH cte AS (SELECT 1 AS X) UPDATE Customers SET Name = 'X'")]
     [InlineData("SELECT 1; UPDATE Customers SET Name = 'X'")]
+    [InlineData("USE master")]
+    [InlineData("use [SomeDb]")]
     public void IsQuerySafe_ShouldReturnFalse_ForMutatingQueries(string query)
     {
         var guard = new ReadOnlyGuard();

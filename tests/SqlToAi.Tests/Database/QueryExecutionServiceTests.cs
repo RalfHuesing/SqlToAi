@@ -1,5 +1,6 @@
-﻿#nullable enable
+#nullable enable
 
+using System.Data.Common;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -143,4 +144,48 @@ public sealed class QueryExecutionServiceTests
         Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, result.Error.Code);
     }
 
+    [Fact]
+    public async Task ExecuteBatchAsync_ShouldReadMultipleResultSets_AndSerializeAllRows()
+    {
+        var options = new SqlToAiOptions();
+        var reader = new FakeDbDataReader([
+            new FakeDbResultSet(["Col1"], [["A"], ["B"]]),
+            new FakeDbResultSet(["Col2"], [["C"]])
+        ]);
+        var factory = new CustomReaderConnectionFactory(reader);
+        var service = new QueryExecutionService(
+            factory,
+            new FakeQuerySafetyValidator(new QuerySafetyCheckResult(AccessLevel.ReadWrite, true)),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var conn = factory.CreateConnection();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+        var args = new QueryBatchExecutionArgs(
+            conn, null, TestConstants.DatabaseName, "SELECT 'A'; SELECT 'C'", 100, false, null);
+
+        var result = await ((IQueryBatchExecutor)service).ExecuteBatchAsync(args, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(3, result.Value.RowCount);
+        Assert.Contains("{\"Col1\":\"A\"}", result.Value.Data, StringComparison.Ordinal);
+        Assert.Contains("{\"Col1\":\"B\"}", result.Value.Data, StringComparison.Ordinal);
+        Assert.Contains("{\"Col2\":\"C\"}", result.Value.Data, StringComparison.Ordinal);
+    }
+
+    private sealed class CustomReaderConnectionFactory(DbDataReader reader) : IDatabaseConnectionFactory
+    {
+        public DbConnection CreateConnection(string? databaseName) =>
+            new FakeDbConnection(
+                conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(
+                    ExecuteReader: _ => reader,
+                    ExecuteNonQuery: _ => 0)),
+                new FakeDbConnectionOptions(
+                    Database: TestConstants.DatabaseName,
+                    DataSource: "mock",
+                    ServerVersion: "16.0",
+                    BeginTransaction: (transactionConnection, _) => new FakeDbTransaction(transactionConnection)));
+
+        public DbConnection CreateConnection() => CreateConnection(null);
+    }
 }

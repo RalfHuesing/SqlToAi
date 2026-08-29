@@ -17,30 +17,46 @@ namespace SqlToAi.Tests.TestSupport;
 internal sealed record FakeSchemaTableOrigin(string? BaseTableName = null, string? BaseColumnName = null, string? BaseSchemaName = null);
 
 /// <summary>
-/// Generic, table-based <see cref="DbDataReader"/> fake shared by every ADO.NET test double in
-/// this project. Configured with a column-name array and a list of row value arrays; typed
-/// getters (<see cref="GetBoolean"/>, <see cref="GetInt32"/>, etc.) cast the stored value for the
-/// requested ordinal, and <see cref="GetFieldType"/> infers each column's CLR type from the first
-/// non-null value found in that column — this is what lets Dapper's typed <c>QueryAsync&lt;T&gt;</c>
-/// deserialize rows correctly (e.g. bool/int columns in schema queries) without every mock needing
-/// its own hand-rolled reader.
+/// Represents a single result set table within a <see cref="FakeDbDataReader"/>.
 /// </summary>
-internal sealed class FakeDbDataReader(string[] columns, IReadOnlyList<object?[]> rows, FakeSchemaTableOrigin? origin = null) : DbDataReader
+internal sealed record FakeDbResultSet(string[] Columns, IReadOnlyList<object?[]> Rows, FakeSchemaTableOrigin? Origin = null);
+
+/// <summary>
+/// Generic, table-based <see cref="DbDataReader"/> fake shared by every ADO.NET test double in
+/// this project. Configured with one or more result sets; typed getters cast the stored value for
+/// the requested ordinal, and <see cref="GetFieldType"/> infers each column's CLR type from the
+/// first non-null value found in that column.
+/// </summary>
+internal sealed class FakeDbDataReader : DbDataReader
 {
+    private readonly IReadOnlyList<FakeDbResultSet> _resultSets;
+    private int _resultSetIndex;
     private int _index = -1;
 
-    public override int FieldCount => columns.Length;
+    public FakeDbDataReader(string[] columns, IReadOnlyList<object?[]> rows, FakeSchemaTableOrigin? origin = null)
+        : this([new FakeDbResultSet(columns, rows, origin)])
+    {
+    }
+
+    public FakeDbDataReader(IReadOnlyList<FakeDbResultSet> resultSets)
+    {
+        _resultSets = resultSets.Count > 0 ? resultSets : [new FakeDbResultSet([], [])];
+    }
+
+    private FakeDbResultSet CurrentSet => _resultSets[_resultSetIndex];
+
+    public override int FieldCount => CurrentSet.Columns.Length;
     public override int Depth => 0;
     public override bool IsClosed => false;
     public override int RecordsAffected => -1;
-    public override bool HasRows => rows.Count > 0;
+    public override bool HasRows => CurrentSet.Rows.Count > 0;
 
     public override object this[int ordinal] => GetValue(ordinal);
     public override object this[string name] => GetValue(GetOrdinal(name));
 
     public override bool Read()
     {
-        if (_index < rows.Count - 1)
+        if (_index < CurrentSet.Rows.Count - 1)
         {
             _index++;
             return true;
@@ -50,13 +66,24 @@ internal sealed class FakeDbDataReader(string[] columns, IReadOnlyList<object?[]
 
     public override Task<bool> ReadAsync(CancellationToken cancellationToken) => Task.FromResult(Read());
 
-    public override bool NextResult() => false;
+    public override bool NextResult()
+    {
+        if (_resultSetIndex < _resultSets.Count - 1)
+        {
+            _resultSetIndex++;
+            _index = -1;
+            return true;
+        }
+        return false;
+    }
 
-    public override string GetName(int ordinal) => columns[ordinal];
+    public override Task<bool> NextResultAsync(CancellationToken cancellationToken) => Task.FromResult(NextResult());
+
+    public override string GetName(int ordinal) => CurrentSet.Columns[ordinal];
 
     public override int GetOrdinal(string name)
     {
-        int index = Array.FindIndex(columns, c => string.Equals(c, name, StringComparison.OrdinalIgnoreCase));
+        int index = Array.FindIndex(CurrentSet.Columns, c => string.Equals(c, name, StringComparison.OrdinalIgnoreCase));
         if (index >= 0)
         {
             return index;
@@ -68,16 +95,16 @@ internal sealed class FakeDbDataReader(string[] columns, IReadOnlyList<object?[]
 
     public override object GetValue(int ordinal)
     {
-        if (_index < 0 || _index >= rows.Count)
+        if (_index < 0 || _index >= CurrentSet.Rows.Count)
         {
             return DBNull.Value;
         }
-        return rows[_index][ordinal] ?? DBNull.Value;
+        return CurrentSet.Rows[_index][ordinal] ?? DBNull.Value;
     }
 
     public override Type GetFieldType(int ordinal)
     {
-        foreach (object?[] row in rows)
+        foreach (object?[] row in CurrentSet.Rows)
         {
             if (ordinal < row.Length && row[ordinal] is { } value and not DBNull)
             {
@@ -89,7 +116,7 @@ internal sealed class FakeDbDataReader(string[] columns, IReadOnlyList<object?[]
 
     public override DataTable? GetSchemaTable()
     {
-        if (origin is null)
+        if (CurrentSet.Origin is null)
         {
             return null;
         }
@@ -101,9 +128,9 @@ internal sealed class FakeDbDataReader(string[] columns, IReadOnlyList<object?[]
         table.Columns.Add("BaseSchemaName", typeof(string));
         DataRow row = table.NewRow();
         row["ColumnOrdinal"] = 0;
-        row["BaseTableName"] = (object?)origin.BaseTableName ?? DBNull.Value;
-        row["BaseColumnName"] = (object?)origin.BaseColumnName ?? DBNull.Value;
-        row["BaseSchemaName"] = (object?)origin.BaseSchemaName ?? DBNull.Value;
+        row["BaseTableName"] = (object?)CurrentSet.Origin.BaseTableName ?? DBNull.Value;
+        row["BaseColumnName"] = (object?)CurrentSet.Origin.BaseColumnName ?? DBNull.Value;
+        row["BaseSchemaName"] = (object?)CurrentSet.Origin.BaseSchemaName ?? DBNull.Value;
         table.Rows.Add(row);
         return table;
     }
@@ -136,5 +163,5 @@ internal sealed class FakeDbDataReader(string[] columns, IReadOnlyList<object?[]
         return count;
     }
 
-    public override IEnumerator GetEnumerator() => rows.GetEnumerator();
+    public override IEnumerator GetEnumerator() => CurrentSet.Rows.GetEnumerator();
 }

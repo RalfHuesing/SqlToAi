@@ -189,6 +189,53 @@ public sealed class ScriptExecutionServiceIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task ExecuteAsync_CreateViewAndProcedure_ExecutesSuccessfullyAndDrops()
+    {
+        string viewName = "dbo._SqlToAi_Test_View_" + Guid.NewGuid().ToString("N");
+        string procName = "dbo._SqlToAi_Test_Proc_" + Guid.NewGuid().ToString("N");
+        string scriptPath = CreateScriptPath();
+        try
+        {
+            string script = $"CREATE VIEW {viewName} AS SELECT 42 AS Value;\nGO\nCREATE PROCEDURE {procName} AS\nBEGIN\n    SET NOCOUNT ON;\n    SELECT Value * 2 AS Doubled FROM {viewName};\nEND;\nGO\nEXEC {procName};\nGO\nDROP PROCEDURE {procName};\nGO\nDROP VIEW {viewName};";
+            SqlScriptFile scriptFile = ReadScript(scriptPath, script);
+            ScriptExecutionReport report = await BuildService(_fixture.QuerySafetyValidator).ExecuteAsync(
+                new ScriptExecutionRequest(scriptFile, _databaseName),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(ScriptExecutionStatus.Success, report.Status);
+            Assert.Equal(5, report.Batches.Count);
+            Assert.All(report.Batches, b => Assert.Equal(ScriptBatchStatus.Success, b.Status));
+            Assert.Contains("\"Doubled\":84", report.Batches[2].Executions[0].Data, StringComparison.Ordinal);
+        }
+        finally
+        {
+            DeleteScriptFile(scriptPath);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_UseStatement_IsRejectedBeforeExecution()
+    {
+        string scriptPath = CreateScriptPath();
+        try
+        {
+            string script = "USE master\nGO\nSELECT 1";
+            SqlScriptFile scriptFile = ReadScript(scriptPath, script);
+            ScriptExecutionReport report = await BuildService(_fixture.QuerySafetyValidator).ExecuteAsync(
+                new ScriptExecutionRequest(scriptFile, _databaseName),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(ScriptExecutionStatus.Failed, report.Status);
+            Assert.Equal(SqlToAiError.SafetyCheckFailedCode, report.Error!.Code);
+            Assert.Equal(ScriptTransactionMode.NotStarted, report.Mode);
+        }
+        finally
+        {
+            DeleteScriptFile(scriptPath);
+        }
+    }
+
     private ScriptExecutionService BuildService(IQuerySafetyValidator safetyValidator)
     {
         return new ScriptExecutionService(

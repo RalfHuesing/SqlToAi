@@ -76,7 +76,8 @@ public sealed class ReadOnlyGuard : IReadOnlyGuard
         typeof(ReconfigureStatement),
         typeof(DbccStatement),
         typeof(ShutdownStatement),
-        typeof(KillStatement)
+        typeof(KillStatement),
+        typeof(UseStatement)
     ];
 
     /// <summary>
@@ -181,7 +182,8 @@ public sealed class ReadOnlyGuard : IReadOnlyGuard
             or TSqlTokenType.Checkpoint
             or TSqlTokenType.Kill
             or TSqlTokenType.Shutdown
-            or TSqlTokenType.Dbcc;
+            or TSqlTokenType.Dbcc
+            or TSqlTokenType.Use;
     }
 
     private sealed class ReadOnlyStatementVisitor : TSqlFragmentVisitor

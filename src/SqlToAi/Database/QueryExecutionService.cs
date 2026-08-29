@@ -1,6 +1,7 @@
 #nullable enable
 
 using System.Data;
+using System.Data.Common;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
@@ -191,6 +192,17 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
         CancellationToken cancellationToken) =>
         ExecuteAndSerializeAsync(args, cancellationToken);
 
+    private static async Task EnableOptionsAsync(
+        DbConnection connection,
+        DbTransaction? transaction,
+        int rowLimit,
+        CancellationToken cancellationToken)
+    {
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS IO ON", cancellationToken);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS TIME ON", cancellationToken);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, $"SET ROWCOUNT {rowLimit}", cancellationToken);
+    }
+
     private async Task<Result<QueryExecutionResult>> ExecuteAndSerializeAsync(
         QueryBatchExecutionArgs args,
         CancellationToken cancellationToken)
@@ -201,9 +213,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
         {
             sqlConn.InfoMessage += (_, e) => messages.Add(e.Message);
         }
-        await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, transaction, "SET STATISTICS IO ON", cancellationToken);
-        await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, transaction, "SET STATISTICS TIME ON", cancellationToken);
-        await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, transaction, $"SET ROWCOUNT {args.RowLimit}", cancellationToken);
+        await EnableOptionsAsync(args.Connection, transaction, args.RowLimit, cancellationToken);
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -213,24 +223,29 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
         command.CommandTimeout = _options.CommandTimeoutSeconds;
         SqlParameterBinder.BindParameters(command, args.Parameters);
 
-        string[] columnNames;
-        AnonymizationContext anonCtx;
         var sb = new StringBuilder();
         int rowCount = 0;
         var tracker = new RowAnonymizationTracker();
 
         try
         {
-            using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess | CommandBehavior.KeyInfo, cancellationToken);
+            CommandBehavior behavior = args.Anonymize
+                ? CommandBehavior.SequentialAccess | CommandBehavior.KeyInfo
+                : CommandBehavior.SequentialAccess;
 
-            columnNames = GetColumnNames(reader);
-            anonCtx = await ResolveAnonymizationContextAsync(reader, columnNames, args.Anonymize, args.DatabaseName, cancellationToken);
-
-            while (rowCount < args.RowLimit && await reader.ReadAsync(cancellationToken))
+            using var reader = await command.ExecuteReaderAsync(behavior, cancellationToken);
+            do
             {
-                AppendSerializedRow(sb, reader, columnNames, anonCtx, tracker);
-                rowCount++;
+                string[] columnNames = GetColumnNames(reader);
+                var anonCtx = await ResolveAnonymizationContextAsync(reader, columnNames, args.Anonymize, args.DatabaseName, cancellationToken);
+
+                while (rowCount < args.RowLimit && await reader.ReadAsync(cancellationToken))
+                {
+                    AppendSerializedRow(sb, reader, columnNames, anonCtx, tracker);
+                    rowCount++;
+                }
             }
+            while (rowCount < args.RowLimit && await reader.NextResultAsync(cancellationToken));
         }
         finally
         {

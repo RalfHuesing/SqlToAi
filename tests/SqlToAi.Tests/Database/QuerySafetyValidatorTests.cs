@@ -303,4 +303,26 @@ public sealed class QuerySafetyValidatorTests
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
     }
+
+    [Theory]
+    [InlineData(AccessLevel.ReadOnly)]
+    [InlineData(AccessLevel.ReadWrite)]
+    public async Task ValidateQuerySafetyAsync_UseStatement_ReturnsSafetyCheckFailed(AccessLevel accessLevel)
+    {
+        var v = BuildValidator(accessLevel: accessLevel);
+        var result = await v.ValidateQuerySafetyAsync("TestDb", "USE master; SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
+    }
+
+    [Theory]
+    [InlineData(AccessLevel.ReadOnly)]
+    [InlineData(AccessLevel.ReadWrite)]
+    public async Task ValidateBatchSafetyAsync_UseStatement_ReturnsSafetyCheckFailed(AccessLevel accessLevel)
+    {
+        var v = BuildValidator(accessLevel: accessLevel);
+        var result = await v.ValidateBatchSafetyAsync("TestDb", "USE master", cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
+    }
 }

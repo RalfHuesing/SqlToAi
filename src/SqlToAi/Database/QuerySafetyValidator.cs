@@ -112,6 +112,12 @@ internal sealed class QuerySafetyValidator : IQuerySafetyValidator
             return SqlToAiError.InvalidParameters("Query must not be empty.");
         }
 
+        // Reject database context switching via USE statements across all access levels.
+        if (SqlUseStatementDetector.ContainsUseStatement(query))
+        {
+            return SqlToAiError.SafetyCheckFailed("Switching database context via USE statement is not permitted; specify the target database in the tool arguments.");
+        }
+
         // Stage 3: static whitelist check (configured allow/deny patterns).
         if (!_securityGuard.IsDatabaseAllowed(databaseName))
         {
