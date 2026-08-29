@@ -74,3 +74,6 @@ Desktop.ini
 
 # Local MCP client registration (machine-specific absolute exe path)
 .mcp.json
+
+# Temporary files / scratch scripts
+temp/
