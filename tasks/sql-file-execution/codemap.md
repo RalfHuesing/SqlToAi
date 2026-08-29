@@ -13,10 +13,12 @@ complete map of the repository.
 
 ## Map
 
-- **`src/SqlToAi/Database`** — database execution services, the explicit batch-execution seam, atomic script coordinator, connection/command helpers, safety validation, transaction integrity, parameter binding, performance metrics, and local script intake used by the batch execution engine.
-- **`src/SqlToAi/Database/IQueryBatchExecutor.cs`** — internal caller-owned transaction seam for reusing the existing query execution pipeline.
-- **`src/SqlToAi/Database/IScriptExecutionService.cs`** — internal script request and per-batch result contracts for the later report boundary.
-- **`src/SqlToAi/Database/ScriptExecutionService.cs`** — internal atomic script-batch execution coordinator.
+- **`src/SqlToAi/Database`** — database execution services, the nullable caller-owned batch-execution seam, transaction-selecting script coordinator, connection/command helpers, safety validation, transaction integrity, parameter binding, performance metrics, and local script intake used by the batch execution engine.
+- **`src/SqlToAi/Database/IQueryBatchExecutor.cs`** — internal caller-owned nullable transaction seam for reusing the existing query execution pipeline.
+- **`src/SqlToAi/Database/IScriptExecutionService.cs`** — internal mode-neutral script request and per-batch result contracts for the later report boundary.
+- **`src/SqlToAi/Database/DatabaseCommandExecutor.cs`** — shared SET STATISTICS and SET ROWCOUNT command helper used with explicit or provider-autocommit execution.
+- **`src/SqlToAi/Database/QueryExecutionService.cs`** — single-query serializer and batch adapter that forwards optional caller-owned transactions through the established execution pipeline.
+- **`src/SqlToAi/Database/ScriptExecutionService.cs`** — internal script-batch coordinator selecting explicit atomic or ReadWrite provider-autocommit execution.
 - **`src/SqlToAi/Database/SqlScriptFile.cs` and `src/SqlToAi/Database/SqlScriptFileReader.cs`** — internal immutable file value and validated local SQL script reader for later batch execution (last: step-003).
 - **`src/SqlToAi/Database/SqlBatch.cs` and `src/SqlToAi/Database/SqlScriptBatchSplitter.cs`** — internal batch metadata and script-splitting foundation for later file-execution steps. (last: step-002)
 - **`src/SqlToAi/Security`** — access-level resolution and the read-only guard that define database authorization and mutation protection.
@@ -28,8 +30,8 @@ complete map of the repository.
 - **`src/SqlToAi/appsettings.json`** — embedded and copied factory configuration template containing the script file-size default (last: step-003).
 - **`src/SqlToAi/Program.cs`** — application composition root and DI registrations for new execution services.
 - **`tests/SqlToAi.Tests/Database`** — unit tests and database fakes covering execution, safety, transactions, parameters, result handling, and script-file intake (last: step-003).
-- **`tests/SqlToAi.Tests/Database/QueryExecutionServiceBatchTests.cs`** — focused coverage for the caller-owned batch execution seam (last: step-004).
-- **`tests/SqlToAi.Tests/Database/ScriptExecutionServiceTests.cs`** — focused coverage for script preflight, transaction ownership, repeats, failures, cancellation, and integrity protection (last: step-004).
+- **`tests/SqlToAi.Tests/Database/QueryExecutionServiceBatchTests.cs`** — focused coverage for the caller-owned explicit and nullable batch execution seam (last: step-005).
+- **`tests/SqlToAi.Tests/Database/ScriptExecutionServiceTests.cs`** — focused coverage for script preflight, transaction modes, transaction ownership, repeats, failures, cancellation, and integrity protection (last: step-005).
 - **`tests/SqlToAi.Tests/Configuration`** — option-binding and temporary-file tests covering the script-size configuration contract (last: step-003).
 - **`tests/SqlToAi.Tests/Domain`** — centralized `SqlToAiError` catalog assertions covering the script-file error codes (last: step-003).
 - **`tests/SqlToAi.Tests/Database/SqlScriptFileReaderTests.cs`** — focused local path, size, and encoding contract tests (last: step-003).
