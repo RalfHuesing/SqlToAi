@@ -178,4 +178,7 @@ public sealed class QueryExecutionOptions
     /// may run).
     /// </summary>
     public int CommandTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>Maximum number of bytes accepted from a local SQL script file.</summary>
+    public long MaxScriptFileSizeBytes { get; set; } = 10_485_760L;
 }

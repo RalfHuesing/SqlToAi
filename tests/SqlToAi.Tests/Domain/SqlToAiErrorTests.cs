@@ -130,4 +130,40 @@ public sealed class SqlToAiErrorTests
         Assert.Equal(SqlToAiError.InvalidDetailQueryTypeCode, error.Code);
         Assert.Contains("dbo.MyProc", error.Message);
     }
+
+    [Fact]
+    public void FileNotFound_ShouldHaveCorrectCodeAndPath()
+    {
+        // Act
+        var error = SqlToAiError.FileNotFound("C:\\scripts\\missing.sql");
+
+        // Assert
+        Assert.Equal("SQL-AI-0111", error.Code);
+        Assert.Contains("C:\\scripts\\missing.sql", error.Message);
+    }
+
+    [Fact]
+    public void FileTooLarge_ShouldHaveCorrectCodeAndSizeContext()
+    {
+        // Act
+        var error = SqlToAiError.FileTooLarge("C:\\scripts\\large.sql", 2049, 2048);
+
+        // Assert
+        Assert.Equal("SQL-AI-0112", error.Code);
+        Assert.Contains("2049", error.Message);
+        Assert.Contains("2048", error.Message);
+        Assert.Contains("large.sql", error.Message);
+    }
+
+    [Fact]
+    public void InvalidFileExtension_ShouldHaveCorrectCodeAndPath()
+    {
+        // Act
+        var error = SqlToAiError.InvalidFileExtension("C:\\scripts\\query.txt");
+
+        // Assert
+        Assert.Equal("SQL-AI-0113", error.Code);
+        Assert.Contains("query.txt", error.Message);
+        Assert.Contains(".sql", error.Message);
+    }
 }

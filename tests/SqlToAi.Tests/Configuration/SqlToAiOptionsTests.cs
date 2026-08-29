@@ -34,6 +34,7 @@ public sealed class SqlToAiOptionsTests
         Assert.True(options.Anonymizer.Enabled);
         Assert.True(options.MetadataProvider.Enabled);
         Assert.Equal("ScramblePattern", options.Anonymizer.DefaultMode);
+        Assert.Equal(10_485_760L, options.QueryExecution.MaxScriptFileSizeBytes);
 
         Assert.True(options.Observability.Enabled);
         Assert.True(options.Observability.EnableToolCallLogging);
@@ -61,6 +62,9 @@ public sealed class SqlToAiOptionsTests
           "Anonymizer": {
             "Enabled": true,
             "DefaultMode": "Hash"
+          },
+          "QueryExecution": {
+            "MaxScriptFileSizeBytes": 2048
           },
           "Observability": {
             "Enabled": true,
@@ -92,6 +96,7 @@ public sealed class SqlToAiOptionsTests
 
         Assert.True(options.Anonymizer.Enabled);
         Assert.Equal("Hash", options.Anonymizer.DefaultMode);
+        Assert.Equal(2048L, options.QueryExecution.MaxScriptFileSizeBytes);
 
         Assert.True(options.Observability.Enabled);
         Assert.False(options.Observability.EnableToolCallLogging);

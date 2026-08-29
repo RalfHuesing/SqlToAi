@@ -19,6 +19,9 @@ public sealed record SqlToAiError(string Code, string Message)
     internal const string InvalidReferenceTypeCode = "SQL-AI-0108";
     internal const string InvalidParameterTypeCode = "SQL-AI-0109";
     internal const string InvalidDetailQueryTypeCode = "SQL-AI-0110";
+    internal const string FileNotFoundCode = "SQL-AI-0111";
+    internal const string FileTooLargeCode = "SQL-AI-0112";
+    internal const string InvalidFileExtensionCode = "SQL-AI-0113";
 
     public static SqlToAiError InvalidParameters(string details) =>
         new(InvalidParametersCode, $"Invalid parameters: {details}");
@@ -55,4 +58,13 @@ public sealed record SqlToAiError(string Code, string Message)
 
     public static SqlToAiError InvalidDetailQueryType(string objectName) =>
         new(InvalidDetailQueryTypeCode, $"Invalid type for detail query: Foreign keys, indexes, and constraints can only be queried for tables and views. Object: {objectName}");
+
+    internal static SqlToAiError FileNotFound(string filePath) =>
+        new(FileNotFoundCode, $"SQL script file not found: '{filePath}'.");
+
+    internal static SqlToAiError FileTooLarge(string filePath, long actualSizeBytes, long maxSizeBytes) =>
+        new(FileTooLargeCode, $"SQL script file '{filePath}' is {actualSizeBytes} bytes, exceeding the configured maximum of {maxSizeBytes} bytes.");
+
+    internal static SqlToAiError InvalidFileExtension(string filePath) =>
+        new(InvalidFileExtensionCode, $"Invalid SQL script file extension: '{filePath}' must use the .sql extension.");
 }

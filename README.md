@@ -59,7 +59,7 @@ output. The root section is `SqlToAi`, which contains the following sub-sections
 | `Anonymizer.Tokenization` | Optional global mode switch (`Enabled`, `Prefix`/`Suffix`) that replaces `DefaultMode` masking with reversible tokens for every anonymized column. See [architecture-spec.md](docs/architecture-spec.md#e-reversible-durchsuchbare-tokenisierung-anonymizertokenization-optional). |
 | `AnonymizationRules` | Optional central, cross-database rules (`Enabled`, separate `Server`/`Database`/credentials, `TableName`, `CommandTimeoutSeconds`, `CacheTtlSeconds`). See [architecture-spec.md](docs/architecture-spec.md#d-zentrale-anonymisierungsregeln-anonymizationrules-optional). |
 | `MetadataProvider` | Optional custom queries and separate database credentials (`Server`, `Database`, `UserId`, `Password`, `IntegratedSecurity`, `CommandTimeoutSeconds`, etc.) for table/column documentation enrichment. |
-| `QueryExecution` | `DefaultRowLimit`, `MaxRowLimit`, and `CommandTimeoutSeconds` for `sql_execute_query`. |
+| `QueryExecution` | `DefaultRowLimit`, `MaxRowLimit`, and `CommandTimeoutSeconds` for `sql_execute_query`; `MaxScriptFileSizeBytes` limits local SQL script files to 10 MB by default. |
 | `Logging` | File-based logging root directory, app/error rolling sinks, and the MCP-trail settings. See [Logging](#logging) below. |
 
 ### Automatic Migration (`appsettings.json.bak`)
@@ -160,7 +160,8 @@ GRANT VIEW SERVER STATE TO [SqlToAiUser];
     "QueryExecution": {
       "DefaultRowLimit": 100,
       "MaxRowLimit": 1000,
-      "CommandTimeoutSeconds": 30
+      "CommandTimeoutSeconds": 30,
+      "MaxScriptFileSizeBytes": 10485760
     },
     "Observability": {
       "Enabled": true,

@@ -174,6 +174,22 @@ GRANT VIEW SERVER STATE TO [SqlToAiUser];
 * **`SHOWPLAN`**: Schaltet den tatsächlichen XML-Ausführungsplan (`STATISTICS XML`) und Index-Empfehlungen für die Performance-Analyse frei. Fehlt das Recht, degradiert das Tool automatisch auf reine IO/TIME-Leistungsmessungen.
 * **`VIEW SERVER STATE`**: Server-scoped; ermöglicht das Abfragen der `sys.dm_db_missing_index_*`-DMVs für `sql_suggest_indexes`. Fehlt das Recht, liefert das Tool eine strukturierte Markdown-Notiz mit Hinweis auf die fehlende Berechtigung, statt mit einem Hard-Error (`SQL-AI-0102`) abzubrechen.
 
+### H. QueryExecution file-size configuration
+
+The `QueryExecution` section also defines the maximum size accepted for a
+local SQL script file before any later batch processing:
+
+```json
+"QueryExecution": {
+  "DefaultRowLimit": 100,
+  "MaxRowLimit": 1000,
+  "CommandTimeoutSeconds": 30,
+  "MaxScriptFileSizeBytes": 10485760
+}
+```
+
+`MaxScriptFileSizeBytes` defaults to 10 MB (10,485,760 bytes).
+
 ---
 
 ## 3. Schema-Enrichment (Dokumentations-Kopplung)
@@ -334,6 +350,9 @@ Tritt bei der Ausführung eines Tools ein Fehler auf, wird das Tool-Ergebnis als
 | **SQL-AI-0108** | Ungültiger Typ für Referenzen | Objektreferenzen können nur für Tabellen (`TABLE`) und Sichten (`VIEW`) abgefragt werden. |
 | **SQL-AI-0109** | Ungültiger Typ für Parameter | Routine-Parameter können nur für Prozeduren (`PROCEDURE`) und Funktionen (`FUNCTION`) gelesen werden. |
 | **SQL-AI-0110** | Ungültiger Typ für Detailabfrage | Fremdschlüssel, Indizes und Constraints können nur für Tabellen (`TABLE`) und Sichten (`VIEW`) abgefragt werden. |
+| **SQL-AI-0111** | File not found | The local SQL script path does not identify an existing file. |
+| **SQL-AI-0112** | File too large | The local SQL script exceeds the configured `MaxScriptFileSizeBytes` limit. |
+| **SQL-AI-0113** | Invalid file extension | The supplied local script path does not use the `.sql` extension. |
 
 ---
 
