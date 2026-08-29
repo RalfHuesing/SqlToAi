@@ -10,9 +10,9 @@ namespace SqlToAi.Database;
 internal static class DatabaseCommandExecutor
 {
     /// <summary>
-    /// Executes a single <c>SET ...</c> statement on the given connection and transaction.
+    /// Executes a single <c>SET ...</c> statement on the given connection and optional transaction.
     /// </summary>
-    public static async Task ExecuteSetOptionAsync(DbConnection connection, DbTransaction transaction, string sql, CancellationToken ct)
+    public static async Task ExecuteSetOptionAsync(DbConnection connection, DbTransaction? transaction, string sql, CancellationToken ct)
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = sql;

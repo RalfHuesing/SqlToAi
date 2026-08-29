@@ -7,7 +7,7 @@ namespace SqlToAi.Database;
 
 internal sealed record QueryBatchExecutionArgs(
     DbConnection Connection,
-    DbTransaction Transaction,
+    DbTransaction? Transaction,
     string DatabaseName,
     string Query,
     int RowLimit,

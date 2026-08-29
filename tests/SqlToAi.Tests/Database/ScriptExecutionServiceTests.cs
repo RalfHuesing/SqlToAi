@@ -14,14 +14,14 @@ namespace SqlToAi.Tests.Database;
 public sealed class ScriptExecutionServiceTests
 {
     [Fact]
-    public async Task ExecuteAtomicallyAsync_EmptyScript_ReturnsInvalidParametersBeforeOpeningConnection()
+    public async Task ExecuteAsync_EmptyScript_ReturnsInvalidParametersBeforeOpeningConnection()
     {
         var factory = new MockQueryConnectionFactory();
         var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(AccessLevel.ReadWrite, true));
         var executor = new RecordingBatchExecutor();
         var service = BuildService(factory, safety, executor);
 
-        var result = await service.ExecuteAtomicallyAsync(
+        var result = await service.ExecuteAsync(
             BuildRequest("  \r\n  "), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
@@ -32,7 +32,7 @@ public sealed class ScriptExecutionServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAtomicallyAsync_PreflightsAllBatchesBeforeOpeningConnection()
+    public async Task ExecuteAsync_PreflightsAllBatchesBeforeOpeningConnection()
     {
         var factory = new MockQueryConnectionFactory();
         var safety = new RecordingSafetyValidator(query => query.Contains("SELECT 2", StringComparison.Ordinal)
@@ -41,7 +41,7 @@ public sealed class ScriptExecutionServiceTests
         var executor = new RecordingBatchExecutor();
         var service = BuildService(factory, safety, executor);
 
-        var result = await service.ExecuteAtomicallyAsync(
+        var result = await service.ExecuteAsync(
             BuildRequest("SELECT 1\nGO\nSELECT 2"), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
@@ -52,14 +52,14 @@ public sealed class ScriptExecutionServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAtomicallyAsync_ReadWriteRunsBatchesSequentiallyAndCommitsOnce()
+    public async Task ExecuteAsync_ReadWriteRunsBatchesSequentiallyAndCommitsOnce()
     {
         var factory = new MockQueryConnectionFactory();
         var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(AccessLevel.ReadWrite, true));
         var executor = new RecordingBatchExecutor();
         var service = BuildService(factory, safety, executor);
 
-        var result = await service.ExecuteAtomicallyAsync(
+        var result = await service.ExecuteAsync(
             BuildRequest("UPDATE A SET X = 1\nGO\nUPDATE B SET X = 2"), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
@@ -69,10 +69,61 @@ public sealed class ScriptExecutionServiceTests
         Assert.Equal(0, factory.LastConnection?.LastTransaction?.RollbackCount);
     }
 
+    [Fact]
+    public void ScriptExecutionRequest_DefaultsToTransactionalExecution()
+    {
+        Assert.True(BuildRequest("SELECT 1").UseTransaction);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReadWriteWithoutTransaction_UsesProviderAutocommit()
+    {
+        var factory = new MockQueryConnectionFactory();
+        var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(AccessLevel.ReadWrite, true));
+        var executor = new RecordingBatchExecutor();
+        var service = BuildService(factory, safety, executor);
+
+        var result = await service.ExecuteAsync(
+            BuildRequest("UPDATE A SET X = 1\nGO\nALTER DATABASE [TestDb] SET READ_COMMITTED_SNAPSHOT ON") with
+            {
+                UseTransaction = false
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, executor.Calls.Count);
+        Assert.All(executor.Calls, call => Assert.Null(call.Transaction));
+        Assert.Null(factory.LastConnection?.LastTransaction);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReadWriteWithoutTransaction_StopsAfterFailureWithoutRollback()
+    {
+        var factory = new MockQueryConnectionFactory();
+        var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(AccessLevel.ReadWrite, true));
+        var executor = new RecordingBatchExecutor();
+        executor.EnqueueSuccess();
+        executor.EnqueueFailure(SqlToAiError.QueryError("second batch failed"));
+        var service = BuildService(factory, safety, executor);
+
+        var result = await service.ExecuteAsync(
+            BuildRequest("SELECT 1\nGO\nSELECT 2\nGO\nSELECT 3") with
+            {
+                UseTransaction = false
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
+        Assert.Equal(2, executor.Calls.Count);
+        Assert.All(executor.Calls, call => Assert.Null(call.Transaction));
+        Assert.Null(factory.LastConnection?.LastTransaction);
+    }
+
     [Theory]
     [InlineData(AccessLevel.ReadOnly, false)]
     [InlineData(AccessLevel.ReadOnlyAnonymized, true)]
-    public async Task ExecuteAtomicallyAsync_ReadOnlyModesRollbackAndSelectAnonymization(
+    public async Task ExecuteAsync_ReadOnlyModesRollbackAndSelectAnonymization(
         AccessLevel accessLevel,
         bool expectedAnonymize)
     {
@@ -81,7 +132,7 @@ public sealed class ScriptExecutionServiceTests
         var executor = new RecordingBatchExecutor();
         var service = BuildService(factory, safety, executor);
 
-        var result = await service.ExecuteAtomicallyAsync(
+        var result = await service.ExecuteAsync(
             BuildRequest("SELECT 1\nGO\nSELECT 2"), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
@@ -90,15 +141,44 @@ public sealed class ScriptExecutionServiceTests
         Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
     }
 
+    [Theory]
+    [InlineData(AccessLevel.ReadOnly, false)]
+    [InlineData(AccessLevel.ReadOnlyAnonymized, true)]
+    public async Task ExecuteAsync_ReadOnlyModesForceRollbackWhenTransactionDisabled(
+        AccessLevel accessLevel,
+        bool expectedAnonymize)
+    {
+        var factory = new MockQueryConnectionFactory();
+        var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(accessLevel, false));
+        var executor = new RecordingBatchExecutor();
+        var service = BuildService(factory, safety, executor);
+
+        var result = await service.ExecuteAsync(
+            BuildRequest("SELECT 1\nGO\nSELECT 2") with
+            {
+                UseTransaction = false
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.All(executor.Calls, call =>
+        {
+            Assert.NotNull(call.Transaction);
+            Assert.Equal(expectedAnonymize, call.Anonymize);
+        });
+        Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);
+        Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
+    }
+
     [Fact]
-    public async Task ExecuteAtomicallyAsync_HonorsRepeatCountAndPreservesBatchMetadata()
+    public async Task ExecuteAsync_HonorsRepeatCountAndPreservesBatchMetadata()
     {
         var factory = new MockQueryConnectionFactory();
         var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(AccessLevel.ReadWrite, true));
         var executor = new RecordingBatchExecutor();
         var service = BuildService(factory, safety, executor);
 
-        var result = await service.ExecuteAtomicallyAsync(
+        var result = await service.ExecuteAsync(
             BuildRequest("SELECT 1\nGO 2\nSELECT 2"), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
@@ -113,7 +193,7 @@ public sealed class ScriptExecutionServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAtomicallyAsync_StopsAfterBatchFailureAndRollsBack()
+    public async Task ExecuteAsync_StopsAfterBatchFailureAndRollsBack()
     {
         var factory = new MockQueryConnectionFactory();
         var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(AccessLevel.ReadWrite, true));
@@ -122,7 +202,7 @@ public sealed class ScriptExecutionServiceTests
         executor.EnqueueFailure(SqlToAiError.QueryError("second batch failed"));
         var service = BuildService(factory, safety, executor);
 
-        var result = await service.ExecuteAtomicallyAsync(
+        var result = await service.ExecuteAsync(
             BuildRequest("SELECT 1\nGO\nSELECT 2\nGO\nSELECT 3"), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
@@ -133,14 +213,14 @@ public sealed class ScriptExecutionServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAtomicallyAsync_BatchExceptionMapsToQueryErrorAndRollsBack()
+    public async Task ExecuteAsync_BatchExceptionMapsToQueryErrorAndRollsBack()
     {
         var factory = new MockQueryConnectionFactory();
         var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(AccessLevel.ReadWrite, true));
         var executor = new RecordingBatchExecutor { ExceptionToThrow = new InvalidOperationException("execution failed") };
         var service = BuildService(factory, safety, executor);
 
-        var result = await service.ExecuteAtomicallyAsync(
+        var result = await service.ExecuteAsync(
             BuildRequest("SELECT 1"), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
@@ -151,14 +231,14 @@ public sealed class ScriptExecutionServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAtomicallyAsync_CancellationRollsBackAndRethrows()
+    public async Task ExecuteAsync_CancellationRollsBackAndRethrows()
     {
         var factory = new MockQueryConnectionFactory();
         var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(AccessLevel.ReadWrite, true));
         var executor = new RecordingBatchExecutor { ThrowCancellation = true };
         var service = BuildService(factory, safety, executor);
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() => service.ExecuteAtomicallyAsync(
+        await Assert.ThrowsAsync<OperationCanceledException>(() => service.ExecuteAsync(
             BuildRequest("SELECT 1"), CancellationToken.None));
 
         Assert.Single(executor.Calls);
@@ -167,7 +247,7 @@ public sealed class ScriptExecutionServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAtomicallyAsync_RejectsTransactionIntegrityChangeWithDefensiveRollback()
+    public async Task ExecuteAsync_RejectsTransactionIntegrityChangeWithDefensiveRollback()
     {
         var factory = new MockQueryConnectionFactory(
             new MockQueryRowConfig(TranCountSequence: new MockTranCountSequence(1, 0)));
@@ -175,12 +255,32 @@ public sealed class ScriptExecutionServiceTests
         var executor = new RecordingBatchExecutor();
         var service = BuildService(factory, safety, executor);
 
-        var result = await service.ExecuteAtomicallyAsync(
+        var result = await service.ExecuteAsync(
             BuildRequest("SELECT 1"), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
         Assert.Single(executor.Calls);
+        Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);
+        Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReadWriteTransactionIntegrityChangeIsRejectedWithoutCommit()
+    {
+        var factory = new MockQueryConnectionFactory(
+            new MockQueryRowConfig(TranCountSequence: new MockTranCountSequence(1, 0)));
+        var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(AccessLevel.ReadWrite, true));
+        var executor = new RecordingBatchExecutor();
+        var service = BuildService(factory, safety, executor);
+
+        var result = await service.ExecuteAsync(
+            BuildRequest("SELECT 1"), TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
+        Assert.Single(executor.Calls);
+        Assert.NotNull(executor.Calls[0].Transaction);
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);
         Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
     }

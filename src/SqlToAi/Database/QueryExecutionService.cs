@@ -196,19 +196,20 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
         CancellationToken cancellationToken)
     {
         var messages = new List<string>();
+        var transaction = args.Transaction;
         if (args.Connection is SqlConnection sqlConn)
         {
             sqlConn.InfoMessage += (_, e) => messages.Add(e.Message);
         }
-        await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, args.Transaction, "SET STATISTICS IO ON", cancellationToken);
-        await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, args.Transaction, "SET STATISTICS TIME ON", cancellationToken);
-        await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, args.Transaction, $"SET ROWCOUNT {args.RowLimit}", cancellationToken);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, transaction, "SET STATISTICS IO ON", cancellationToken);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, transaction, "SET STATISTICS TIME ON", cancellationToken);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, transaction, $"SET ROWCOUNT {args.RowLimit}", cancellationToken);
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         using var command = args.Connection.CreateCommand();
         command.CommandText = args.Query;
-        command.Transaction = args.Transaction;
+        command.Transaction = transaction;
         command.CommandTimeout = _options.CommandTimeoutSeconds;
         SqlParameterBinder.BindParameters(command, args.Parameters);
 
@@ -233,7 +234,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
         }
         finally
         {
-            await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, args.Transaction, "SET ROWCOUNT 0", cancellationToken);
+            await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, transaction, "SET ROWCOUNT 0", cancellationToken);
         }
 
         stopwatch.Stop();

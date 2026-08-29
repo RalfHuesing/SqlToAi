@@ -37,7 +37,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
         _logger = logger;
     }
 
-    public async Task<Result<IReadOnlyList<ScriptBatchExecutionResult>>> ExecuteAtomicallyAsync(
+    public async Task<Result<IReadOnlyList<ScriptBatchExecutionResult>>> ExecuteAsync(
         ScriptExecutionRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -55,7 +55,13 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
                 return safetyResult.Error;
             }
 
-            return await ExecuteWithTransactionAsync(request, batches, safetyResult.Value, cancellationToken);
+            QuerySafetyCheckResult safety = safetyResult.Value;
+            if (safety.AccessLevel == AccessLevel.ReadWrite && !request.UseTransaction)
+            {
+                return await ExecuteWithoutTransactionAsync(request, batches, safety, cancellationToken);
+            }
+
+            return await ExecuteWithTransactionAsync(request, batches, safety, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -66,6 +72,26 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
             LogScriptFailed(_logger, request.DatabaseName, ex);
             return SqlToAiErrorMapper.MapException(ex);
         }
+    }
+
+    private async Task<Result<IReadOnlyList<ScriptBatchExecutionResult>>> ExecuteWithoutTransactionAsync(
+        ScriptExecutionRequest request,
+        IReadOnlyList<SqlBatch> batches,
+        QuerySafetyCheckResult safety,
+        CancellationToken cancellationToken)
+    {
+        using var connection = _connectionFactory.CreateConnection(request.DatabaseName);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var args = new QueryBatchExecutionArgs(
+            connection,
+            null,
+            request.DatabaseName,
+            string.Empty,
+            ResolveRowLimit(request.RequestedRowLimit),
+            safety.AccessLevel == AccessLevel.ReadOnlyAnonymized,
+            request.Parameters);
+        var context = new ScriptTransactionContext(args, safety.IsWriteAllowed, false, 0);
+        return await ExecuteBatchesAsync(batches, context, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<Result<QuerySafetyCheckResult>> PreflightAsync(
@@ -109,11 +135,9 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
 
         try
         {
-            int baselineTranCount = safety.IsWriteAllowed
-                ? 0
-                : await TransactionIntegrityGuard
-                    .GetTranCountAsync(connection, transaction, cancellationToken)
-                    .ConfigureAwait(false);
+            int baselineTranCount = await TransactionIntegrityGuard
+                .GetTranCountAsync(connection, transaction, cancellationToken)
+                .ConfigureAwait(false);
             var args = new QueryBatchExecutionArgs(
                 connection,
                 transaction,
@@ -122,8 +146,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
                 ResolveRowLimit(request.RequestedRowLimit),
                 safety.AccessLevel == AccessLevel.ReadOnlyAnonymized,
                 request.Parameters);
-            var context = new ScriptTransactionContext(
-                args, safety.IsWriteAllowed, !safety.IsWriteAllowed, baselineTranCount);
+            var context = new ScriptTransactionContext(args, safety.IsWriteAllowed, true, baselineTranCount);
             return await ExecuteBatchesAsync(batches, context, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -155,13 +178,18 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
             results.Add(new ScriptBatchExecutionResult(batch, batchExecutions.Value));
         }
 
+        if (context.ExecutionArgs.Transaction is not { } transaction)
+        {
+            return Result<IReadOnlyList<ScriptBatchExecutionResult>>.Success(results);
+        }
+
         if (context.WriteAllowed)
         {
-            await context.ExecutionArgs.Transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
         else
         {
-            await context.ExecutionArgs.Transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
         }
 
         return Result<IReadOnlyList<ScriptBatchExecutionResult>>.Success(results);
@@ -181,17 +209,25 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
                 .ConfigureAwait(false);
             if (executionResult.IsFailure)
             {
-                await context.ExecutionArgs.Transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                if (context.ExecutionArgs.Transaction is { } transaction)
+                {
+                    await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                }
+
                 return Result<IReadOnlyList<QueryExecutionResult>>.Failure(executionResult.Error);
             }
 
-            if (context.CheckTransactionIntegrity
-                && await HasTransactionChangedAsync(context, cancellationToken).ConfigureAwait(false))
+            if (context.CheckTransactionIntegrity)
             {
-                var violation = await TransactionIntegrityGuard
-                    .RejectViolationAsync(_logger, args.DatabaseName, args.Transaction, cancellationToken)
-                    .ConfigureAwait(false);
-                return Result<IReadOnlyList<QueryExecutionResult>>.Failure(violation.Error);
+                DbTransaction transaction = args.Transaction
+                    ?? throw new InvalidOperationException("An explicit transaction is required for integrity checks.");
+                if (await HasTransactionChangedAsync(context, transaction, cancellationToken).ConfigureAwait(false))
+                {
+                    var violation = await TransactionIntegrityGuard
+                        .RejectViolationAsync(_logger, args.DatabaseName, transaction, cancellationToken)
+                        .ConfigureAwait(false);
+                    return Result<IReadOnlyList<QueryExecutionResult>>.Failure(violation.Error);
+                }
             }
 
             executions.Add(executionResult.Value);
@@ -202,12 +238,12 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
 
     private static async Task<bool> HasTransactionChangedAsync(
         ScriptTransactionContext context,
+        DbTransaction transaction,
         CancellationToken cancellationToken)
     {
         int currentTranCount = await TransactionIntegrityGuard
             .GetTranCountAsync(
-                context.ExecutionArgs.Connection,
-                context.ExecutionArgs.Transaction,
+                context.ExecutionArgs.Connection, transaction,
                 cancellationToken)
             .ConfigureAwait(false);
         return currentTranCount != context.BaselineTranCount;
