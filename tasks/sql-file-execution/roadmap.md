@@ -68,8 +68,11 @@ change here.
 - [ ] **EPIC-01: Local script intake and batch foundation** — Establish the
   local `.sql` file contract, path/extension/size/encoding validation, stable
   error representation, and a robust `GO`-aware batch model retaining source
-  line ranges and optional repeat counts. Based on `konzept.md` Scope,
-  “Dateipfad-Auflösung & Sicherheits-Checks”, and “Multi-Batch & GO-Unterstützung”.
+  line ranges and optional repeat counts. The GO-/batch foundation is covered
+  by `step-001` and `step-002`; in work → `step-003`, with local file intake,
+  encoding, size validation, and file-error catalog entries still open. Based
+  on `konzept.md` Scope, “Dateipfad-Auflösung & Sicherheits-Checks”, and
+  “Multi-Batch & GO-Unterstützung”.
 - [ ] **EPIC-02: Guarded multi-batch execution engine** — Implement the
   sequential batch orchestration with parameter binding, row limits,
   ReadOnly/ReadOnlyAnonymized guardrails, ReadWrite transaction selection,

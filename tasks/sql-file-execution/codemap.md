@@ -24,6 +24,8 @@ complete map of the repository.
 - **`src/SqlToAi/appsettings.json`** — embedded and copied factory configuration template for the script file-size default.
 - **`src/SqlToAi/Program.cs`** — application composition root and DI registrations for new execution services.
 - **`tests/SqlToAi.Tests/Database`** — unit tests and database fakes covering execution, safety, transactions, parameters, and result handling.
+- **`tests/SqlToAi.Tests/Configuration`** — existing option-binding and temporary-file tests relevant to the script-size configuration contract.
+- **`tests/SqlToAi.Tests/Domain`** — centralized `SqlToAiError` catalog assertions that will cover the script-file error codes.
 - **`tests/SqlToAi.Tests/Mcp`** — dispatcher, tool registration, registry, and MCP output tests for routing and contract exposure.
 - **`tests/SqlToAi.Tests/Integration`** — live SQL Server fixture and integration coverage for transaction, guardrail, anonymization, and result behavior.
 - **`tests/SqlToAi.Tests/AiNetLinter`** — linter clean-check test and the project rules JSON used by the semantic quality gate.
