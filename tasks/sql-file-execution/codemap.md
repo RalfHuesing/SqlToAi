@@ -43,6 +43,7 @@ complete map of the repository.
 - **`tests/SqlToAi.Tests/Mcp`** — dispatcher, tool registration, registry, observability, and MCP output tests for script-tool routing and contract exposure (last: step-007).
 - **`tests/SqlToAi.Tests/Cli`** — registry-generated CLI command tests for tool argument parsing and callback mapping (last: step-007).
 - **`tests/SqlToAi.Tests/Integration`** — live SQL Server fixture and integration coverage for transaction, guardrail, anonymization, and result behavior.
+- **`tests/SqlToAi.Tests/Integration/ScriptExecutionServiceIntegrationTests.cs`** — live SQL Server verification for local script intake, batch reports, transaction modes, read-only rejection, and anonymized result metadata.
 - **`tests/SqlToAi.Tests/AiNetLinter`** — linter clean-check test and the project rules JSON used by the semantic quality gate.
 - **`README.md`** — user-facing setup, CLI, configuration, tool, and deployment documentation synchronized with local script execution (last: step-007).
 - **`docs/architecture-spec.md`** — authoritative MCP tool, security, output, configuration, and error-catalog specification synchronized with local script execution (last: step-007).
