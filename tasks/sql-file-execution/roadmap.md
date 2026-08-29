@@ -73,19 +73,21 @@ change here.
   encoding, size validation, and file-error catalog entries. Based on
   `konzept.md` Scope, “Dateipfad-Auflösung & Sicherheits-Checks”, and
   “Multi-Batch & GO-Unterstützung”.
-- [ ] **EPIC-02: Guarded multi-batch execution engine** — Implement the
+- [x] **EPIC-02: Guarded multi-batch execution engine** — Implement the
   sequential batch orchestration with parameter binding, row limits,
   ReadOnly/ReadOnlyAnonymized guardrails, ReadWrite transaction selection,
   rollback/commit behavior, transaction-integrity protection, anonymization,
-  and per-execution metrics retained for later aggregation. Step-004
-  delivered the guarded atomic execution core; in work → `step-005` for
-  ReadWrite autocommit selection and explicit transaction integrity. Based on
+  and per-execution metrics retained for later aggregation. Completed by
+  approved `step-004` and `step-005`, including guarded atomic execution,
+  ReadWrite autocommit selection, and explicit transaction integrity. Based on
   `konzept.md` “Sicherheits-Guardrails” and “Ausführung”.
 - [ ] **EPIC-03: Structured report and diagnostic contract** — Define and
   render the Markdown result for script metadata, overall status and metrics,
   per-batch status/result sets, and actionable failures with batch number,
-  source line, SQL snippet, and catalog error code. Based on `konzept.md`
-  “Strukturiertes Markdown-Ausgabeformat” and its error-reporting criteria.
+  source line, SQL snippet, and catalog error code. In work → `step-006` for
+  the internal report contract, metric aggregation, and Markdown renderer.
+  Based on `konzept.md` “Strukturiertes Markdown-Ausgabeformat” and its
+  error-reporting criteria.
 - [ ] **EPIC-04: MCP, registry, CLI, and dependency wiring** — Expose
   `sql_execute_file` consistently through the MCP tool registration and
   dispatcher, the canonical tool registry used by `tools/list` and the CLI,
