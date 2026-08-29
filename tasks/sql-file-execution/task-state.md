@@ -2,10 +2,10 @@
 status: executing
 task: sql-file-execution
 started_at: 2026-08-29T06:57:35+02:00
-last_updated: 2026-08-29T09:10:08+02:00
+last_updated: 2026-08-29T09:16:50+02:00
 rules_dir: .agents/rules
-total_steps: 4
-current_step: step-004
+total_steps: 5
+current_step: step-005
 ---
 
 # Task State: sql-file-execution
@@ -13,12 +13,12 @@ current_step: step-004
 ## Übersicht
 
 - **Task-Status:** `executing`
-- **Steps gesamt:** 4 (regulär + Korrekturen)
-- **Aktueller Schritt:** `step-004` — `done`
+- **Steps gesamt:** 5 (regulär + Korrekturen)
+- **Aktueller Schritt:** `step-005` — `in_progress`
 - **Roadmap:** fünf Epics, siehe `roadmap.md`
 - **Tech-Debt:** wird durch den Kritiker geführt
 - **Gestartet:** 2026-08-29T06:57:35+02:00
-- **Zuletzt aktualisiert:** 2026-08-29T09:10:08+02:00
+- **Zuletzt aktualisiert:** 2026-08-29T09:16:50+02:00
 
 ## Steps
 
@@ -28,6 +28,7 @@ current_step: step-004
 | step-002 | EPIC-01 | done | Fix nested block-comment depth and AddBatch parameter budget | step-001 | ja | approved | f377461 |
 | step-003 | EPIC-01 | done | Local SQL script file intake and encoding contract | - | ja | approved | aee3abc |
 | step-004 | EPIC-02 | done | Atomic guarded execution of script batches | - | ja | approved | d43a070 |
+| step-005 | EPIC-02 | in_progress | Add ReadWrite autocommit execution mode | - | - | - | - |
 
 ## Config (optional)
 

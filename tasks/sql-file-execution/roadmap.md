@@ -77,10 +77,10 @@ change here.
   sequential batch orchestration with parameter binding, row limits,
   ReadOnly/ReadOnlyAnonymized guardrails, ReadWrite transaction selection,
   rollback/commit behavior, transaction-integrity protection, anonymization,
-  and aggregate/per-batch execution metrics. In work → `step-004`, which
-  delivers the guarded atomic execution core for already-read script batches
-  and preserves the single-query safety pipeline. Based on `konzept.md`
-  “Sicherheits-Guardrails” and “Ausführung”.
+  and per-execution metrics retained for later aggregation. Step-004
+  delivered the guarded atomic execution core; in work → `step-005` for
+  ReadWrite autocommit selection and explicit transaction integrity. Based on
+  `konzept.md` “Sicherheits-Guardrails” and “Ausführung”.
 - [ ] **EPIC-03: Structured report and diagnostic contract** — Define and
   render the Markdown result for script metadata, overall status and metrics,
   per-batch status/result sets, and actionable failures with batch number,
