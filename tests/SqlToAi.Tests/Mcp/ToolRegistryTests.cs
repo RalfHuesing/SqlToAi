@@ -5,7 +5,7 @@ using SqlToAi.Mcp;
 namespace SqlToAi.Tests.Mcp;
 
 /// <summary>
-/// Unit tests for <see cref="ToolRegistry"/> — validates that all 16 tools are correctly registered
+/// Unit tests for <see cref="ToolRegistry"/> — validates that all 17 tools are correctly registered
 /// and that their schema definitions are consistent with <see cref="McpConstants"/>.
 /// </summary>
 public sealed class ToolRegistryTests
@@ -13,9 +13,9 @@ public sealed class ToolRegistryTests
     private readonly ToolRegistry _registry = new();
 
     [Fact]
-    public void GetAll_ShouldReturn_SixteenTools()
+    public void GetAll_ShouldReturn_SeventeenTools()
     {
-        Assert.Equal(16, _registry.GetAll().Count);
+        Assert.Equal(17, _registry.GetAll().Count);
     }
 
     [Fact]
@@ -38,6 +38,7 @@ public sealed class ToolRegistryTests
         Assert.Contains(McpConstants.ToolGetObjectReferences, names);
         Assert.Contains(McpConstants.ToolGetRoutineParameters, names);
         Assert.Contains(McpConstants.ToolExecuteQuery, names);
+        Assert.Contains(McpConstants.ToolExecuteFile, names);
         Assert.Contains(McpConstants.ToolSuggestIndexes, names);
     }
 
@@ -65,6 +66,7 @@ public sealed class ToolRegistryTests
     [InlineData(McpConstants.ToolGetObjectReferences, McpConstants.ArgObjectName)]
     [InlineData(McpConstants.ToolGetRoutineParameters, McpConstants.ArgObjectName)]
     [InlineData(McpConstants.ToolExecuteQuery, McpConstants.ArgQuery)]
+    [InlineData(McpConstants.ToolExecuteFile, McpConstants.ArgFilePath)]
     public void Tool_ShouldHaveRequiredArgument(string toolName, string expectedRequired)
     {
         var tool = _registry.GetAll().Single(t => t.Name == toolName);
@@ -92,6 +94,21 @@ public sealed class ToolRegistryTests
         var tool = _registry.GetAll().Single(t => t.Name == McpConstants.ToolExecuteQuery);
         Assert.True(tool.InputSchema.Properties.TryGetValue(McpConstants.ArgRequestedRowLimit, out var param));
         Assert.Equal("integer", param.Type);
+    }
+
+    [Fact]
+    public void ExecuteFile_ShouldExposeExpectedArgumentSchema()
+    {
+        var tool = _registry.GetAll().Single(t => t.Name == McpConstants.ToolExecuteFile);
+
+        Assert.Contains(McpConstants.ArgFilePath, tool.InputSchema.Required);
+        Assert.Contains(McpConstants.ArgDatabase, tool.InputSchema.Required);
+        Assert.Equal("string", tool.InputSchema.Properties[McpConstants.ArgFilePath].Type);
+        Assert.Equal("string", tool.InputSchema.Properties[McpConstants.ArgDatabase].Type);
+        Assert.Equal("boolean", tool.InputSchema.Properties[McpConstants.ArgUseTransaction].Type);
+        Assert.Equal("integer", tool.InputSchema.Properties[McpConstants.ArgRequestedRowLimit].Type);
+        Assert.Equal("object", tool.InputSchema.Properties[McpConstants.ArgParameters].Type);
+        Assert.Contains("true", tool.InputSchema.Properties[McpConstants.ArgUseTransaction].Description, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

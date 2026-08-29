@@ -15,6 +15,7 @@ internal static class ToolDispatcherTestHelper
     public static ToolDispatcher BuildDispatcher(
         FakeSchemaService? schema = null,
         FakeQueryExecutionService? exec = null,
+        FakeScriptExecutionService? script = null,
         FakeQueryValidationService? validation = null,
         DatabaseAnalysisServices? analysis = null)
     {
@@ -22,6 +23,7 @@ internal static class ToolDispatcherTestHelper
         return new ToolDispatcher(
             schema ?? new FakeSchemaService(),
             exec   ?? new FakeQueryExecutionService(),
+            script ?? new FakeScriptExecutionService(),
             validation ?? new FakeQueryValidationService(),
             analysis ?? new DatabaseAnalysisServices(
                 new FakePerformanceMeasurementService(),
@@ -38,6 +40,37 @@ internal static class ToolDispatcherTestHelper
             Name = toolName,
             Arguments = args.ToDictionary(a => a.key, a => (object?)a.value)
         };
+}
+
+internal sealed class FakeScriptExecutionService : IScriptExecutionService
+{
+    private readonly ScriptExecutionReport _report;
+
+    public FakeScriptExecutionService(ScriptExecutionReport? report = null)
+    {
+        _report = report ?? new ScriptExecutionReport(
+            "script.sql",
+            "UTF-8",
+            TestConstants.DatabaseName,
+            ScriptExecutionStatus.Success,
+            ScriptTransactionMode.NotStarted,
+            0,
+            0,
+            0,
+            []);
+    }
+
+    public bool ExecuteCalled { get; private set; }
+    public ScriptExecutionRequest? LastRequest { get; private set; }
+
+    public Task<ScriptExecutionReport> ExecuteAsync(
+        ScriptExecutionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ExecuteCalled = true;
+        LastRequest = request;
+        return Task.FromResult(_report);
+    }
 }
 
 internal sealed class FakeSchemaService : ISchemaService

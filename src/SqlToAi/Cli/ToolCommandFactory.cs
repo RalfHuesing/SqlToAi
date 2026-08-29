@@ -72,6 +72,17 @@ internal static class ToolCommandFactory
     {
         string optionName = "--" + argKey;
 
+        if (string.Equals(parameterDefinition.Type, "boolean", StringComparison.OrdinalIgnoreCase))
+        {
+            var option = new Option<bool?>(optionName)
+            {
+                Description = parameterDefinition.Description,
+                Required = required
+            };
+            command.Add(option);
+            return (argKey, parseResult => parseResult.GetValue(option));
+        }
+
         if (string.Equals(parameterDefinition.Type, "integer", StringComparison.OrdinalIgnoreCase))
         {
             var option = new Option<int?>(optionName)

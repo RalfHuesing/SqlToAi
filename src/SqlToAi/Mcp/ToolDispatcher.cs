@@ -21,7 +21,7 @@ public interface IToolDispatcher
 }
 
 /// <inheritdoc/>
-public sealed class ToolDispatcher : IToolDispatcher
+internal sealed class ToolDispatcher : IToolDispatcher
 {
     private static readonly Action<ILogger, string, Exception?> LogUnknownTool =
         LoggerMessage.Define<string>(
@@ -31,12 +31,14 @@ public sealed class ToolDispatcher : IToolDispatcher
 
     private readonly ISchemaService _schemaService;
     private readonly IQueryExecutionService _queryExecutionService;
+    private readonly IScriptExecutionService _scriptExecutionService;
     private readonly IQueryValidationService _queryValidationService;
     private readonly IQueryComparisonService _queryComparisonService;
     private readonly IPerformanceMeasurementService _performanceMeasurementService;
     private readonly IOptimizationBenchmarkService _benchmarkService;
     private readonly IIndexSuggestionService _indexSuggestionService;
     private readonly DatabasesOptions _dbOptions;
+    private readonly QueryExecutionOptions _queryExecutionOptions;
     private readonly ILogger<ToolDispatcher> _logger;
     private readonly Dictionary<string, Func<ToolCallParams, CancellationToken, Task<ToolCallResult>>> _handlers;
 
@@ -44,6 +46,7 @@ public sealed class ToolDispatcher : IToolDispatcher
     public ToolDispatcher(
         ISchemaService schemaService,
         IQueryExecutionService queryExecutionService,
+        IScriptExecutionService scriptExecutionService,
         IQueryValidationService queryValidationService,
         DatabaseAnalysisServices analysisServices,
         IOptions<SqlToAiOptions> options,
@@ -51,12 +54,14 @@ public sealed class ToolDispatcher : IToolDispatcher
     {
         _schemaService = schemaService;
         _queryExecutionService = queryExecutionService;
+        _scriptExecutionService = scriptExecutionService;
         _queryValidationService = queryValidationService;
         _queryComparisonService = analysisServices.QueryComparison;
         _performanceMeasurementService = analysisServices.PerformanceMeasurement;
         _benchmarkService = analysisServices.Benchmark;
         _indexSuggestionService = analysisServices.IndexSuggestion;
         _dbOptions = options.Value.Databases;
+        _queryExecutionOptions = options.Value.QueryExecution;
         _logger = logger;
 
         _handlers = new(StringComparer.Ordinal)
@@ -153,6 +158,8 @@ public sealed class ToolDispatcher : IToolDispatcher
                     IsError = false
                 };
             },
+
+            [McpConstants.ToolExecuteFile] = ExecuteFileAsync,
 
             [McpConstants.ToolCompareQueries] = (paramsObj, ct) =>
                 CallAsync(() => _queryComparisonService.CompareQueriesAsync(
@@ -280,6 +287,41 @@ public sealed class ToolDispatcher : IToolDispatcher
         LogUnknownTool(_logger, toolName, null);
         return Task.FromResult(
             ToolCallResult.Failure(SqlToAiError.InvalidParametersCode, $"Unknown tool: {toolName}"));
+    }
+
+    private async Task<ToolCallResult> ExecuteFileAsync(ToolCallParams paramsObj, CancellationToken cancellationToken)
+    {
+        string filePath;
+        string database;
+        try
+        {
+            filePath = Require(paramsObj, McpConstants.ArgFilePath);
+            database = GetDb(paramsObj);
+        }
+        catch (ArgumentException ex)
+        {
+            return ToolCallResult.Failure(SqlToAiError.InvalidParametersCode, ex.Message);
+        }
+
+        Result<SqlScriptFile> file = SqlScriptFileReader.Read(filePath, _queryExecutionOptions);
+        if (file.IsFailure)
+        {
+            return ToolCallResult.Failure(file.Error.Code, file.Error.Message);
+        }
+
+        var request = new ScriptExecutionRequest(
+            file.Value,
+            database,
+            GetInt(paramsObj, McpConstants.ArgRequestedRowLimit),
+            GetObject(paramsObj, McpConstants.ArgParameters),
+            GetBool(paramsObj, McpConstants.ArgUseTransaction) ?? true);
+        ScriptExecutionReport report = await _scriptExecutionService.ExecuteAsync(request, cancellationToken);
+
+        return new ToolCallResult
+        {
+            Content = [new ToolContent { Type = "text", Text = ScriptExecutionReportRenderer.Render(report) }],
+            IsError = report.Status == ScriptExecutionStatus.Failed
+        };
     }
 
     // -------------------------------------------------------------------------

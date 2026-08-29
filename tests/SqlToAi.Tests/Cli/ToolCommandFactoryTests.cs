@@ -81,6 +81,34 @@ public sealed class ToolCommandFactoryTests
     }
 
     [Fact]
+    public async Task ExecuteFile_ShouldParseTypedOptions()
+    {
+        string? capturedTool = null;
+        Dictionary<string, object?>? capturedArgs = null;
+        const string parameters = "{\"CustomerId\":42}";
+
+        Command queryCommand = BuildQueryCommand((toolName, args, _) =>
+        {
+            capturedTool = toolName;
+            capturedArgs = args;
+            return Task.FromResult(0);
+        });
+
+        RootCommand root = WrapInRoot(queryCommand);
+        int exitCode = await root
+            .Parse(["query", McpConstants.ToolExecuteFile, "--file_path", "scripts/report.sql", "--database", "DemoDB", "--use_transaction", "false", "--requested_row_limit", "7", "--parameters", parameters])
+            .InvokeAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(McpConstants.ToolExecuteFile, capturedTool);
+        Assert.Equal("scripts/report.sql", capturedArgs?[McpConstants.ArgFilePath]);
+        Assert.Equal("DemoDB", capturedArgs?[McpConstants.ArgDatabase]);
+        Assert.Equal(false, capturedArgs?[McpConstants.ArgUseTransaction]);
+        Assert.Equal(7, capturedArgs?[McpConstants.ArgRequestedRowLimit]);
+        Assert.Equal(parameters, capturedArgs?[McpConstants.ArgParameters]);
+    }
+
+    [Fact]
     public async Task ExecuteQuery_ShouldFailParsing_WhenRequiredOptionMissing()
     {
         bool executed = false;

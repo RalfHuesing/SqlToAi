@@ -12,7 +12,7 @@ namespace SqlToAi.Mcp;
 public static class SqlMcpToolRegistrations
 {
     /// <summary>
-    /// Builds and returns the collection of all 16 SQL tools, wired to the provided <paramref name="dispatcher"/>.
+    /// Builds and returns the collection of all 17 SQL tools, wired to the provided <paramref name="dispatcher"/>.
     /// </summary>
     public static McpServerPrimitiveCollection<McpServerTool> BuildToolCollection(IToolDispatcher dispatcher)
     {
@@ -174,6 +174,37 @@ public static class SqlMcpToolRegistrations
             {
                 Name = McpConstants.ToolExecuteQuery,
                 Description = "Executes a single read-only SELECT statement inside a rollback transaction and returns the results as JSON lines."
+            }));
+
+        RegisterExecuteFileTool(tools, dispatcher);
+    }
+
+    private static void RegisterExecuteFileTool(
+        McpServerPrimitiveCollection<McpServerTool> tools,
+        IToolDispatcher dispatcher)
+    {
+        tools.Add(McpServerTool.Create(
+            ([Description("Local .sql file path, absolute or relative to the server working directory. Required.")] string file_path,
+             [Description("Target database name. Required.")] string database,
+             [Description("Whether ReadWrite batches use one atomic transaction. Defaults to true; protected read-only modes always roll back.")] bool? use_transaction = null,
+             [Description("Maximum rows returned per SELECT batch. Capped by the server's configured maximum. Optional.")] int? requested_row_limit = null,
+             [Description("Optional dictionary of typed SQL parameters for all batches.")] object? parameters = null,
+             CancellationToken ct = default) =>
+            {
+                var args = new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    [McpConstants.ArgFilePath] = file_path,
+                    [McpConstants.ArgDatabase] = database
+                };
+                if (use_transaction.HasValue) args[McpConstants.ArgUseTransaction] = use_transaction.Value;
+                if (requested_row_limit.HasValue) args[McpConstants.ArgRequestedRowLimit] = requested_row_limit.Value;
+                if (parameters != null) args[McpConstants.ArgParameters] = parameters;
+                return ExecuteAsync(dispatcher, McpConstants.ToolExecuteFile, args, ct);
+            },
+            new McpServerToolCreateOptions
+            {
+                Name = McpConstants.ToolExecuteFile,
+                Description = "Executes a local .sql file with multi-batch support and returns a structured Markdown report with transaction mode, metrics, results, and diagnostics."
             }));
     }
 

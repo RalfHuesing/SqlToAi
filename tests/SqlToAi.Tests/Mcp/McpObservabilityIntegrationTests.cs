@@ -58,15 +58,51 @@ public sealed class McpObservabilityIntegrationTests : IDisposable
         await using var client = await CreateClientAsync(clientWrite, clientRead, ct);
         var tools = await client.ListToolsAsync(cancellationToken: ct);
 
-        Assert.Equal(17, tools.Count);
+        Assert.Equal(18, tools.Count);
         Assert.Contains(tools, t => t.Name == McpConstants.ToolListDatabases);
         Assert.Contains(tools, t => t.Name == McpConstants.ToolExecuteQuery);
+        Assert.Contains(tools, t => t.Name == McpConstants.ToolExecuteFile);
         Assert.Contains(tools, t => t.Name == McpConstants.ToolGetSchema);
         Assert.Contains(tools, t => t.Name == McpConstants.ToolCompareQueries);
         Assert.Contains(tools, t => t.Name == McpConstants.ToolMeasurePerformance);
         Assert.Contains(tools, t => t.Name == McpConstants.ToolBenchmarkOptimization);
         Assert.Contains(tools, t => t.Name == McpConstants.ToolSuggestIndexes);
         Assert.Contains(tools, t => t.Name == "report_observability_feedback");
+
+        await host.StopAsync(ct);
+    }
+
+    [Fact]
+    public async Task ExecuteFileTool_Call_ShouldForwardArgumentsToDispatcher()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (clientRead, clientWrite, serverRead, serverWrite) = CreateDuplexPipes();
+        var dispatcher = new FakeTestDispatcher();
+        var host = CreateTestHost(dispatcher, new McpObservabilityOptions { Enabled = false }, serverRead, serverWrite);
+        await host.StartAsync(ct);
+
+        await using var client = await CreateClientAsync(clientWrite, clientRead, ct);
+        var result = await client.CallToolAsync(new CallToolRequestParams
+        {
+            Name = McpConstants.ToolExecuteFile,
+            Arguments = new Dictionary<string, JsonElement>
+            {
+                [McpConstants.ArgFilePath] = JsonSerializer.SerializeToElement("scripts/report.sql"),
+                [McpConstants.ArgDatabase] = JsonSerializer.SerializeToElement(TestConstants.DatabaseName),
+                [McpConstants.ArgUseTransaction] = JsonSerializer.SerializeToElement(false),
+                [McpConstants.ArgRequestedRowLimit] = JsonSerializer.SerializeToElement(7),
+                [McpConstants.ArgParameters] = JsonSerializer.SerializeToElement(new { CustomerId = 42 })
+            }
+        }, cancellationToken: ct);
+
+        Assert.NotNull(result);
+        Assert.False(result.IsError ?? false);
+        Assert.NotNull(dispatcher.LastCall);
+        Assert.Equal("scripts/report.sql", dispatcher.LastCall!.Arguments[McpConstants.ArgFilePath]);
+        Assert.Equal(TestConstants.DatabaseName, dispatcher.LastCall.Arguments[McpConstants.ArgDatabase]);
+        Assert.Equal(false, dispatcher.LastCall.Arguments[McpConstants.ArgUseTransaction]);
+        Assert.Equal(7, dispatcher.LastCall.Arguments[McpConstants.ArgRequestedRowLimit]);
+        Assert.True(dispatcher.LastCall.Arguments.ContainsKey(McpConstants.ArgParameters));
 
         await host.StopAsync(ct);
     }
@@ -200,7 +236,7 @@ public sealed class McpObservabilityIntegrationTests : IDisposable
         await using var client = await CreateClientAsync(clientWrite, clientRead, ct);
         var tools = await client.ListToolsAsync(cancellationToken: ct);
 
-        Assert.Equal(16, tools.Count);
+        Assert.Equal(17, tools.Count);
         Assert.DoesNotContain(tools, t => t.Name == "report_observability_feedback");
 
         var obsService = host.Services.GetRequiredService<IMcpObservabilityService>();
@@ -316,9 +352,11 @@ public sealed class McpObservabilityIntegrationTests : IDisposable
     private sealed class FakeTestDispatcher : IToolDispatcher
     {
         public string ResponseText { get; set; } = "[\"DemoDB\"]";
+        public ToolCallParams? LastCall { get; private set; }
 
         public Task<ToolCallResult> DispatchAsync(ToolCallParams callParams, CancellationToken cancellationToken = default)
         {
+            LastCall = callParams;
             return Task.FromResult(ToolCallResult.Success(ResponseText));
         }
     }
