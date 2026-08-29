@@ -2,10 +2,10 @@
 status: executing
 task: sql-file-execution
 started_at: 2026-08-29T06:57:35+02:00
-last_updated: 2026-08-29T06:57:35+02:00
+last_updated: 2026-08-29T07:10:19+02:00
 rules_dir: .agents/rules
-total_steps: 0
-current_step: null
+total_steps: 1
+current_step: step-001
 ---
 
 # Task State: sql-file-execution
@@ -13,17 +13,18 @@ current_step: null
 ## Übersicht
 
 - **Task-Status:** `executing`
-- **Steps gesamt:** 0 (regulär + Korrekturen)
-- **Aktueller Schritt:** keiner; Roadmap-Modus steht aus
-- **Roadmap:** wird durch den Planer erstellt
+- **Steps gesamt:** 1 (regulär + Korrekturen)
+- **Aktueller Schritt:** `step-001` — `in_progress`
+- **Roadmap:** fünf Epics, siehe `roadmap.md`
 - **Tech-Debt:** wird durch den Kritiker geführt
 - **Gestartet:** 2026-08-29T06:57:35+02:00
-- **Zuletzt aktualisiert:** 2026-08-29T06:57:35+02:00
+- **Zuletzt aktualisiert:** 2026-08-29T07:10:19+02:00
 
 ## Steps
 
 | Step | Epic | Status | Title | Corrects | Coded | Reviewed | Commit |
 |------|------|--------|-------|----------|-------|----------|--------|
+| step-001 | EPIC-01 | in_progress | GO-aware SQL script batch splitter foundation | - | - | - | - |
 
 ## Config (optional)
 
@@ -35,8 +36,8 @@ max_fix_rounds_per_step: 3
 soft_step_checkin_interval: 40
 max_batch_items: 8
 max_batch_diff_lines: 40
-build_command: wird aus roadmap.md übernommen
-test_command: wird aus roadmap.md übernommen
+build_command: dotnet build SqlToAi.slnx
+test_command: dotnet test SqlToAi.slnx
 target_branch: main
 model_planer: <nicht festgelegt>
 model_coder: <nicht festgelegt>
