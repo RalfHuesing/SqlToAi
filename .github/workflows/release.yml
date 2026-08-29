@@ -9,25 +9,9 @@ permissions:
   contents: write
 
 jobs:
-  # 1. JOB: Baue alle Binaries parallel und erstelle Plattform-Archive
+  # 1. JOB: Baue das Windows-Binary und erstelle das Release-Archiv
   build:
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-            rid: win-x64
-            executable: SqlToAi.exe
-          - os: ubuntu-latest
-            rid: linux-x64
-            executable: SqlToAi
-          - os: macos-latest
-            rid: osx-x64
-            executable: SqlToAi-intel
-          - os: macos-latest
-            rid: osx-arm64
-            executable: SqlToAi-arm64
-
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
 
     steps:
       - name: Checkout Code
@@ -42,7 +26,7 @@ jobs:
         run: >
           dotnet publish src/SqlToAi/SqlToAi.csproj
           -c Release
-          -r ${{ matrix.rid }}
+          -r win-x64
           --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
@@ -52,15 +36,6 @@ jobs:
       - name: Prepare Release Archive
         shell: pwsh
         run: |
-          # Umbenennen der ausfuehrbaren Datei auf plattformspezifischen Namen
-          $exe = Get-ChildItem -Path "./publish" -File |
-                 Where-Object { $_.Name -match "SqlToAi" -and $_.Extension -in ".exe", "" } |
-                 Select-Object -First 1
-          if (-not $exe) { Write-Error "Ausfuehrbare Datei nicht gefunden!"; exit 1 }
-          if ($exe.Name -ne "${{ matrix.executable }}") {
-            Rename-Item -Path $exe.FullName -NewName "${{ matrix.executable }}"
-          }
-
           # appsettings.json ins Publish-Verzeichnis kopieren falls nicht bereits vorhanden
           if (-not (Test-Path "./publish/appsettings.json") -and (Test-Path "src/SqlToAi/appsettings.json")) {
             Copy-Item "src/SqlToAi/appsettings.json" "./publish/appsettings.json"
@@ -78,34 +53,27 @@ jobs:
 
           # Archiv aus dem Publish-Verzeichnis erstellen (kein "publish/"-Prefix im Archiv)
           Push-Location "./publish"
-          if ("${{ matrix.os }}" -eq "windows-latest") {
-            # 7z ist auf allen GitHub Windows-Runnern vorinstalliert und archiviert rekursiv korrekt
-            7z a "../SqlToAi-${{ matrix.rid }}.zip" . -r | Out-Null
-          } else {
-            # Auf Linux/macOS nutzen wir das native zip-Tool, um Dateirechte (executable bits) zu erhalten
-            zip -r "../SqlToAi-${{ matrix.rid }}.zip" .
-          }
+          7z a "../SqlToAi-win-x64.zip" . -r | Out-Null
           Pop-Location
 
       - name: Upload Archive as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: archive-${{ matrix.rid }}
-          path: ./SqlToAi-${{ matrix.rid }}.zip
+          name: archive-win-x64
+          path: ./SqlToAi-win-x64.zip
           if-no-files-found: error
           retention-days: 1
 
-  # 2. JOB: Erstelle das GitHub Release mit allen Archiven
+  # 2. JOB: Erstelle das GitHub Release
   release:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download all Archives
+      - name: Download Archive
         uses: actions/download-artifact@v4
         with:
-          pattern: archive-*
+          name: archive-win-x64
           path: ./release-files
-          merge-multiple: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
