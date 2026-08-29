@@ -85,4 +85,3 @@ No functional uncertainties are known. The critic should specifically verify
 that the internal visibility adjustment of the concrete `ToolDispatcher` is
 acceptable for the intended public surface, whose stable dependency remains
 the public `IToolDispatcher` interface.
-
