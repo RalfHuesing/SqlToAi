@@ -1,8 +1,8 @@
 ---
-status: executing
+status: done
 task: sql-file-execution
 started_at: 2026-08-29T06:57:35+02:00
-last_updated: 2026-08-29T11:30:58+02:00
+last_updated: 2026-08-29T11:41:00+02:00
 rules_dir: .agents/rules
 total_steps: 8
 current_step: step-008
@@ -12,13 +12,13 @@ current_step: step-008
 
 ## Übersicht
 
-- **Task-Status:** `executing`
+- **Task-Status:** `done`
 - **Steps gesamt:** 8 (regulär + Korrekturen)
 - **Aktueller Schritt:** `step-008` — `done`
 - **Roadmap:** fünf Epics, siehe `roadmap.md`
 - **Tech-Debt:** wird durch den Kritiker geführt
 - **Gestartet:** 2026-08-29T06:57:35+02:00
-- **Zuletzt aktualisiert:** 2026-08-29T11:30:58+02:00
+- **Zuletzt aktualisiert:** 2026-08-29T11:41:00+02:00
 
 ## Steps
 
