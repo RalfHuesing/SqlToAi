@@ -2,7 +2,7 @@
 status: executing
 task: sql-file-execution
 started_at: 2026-08-29T06:57:35+02:00
-last_updated: 2026-08-29T11:11:46+02:00
+last_updated: 2026-08-29T11:30:58+02:00
 rules_dir: .agents/rules
 total_steps: 8
 current_step: step-008
@@ -14,11 +14,11 @@ current_step: step-008
 
 - **Task-Status:** `executing`
 - **Steps gesamt:** 8 (regulär + Korrekturen)
-- **Aktueller Schritt:** `step-008` — `in_progress`
+- **Aktueller Schritt:** `step-008` — `done`
 - **Roadmap:** fünf Epics, siehe `roadmap.md`
 - **Tech-Debt:** wird durch den Kritiker geführt
 - **Gestartet:** 2026-08-29T06:57:35+02:00
-- **Zuletzt aktualisiert:** 2026-08-29T11:11:46+02:00
+- **Zuletzt aktualisiert:** 2026-08-29T11:30:58+02:00
 
 ## Steps
 
@@ -31,7 +31,7 @@ current_step: step-008
 | step-005 | EPIC-02 | done | Add ReadWrite autocommit execution mode | - | ja | approved | 3f03635 |
 | step-006 | EPIC-03 | done | Structured script execution report and batch diagnostics | - | ja | approved | 5213fdd |
 | step-007 | EPIC-04 | done | Expose sql_execute_file through MCP and CLI wiring | - | ja | approved | 59a3b31 |
-| step-008 | EPIC-05 | in_progress | Verify sql_execute_file against live SQL Server | - | - | - | - |
+| step-008 | EPIC-05 | done | Verify sql_execute_file against live SQL Server | - | ja | approved | 2c99199 |
 
 ## Config (optional)
 
