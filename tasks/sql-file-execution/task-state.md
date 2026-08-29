@@ -2,10 +2,10 @@
 status: executing
 task: sql-file-execution
 started_at: 2026-08-29T06:57:35+02:00
-last_updated: 2026-08-29T07:31:22+02:00
+last_updated: 2026-08-29T07:37:25+02:00
 rules_dir: .agents/rules
-total_steps: 1
-current_step: step-001
+total_steps: 2
+current_step: step-002
 ---
 
 # Task State: sql-file-execution
@@ -13,18 +13,19 @@ current_step: step-001
 ## Übersicht
 
 - **Task-Status:** `executing`
-- **Steps gesamt:** 1 (regulär + Korrekturen)
-- **Aktueller Schritt:** `step-001` — `in_progress`
+- **Steps gesamt:** 2 (regulär + Korrekturen)
+- **Aktueller Schritt:** `step-002` — `in_progress`
 - **Roadmap:** fünf Epics, siehe `roadmap.md`
 - **Tech-Debt:** wird durch den Kritiker geführt
 - **Gestartet:** 2026-08-29T06:57:35+02:00
-- **Zuletzt aktualisiert:** 2026-08-29T07:31:22+02:00
+- **Zuletzt aktualisiert:** 2026-08-29T07:37:25+02:00
 
 ## Steps
 
 | Step | Epic | Status | Title | Corrects | Coded | Reviewed | Commit |
 |------|------|--------|-------|----------|-------|----------|--------|
 | step-001 | EPIC-01 | done (Korrektur ausstehend) | GO-aware SQL script batch splitter foundation | - | ja | issues | 6336116 |
+| step-002 | EPIC-01 | in_progress | Fix nested block-comment depth and AddBatch parameter budget | step-001 | - | - | - |
 
 ## Config (optional)
 
