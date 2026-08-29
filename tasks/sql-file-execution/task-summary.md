@@ -18,8 +18,9 @@ selection, structured reporting, MCP/CLI exposure, and live SQL Server
 verification. All mandatory requirements and declared non-goals in `konzept.md`
 are respected, including read-only rollback/anonymization, local-only paths,
 diagnostic error reporting, and preservation of the existing single-query path.
-The only recorded technical debt is the pre-existing, non-auto-fixable TD-001
-constructor duplication.
+The pre-existing, non-auto-fixable TD-001 constructor duplication was resolved
+in the follow-up refactor commit `980eabd` through a shared dependency
+composition.
 
 ## Roadmap Status
 
@@ -88,13 +89,15 @@ recorded by its approved review.
 Aggregation from `tasks/sql-file-execution/tech-debt.md`:
 
 - **High:** 0 entries — none
-- **Medium:** 1 entry — `TD-001`
+- **Medium:** 0 open entries
 - **Low:** 0 entries — none
+- **Resolved:** 1 entry — `TD-001`
 
-`TD-001` is the existing exact constructor-initialization duplication between
-`PerformanceMeasurementService` and `QueryComparisonService`. It remains open,
-has `auto_fixable: nein`, was found outside the task's step scopes, and was not
-re-created by the global check.
+`TD-001` was the exact constructor-initialization duplication between
+`PerformanceMeasurementService` and `QueryComparisonService`. It was resolved
+by introducing the internal singleton `QueryExecutionDependencies` and wiring
+both services through that composition. The refactor preserved the existing
+DI/options semantics and was validated by the full test and AiNetLinter gates.
 
 ## Open Points
 
@@ -104,9 +107,7 @@ re-created by the global check.
 
 ## Recommendations
 
-No corrective step is required for task closure. If pursued later, `TD-001`
-should be handled in a separate architecture-focused task requiring an explicit
-consolidation decision; it is not part of this task's acceptance scope.
+No corrective step or follow-up architecture task is required for `TD-001`.
 
 ## Statistics
 
@@ -115,6 +116,6 @@ consolidation decision; it is not part of this task's acceptance scope.
 - **Directly approved reviews:** 7; step-001 was finally accepted through its step-002 correction
 - **Blocked steps:** 0
 - **Commits in the task history:** 36
-- **Tech-debt entries:** 1 (auto-fixable: 0)
+- **Tech-debt entries:** 1 resolved (auto-fixable: 0)
 - **Correction steps:** 1 (longest `corrects` chain: 1 / 3)
 - **Runtime:** 2026-08-29T06:57:35+02:00 to 2026-08-29T11:37:55+02:00 (04:40:20)

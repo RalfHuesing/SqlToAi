@@ -2,7 +2,7 @@
 task: sql-file-execution
 type: tech-debt-log
 maintained_by: kritiker
-last_updated: 2026-08-29T07:31:22+02:00
+last_updated: 2026-08-29T13:22:30+02:00
 ---
 
 # Tech-Debt-Log: sql-file-execution
@@ -13,7 +13,7 @@ Append-only. Each entry is an architecture, anti-pattern, duplication, or consis
 
 | ID | Bereich / Datei | Priorität | Auto-Fixable | Kurzfassung |
 |---|---|---|---|---|
-| TD-001 | `src/SqlToAi/Database/PerformanceMeasurementService.cs`, `src/SqlToAi/Database/QueryComparisonService.cs` | mittel | nein | Exact duplicate dependency-initialization constructors require an architectural consolidation decision. |
+| TD-001 | `src/SqlToAi/Database/PerformanceMeasurementService.cs`, `src/SqlToAi/Database/QueryComparisonService.cs` | mittel | nein | Exact duplicate dependency initialization resolved through shared composition in commit `980eabd`. |
 
 ## Einträge
 
@@ -25,4 +25,10 @@ Append-only. Each entry is an architecture, anti-pattern, duplication, or consis
 - **Warum nicht sofort gefixt:** The duplicate predates Step-001 and is outside the splitter foundation. Consolidating constructor initialization across two independently scoped services requires architectural judgment and is not a mechanical change for this step.
 - **Vorschlag:** In a future database-service refactoring, evaluate a shared options/dependency initialization abstraction or another design that removes the exact clone without obscuring the services' distinct responsibilities.
 - **Auto-Fixable:** nein — the consolidation requires architecture decisions and could affect construction/DI behavior.
-- **Status:** offen
+- **Status:** gelöst in `980eabd` (`refactor: bündele gemeinsame Query-Execution-Abhängigkeiten [td-001]`).
+- **Auflösung:** `QueryExecutionDependencies` bündelt `IDatabaseConnectionFactory`,
+  `IQuerySafetyValidator` und `QueryExecutionOptions`. Beide Services verwenden
+  diese interne Singleton-Komposition; ihre fachliche Logik bleibt getrennt.
+- **Validierung:** Vollständiger Testlauf `dotnet test SqlToAi.slnx` mit 612/612
+  Tests bestanden; AiNetLinter meldet 0 Violations und der exakte Duplikat-Scan
+  findet 0 Cluster.
