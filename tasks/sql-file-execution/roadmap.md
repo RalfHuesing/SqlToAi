@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 task: sql-file-execution
 derived_from: konzept.md
 created_at: 2026-08-29
@@ -97,16 +97,16 @@ change here.
   dispatch, reuse of the existing DI registration, and the minimal CLI
   boolean mapping required by `use_transaction`. Based on `konzept.md`
   “Neues MCP-Tool” and “Wo im Projekt”.
-- [ ] **EPIC-05: Verification, documentation, and quality closure** — Add
+- [x] **EPIC-05: Verification, documentation, and quality closure** — Add
   focused xUnit v3 unit/integration coverage for file validation, encoding,
   `GO` variants, multi-batch success/failure, transaction modes, read-only
   rejection, anonymized result sets, and diagnostics; synchronize `README.md`,
   `docs/architecture-spec.md`, configuration examples, and error catalog;
-  finish with build/test, AiNetLinter, and drift-audit gates. In work →
-  `step-008` for the missing live SQL integration coverage and verification
-  gates; the earlier unit and public-documentation portions are already
-  covered by approved Steps 001–007. Based on the complete Definition of Done
-  in `konzept.md`.
+  finish with build/test, AiNetLinter, and drift-audit gates. Completed by
+  approved `step-008`, which added the missing live SQL integration coverage
+  and confirmed the verification gates; the earlier unit and
+  public-documentation portions were already covered by approved Steps
+  001–007. Based on the complete Definition of Done in `konzept.md`.
 
 ## Scope Guardrails
 
