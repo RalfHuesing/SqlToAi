@@ -1,6 +1,6 @@
 # SqlToAi
 
-**SqlToAi** is a lightweight, secure, and highly customizable Model Context Protocol (MCP) server for Microsoft SQL Server. It allows AI agents and LLMs (such as Cursor, Windsurf, or Claude Desktop) to interact with databases securely, retrieve schema information, run read-only queries with on-the-fly string anonymization to protect PII, measure SQL Server query performance & execution plans, verify query result equivalence, and execute automated optimization benchmarks with typed SQL parameters.
+**SqlToAi** is a lightweight, secure, and highly customizable Model Context Protocol (MCP) server for Microsoft SQL Server. It allows AI agents and LLMs (such as Cursor, Windsurf, or Claude Desktop) to interact with databases securely, retrieve schema information, run read-only queries with on-the-fly string anonymization to protect PII, execute local multi-batch SQL scripts, measure SQL Server query performance & execution plans, verify query result equivalence, and execute automated optimization benchmarks with typed SQL parameters.
 
 Designed specifically for developers analyzing ERP systems, optimizing SQL queries, and exploring complex database schemas without exposing sensitive customer data.
 
@@ -25,7 +25,7 @@ Designed specifically for developers analyzing ERP systems, optimizing SQL queri
 * 🚦 **Level-Based Database Access Control:** Granular access lists (`ReadWrite`, `ReadOnly`, `ReadOnlyAnonymized`, `SchemaOnly`) in `appsettings.json` with fail-safe default-deny (`AccessLevel.None`).
 
 ### 🔎 Schema Discovery & Developer Experience
-* 📋 **16 Progressive Disclosure Schema Tools:** Exposes 16 optimized tools for schema discovery, triggers, constraints, indexes, routine parameters, referencing entities (`sys.dm_sql_referencing_entities`), result-set equivalence comparison (`sql_compare_queries`), server performance measurement & XML plan warning parsing (`sql_measure_performance`), all-in-one optimization benchmarking (`sql_benchmark_optimization`), and server-wide DMV-driven missing-index suggestions (`sql_suggest_indexes`), formatted in clean Markdown for the AI.
+* 📋 **17 Progressive Disclosure and Execution Tools:** Exposes 17 optimized tools for schema discovery, triggers, constraints, indexes, routine parameters, referencing entities (`sys.dm_sql_referencing_entities`), local SQL script execution (`sql_execute_file`), result-set equivalence comparison (`sql_compare_queries`), server performance measurement & XML plan warning parsing (`sql_measure_performance`), all-in-one optimization benchmarking (`sql_benchmark_optimization`), and server-wide DMV-driven missing-index suggestions (`sql_suggest_indexes`), formatted in clean Markdown for the AI.
 * 🔎 **Proactive Anonymization Awareness:** `sql_get_schema` marks column anonymization status (`No`, `Yes`, `Yes (searchable)`) before queries are written, and `sql_execute_query` reports affected `Table.Column` pairs to guide the AI agent safely.
 * 📖 **Schema Enrichment (Custom Metadata):** Inject custom business logic or table/column documentation from another database/table via configurable SQL queries directly into the schema results returned to the AI.
 * 🚀 **Stdio MCP Host & CLI Query Runner:** Fast, local stdio execution for AI clients (no network setup), plus direct CLI query execution (`.\SqlToAi.exe query ...`) for manual tool verification.
@@ -219,6 +219,18 @@ Add the following entry to your `mcp.json` configuration in Cursor, Claude Deskt
 }
 ```
 
+### Local SQL Script Execution (`sql_execute_file`)
+
+The `sql_execute_file` tool accepts five arguments:
+
+* `file_path` (string, required): local `.sql` file path, absolute or relative to the server working directory.
+* `database` (string, required): target database name.
+* `use_transaction` (boolean, optional, default `true`): use one atomic transaction for `ReadWrite` databases; set to `false` for provider autocommit per batch. `ReadOnly` and `ReadOnlyAnonymized` always use rollback protection.
+* `requested_row_limit` (integer, optional): maximum rows returned per `SELECT` batch, subject to the configured server maximum.
+* `parameters` (object, optional): typed SQL parameters shared by all batches.
+
+Only local `.sql` files are accepted. Access-level guardrails remain active: `SchemaOnly` and `None` reject execution, `ReadOnlyAnonymized` anonymizes protected string values, and `ReadWrite` applies the requested transaction mode. The result is a structured Markdown report containing script metadata, transaction mode, execution metrics, batch results, and diagnostics.
+
 ### 3. Verify a Tool Manually (without an AI Client)
 `SqlToAi.exe` also exposes every MCP tool directly on the command line — useful for manually
 verifying behavior (e.g. query results, anonymization, exclusions) without going through an LLM.
@@ -233,6 +245,7 @@ Running the exe with no arguments (or with `server`) starts the MCP stdio server
 # Invoke a tool directly
 .\SqlToAi.exe query sql_list_databases
 .\SqlToAi.exe query sql_execute_query --database MyDemoDatabase --query "SELECT TOP 5 * FROM dbo.Customers"
+.\SqlToAi.exe query sql_execute_file --file_path .\scripts\report.sql --database MyDemoDatabase --use_transaction false --requested_row_limit 100 --parameters '{"CustomerId":42}'
 ```
 
 Tool data is written to stdout (pipeable, e.g. into `jq`); any anonymization notice and error

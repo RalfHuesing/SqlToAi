@@ -219,6 +219,7 @@ Um kryptische Tabellen- und Spaltennamen für das LLM verständlicher zu machen,
 ## 4. MCP Tool-Spezifikationen
 
 Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und einem Fehlercode zurück. Bei Erfolg wird ein Markdown-Text oder eine JSON-Payload geliefert.
+The server exposes 17 SQL tools through the MCP SDK; the optional observability feedback tool is registered separately.
 
 ### 1. `sql_list_databases`
 * **Zweck:** Listet alle freigegebenen Datenbanken auf dem SQL-Server auf.
@@ -289,7 +290,14 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
   3. Die eigentlichen JSON-Zeilen der Abfrageergebnisse.
 * **Berechtigungsprüfung:** Schlägt fehl mit `SQL-AI-0107`, falls das Access-Level der Datenbank nur `SchemaOnly` oder `None` ist.
 
-### 13. `sql_compare_queries`
+### 13. `sql_execute_file`
+* **Arguments:** `file_path` (String, required), `database` (String, required), `use_transaction` (Bool, optional — default `true`), `requested_row_limit` (Int, optional), `parameters` (Object, optional — typed SQL parameters shared by all batches).
+* **Purpose:** Executes a local `.sql` file sequentially, including multiple `GO`-separated batches, and returns the structured Markdown report with transaction mode, execution metrics, batch results, and diagnostics.
+* **File intake:** Only local paths are accepted. Absolute and server-working-directory-relative paths are supported; remote URLs and UNC paths are rejected. The `.sql` extension and `MaxScriptFileSizeBytes` limit are enforced before execution.
+* **Access-level behavior:** `ReadWrite` honors `use_transaction` (`true` selects one atomic transaction; `false` selects provider autocommit per batch). `ReadOnly` and `ReadOnlyAnonymized` always use rollback protection, with string anonymization in the latter mode. `SchemaOnly` and `None` reject execution with the standard write/access error.
+* **CLI:** The registry-driven command accepts the same arguments, for example `SqlToAi.exe query sql_execute_file --file_path .\scripts\report.sql --database MyDemoDatabase --use_transaction false --requested_row_limit 100 --parameters '{"CustomerId":42}'`.
+
+### 14. `sql_compare_queries`
 * **Argumente:** `database` (String, Pflicht), `query_a` (String, Pflicht), `query_b` (String, Pflicht), `parameters_a` (Object, optional), `parameters_b` (Object, optional), `parameters` (Object, optional — gemeinsame Parameter), `max_diff_rows` (Int, optional — Default: 5).
 * **Zweck:** Vergleicht zwei SQL-Abfragen auf der Zieldatenbank auf semantische Ergebnissatz-Gleichheit ohne Übertragung großer Datenmengen.
 * **Prüfschritte:**
@@ -297,7 +305,7 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
   2. **Count-Check:** Vergleicht die exakte Zeilenanzahl via `COUNT_BIG(*)`.
   3. **Set-Differenz (EXCEPT):** Führt DB-seitige Set-Differenzen (`A EXCEPT B` und `B EXCEPT A`) aus und liefert Beispielzeilen für Abweichungen zurück.
 
-### 14. `sql_measure_performance`
+### 15. `sql_measure_performance`
 * **Argumente:** `database` (String, Pflicht), `query` (String, Pflicht), `parameters` (Object, optional), `warmup_runs` (Int, optional — Default: 1, steuert die Anzahl initialer, ungemessener Aufwärm-Läufe zum Vorwärmen des Plan-Cache), `execution_runs` (Int, optional — Default: 1, steuert die Anzahl gemessener Läufe, deren Werte gemittelt werden), `include_plan_analysis` (Bool, optional — Default: true).
 * **Zweck:** Erfasst präzise Server-Metriken (CPU-Zeit, Elapsed Time, Logical Reads, Physical Reads, Read-Ahead Reads) via T-SQL `STATISTICS IO, TIME` und parst den XML-Ausführungsplan (`Missing Indexes`, `CONVERT_IMPLICIT`, `Table Scans`).
 * **Graceful Degradation:** Fehlt dem Datenbankbenutzer die `SHOWPLAN`-Berechtigung, degradiert das Tool automatisch auf reine IO/TIME-Messung und gibt einen entsprechenden Hinweis zurück.
@@ -313,17 +321,17 @@ Jedes Tool gibt bei Fehlern ein strukturiertes JSON mit `IsSuccess=false` und ei
   wenn `execution_runs > 1` ist (sonst `null`), und existieren nur für `elapsed`/`cpu`,
   nicht für die drei Reads-Felder.
 
-### 15. `sql_benchmark_optimization`
+### 16. `sql_benchmark_optimization`
 * **Argumente:** `database` (String, Pflicht), `query_a` (Baseline, Pflicht), `query_b` (Kandidat, Pflicht), `parameters_a` (Object, optional), `parameters_b` (Object, optional), `parameters` (Object, optional), `warmup_runs` (Int, optional), `execution_runs` (Int, optional).
 * **Zweck:** Kombinierter All-in-One Benchmark zur Evaluierung von SQL-Optimierungen. Führt Äquivalenzvergleich und Performancemessungen für beide Abfragen durch, berechnet prozentuale und absolute Deltas (CPU, IO) und liefert ein klares Urteil (`Recommended`, `NotRecommended`, `Neutral`, `UnsafeDueToDataMismatch`).
 * **Rückgabestruktur (`OptimizationBenchmarkResult`):** `database`, `verdict`, `summary`,
-  `comparison` (vollständiges `sql_compare_queries`-Ergebnis), `performance_a`/`performance_b` (je ein
-  vollständiges `sql_measure_performance`-Ergebnis wie unter Punkt 14 beschrieben) sowie `deltas`
+   `comparison` (vollständiges `sql_compare_queries`-Ergebnis), `performance_a`/`performance_b` (je ein
+   vollständiges `sql_measure_performance`-Ergebnis wie unter Punkt 15 beschrieben) sowie `deltas`
   (`BenchmarkMetricsDelta`) mit `cpu_time`/`elapsed_time`/`logical_reads`/`physical_reads`, je ein
   `MetricDelta`-Objekt mit `baseline_value`/`candidate_value`/`absolute_delta`/`percentage_delta`
   (ein negativer `percentage_delta` bedeutet, dass der Kandidat sich verbessert hat).
 
-### 16. `sql_suggest_indexes`
+### 17. `sql_suggest_indexes`
 * **Argumente:** `database` (String, Pflicht), `table_name` (String, optional — `LIKE`-Substring-Filter auf die `statement`-Spalte der DMV, z. B. `Orders` oder `dbo.%`, case-insensitive), `min_score` (Number, optional — Mindest-`improvement_score`; Zeilen darunter werden ausgeschlossen, Default 0 = kein Filter), `top` (Int, optional — Maximalanzahl zurückgegebener Empfehlungen, Default 10).
 * **Zweck:** Liefert die serverweit kumulierten, seit dem letzten SQL-Server-Neustart akkumulierten Missing-Index-Empfehlungen aus den DMVs `sys.dm_db_missing_index_group_stats`, `sys.dm_db_missing_index_details` und `sys.dm_db_missing_index_columns`. Pro Empfehlung wird ein `improvement_score` (Formel `avg_total_user_cost × avg_user_impact × (user_seeks + user_scans)`) berechnet und das Ergebnis absteigend nach Score sortiert. Pro Zeile werden Tabelle, Equality-/Inequality-/Include-Spaltenlisten, Seek-/Scan-Counts und der Last-Seek-Zeitstempel ausgegeben.
 * **Restart-Hinweis:** Die Ausgabe beginnt mit einem festen Hinweis-Block, dass die DMV-Daten seit dem letzten Server-Neustart akkumuliert werden — auf frisch gestarteten Servern liefert das Tool entsprechend wenig oder nichts, auf lang laufenden Produktionsservern ist es aussagekräftig.
