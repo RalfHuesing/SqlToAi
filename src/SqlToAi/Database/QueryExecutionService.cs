@@ -1,7 +1,6 @@
 #nullable enable
 
 using System.Data;
-using System.Data.Common;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
@@ -33,7 +32,7 @@ public sealed record AnonymizationDependencies(
 /// transaction and mutating keywords are rejected outright. Applies row limits and on-the-fly
 /// PII anonymization for <see cref="AccessLevel.ReadOnlyAnonymized"/> databases.
 /// </summary>
-public sealed partial class QueryExecutionService : IQueryExecutionService
+public sealed partial class QueryExecutionService : IQueryExecutionService, IQueryBatchExecutor
 {
     private static readonly Action<ILogger, string, string, Exception?> LogQueryFailed =
         LoggerMessage.Define<string, string>(
@@ -138,8 +137,9 @@ public sealed partial class QueryExecutionService : IQueryExecutionService
             bool tranCountChanged;
             try
             {
-                var execArgs = new ExecutionArgs(connection, transaction, query, effectiveLimit, anonymize, databaseName, parameters);
-                result = await ExecuteAndSerializeAsync(execArgs, cancellationToken);
+                var execArgs = new QueryBatchExecutionArgs(
+                    connection, transaction, databaseName, query, effectiveLimit, anonymize, parameters);
+                result = await ((IQueryBatchExecutor)this).ExecuteBatchAsync(execArgs, cancellationToken);
                 int tranCountAfterExecution = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, cancellationToken);
                 tranCountChanged = tranCountAfterExecution != baselineTranCount;
             }
@@ -186,17 +186,13 @@ public sealed partial class QueryExecutionService : IQueryExecutionService
         _ => "the query failed during execution.",
     };
 
-    private sealed record ExecutionArgs(
-        DbConnection Connection,
-        DbTransaction Transaction,
-        string Query,
-        int RowLimit,
-        bool Anonymize,
-        string DatabaseName,
-        object? Parameters);
+    Task<Result<QueryExecutionResult>> IQueryBatchExecutor.ExecuteBatchAsync(
+        QueryBatchExecutionArgs args,
+        CancellationToken cancellationToken) =>
+        ExecuteAndSerializeAsync(args, cancellationToken);
 
     private async Task<Result<QueryExecutionResult>> ExecuteAndSerializeAsync(
-        ExecutionArgs args,
+        QueryBatchExecutionArgs args,
         CancellationToken cancellationToken)
     {
         var messages = new List<string>();

@@ -128,6 +128,18 @@ internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
         return _delegate!.ValidateQuerySafetyAsync(databaseName, query, allowSchemaOnly, cancellationToken);
     }
 
+    public Task<Result<QuerySafetyCheckResult>> ValidateBatchSafetyAsync(
+        string databaseName,
+        string query,
+        CancellationToken cancellationToken = default)
+    {
+        if (_fixedFailure != null)
+        {
+            return Task.FromResult(_fixedFailure);
+        }
+        return _delegate!.ValidateBatchSafetyAsync(databaseName, query, cancellationToken);
+    }
+
     /// <summary>
     /// Minimal pipeline that still runs the input-only stages (empty database name, empty query,
     /// multi-statement detection) but treats the read-only guard as a no-op, so tests that
@@ -144,22 +156,33 @@ internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
             bool allowSchemaOnly = false,
             CancellationToken cancellationToken = default)
         {
+            return Task.FromResult(ValidateInput(databaseName, query, rejectMultipleStatements: true));
+        }
+
+        public Task<Result<QuerySafetyCheckResult>> ValidateBatchSafetyAsync(
+            string databaseName,
+            string query,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(ValidateInput(databaseName, query, rejectMultipleStatements: false));
+
+        private Result<QuerySafetyCheckResult> ValidateInput(
+            string databaseName,
+            string query,
+            bool rejectMultipleStatements)
+        {
             if (string.IsNullOrWhiteSpace(databaseName))
             {
-                return Task.FromResult(Result<QuerySafetyCheckResult>.Failure(
-                    SqlToAiError.InvalidParameters("Database name must not be empty.")));
+                return SqlToAiError.InvalidParameters("Database name must not be empty.");
             }
             if (string.IsNullOrWhiteSpace(query))
             {
-                return Task.FromResult(Result<QuerySafetyCheckResult>.Failure(
-                    SqlToAiError.InvalidParameters("Query must not be empty.")));
+                return SqlToAiError.InvalidParameters("Query must not be empty.");
             }
-            if (SqlMultiStatementDetector.ContainsMultipleStatements(query))
+            if (rejectMultipleStatements && SqlMultiStatementDetector.ContainsMultipleStatements(query))
             {
-                return Task.FromResult(Result<QuerySafetyCheckResult>.Failure(
-                    SqlToAiError.MultipleStatementsForbidden()));
+                return SqlToAiError.MultipleStatementsForbidden();
             }
-            return Task.FromResult(Result<QuerySafetyCheckResult>.Success(result));
+            return Result<QuerySafetyCheckResult>.Success(result);
         }
     }
 }
@@ -220,6 +243,9 @@ internal sealed class MockQueryConnectionFactory(MockQueryRowConfig? config = nu
     /// </summary>
     public List<string> ExecutedNonQueryCommands { get; } = [];
 
+    /// <summary>Reader commands in execution order, including their assigned transactions.</summary>
+    public List<FakeDbCommand> ExecutedReaderCommands { get; } = [];
+
     public DbConnection CreateConnection(string? databaseName)
     {
         LastConnection = BuildConnection(_config);
@@ -276,9 +302,10 @@ internal sealed class MockQueryConnectionFactory(MockQueryRowConfig? config = nu
     /// ever calls <c>ExecuteScalar</c>, never overwrites <see cref="FakeDbConnection.LastCommand"/>
     /// and existing assertions on the resolved query text keep working unchanged.
     /// </summary>
-    private static FakeDbDataReader ExecuteReader(FakeDbCommand cmd, FakeDbConnection conn, MockQueryRowConfig config)
+    private FakeDbDataReader ExecuteReader(FakeDbCommand cmd, FakeDbConnection conn, MockQueryRowConfig config)
     {
         conn.LastCommand = cmd;
+        ExecutedReaderCommands.Add(cmd);
         if (config.ThrowOnExecute != null)
         {
             throw config.ThrowOnExecute;

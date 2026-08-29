@@ -274,4 +274,33 @@ public sealed class QuerySafetyValidatorTests
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
     }
+
+    [Fact]
+    public async Task ValidateBatchSafetyAsync_ReadWrite_AllowsMultipleStatements()
+    {
+        var v = BuildValidator(accessLevel: AccessLevel.ReadWrite);
+        var result = await v.ValidateBatchSafetyAsync("TestDb", "UPDATE Customers SET Name = 'X'; UPDATE Orders SET Flag = 1", TestContext.Current.CancellationToken);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(AccessLevel.ReadWrite, result.Value.AccessLevel);
+        Assert.True(result.Value.IsWriteAllowed);
+    }
+
+    [Fact]
+    public async Task ValidateBatchSafetyAsync_ReadOnly_AllowsMultipleReadStatements()
+    {
+        var v = BuildValidator(accessLevel: AccessLevel.ReadOnly);
+        var result = await v.ValidateBatchSafetyAsync("TestDb", "SELECT 1; SELECT 2", TestContext.Current.CancellationToken);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(AccessLevel.ReadOnly, result.Value.AccessLevel);
+        Assert.False(result.Value.IsWriteAllowed);
+    }
+
+    [Fact]
+    public async Task ValidateBatchSafetyAsync_ReadOnly_RejectsMutatingStatement()
+    {
+        var v = BuildValidator(accessLevel: AccessLevel.ReadOnly);
+        var result = await v.ValidateBatchSafetyAsync("TestDb", "SELECT 1; DELETE FROM Customers", TestContext.Current.CancellationToken);
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
+    }
 }

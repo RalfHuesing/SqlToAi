@@ -170,7 +170,10 @@ internal static class Program
         services.AddSingleton<IDatabaseConnectionFactory, SqlConnectionFactory>();
         services.AddSingleton<IMetadataProvider, MetadataProvider>();
         services.AddSingleton<ISchemaService, SchemaService>();
-        services.AddSingleton<IQueryExecutionService, QueryExecutionService>();
+        services.AddSingleton<QueryExecutionService>();
+        services.AddSingleton<IQueryExecutionService>(sp => sp.GetRequiredService<QueryExecutionService>());
+        services.AddSingleton<IQueryBatchExecutor>(sp => sp.GetRequiredService<QueryExecutionService>());
+        services.AddSingleton<IScriptExecutionService, ScriptExecutionService>();
         services.AddSingleton<IQueryValidationService, QueryValidationService>();
         services.AddSingleton<IQueryComparisonService, QueryComparisonService>();
         services.AddSingleton<IPerformanceMeasurementService, PerformanceMeasurementService>();

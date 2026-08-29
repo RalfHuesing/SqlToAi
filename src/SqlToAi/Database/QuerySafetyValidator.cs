@@ -41,6 +41,15 @@ public interface IQuerySafetyValidator
         string query,
         bool allowSchemaOnly = false,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Runs the guardrail pipeline for one script batch and permits the batch's intentional
+    /// multiple statements while retaining all access-level and read-only checks.
+    /// </summary>
+    Task<Result<QuerySafetyCheckResult>> ValidateBatchSafetyAsync(
+        string databaseName,
+        string query,
+        CancellationToken cancellationToken = default);
 }
 
 /// <inheritdoc/>
@@ -67,6 +76,29 @@ internal sealed class QuerySafetyValidator : IQuerySafetyValidator
         string query,
         bool allowSchemaOnly = false,
         CancellationToken cancellationToken = default)
+    {
+        return await ValidateAsync(
+            databaseName, query, allowSchemaOnly, rejectMultipleStatements: true, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<QuerySafetyCheckResult>> ValidateBatchSafetyAsync(
+        string databaseName,
+        string query,
+        CancellationToken cancellationToken = default)
+    {
+        return await ValidateAsync(
+            databaseName, query, allowSchemaOnly: false, rejectMultipleStatements: false, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<Result<QuerySafetyCheckResult>> ValidateAsync(
+        string databaseName,
+        string query,
+        bool allowSchemaOnly,
+        bool rejectMultipleStatements,
+        CancellationToken cancellationToken)
     {
         // Stage 1: database name must be present.
         if (string.IsNullOrWhiteSpace(databaseName))
@@ -107,9 +139,9 @@ internal sealed class QuerySafetyValidator : IQuerySafetyValidator
                 "The query contains mutating SQL statements (e.g. INSERT, UPDATE, DELETE, MERGE, DDL, EXEC) and was rejected in read-only mode.");
         }
 
-        // Stage 6: always enforce single-statement regardless of write allowance — keeps the
-        // blast radius of a single call limited to one statement.
-        if (SqlMultiStatementDetector.ContainsMultipleStatements(query))
+        // Stage 6: single-query calls enforce one statement; script batches intentionally skip
+        // this boundary because the splitter already defines their execution unit.
+        if (rejectMultipleStatements && SqlMultiStatementDetector.ContainsMultipleStatements(query))
         {
             return SqlToAiError.MultipleStatementsForbidden();
         }
