@@ -81,18 +81,22 @@ change here.
   approved `step-004` and `step-005`, including guarded atomic execution,
   ReadWrite autocommit selection, and explicit transaction integrity. Based on
   `konzept.md` “Sicherheits-Guardrails” and “Ausführung”.
-- [ ] **EPIC-03: Structured report and diagnostic contract** — Define and
+- [x] **EPIC-03: Structured report and diagnostic contract** — Define and
   render the Markdown result for script metadata, overall status and metrics,
   per-batch status/result sets, and actionable failures with batch number,
-  source line, SQL snippet, and catalog error code. In work → `step-006` for
-  the internal report contract, metric aggregation, and Markdown renderer.
-  Based on `konzept.md` “Strukturiertes Markdown-Ausgabeformat” and its
-  error-reporting criteria.
+  source line, SQL snippet, and catalog error code. Completed by approved
+  `step-006` for the internal report contract, metric aggregation, and
+  Markdown renderer. Based on `konzept.md` “Strukturiertes
+  Markdown-Ausgabeformat” and its error-reporting criteria.
 - [ ] **EPIC-04: MCP, registry, CLI, and dependency wiring** — Expose
   `sql_execute_file` consistently through the MCP tool registration and
-  dispatcher, the canonical tool registry used by `tools/list` and the CLI,
-  and the application/test dependency graph with the documented arguments and
-  defaults. Based on `konzept.md` “Neues MCP-Tool” and “Wo im Projekt”.
+  dispatcher, the canonical tool registry aligned with the SDK `tools/list`
+  surface and used by the CLI, and the application/test dependency graph with
+  the documented arguments and defaults. In work → `step-007` for the first
+  public wiring slice: constants, registry schema, SDK registration,
+  report-aware dispatch, reuse of the existing DI registration, and the
+  minimal CLI boolean mapping required by `use_transaction`. Based on
+  `konzept.md` “Neues MCP-Tool” and “Wo im Projekt”.
 - [ ] **EPIC-05: Verification, documentation, and quality closure** — Add
   focused xUnit v3 unit/integration coverage for file validation, encoding,
   `GO` variants, multi-batch success/failure, transaction modes, read-only
