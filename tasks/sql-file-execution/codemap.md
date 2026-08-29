@@ -28,8 +28,8 @@ complete map of the repository.
 - **`src/SqlToAi/Anonymization`** — anonymizer, token vault, token resolver, and rule/policy components needed for protected script result sets.
 - **`src/SqlToAi/Configuration`** — `SqlToAiOptions` and nested execution options containing the script-size limit and related defaults (last: step-003).
 - **`src/SqlToAi/Domain`** — result/value objects and the standardized `SqlToAiError` catalog containing the file-intake codes (last: step-003).
-- **`src/SqlToAi/Mcp`** — tool constants, dispatcher, MCP registration, canonical tool registry, protocol models, and output conversion for public exposure.
-- **`src/SqlToAi/Cli`** — registry-driven direct query command construction, relevant because the new MCP tool is also a CLI-verifiable tool.
+- **`src/SqlToAi/Mcp`** — canonical tool constants, registry metadata, SDK registrations, dispatcher routing, protocol models, and output conversion for public SQL-tool exposure (last: step-007).
+- **`src/SqlToAi/Cli`** — registry-driven direct query command construction with typed option mapping for CLI-verifiable tools (last: step-007).
 - **`src/SqlToAi/appsettings.json`** — embedded and copied factory configuration template containing the script file-size default (last: step-003).
 - **`src/SqlToAi/Program.cs`** — application composition root and DI registrations for new execution services.
 - **`tests/SqlToAi.Tests/Database`** — unit tests and database fakes covering execution, safety, transactions, parameters, result handling, and script-file intake (last: step-003).
@@ -40,11 +40,12 @@ complete map of the repository.
 - **`tests/SqlToAi.Tests/Configuration`** — option-binding and temporary-file tests covering the script-size configuration contract (last: step-003).
 - **`tests/SqlToAi.Tests/Domain`** — centralized `SqlToAiError` catalog assertions covering the script-file error codes (last: step-003).
 - **`tests/SqlToAi.Tests/Database/SqlScriptFileReaderTests.cs`** — focused local path, size, and encoding contract tests (last: step-003).
-- **`tests/SqlToAi.Tests/Mcp`** — dispatcher, tool registration, registry, and MCP output tests for routing and contract exposure.
+- **`tests/SqlToAi.Tests/Mcp`** — dispatcher, tool registration, registry, observability, and MCP output tests for script-tool routing and contract exposure (last: step-007).
+- **`tests/SqlToAi.Tests/Cli`** — registry-generated CLI command tests for tool argument parsing and callback mapping (last: step-007).
 - **`tests/SqlToAi.Tests/Integration`** — live SQL Server fixture and integration coverage for transaction, guardrail, anonymization, and result behavior.
 - **`tests/SqlToAi.Tests/AiNetLinter`** — linter clean-check test and the project rules JSON used by the semantic quality gate.
-- **`README.md`** — user-facing setup, CLI, configuration, tool, and deployment documentation synchronized with the file-size option (last: step-003).
-- **`docs/architecture-spec.md`** — authoritative MCP tool, security, output, configuration, and error-catalog specification synchronized with file intake (last: step-003).
+- **`README.md`** — user-facing setup, CLI, configuration, tool, and deployment documentation synchronized with local script execution (last: step-007).
+- **`docs/architecture-spec.md`** — authoritative MCP tool, security, output, configuration, and error-catalog specification synchronized with local script execution (last: step-007).
 - **`scripts/deploy.ps1` and `.github/workflows/release.yml`** — local deployment and tag-based release validation/publish configuration.
 
 ## Planning Notes
