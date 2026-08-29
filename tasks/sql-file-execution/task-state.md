@@ -2,7 +2,7 @@
 status: executing
 task: sql-file-execution
 started_at: 2026-08-29T06:57:35+02:00
-last_updated: 2026-08-29T07:10:19+02:00
+last_updated: 2026-08-29T07:31:22+02:00
 rules_dir: .agents/rules
 total_steps: 1
 current_step: step-001
@@ -18,13 +18,13 @@ current_step: step-001
 - **Roadmap:** fünf Epics, siehe `roadmap.md`
 - **Tech-Debt:** wird durch den Kritiker geführt
 - **Gestartet:** 2026-08-29T06:57:35+02:00
-- **Zuletzt aktualisiert:** 2026-08-29T07:10:19+02:00
+- **Zuletzt aktualisiert:** 2026-08-29T07:31:22+02:00
 
 ## Steps
 
 | Step | Epic | Status | Title | Corrects | Coded | Reviewed | Commit |
 |------|------|--------|-------|----------|-------|----------|--------|
-| step-001 | EPIC-01 | in_progress | GO-aware SQL script batch splitter foundation | - | - | - | - |
+| step-001 | EPIC-01 | done (Korrektur ausstehend) | GO-aware SQL script batch splitter foundation | - | ja | issues | 6336116 |
 
 ## Config (optional)
 
