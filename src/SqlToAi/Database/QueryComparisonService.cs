@@ -6,8 +6,6 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using SqlToAi.Configuration;
 using SqlToAi.Domain;
 
 namespace SqlToAi.Database;
@@ -24,21 +22,15 @@ public sealed class QueryComparisonService : IQueryComparisonService
             new EventId(1, "ComparisonFailed"),
             "Query comparison failed for database {Database}.");
 
-    private readonly IDatabaseConnectionFactory _connectionFactory;
-    private readonly IQuerySafetyValidator _querySafetyValidator;
-    private readonly QueryExecutionOptions _options;
+    private readonly QueryExecutionDependencies _dependencies;
     private readonly ILogger<QueryComparisonService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="QueryComparisonService"/>.</summary>
-    public QueryComparisonService(
-        IDatabaseConnectionFactory connectionFactory,
-        IQuerySafetyValidator querySafetyValidator,
-        IOptions<SqlToAiOptions> options,
+    internal QueryComparisonService(
+        QueryExecutionDependencies dependencies,
         ILogger<QueryComparisonService> logger)
     {
-        _connectionFactory = connectionFactory;
-        _querySafetyValidator = querySafetyValidator;
-        _options = options.Value.QueryExecution;
+        _dependencies = dependencies;
         _logger = logger;
     }
 
@@ -66,7 +58,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         // 1-5. Run the shared 6-stage guardrail pipeline once per query — the pipeline is
         // single-query, so QueryComparisonService is the only consumer that calls it twice
         // (once for QueryA, once for QueryB) and short-circuits on the first failure.
-        var safetyResultA = await _querySafetyValidator
+        var safetyResultA = await _dependencies.QuerySafetyValidator
             .ValidateQuerySafetyAsync(args.DatabaseName, args.QueryA, allowSchemaOnly: false, cancellationToken)
             .ConfigureAwait(false);
         if (safetyResultA.IsFailure)
@@ -74,7 +66,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
             return safetyResultA.Error;
         }
 
-        var safetyResultB = await _querySafetyValidator
+        var safetyResultB = await _dependencies.QuerySafetyValidator
             .ValidateQuerySafetyAsync(args.DatabaseName, args.QueryB, allowSchemaOnly: false, cancellationToken)
             .ConfigureAwait(false);
         if (safetyResultB.IsFailure)
@@ -84,11 +76,11 @@ public sealed class QueryComparisonService : IQueryComparisonService
 
         object? effectiveParamsA = args.ParametersA ?? args.SharedParameters;
         object? effectiveParamsB = args.ParametersB ?? args.SharedParameters;
-        int effectiveMaxDiff = Math.Clamp(args.MaxDiffRows, 1, _options.MaxRowLimit);
+        int effectiveMaxDiff = Math.Clamp(args.MaxDiffRows, 1, _dependencies.QueryExecutionOptions.MaxRowLimit);
 
         try
         {
-            using var connection = _connectionFactory.CreateConnection(args.DatabaseName);
+            using var connection = _dependencies.ConnectionFactory.CreateConnection(args.DatabaseName);
             await connection.OpenAsync(cancellationToken);
 
             using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);

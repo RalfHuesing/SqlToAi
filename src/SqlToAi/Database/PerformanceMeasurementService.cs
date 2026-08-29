@@ -7,8 +7,6 @@ using System.Linq;
 using System.Xml.Linq;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using SqlToAi.Configuration;
 using SqlToAi.Domain;
 
 namespace SqlToAi.Database;
@@ -24,21 +22,15 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             new EventId(1, "MeasurementFailed"),
             "Performance measurement failed for database {Database}.");
 
-    private readonly IDatabaseConnectionFactory _connectionFactory;
-    private readonly IQuerySafetyValidator _querySafetyValidator;
-    private readonly QueryExecutionOptions _options;
+    private readonly QueryExecutionDependencies _dependencies;
     private readonly ILogger<PerformanceMeasurementService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="PerformanceMeasurementService"/>.</summary>
-    public PerformanceMeasurementService(
-        IDatabaseConnectionFactory connectionFactory,
-        IQuerySafetyValidator querySafetyValidator,
-        IOptions<SqlToAiOptions> options,
+    internal PerformanceMeasurementService(
+        QueryExecutionDependencies dependencies,
         ILogger<PerformanceMeasurementService> logger)
     {
-        _connectionFactory = connectionFactory;
-        _querySafetyValidator = querySafetyValidator;
-        _options = options.Value.QueryExecution;
+        _dependencies = dependencies;
         _logger = logger;
     }
 
@@ -63,7 +55,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
         }
 
         // 1-5. Run the shared 6-stage guardrail pipeline (single source of truth).
-        var safetyResult = await _querySafetyValidator
+        var safetyResult = await _dependencies.QuerySafetyValidator
             .ValidateQuerySafetyAsync(args.DatabaseName, args.Query, allowSchemaOnly: false, cancellationToken)
             .ConfigureAwait(false);
         if (safetyResult.IsFailure)
@@ -73,7 +65,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
 
         try
         {
-            using var connection = _connectionFactory.CreateConnection(args.DatabaseName);
+            using var connection = _dependencies.ConnectionFactory.CreateConnection(args.DatabaseName);
             await connection.OpenAsync(cancellationToken);
             using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 

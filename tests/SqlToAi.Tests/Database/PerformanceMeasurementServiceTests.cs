@@ -29,11 +29,13 @@ public sealed class PerformanceMeasurementServiceTests
         SqlToAiError? error = null)
     {
         var options = new SqlToAiOptions();
-
-        return new PerformanceMeasurementService(
+        var dependencies = new QueryExecutionDependencies(
             new ValidationMockConnectionFactory(),
             FakeQuerySafetyValidator.Create(isAllowed, accessLevel, error),
-            Options.Create(options),
+            Options.Create(options));
+
+        return new PerformanceMeasurementService(
+            dependencies,
             NullLogger<PerformanceMeasurementService>.Instance);
     }
 

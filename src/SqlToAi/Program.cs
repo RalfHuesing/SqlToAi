@@ -175,8 +175,16 @@ internal static class Program
         services.AddSingleton<IQueryBatchExecutor>(sp => sp.GetRequiredService<QueryExecutionService>());
         services.AddSingleton<IScriptExecutionService, ScriptExecutionService>();
         services.AddSingleton<IQueryValidationService, QueryValidationService>();
-        services.AddSingleton<IQueryComparisonService, QueryComparisonService>();
-        services.AddSingleton<IPerformanceMeasurementService, PerformanceMeasurementService>();
+        services.AddSingleton<QueryExecutionDependencies>(sp => new QueryExecutionDependencies(
+            sp.GetRequiredService<IDatabaseConnectionFactory>(),
+            sp.GetRequiredService<IQuerySafetyValidator>(),
+            sp.GetRequiredService<IOptions<SqlToAiOptions>>()));
+        services.AddSingleton<IQueryComparisonService>(sp => new QueryComparisonService(
+            sp.GetRequiredService<QueryExecutionDependencies>(),
+            sp.GetRequiredService<ILogger<QueryComparisonService>>()));
+        services.AddSingleton<IPerformanceMeasurementService>(sp => new PerformanceMeasurementService(
+            sp.GetRequiredService<QueryExecutionDependencies>(),
+            sp.GetRequiredService<ILogger<PerformanceMeasurementService>>()));
         services.AddSingleton<IOptimizationBenchmarkService, OptimizationBenchmarkService>();
         services.AddSingleton<IIndexSuggestionService, IndexSuggestionService>();
         services.AddSingleton<DatabaseAnalysisServices>(sp => new DatabaseAnalysisServices(

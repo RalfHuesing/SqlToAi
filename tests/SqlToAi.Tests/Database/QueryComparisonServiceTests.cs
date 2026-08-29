@@ -29,11 +29,13 @@ public sealed class QueryComparisonServiceTests
         SqlToAiError? error = null)
     {
         var options = new SqlToAiOptions();
-
-        return new QueryComparisonService(
+        var dependencies = new QueryExecutionDependencies(
             new ValidationMockConnectionFactory(),
             FakeQuerySafetyValidator.Create(isAllowed, accessLevel, error),
-            Options.Create(options),
+            Options.Create(options));
+
+        return new QueryComparisonService(
+            dependencies,
             NullLogger<QueryComparisonService>.Instance);
     }
 
