@@ -2,10 +2,10 @@
 status: executing
 task: sql-file-execution
 started_at: 2026-08-29T06:57:35+02:00
-last_updated: 2026-08-29T08:28:59+02:00
+last_updated: 2026-08-29T08:40:58+02:00
 rules_dir: .agents/rules
-total_steps: 3
-current_step: step-003
+total_steps: 4
+current_step: step-004
 ---
 
 # Task State: sql-file-execution
@@ -13,12 +13,12 @@ current_step: step-003
 ## Übersicht
 
 - **Task-Status:** `executing`
-- **Steps gesamt:** 3 (regulär + Korrekturen)
-- **Aktueller Schritt:** `step-003` — `done`
+- **Steps gesamt:** 4 (regulär + Korrekturen)
+- **Aktueller Schritt:** `step-004` — `in_progress`
 - **Roadmap:** fünf Epics, siehe `roadmap.md`
 - **Tech-Debt:** wird durch den Kritiker geführt
 - **Gestartet:** 2026-08-29T06:57:35+02:00
-- **Zuletzt aktualisiert:** 2026-08-29T08:28:59+02:00
+- **Zuletzt aktualisiert:** 2026-08-29T08:40:58+02:00
 
 ## Steps
 
@@ -27,6 +27,7 @@ current_step: step-003
 | step-001 | EPIC-01 | done | GO-aware SQL script batch splitter foundation | - | ja | approved via step-002 | 6336116 |
 | step-002 | EPIC-01 | done | Fix nested block-comment depth and AddBatch parameter budget | step-001 | ja | approved | f377461 |
 | step-003 | EPIC-01 | done | Local SQL script file intake and encoding contract | - | ja | approved | aee3abc |
+| step-004 | EPIC-02 | in_progress | Atomic guarded execution of script batches | - | - | - | - |
 
 ## Config (optional)
 

@@ -65,21 +65,21 @@ change here.
 
 ## Epics
 
-- [ ] **EPIC-01: Local script intake and batch foundation** — Establish the
+- [x] **EPIC-01: Local script intake and batch foundation** — Establish the
   local `.sql` file contract, path/extension/size/encoding validation, stable
   error representation, and a robust `GO`-aware batch model retaining source
-  line ranges and optional repeat counts. The GO-/batch foundation is covered
-  by `step-001` and `step-002`; in work → `step-003`, with local file intake,
-  encoding, size validation, and file-error catalog entries still open. Based
-  on `konzept.md` Scope, “Dateipfad-Auflösung & Sicherheits-Checks”, and
+  line ranges and optional repeat counts. Completed by `step-001`, correction
+  `step-002`, and `step-003`, covering the splitter, local file intake,
+  encoding, size validation, and file-error catalog entries. Based on
+  `konzept.md` Scope, “Dateipfad-Auflösung & Sicherheits-Checks”, and
   “Multi-Batch & GO-Unterstützung”.
 - [ ] **EPIC-02: Guarded multi-batch execution engine** — Implement the
   sequential batch orchestration with parameter binding, row limits,
   ReadOnly/ReadOnlyAnonymized guardrails, ReadWrite transaction selection,
   rollback/commit behavior, transaction-integrity protection, anonymization,
-  and aggregate/per-batch execution metrics. Preserve the single-query safety
-  pipeline while defining the script-specific boundary that permits isolated
-  script batches to contain their intended statements. Based on `konzept.md`
+  and aggregate/per-batch execution metrics. In work → `step-004`, which
+  delivers the guarded atomic execution core for already-read script batches
+  and preserves the single-query safety pipeline. Based on `konzept.md`
   “Sicherheits-Guardrails” and “Ausführung”.
 - [ ] **EPIC-03: Structured report and diagnostic contract** — Define and
   render the Markdown result for script metadata, overall status and metrics,
