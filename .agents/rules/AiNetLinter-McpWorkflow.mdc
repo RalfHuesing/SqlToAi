@@ -1,65 +1,36 @@
 ---
-description: Dauerhafte Nutzungsregeln für die semantische .NET-Analyse mit dem AiNetLinter-MCP-Server.
+description: Verbindlicher MCP-First Workflow für C#/.NET-Codeanalyse mit AiNetLinter.
 globs: *
 alwaysApply: true
 ---
-# AiNetLinter MCP-Nutzung
 
-AiNetLinter analysiert .NET-Solutions mit Roslyn. Für semantische Fragen zu
-C#-Code gelten die folgenden verbindlichen Prioritäten; die AiNetLinter-MCP-
-Tools kennen Symbole, Typen, Referenzen und Abhängigkeiten.
+# AiNetLinter MCP-Workflow
 
-## Verbindliche Priorität
+Für C#-Semantik (Symbole, Aufrufe, Abhängigkeiten, Impact, Verstöße) die AiNetLinter-MCP-Tools proaktiv und primär nutzen; keine Textsuch-Kaskaden anstelle gezielter AST-Abfragen. `rg` ist für Nicht-C#-Dateien, exakte Texte und Kommentare sowie bei fehlgeschlagenen oder unvollständigen MCP-Abfragen sinnvoll.
 
-Bei jeder Aufgabe, die C#-Symbole, Typen, Aufrufer, Referenzen, Abhängigkeiten,
-Impact, Codeverständnis oder Regelverstöße betrifft, MUSS zuerst das passende
-AiNetLinter-MCP-Tool aufgerufen werden. Die Werkzeugwahl richtet sich nach der
-Tabelle unten; `rg`/`grep`/Read oder interne Agenten-Tools dürfen ergänzend für
-konkreten Edit-/Diff-Kontext und exakte Textarbeit verwendet werden, ersetzen
-aber nicht die semantische MCP-Abfrage.
-
-## Standard
-
-- Für jeden projektbezogenen MCP-Tool-Aufruf den absoluten `projectRoot`
-  mitsenden. `get_server_health` darf ohne Projektfilter verwendet werden.
-- Die aktuellen Tool- und Parameterschemas aus der MCP-Tooldefinition verwenden
-  (typischerweise über `tools/list` bereitgestellt); diese Regel dupliziert keine
-  Toolschemas.
-- Nach einem vollständigen MCP-Ergebnis dieselbe semantische Frage nicht
-  redundant mit Read/rg/grep nachprüfen; bei Trunkierung den Scope oder die
-  Limits des MCP-Aufrufs verfeinern.
+- `targetPath`: Absoluter Pfad zur `.sln`/`.slnx` des aktuellen Projekts; einmal ermitteln und wiederverwenden. Für Assembly-Tools stattdessen die `.dll`/`.exe` angeben.
+- Folgeaufrufe: Für einzelne Symbole `symbolIdentifier` exakt aus vorherigen MCP-Ausgaben übernehmen; `get_symbol_body` verwendet `symbolIdentifiers` für Batchabfragen. Kanonische Handoff-IDs sowie Status und Vollständigkeitsmarker nur aus dem Tool-Content übernehmen; keine IDs aus Anzeigenamen ableiten.
+- Bei `RESPONSE_BUDGET_TOO_SMALL` denselben Aufruf mit `maxResponseBytes = minimumResponseBytes` wiederholen.
 
 ## Werkzeugwahl
 
-| Anliegen | Zuerst verwenden |
-| :--- | :--- |
-| Physische Projektstruktur und Nicht-C#-Dateien entdecken | `get_file_tree` |
-| C#-Symbol oder Feature verstehen | `get_feature_context`; bei unbekanntem Namen `find_symbol` |
-| Signaturen und Struktur überblicken | `get_file_skeleton`, `get_class_structure`, dann `get_symbol_body` |
-| Öffentliche API einer lokalen .NET-DLL untersuchen | `inspect_assembly` |
-| Klassische Extension-Methoden einer lokalen .NET-DLL prüfen | `find_assembly_extensions` |
-| Aufrufer, Abhängigkeiten oder Tests prüfen | `find_references`, `get_impact`, `dependency_graph`, `get_test_context` |
-| Nach C#-Änderungen gezielt prüfen | `get_impact`, `get_violations`; bei Bedarf `metrics_lookup` |
-| Vor größerem Abschluss auditieren | `safeguard`; passend zum Risiko `find_duplicates`, `find_dead_code` oder `find_magic_values` |
-| Toolfehler oder fehlende Analysefähigkeit melden | `report_observability_feedback` |
+| Zweck | Tools und Hinweise |
+|---|---|
+| Einstieg und Code | `get_feature_context` (Symbol, Metriken, Aufrufer, Tests, Verstöße); `find_symbol`; `get_symbol_body`; `get_file_skeleton` (`filePaths`); `get_class_structure` |
+| Aufrufe und Grenzen | `get_call_tree`; `find_references`; `get_type_hierarchy`; `find_implementations`; `get_impact`; `dependency_graph` |
+| Qualität | `verify`; `get_hotspots`; `find_duplicates`; `pattern_detect`; `search_pattern`; `metrics_lookup`; `metrics_tree` |
+| Struktur | `get_file_tree` (`view: "summary"`; nie `view: "files"` auf dem Root); `get_namespace_tree` |
+| Assemblies | `inspect_assembly`; `search_assembly`; `find_assembly_extensions` |
+| Server | `get_server_health`; `reload_config` |
 
-`get_file_tree` ist der erste Discovery-Schritt für die physische Projektstruktur:
-Er liefert relative Pfade, Verzeichnisaggregation, optionale Metadaten und
-sichtbare Completeness-/Trunkierungsangaben auch für Dateien außerhalb des
-Roslyn-Solutionindexes. Danach sind `get_index_scope` (Indexabdeckung),
-`search_pattern` (Inhalt/Text) und die semantischen C#-Tools gezielt einzusetzen.
-`rg`/`grep`, Read und interne Agenten-Tools bleiben für konkrete Edit-/Diff-
-Arbeit, Konfiguration und exakte Textarbeit erlaubt. Sie ersetzen bei
-C#-Symbol-, Referenz- und Impact-Fragen nicht die semantische MCP-Analyse.
+## Linter-Verstöße
 
-Für beide Assembly-Tools ist `assemblyPath` ein absoluter, lokaler DLL-Pfad;
-`projectRoot` ist optional und liefert den Consumer-Kontext. Die Analyse ist
-metadata-only und führt die DLL nicht aus. Bei `inspect_assembly` zuerst die
-öffentliche API untersuchen; `find_assembly_extensions` prüft klassische C#-
-Extensions und kann mit `receiverType` die Roslyn-Anwendbarkeit bewerten.
-`completeness` sowie Trunkierungsangaben beachten.
+- Ursache und Geltungsbereich vor der Änderung klären. Betroffene Symbole oder Dateien mit passenden MCP-Tools untersuchen; Aufrufer, Abhängigkeiten und Tests prüfen, soweit die Änderung sie berührt.
+- Advisory-Kandidaten vor Änderungen eigenständig gegenprüfen: C#-Referenzen sowie Bindungen in `.razor`, XAML, Markup und Konfiguration; Reflection, DI, Generatoren, `dynamic` und externe Consumer berücksichtigen. `confidence: high` ist kein Löschbeweis. Ergebnis mit Evidenz als bestätigt, falsch positiv oder unklar einordnen.
+- Die kleinste fachlich kohärente Änderung umsetzen, die die Ursache behebt. Bei Längen- und Komplexitätsverstößen Verantwortlichkeiten sinnvoll schneiden. Vorhandene Bausteine nutzen; neue Typen oder Komponenten brauchen eine eigenständige Aufgabe. Verhalten und Verträge erhalten, betroffene Tests anpassen.
+- Keine bloße Kennzahl-Optimierung: kein rein metrisches Verschieben oder Aufsplitten, keine funktionslosen Delegationshüllen, Suppressions oder Regel- und Schwellenwertänderungen zur Umgehung des Befunds.
+- Ist ein Befund falsch positiv, den Zielcode nicht ändern und die Evidenz an den Parent-Agenten, sonst an den Nutzer melden. Bleibt die fachliche Grenze unklar oder entsteht ein erheblicher Scope-Konflikt, ist die Arbeit daran bis zur Entscheidung blockiert; Befund, Ursachenhypothese und Lösungsoptionen melden. Keine Umgehung einbauen.
 
-Bei `PROJECT_NOT_INITIALIZED` oder `RULES_INVALID` nicht ungefragt eine
-Projektintegration durchführen. Nur bei einem ausdrücklichen
-Integrationsauftrag den einmaligen Leitfaden über `ainetlinter://agent-guide`
-lesen; er enthält den Bootstrap-Ablauf und die dauerhafte Regeldatei.
+## Qualitätsprüfung
+
+Während Änderungen `verify(targetPath)` ohne zusätzliche Parameter nutzen. Zum Abschluss `verify(targetPath, scope: "solution")`; das Gate besteht nur bei `verdict=pass`, `score=10.0` und `violationCount=0`.
