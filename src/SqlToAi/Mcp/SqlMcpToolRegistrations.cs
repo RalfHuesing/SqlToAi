@@ -155,7 +155,7 @@ public static class SqlMcpToolRegistrations
             }));
 
         tools.Add(McpServerTool.Create(
-            ([Description("The SQL SELECT query to execute.")] string query,
+            ([Description("The SQL query to execute.")] string query,
              [Description("Target database name. Required.")] string database,
              [Description("Maximum rows to return. Capped by the server's configured maximum. Optional.")] int? requested_row_limit = null,
              [Description("Optional dictionary of typed SQL parameters.")] object? parameters = null,
@@ -173,7 +173,9 @@ public static class SqlMcpToolRegistrations
             new McpServerToolCreateOptions
             {
                 Name = McpConstants.ToolExecuteQuery,
-                Description = "Executes a single read-only SELECT statement inside a rollback transaction and returns the results as JSON lines."
+                Description = "Executes a single SQL statement and returns results as JSON lines with execution metrics (rows, latency, CPU, logical reads). " +
+                    "ReadOnly databases enforce rollback protection and block writes; ReadWrite databases commit changes permanently. " +
+                    "String columns are anonymized when required by access level."
             }));
 
         RegisterExecuteFileTool(tools, dispatcher);

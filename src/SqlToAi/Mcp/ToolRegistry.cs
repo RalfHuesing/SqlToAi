@@ -153,16 +153,14 @@ public sealed class ToolRegistry
     private static ToolDefinition BuildExecuteQuery() => new()
     {
         Name = McpConstants.ToolExecuteQuery,
-        Description = "Executes a single read-only SELECT statement inside a rollback transaction and returns the " +
-            "results as JSON lines, followed by an \"Execution Info: X rows returned in Y ms | cpu: Z ms | " +
-            "logical reads: W.\" line (server-side cpu_time_ms/logical_reads via SET STATISTICS IO/TIME, " +
-            "measured on every call, no parameter needed; Y is the client round-trip of the query itself). " +
-            "String columns are anonymized when the database access level requires it.",
+        Description = "Executes a single SQL statement and returns results as JSON lines with execution metrics (rows, latency, CPU, logical reads). " +
+            "ReadOnly databases enforce rollback protection and block writes; ReadWrite databases commit changes permanently. " +
+            "String columns are anonymized when required by access level.",
         InputSchema = new ToolInputSchema
         {
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
-                [McpConstants.ArgQuery]             = StringParam("The SQL SELECT query to execute."),
+                [McpConstants.ArgQuery]             = StringParam("The SQL query to execute."),
                 [McpConstants.ArgDatabase]          = StringParam("Target database name. Required."),
                 [McpConstants.ArgRequestedRowLimit] = new() { Type = "integer", Description = "Maximum rows to return. Capped by the server's configured maximum. Optional." },
                 [McpConstants.ArgParameters]        = new() { Type = "object", Description = "Optional dictionary of typed SQL parameters (e.g. {\"CustomerId\": 42} or {\"val\": {\"value\": \"123\", \"dbType\": \"AnsiString\"}})." }

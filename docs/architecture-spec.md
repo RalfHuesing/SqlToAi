@@ -277,7 +277,7 @@ The server exposes 17 SQL tools through the MCP SDK; the optional observability 
 
 ### 12. `sql_execute_query`
 * **Argumente:** `query` (String, Pflicht), `requested_row_limit` (Int, optional), `database` (String, Pflicht), `parameters` (Object, optional — typisierte SQL-Parameter).
-* **Zweck:** Führt ein einzelnes SQL-SELECT-Statement aus.
+* **Zweck:** Führt ein einzelnes SQL-Statement aus (ReadOnly: Rollback-Schutz; ReadWrite: persistierender Commit).
 * **Statement-Struktur & DECLARE-Support:** Vorangestellte T-SQL `DECLARE @Variable Typ = Wert;`-Anweisungen am Anfang lesender Abfragen (z. B. in bestehenden Skriptdateien) werden unterstützt, sofern am Ende exakt eine lesende Hauptabfrage steht. Mehrere lesende Hauptabfragen (`SELECT 1; SELECT 2;`) führen weiterhin zu Fehler `SQL-AI-0101`.
 * **Datenverarbeitung:** Anwendbare Limits greifen (Default: 100 Zeilen). String-Spalten werden anonymisiert, falls aktiviert und passend zu den Regeln.
 * **Token-Auflösung (falls `Anonymizer.Tokenization` aktiv):** Bevor die Abfrage ausgeführt wird, löst der Server jedes erkannte, gültige Anonymisierungs-Token in String-Literalen zum Realwert auf (siehe Abschnitt 2.E). Die KI kann so mit zuvor erhaltenen Tokens filtern/joinen, ohne den Wert je zu kennen.
