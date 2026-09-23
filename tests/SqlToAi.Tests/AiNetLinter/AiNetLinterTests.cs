@@ -31,7 +31,7 @@ public sealed class AiNetLinterTests
         // 2. Find the solution root folder containing the .slnx file
         string solutionRoot = FindSolutionRoot();
 
-        string configPath = Path.Combine(solutionRoot, "tests", "SqlToAi.Tests", "AiNetLinter", "rules", "SqlToAi.rules.json");
+        string configPath = Path.Combine(solutionRoot, "ainetlinter-rules.json");
         string outputReportDir = Path.Combine(solutionRoot, "tests", "SqlToAi.Tests", "AiNetLinter", "output");
         string outputReportFile = Path.Combine(outputReportDir, "SqlToAi-linter-report.md");
 
