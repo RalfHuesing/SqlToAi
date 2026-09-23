@@ -10,14 +10,9 @@ Projekt-Orientierung für KI-Coding-Assistenten (.NET 10 / C# 14).
 
 ## C#-Analyse & Qualität: AiNetLinter MCP-First (Verbindlich)
 
-AiNetLinter ist die primäre semantische Engine für C#-Code. Für Symbole, Typen, Hierarchien, Aufrufer, Abhängigkeiten und Impact **immer proaktiv AiNetLinter MCP-Tools** statt Textsuche (`grep`/`rg`) nutzen. Textsuche nur für Nicht-C#, exakte Strings/Kommentare oder Fallback.
-
-- **`targetPath`:** Absoluter Pfad zu `SqlToAi.slnx`.
-- **Einstieg & Code:** `get_feature_context` (Kontext, Metriken, Aufrufer, Tests), `find_symbol`, `get_symbol_body`, `get_file_skeleton`.
-- **Aufrufe & Impact:** `get_call_tree`, `find_references`, `get_type_hierarchy`, `find_implementations`, `get_impact`.
-- **Struktur & Health:** `get_file_tree` (`view: "summary"`), `get_namespace_tree`, `get_server_health`.
-- **Quality-Gate:** Während Änderungen `verify(targetPath)` ausführen. Abschluss-Gate: `verify(targetPath, scope: "solution")` muss `verdict=pass`, `score=10.0`, `violationCount=0` liefern.
-- **Regeln & Details:** [.agents/rules/AiNetLinter-McpWorkflow.mdc](.agents/rules/AiNetLinter-McpWorkflow.mdc) und [.agents/rules/AiNetLinter.mdc](.agents/rules/AiNetLinter.mdc).
+- **Workflow & Tools:** Proaktiv und primär gemäß [.agents/rules/AiNetLinter-McpWorkflow.mdc](.agents/rules/AiNetLinter-McpWorkflow.mdc) (keine Textsuch-Kaskaden für C#-Semantik).
+- **Linter-Grenzwerte:** Siehe [.agents/rules/AiNetLinter.mdc](.agents/rules/AiNetLinter.mdc).
+- **`targetPath`:** Absoluter Pfad zu `SqlToAi.slnx` (für alle MCP-Abfragen und `verify`).
 
 ## Architektur & Richtlinien
 
