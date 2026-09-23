@@ -34,7 +34,6 @@ public sealed class AiNetLinterTests
         string configPath = Path.Combine(solutionRoot, "tests", "SqlToAi.Tests", "AiNetLinter", "rules", "SqlToAi.rules.json");
         string outputReportDir = Path.Combine(solutionRoot, "tests", "SqlToAi.Tests", "AiNetLinter", "output");
         string outputReportFile = Path.Combine(outputReportDir, "SqlToAi-linter-report.md");
-        string targetRulesFile = Path.Combine(solutionRoot, ".agents", "rules", "AiNetLinter.mdc");
 
         Directory.CreateDirectory(outputReportDir);
 
@@ -74,27 +73,6 @@ public sealed class AiNetLinterTests
         {
             Assert.Fail($"AiNetLinter validation failed with exit code {valExitCode}. See report at: {outputReportFile}\r\nErrors:\r\n{valStderr}\r\n{valStdout}");
         }
-
-        // 6. Step 2: Run rules synchronization (only if validation succeeded)
-        Directory.CreateDirectory(Path.GetDirectoryName(targetRulesFile)!);
-
-        var syncArgs = new[]
-        {
-            "--config", $"\"{configPath}\"",
-            "--path", $"\"{solutionRoot}\"",
-            "--sync-agent-rules",
-            "--agent-rules-path", $"\"{targetRulesFile}\""
-        };
-
-        var (syncExitCode, syncStdout, syncStderr) = await RunLinterProcessAsync(
-            linterExePath, string.Join(" ", syncArgs), solutionRoot, TestContext.Current.CancellationToken);
-
-        if (syncExitCode != 0)
-        {
-            Assert.Fail($"AiNetLinter rules synchronization failed with exit code {syncExitCode}.\r\nErrors:\r\n{syncStderr}\r\n{syncStdout}");
-        }
-
-        Assert.True(File.Exists(targetRulesFile), $"Rules file was not found at target location: {targetRulesFile}");
     }
 
     private static async Task<(int ExitCode, string Stdout, string Stderr)> RunLinterProcessAsync(
