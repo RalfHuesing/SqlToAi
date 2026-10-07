@@ -43,10 +43,10 @@ The current script does not explicitly check native `dotnet` exit codes at each 
 
 ## Release
 
-[scripts/create-release.ps1](../scripts/create-release.ps1) requires PowerShell 7 and a clean checkout on `main`. It increments the patch version, builds/tests, commits the version change, pushes `main` and a `vX.Y.Z` tag. The [release workflow](../.github/workflows/release.yml) builds the GitHub release. Preview the planned steps without making changes:
+[scripts/release.ps1](../scripts/release.ps1) requires PowerShell 7 and a clean checkout on `main`. It increments the patch version, builds/tests, commits the version change, pushes `main` and a `vX.Y.Z` tag. The [release workflow](../.github/workflows/release.yml) builds the GitHub release. Preview the planned steps without making changes:
 
 ```powershell
-.\scripts\create-release.ps1 -DryRun
+.\scripts\release.ps1 -DryRun
 ```
 
 Running without `-DryRun` publishes Git state; use it only when releasing is intended. `-SkipTests` bypasses tests. Local Git authentication must be configured; `gh` is optional for status monitoring.
