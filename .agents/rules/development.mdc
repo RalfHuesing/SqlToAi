@@ -1,0 +1,33 @@
+---
+description: Constraints for implementation, validation, documentation and commits.
+globs: '*'
+alwaysApply: true
+---
+# Development rules
+
+## Contracts and safety
+
+- Preserve the stdio MCP interface and bounded, separately requested schema details. Follow the [architecture](../../docs/architecture.md); inspect consumers and runtime wiring before changing public contracts.
+- For database changes, read the [security contract](../../docs/security.md). Preserve default-deny access, the more restrictive match on overlapping access lists, read-only validation and rollback, and access checks before execution. Do not treat application guards as a substitute for SQL Server permissions.
+- Keep anonymization and token resolution consistent across affected execution paths; test both masked output and exempt values. Do not claim protection for data the implementation does not transform.
+- Prefer `Result<T>` at service/tool boundaries; map failures through the existing [error catalog](../../docs/tools.md#error-catalog).
+- Put configurable limits, timeouts and strings in options bound through `IOptions<T>`, not at call sites. Define defaults in the options class and include each new option in the main [appsettings.json](../../src/SqlToAi/appsettings.json), which also supplies the embedded migration template.
+
+## Scope and validation
+
+- Keep changes focused. Remove duplication, unused code and hardcoded configuration encountered within the change; discuss larger structural refactoring before expanding scope.
+- Add or update xUnit v3 tests for functional changes, security behavior and nontrivial functions. Verify failure paths as well as success.
+- Run the build and tests from [system-specs.mdc](system-specs.mdc) for code changes. Compiler/analyzer warnings are errors. For documentation-only changes, check links, examples and claims against implementation; no new tests are required.
+
+## Language and documentation
+
+- Write code identifiers, comments, README, docs and agent instructions in English. The interaction language is set in [AGENTS.md](../../AGENTS.md).
+- Use concise, neutral, verifiable prose. Explain intent, constraints or non-obvious behavior; omit promotional claims, tautological comments and XML summaries.
+- Update the canonical documentation for changed behavior in the same slice. Update README only when its introduction, setup or examples are affected; link to details instead of copying them. Agent rules contain instructions, docs contain product behavior, and AGENTS.md routes to both.
+- Use repository-relative Markdown links. Remove stale comments, commented-out code and inline author/date/change histories; Git owns history.
+
+## Commits
+
+- Commit completed, verified slices autonomously, including related tests and documentation. Stage only the slice's files; leave unrelated user changes intact.
+- Use Conventional Commits (`feat:`, `fix:`, `refactor:`, `chore:`, `build:`, `docs:`, `test:`) with a German imperative description.
+- Do not push, publish releases or rewrite history unless authorized.

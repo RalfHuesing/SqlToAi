@@ -1,21 +1,8 @@
--- Creates the central AnonymizationRules table used by AnonymizationRuleProvider.
--- Unlike AnonymizerExclusions (which lives inside each customer database and is wiped out
--- by a customer backup restore), this table is meant to live in its own dedicated database,
--- configured independently via SqlToAi:AnonymizationRules in appsettings.json, so its rules
--- survive customer-side restores and apply consistently across many customer databases.
---
--- Pattern matching uses SQL LIKE wildcards (%, _) against DatabasePattern/TablePattern/ColumnPattern.
--- For a given (database, table, column), the most specific matching active rule wins:
--- specificity is scored per field (exact match > partial wildcard > pure '%'), weighted
--- DatabasePattern > TablePattern > ColumnPattern. A column with no matching rule is anonymized
--- by default (Anonymize = 1 behavior), so a database can be locked down to an allow-list by
--- simply never adding a broad wildcard rule for it.
--- [SchemaPattern] (optional, default '%' = "any schema") lets a rule be scoped to a single schema
--- via the same LIKE-wildcard semantics as DatabasePattern/TablePattern/ColumnPattern, so a
--- same-named table in a different schema (e.g. dbo.Kunden vs. Archiv.Kunden) never inherits a rule
--- meant for another schema (see tasks/audit-2026-07-24/02-anonymisierung-tokenisierung.md, Finding
--- "Ausschluss-/Regel-Abgleich ist schema-blind"). Existing rows keep '%' and therefore keep
--- matching every schema, exactly as before this column existed.
+-- Creates the central rule table, configured via SqlToAi:AnonymizationRules.
+-- Place it in a separate database when rules must survive customer database restores.
+-- Patterns use SQL LIKE wildcards (%, _) across database, schema, table and column.
+-- Rule resolution and protective conflict handling: ../docs/security.md#central-anonymization-rules.
+-- SchemaPattern defaults to '%' for rules that apply to every schema.
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[AnonymizationRules]') AND type IN (N'U'))
 BEGIN
     CREATE TABLE [dbo].[AnonymizationRules] (

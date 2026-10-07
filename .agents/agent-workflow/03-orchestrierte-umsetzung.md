@@ -1,34 +1,25 @@
-# Orchestrierte Umsetzung
+# Orchestrated implementation — stage 3
 
-Du führst **Schritt 3 von 3** aus. Du implementierst nicht. Du startest keinen anderen Workflow-Schritt.
+Apply the [shared workflow contracts](README.md). Read concept and roadmap. Orchestrate; do not write production code yourself or invoke another stage. Invoking this stage authorizes atomic commits for its implementation slices.
 
-## Start
+## Execution
 
-Sinngemäß: `Führe 03-orchestrierte-umsetzung.md aus. Task: tasks/<name>`
+1. Select the first open executable item: a leaf file, otherwise a checkbox with no open children. Do not delegate manual gates or items without an implementation assignment.
+2. Start exactly one implementation subagent and wait for completion. No concurrent writers in the same worktree.
+3. Inspect the diff and sample the claimed checkbox evidence. Return gaps or unsupported completion claims to the same item before advancing.
+4. After each milestone (or the last implementation item when there are no milestones), delegate an audit. Findings permit at most one additional correction item for that milestone; no repeated audit/correction loop.
+5. Stop when the roadmap is complete or a real blocker/unresolved decision requires user input. Surface unresolved audit findings; never mark their acceptance complete.
 
-Ohne Taskverzeichnis: nur danach fragen. Lies [README.md](README.md) in diesem Ordner, `AGENTS.md` und die Regeln des Repos, dann Konzept und Roadmap. Dieser Prompt ist die Commit-Freigabe für Leaf-Slices.
+## Implementation assignment
 
-## Ablauf
+Give the subagent the concept, item file or roadmap excerpt, and project rules. Require:
 
-1. Nimm den ersten offenen ausführbaren Punkt (Leaf-Datei, sonst die erste offene Checkbox ohne offene Kinder). Manuelle Gates ohne `-T` / ohne Implementierungsauftrag nicht an Agenten geben.
-2. Starte **genau einen** Sub-Agenten. Warte auf das Ende. Keine parallelen Schreiber im selben Worktree.
-3. Prüfe Diff und Checkboxen. Lücken oder unbelegte `[x]`: denselben Punkt nacharbeiten. Erst dann der nächste.
-4. Nach jedem Milestone — ohne Schnitt: nach dem letzten fachlichen Punkt — einen Audit-Agenten, danach höchstens **einen** Korrektur-Implementierer.
-5. Stoppen bei echter Blockade, offenem Fork (nicht erfinden) oder wenn die Roadmap durch ist. Nicht pushen, nicht amenden, Historie nicht umschreiben.
+- Only the assigned scope; no adjacent features or optional additions.
+- Inspect current behavior instead of forcing plan assumptions onto code.
+- Verify acceptance against the concept, exclusions, invariants, application and required tests.
+- Record completion evidence and update only verified checkboxes under the shared contract.
+- Commit the slice atomically with its documentation and checkbox changes under the project's commit policy.
 
-Resume: erste offene Checkbox. Kein extra Log, keine Tech-Debt-Datei, keine Code-Map.
+## Audit assignment
 
-## Auftrag an den Leaf-Agenten
-
-- Genau dieser Punkt; Nachbarfeatures nicht mitnehmen. Kein Optional nachrüsten.
-- Konzept, Punkt-Datei bzw. Roadmap-Ausschnitt, Projektregeln lesen.
-- Ist-Stand prüfen. Plantext nicht gegen den Code durchsetzen.
-- Sich am Ende selbst prüfen: eigene Checkboxen, Konzept (Nicht-Ziele, Invarianten), Anwendung (Code und die Tests, die das Repo für diesen Change verlangt).
-- Nur abhaken, was geprüft ist. Parent-Checkboxen nur wenn alle Kinder und die Abnahme stimmen.
-- Atomar committen: Slice samt Doku und Checkboxen. Conventional Commits wie das Repo es verlangt.
-
-## Audit
-
-Nur lesen, Feedback mit Fundstelle. Kein Produktionscode. Ergebnis darf in die Roadmap bzw. eine `audit.md` und die Audit-Checkbox.
-
-Findings → genau **ein** weiterer Implementierer für diesen Milestone, dann weiter. Kein Loop. Ohne Findings keinen Korrektur-Agenten.
+Read and report findings with locations; do not modify production code. Evidence may go in the roadmap or `audit.md`, with the audit checkbox. With no findings, skip the correction item.

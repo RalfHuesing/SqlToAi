@@ -1,104 +1,82 @@
-# Agent-Workflow
+# Agent workflow
 
-Portables Kit: Konzept, Roadmap, Umsetzung. Drei getrennte Schritte, jeder nur wenn der Nutzer ihn startet. Kein Prompt startet den nächsten.
+Opt-in stages: concept, roadmap, implementation. Execute only the stage the user invokes; never start the next automatically. This kit contains workflow instructions; project policy belongs to [AGENTS.md](../../AGENTS.md) and its linked rules.
 
-Kopierbar. Projektwissen steht nicht hier, sondern in `AGENTS.md` und den Rules des jeweiligen Repos.
+## Entry points
 
-## Aufruf
+| Stage | Instruction file | Output |
+|---|---|---|
+| 1. Concept | [01-konzept-planung.md](01-konzept-planung.md) | Agreed intention and scope |
+| 2. Roadmap | [02-roadmap-erstellung.md](02-roadmap-erstellung.md) | Ordered, executable checkboxes |
+| 3. Implementation | [03-orchestrierte-umsetzung.md](03-orchestrierte-umsetzung.md) | Delegated slices and milestone audits |
 
-```text
-Führe 01-konzept-planung.md aus. Task: tasks/<name>
-Führe 02-roadmap-erstellung.md aus. Task: tasks/<name>
-Führe 03-orchestrierte-umsetzung.md aus. Task: tasks/<name>
-```
+Invoke a file with a task path, e.g. `Execute .agents/agent-workflow/01-konzept-planung.md. Task: tasks/<name>`. A file mention plus task path is equivalent.
 
-`@.cursor/agent-workflow/<datei>.md` plus Taskpfad ist gleichwertig. Ohne Taskverzeichnis: nur danach fragen.
+For each stage, read this page, project rules, the stage instructions and existing task artifacts. Without a task directory, ask for it before creating artifacts. Store workflow artifacts only there; stage 3 may also edit the implementation files covered by the task.
 
-| Datei | Schritt | Tut | Tut nicht |
-|---|---|---|---|
-| [01-konzept-planung.md](01-konzept-planung.md) | 1 | Sparring, Konzept persistieren | Roadmap, Code, Schritt 2 |
-| [02-roadmap-erstellung.md](02-roadmap-erstellung.md) | 2 | Konzept in Checkboxen zerlegen | Umsetzen, Schritt 3 |
-| [03-orchestrierte-umsetzung.md](03-orchestrierte-umsetzung.md) | 3 | Leafs sequenziell delegieren, Audit je Milestone | Selbst implementieren, anderen Workflow starten |
-
-## Artefakte
+## Artifact layout
 
 ```text
 tasks/<name>/
-  Konzept.md          # oder konzept/ wenn der Stoff mehrere Kapitel braucht
-  roadmap.md          # klein: die Checkboxen stehen hier
-  roadmap/            # nur bei großen Vorhaben
-    <nr>-<kurzname>/
+  Konzept.md
+  roadmap.md
+  konzept/                      # replaces Konzept.md only for large concepts
+  roadmap/                      # only when separate milestones/leaves help
+    <number>-<short-name>/
       roadmap.md
       tasks/Mx.y-Tz.md
 ```
 
-Klein: eine Konzeptdatei, eine Roadmap, ein paar `- [ ]`. Keine Leaf-Dateien, keine Milestones aus Prinzip.
+Keep the existing German filenames for compatibility; write new content in English. Start with one concept and one roadmap. Add files only when the task needs them.
 
-Ein ausführbarer Punkt ist eine Agent-Session (Analyse, Umsetzung, Tests, Doku, Abhaken, Commit). Grober Richtwert: ~512k Kontext. Zu groß → vorher teilen.
+Each executable item must fit one agent session, including analysis, implementation and validation. Split larger items before execution; do not assume a fixed context capacity.
 
-Resume = erste offene Checkbox. Keine `execution-log.md`, `tech-debt.md`, `code-map.md`, Step-Dateien.
+Resume at the first open executable checkbox. Do not create execution logs, tech-debt inventories, code maps or step files as additional tracking artifacts.
 
-## Pflichtabschnitte
+## Concept contract
 
-**Konzept, Minimum:** Intention (warum und welches Ergebnis). Dazu nur das, was dieses Vorhaben braucht — typisch Ziel, Scope, Nicht-Ziele, Verifikation. Scope binär: Muss oder Nicht. Kein Optional, kein Nice-to-have.
+Minimum: intention (why and what outcome), scope as **Must** / **Out of scope**, and verifiable acceptance criteria. Add constraints only when needed; no optional or nice-to-have scope.
 
 ```markdown
 ---
 status: draft
 ---
 
-# <Titel>
-
-## Intention
-
-<Warum, welches Ergebnis.>
-
-## Scope
-
-### Muss
-### Nicht
-```
-
-`status: ready` nur nach ausdrücklicher Freigabe, und nur wenn keine Entscheidung mehr offen ist. Offene Punkte und Arbeitsgedächtnis gehören nicht in `ready`.
-
-**Roadmap, Minimum:** geordnete Checkboxen, ausführbar ohne zu raten. Konzept nicht nachentscheiden. Parent-Checkboxen sind Aggregate: `[x]` erst wenn Kinder und Abnahme stimmen.
-
-```markdown
-# Roadmap: <Titel>
-
-- [ ] **Punkt A — <Ergebnis>**
-  - Intention: …
-  - Nicht: …
-  - Abnahme: …
-- [ ] **Punkt B — …**
-- [ ] **Audit**
-```
-
-**Leaf nur wenn nötig:** eigene Datei, die der Auftrag ist.
-
-```markdown
-# Mx.y-Tz – <Name>
+# <Title>
 
 ## Intention
 ## Scope
-## Nicht-Ziele
-## Verträge und Invarianten
-- **Verbindlich:** …
-## Akzeptanz
-- [ ] …
-## Checkliste
-- [ ] Ist-Stand geprüft
-- [ ] Scope umgesetzt, Nicht-Ziele eingehalten
-- [ ] Akzeptanz erfüllt, gegen Konzept und Anwendung geprüft
-- [ ] Checkboxen in der Roadmap geschlossen
-- [ ] atomarer Commit
-## Abschlussnachweis
+### Must
+### Out of scope
+## Verification
 ```
 
-Haken nur setzen, was selbst geprüft wurde.
+Only explicit user approval with no unresolved decisions permits `status: ready`. While draft, a working-memory section may track open decisions; remove it before ready. Never persist secrets.
 
-## Rollen in Schritt 3
+## Roadmap contract
 
-- **Orchestrator:** Reihenfolge, ein Sub-Agent nach dem anderen, Diff/Checkbox-Stichprobe. Kein Produktionscode.
-- **Leaf-Agent:** genau einen Punkt, Selbstprüfung gegen Checkboxen + Konzept + Anwendung, `[x]`, Commit des Slices.
-- **Audit-Agent:** nach jedem Milestone (ohne Schnitt: einmal am Ende). Nur lesen und Feedback. Kein Produktionscode. Danach höchstens **ein** Korrektur-Leaf. Kein Loop.
+Use ordered `- [ ]` items. Each executable item needs intention, scope, exclusions and acceptance criteria. Store detail once and link to it. Parent checkboxes are aggregates: close them only when every child and parent acceptance criterion is verified.
+
+Include an audit at each milestone's end, or once at the end if there are no milestones. Close only checkboxes whose acceptance was actually verified.
+
+For a separate leaf file, use this minimum:
+
+```markdown
+# Mx.y-Tz — <Name>
+
+## Intention
+## Scope
+## Out of scope
+## Contracts and invariants
+## Acceptance
+- [ ] <Verifiable outcome>
+
+## Checklist
+- [ ] Current behavior inspected
+- [ ] Scope implemented; exclusions preserved
+- [ ] Acceptance verified against concept and application
+- [ ] Roadmap checkboxes updated
+- [ ] Atomic commit
+
+## Completion evidence
+```

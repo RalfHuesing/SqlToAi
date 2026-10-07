@@ -1,39 +1,36 @@
 # AGENTS.md — SqlToAi
 
-Projekt-Orientierung für KI-Coding-Assistenten (.NET 10 / C# 14).
+Repository map for coding agents. User-facing communication is German.
 
-## Setup, Build & Test
+## Required rules
 
-- **Build:** `dotnet build SqlToAi.slnx`
-- **Test:** `dotnet test SqlToAi.slnx` (xUnit v3)
-- **Umgebung:** Windows PowerShell (`pwsh`), `rg` statt `grep`, Git immer mit `--no-pager` (Details: [.agents/rules/system-specs.mdc](.agents/rules/system-specs.mdc)).
+Read these before working; they own the instructions, this file only routes to them.
 
-## C#-Navigation: AiNetCodeNavigator MCP-First (Verbindlich)
+| File | Scope |
+|---|---|
+| [.agents/rules/system-specs.mdc](.agents/rules/system-specs.mdc) | Host, shell, build and test commands |
+| [.agents/rules/csharp-navigation.mdc](.agents/rules/csharp-navigation.mdc) | MCP-first C# navigation; apply when inspecting C# |
+| [.agents/rules/development.mdc](.agents/rules/development.mdc) | Change constraints, validation, documentation, language and commits |
 
-- **Workflow & Tools:** Proaktiv und primär gemäß [.agents/rules/08-ainetcodenavigator-mcp-navigation.mdc](.agents/rules/08-ainetcodenavigator-mcp-navigation.mdc).
-- **Target:** Absoluter Pfad zu `SqlToAi.slnx`.
+## Project references
 
-## Architektur & Richtlinien
+Read the reference relevant to the change, rather than loading all documentation.
 
-- Leitfaden: [.agents/rules/SqlToAiRichtlinien.mdc](.agents/rules/SqlToAiRichtlinien.mdc)
-  - Safety-First: Read-Only Guard (Regex + Rollback), granulare Anonymisierung/Tokenisierung (`§§§T1§§§`).
-  - Access Levels: `None` (Default) > `SchemaOnly` > `ReadOnlyAnonymized` > `ReadOnly` > `ReadWrite`.
-  - Fehlerkatalog: `SQL-AI-0001` bis `SQL-AI-0110`.
+| File or directory | Contents |
+|---|---|
+| [README.md](README.md) | Public introduction and first run |
+| [docs/README.md](docs/README.md) | Documentation index |
+| [docs/architecture.md](docs/architecture.md) | Components and runtime flow |
+| [docs/security.md](docs/security.md) | Access policy, query guards, anonymization and limits |
+| [docs/configuration.md](docs/configuration.md) | Settings, credentials, migration, metadata and logging |
+| [docs/tools.md](docs/tools.md) | MCP contracts, typed parameters and error catalog |
+| [docs/development.md](docs/development.md) | CLI usage, build, tests, publishing and releases |
+| [src/SqlToAi/](src/SqlToAi/) | Server implementation and configuration template |
+| [tests/SqlToAi.Tests/](tests/SqlToAi.Tests/) | xUnit tests |
+| [scripts/](scripts/) | Publishing and release scripts |
+| [sql-scripts/](sql-scripts/) | SQL examples |
+| [tasks/](tasks/) | Task-specific concepts and roadmaps |
 
-## Projektstruktur
+## Explicit planning workflows
 
-- [src/](src/): SqlToAi MCP-Server (Dapper, SqlClient, Guardrails, Anonymisierung).
-- [tests/](tests/): Unit- & Integrationstests.
-- [docs/](docs/): Dokumentation und MCP-Spezifikation.
-- [scripts/](scripts/): PowerShell-Skripte (`create-release.ps1`, `deploy.ps1`).
-
-## Aufgabensteuerung & Workflows
-
-- Dreistufiger Workflow: [.agents/agent-workflow/README.md](.agents/agent-workflow/README.md) (01-Konzept, 02-Roadmap, 03-Orchestrierte Umsetzung).
-- Aufgaben-Ordner: `tasks/<name>/` (`Konzept.md`, `roadmap.md`).
-
-## Commit-Konventionen
-
-- **Format:** Conventional Commits (`feat:`, `fix:`, `refactor:`, `chore:`, `build:`, `docs:`, `test:`).
-- **Sprache:** Deutsch.
-- **Prinzip:** Atomare Slices mit beiliegenden Tests und Doku.
+Use [.agents/agent-workflow/README.md](.agents/agent-workflow/README.md) when the user invokes concept planning, roadmap creation or orchestrated implementation. These are opt-in stages, not prerequisites for ordinary changes.

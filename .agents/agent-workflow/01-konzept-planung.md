@@ -1,34 +1,18 @@
-# Konzeptplanung
+# Concept planning — stage 1
 
-Du führst **Schritt 1 von 3** aus. Der Nutzer startet Schritt 2 selbst. Keine Roadmap, kein Code, keine Umsetzung.
+Apply the [shared workflow contracts](README.md). Produce or update the concept; do not create a roadmap, implement code or invoke another stage.
 
-## Start
+## Discussion
 
-Sinngemäß: `Führe 01-konzept-planung.md aus. Task: tasks/<name>`
+- State the intended outcome in one sentence and identify the main unresolved decision.
+- Recommend a concrete option and explain the alternative's cost or constraint.
+- Inspect existing behavior before claiming facts. Consider adjacent mechanisms and side effects; support gaps with evidence.
+- Offer at most one or two additions that clarify the intention; the user decides whether they enter scope.
+- Challenge inconsistent scope or weak verification with a problem and recommendation. Do not silently expand scope.
+- Ask one to four decision questions per round when needed.
 
-Ohne Taskverzeichnis: nur danach fragen, nichts anlegen. Arbeite ausschließlich dort. Lies zuerst [README.md](README.md) in diesem Ordner, dann `AGENTS.md` und die relevanten Regeln des Repos, dann ein vorhandenes Konzept.
+## Persistence
 
-## Haltung
+Update `Konzept.md` (or the existing concept directory) after each material user answer, before the next question. Keep settled decisions in the artifact, not only in chat.
 
-Du denkst mit. Du bist Sparringspartner, kein Protokollant.
-
-- Spiegel das Ziel in einem Satz und nenne die wichtigste offene Entscheidung.
-- Empfiehl eine Variante und sag, was die Alternative kostet oder verbietet.
-- 360° um die Intention: Nachbarflächen, vorhandene Mechanismen, Seiteneffekte. Reale Lücken nur mit Beleg. Höchstens ein bis zwei Ergänzungen, die die Intention schärfen — Nutzer entscheidet. Kein Feature-Katalog, Scope nicht still erweitern.
-- Widersprich, wenn Scope, Nicht-Ziele oder Verifikation dünn, widersprüchlich oder unehrlich sind — Problem plus Empfehlung, kein Verbot.
-- Pro Runde höchstens ein bis vier Entscheidungsfragen.
-- Behaupte keinen Ist-Stand, den du nicht gelesen hast. Wissbare Forks jetzt schließen (lesen ja, ändern nein).
-
-## Schreiben
-
-Lege `Konzept.md` an oder setze sie fort. Nur bei wirklich großem Stoff `konzept/` mit wenigen Kapiteln.
-
-Pflicht ist die **Intention** (warum und welches Ergebnis). Dazu nur das, was dieses Vorhaben braucht: Ziel, Scope, Nicht-Ziele, Verifikation.
-
-Scope ist binär: **Muss** oder **Nicht**. Kein Optional, kein Nice-to-have, kein „falls Zeit“. Entweder es gehört zum Ergebnis, oder es steht unter Nicht, oder es steht nicht im Konzept.
-
-Nach jeder relevanten Nutzerantwort die Datei aktualisieren, bevor die nächste Frage kommt. Nichts Belastbares nur im Chat lassen.
-
-Solange `status: draft`: optionales `## Arbeitsgedächtnis (nur Draft)` für offene Forks. Keine Secrets.
-
-`status: ready` nur nach ausdrücklicher Freigabe, und nur wenn **alles definiert** ist: keine offene Entscheidung, kein ungeklärter Fork, den die Umsetzung raten müsste. Dann Arbeitsgedächtnis und offene Punkte entfernen, knapp sagen was gilt — und **stoppen**.
+Follow the concept contract for scope and status. Once the user approves a fully defined concept, mark it ready, state the result briefly and stop.

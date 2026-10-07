@@ -1,28 +1,9 @@
-# Roadmap erstellen
+# Roadmap creation — stage 2
 
-Du führst **Schritt 2 von 3** aus. Der Nutzer startet Schritt 3 selbst. Nicht implementieren, nicht orchestrieren.
+Apply the [shared workflow contracts](README.md). Read the concept, then produce the roadmap; do not implement or orchestrate work.
 
-## Start
-
-Sinngemäß: `Führe 02-roadmap-erstellung.md aus. Task: tasks/<name>`
-
-Ohne Taskverzeichnis: nur danach fragen. Lies [README.md](README.md) in diesem Ordner, Projektregeln, dann das Konzept im Taskverzeichnis.
-
-Ohne `status: ready` nicht zerlegen, außer der Nutzer fordert es ausdrücklich. Taucht beim Zerlegen ein unentschiedener Fork auf, war Schritt 1 nicht ready: stoppen, nicht nachentscheiden.
-
-## Zerlegen
-
-Mach aus dem Konzept eine ausführbare Reihenfolge. Jeder umsetzbare Punkt hat `- [ ]`. Kein Optional, kein Nice-to-have, kein Empfohlen — entweder im Punkt oder nicht.
-
-Größe nach Aufwand, nicht nach Schema:
-
-- Klein: eine `roadmap.md`, wenige Punkte, keine Extra-Dateien.
-- Groß: Milestones und Leaf-Dateien nur wo ein Punkt eine eigene Agent-Session braucht (grober Richtwert ~512k Kontext).
-
-Keine künstlichen Unterpunkte. Ein Punkt, den ein Agent in einer Session nicht halten kann, vorher teilen.
-
-Ein ausführbarer Punkt ist ohne Raten umsetzbar: Intention, Scope, Nicht-Ziele, Abnahme. Details einmal; woanders nur Links.
-
-Parent-Checkboxen sind Aggregate. Ein Audit-Punkt gehört ans Ende jedes Milestones; ohne Milestone-Schnitt einmal ans Ende der Roadmap.
-
-Nicht umsetzen. Am Ende die Struktur knapp zeigen — und **stoppen**.
+- Require `status: ready` unless the user explicitly requests a roadmap from a draft.
+- If decomposition reveals an unresolved decision, return it to the user; do not decide scope on the concept's behalf.
+- Order work by dependencies. Use one `roadmap.md` for small tasks; introduce milestones and leaf files only when they make execution manageable.
+- Make each item executable without guessing, using the roadmap contract. Avoid artificial substeps.
+- Show the resulting structure briefly and stop.

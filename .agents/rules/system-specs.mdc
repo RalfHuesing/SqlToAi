@@ -1,25 +1,18 @@
 ---
-description: System specifications, OS runtime, shell conventions, and CLI tools for AI agents.
-globs: *
+description: Execution environment and validation commands.
+globs: '*'
 alwaysApply: true
 ---
-# System Specifications & Execution Environment
+# Execution environment
 
-## Host & Runtime
-- **OS:** Windows native (x64) — no Linux, no WSL, no POSIX shell emulation.
-- **Shell:** PowerShell 7 (`pwsh`) — no `bash`, `sh`, or `cmd.exe`.
-- **Paths:** Windows backslash `\` or forward slash `/` (supported in .NET/Git). Never use Unix root paths (e.g., `/c/...`).
-- **Toolchain:** .NET 10 SDK / C# 14. Solution: `SqlToAi.slnx`.
+- Windows x64; use PowerShell 7 (`pwsh`), native cmdlets and Windows-compatible paths. No Bash, WSL, POSIX utilities or `cmd.exe`.
+- Use `rg` / `rg --files` for text and file searches. Semantic C# navigation has its own [rule](csharp-navigation.mdc).
+- Run Git with `--no-pager`; avoid interactive pagers.
+- Toolchain: .NET 10 / C# 14. Run from the repository root:
 
-## CLI Tooling & Search
-- **Search (`rg`):** Ripgrep (`rg`) is installed and available. **NEVER use `grep`** (non-native/absent).
-  - Use `rg "<pattern>"` for command-line file searches.
-  - When available, prefer agent workspace tools (`grep_search`, `find_symbol`); use `rg` for CLI commands.
-- **No Unix Builtins:** Do not execute `ls`, `cat`, `touch`, `grep`, `find`, `sed`, `awk`, or `rm -rf`. Use PowerShell cmdlets (`Get-ChildItem`, `Remove-Item`, `Test-Path`) or agent workspace tools (`view_file`, `write_to_file`, etc.).
-- **Git Paging:** Always execute Git commands with `--no-pager` (e.g., `git --no-pager diff`, `git --no-pager log`). Never trigger interactive pagers (`less`, `more`).
-
-## Build & Test Commands
 ```powershell
-dotnet build SqlToAi.slnx          # Compile solution (TreatWarningsAsErrors enabled)
-dotnet test SqlToAi.slnx           # Run xUnit v3 test suite
+dotnet build SqlToAi.slnx
+dotnet test SqlToAi.slnx
 ```
+
+See [development documentation](../../docs/development.md) for CLI, publishing and release procedures.
