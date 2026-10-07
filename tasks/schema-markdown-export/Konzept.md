@@ -26,6 +26,7 @@ Reuse SqlToAi's existing database access, schema queries, and Markdown rendering
 - A successful export returns exit code zero. If a shared schema operation returns its existing unavailable-definition note as a successful result, include that note and continue; it does not by itself fail the export. An actual failed service result must still abort. No separate completeness evaluation is added.
 - Preserve the existing `server` and `query` commands and the current MCP tool behavior.
 - Omit table/column descriptions sourced from metadata and metadata enrichment from export. Skip the metadata-provider calls through a small shared-renderer adjustment; do not introduce a separate renderer or remove descriptions by parsing Markdown. This exclusion does not apply to comments embedded in the original SQL definitions.
+- Omit the `Anonymized` column and skip anonymization-policy/rule-provider calls during export. These describe SqlToAi configuration rather than database structure. The MCP path retains its current anonymization indicators and rule handling.
 
 ### Not
 
@@ -33,6 +34,7 @@ Reuse SqlToAi's existing database access, schema queries, and Markdown rendering
 - Snapshot identities, version parameters, timestamps, fingerprints, manifests, or version management.
 - Completeness reports, export audit frameworks, object count reconciliation, or verification of a restorable database dump.
 - Metadata-sourced descriptions, extended-property enrichment, and custom metadata-provider queries in export.
+- Anonymization-policy indicators and anonymization-rule queries in export.
 - Reconstructing table `CREATE` scripts or extending the existing schema detail coverage with additional SQL Server features.
 - SQL Server object kinds beyond tables, views, SQL routines, and table/view DML triggers; server-level objects and DDL triggers are excluded.
 - New dependency analysis, dependency graphs, resolution of dynamic SQL, or exporting other databases referenced by definitions.
@@ -79,12 +81,14 @@ The following implementation points were inspected for this concept:
 - [Program.cs](../../src/SqlToAi/Program.cs): `BuildRootCommand` builds `server` and `query` with `System.CommandLine`; startup already supplies configuration and a shared service provider. Register the new command in that tree.
 - [ToolCommandFactory.cs](../../src/SqlToAi/Cli/ToolCommandFactory.cs): generates the existing `query <tool>` commands from the registry. Keep that mechanism for single-tool invocation; the export coordinates several service operations and does not require artificial tool registration.
 - [ISchemaService.cs](../../src/SqlToAi/Database/ISchemaService.cs) and [SchemaService.cs](../../src/SqlToAi/Database/SchemaService.cs): existing schema operations perform database access checks, use the configured connection factory, and return Markdown through the established result/error types.
-- [TableSchemaRenderer.cs](../../src/SqlToAi/Database/TableSchemaRenderer.cs): already renders column schemas, trigger overviews, view definitions, and SQL routine definitions. Reuse it; adapt only the shared rendering behavior needed for offline output and omission of descriptions and metadata-provider calls.
+- [TableSchemaRenderer.cs](../../src/SqlToAi/Database/TableSchemaRenderer.cs): already renders column schemas, trigger overviews, view definitions, and SQL routine definitions. Reuse it; adapt the shared rendering behavior for offline output, omitting descriptions, the `Anonymized` column, and their metadata/policy/rule-provider calls. Keep the current MCP rendering path intact; no new policy abstraction is needed.
 - [DetailSchemaRenderer.cs](../../src/SqlToAi/Database/DetailSchemaRenderer.cs): existing detail operations supply foreign keys, indexes, constraints, trigger definitions, referencing entities, and routine parameters. Compose their results into the corresponding files.
+
+Resolve each trigger definition through the same trigger identity validated against its parent table/view. The existing trigger operation first matches a simple trigger name against the parent, then resolves the definition separately with `OBJECT_ID` on that name; this can fail or resolve the wrong object outside the default schema. Correct this in the shared schema operation while retaining support for existing MCP callers, without adding an export-only trigger query.
 
 `SearchObjectsAsync` currently executes a limited object search and returns a Markdown table. It does not expose an unrestricted typed object list or trigger-parent associations. Extract/reuse the object discovery query in the schema layer with a small typed result containing the identifiers needed by both callers. Keep the interactive search's limit and Markdown output intact. The export must not parse Markdown tables for object identity, copy the catalog query into its own layer, or simulate an unrestricted search using an arbitrary large limit.
 
-New behavior is limited to the CLI entry, export coordination, filesystem output, and the small shared discovery/rendering adjustments. No general exporter framework or second set of catalog queries/renderers is needed.
+New behavior is limited to the CLI entry, export coordination, filesystem output, the small shared discovery/rendering adjustments, and the shared trigger-identity correction. No general exporter framework or second set of catalog queries/renderers is needed.
 
 ## Verification
 
@@ -92,8 +96,10 @@ New behavior is limited to the CLI entry, export coordination, filesystem output
 - Verify Windows-invalid/reserved names and case collisions, the shared path mapping used by relative links, and collision rejection before any file is written.
 - Verify that unavailable-definition notes permit success, while actual service/file failures stop the export with a nonzero exit code; check the specified partial-output and repeat-run behavior.
 - Verify composition using known shared-service results: table details stay in the table file, definitions and routine parameters are included, and trigger files identify their parents.
+- Verify a trigger outside `dbo` and same-named triggers in different SQL schemas: each exported definition must match the trigger validated against its parent, and existing MCP callers remain supported.
 - Use a known object set covering every supported kind, including scalar, inline table-valued, and table-valued SQL functions. Include more objects than the interactive search's default limit and check that every expected file is generated. These are implementation tests, not a runtime completeness report.
 - Verify that offline files do not instruct the reader to invoke MCP tools and that existing MCP output keeps its current behavior.
 - Verify that export omits metadata-sourced descriptions and does not invoke the metadata provider, while the existing MCP path retains enrichment and exported SQL definitions retain their comments.
+- Verify that export omits the `Anonymized` column and does not invoke anonymization-policy/rule providers even when central rules are enabled; the existing MCP path retains its indicators and rule handling.
 - Run an export against the configured demo database and inspect a table, a view, and a trigger/routine when present. Check that a domain-document reference can lead an agent to the relevant file using only the directory contents. Do not introduce example-data extraction or a completeness report for this check.
 - During implementation, run the repository's required build, tests, and quality checks and update the CLI documentation in `README.md` and `docs/architecture-spec.md`.
