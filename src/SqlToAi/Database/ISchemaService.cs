@@ -46,6 +46,12 @@ public interface ISchemaService
     /// <returns>A Markdown representation of the object's schema.</returns>
     Task<Result<string>> GetSchemaAsync(string databaseName, string objectName, CancellationToken cancellationToken = default);
 
+    Task<Result<string>> GetExportSchemaAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default);
+
+    Task<Result<string>> GetExportSchemaForeignKeysAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default);
+
+    Task<Result<string>> GetExportObjectReferencesAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Retrieves outgoing and incoming foreign keys for a table.
     /// </summary>

@@ -73,6 +73,15 @@ internal sealed class FakeScriptExecutionService : IScriptExecutionService
 
 internal sealed class FakeSchemaService : ISchemaService
 {
+    public Task<Result<string>> GetExportSchemaAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<Result<string>> GetExportSchemaForeignKeysAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<Result<string>> GetExportObjectReferencesAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
     public Task<Result<IReadOnlyList<SchemaObject>>> GetExportObjectsAsync(string databaseName, CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
 

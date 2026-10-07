@@ -172,6 +172,12 @@ public sealed class SchemaService : ISchemaService
             (connection, ct) => DetailSchemaRenderer.GetExportTriggerDefinitionAsync(connection, trigger, ct), cancellationToken);
 
     public async Task<Result<string>> GetSchemaAsync(string databaseName, string objectName, CancellationToken cancellationToken = default)
+        => await GetSchemaCoreAsync(databaseName, objectName, null, cancellationToken);
+
+    public Task<Result<string>> GetExportSchemaAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => GetSchemaCoreAsync(databaseName, context.Source.QualifiedName, context, cancellationToken);
+
+    private async Task<Result<string>> GetSchemaCoreAsync(string databaseName, string objectName, SchemaRenderingContext? context, CancellationToken cancellationToken)
     {
         var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
         if (accessCheck.IsFailure)
@@ -196,15 +202,15 @@ public sealed class SchemaService : ISchemaService
             // 2. Query schema depending on type code
             if (typeCode == "U")
             {
-                return await _tableSchemaRenderer.GetTableSchemaMarkdownAsync(connection, databaseName, objectName, cancellationToken);
+                return await _tableSchemaRenderer.GetTableSchemaMarkdownAsync(connection, databaseName, objectName, cancellationToken, context);
             }
             if (typeCode == "V")
             {
-                string tableMarkdown = await _tableSchemaRenderer.GetTableSchemaMarkdownAsync(connection, databaseName, objectName, cancellationToken);
+                string tableMarkdown = await _tableSchemaRenderer.GetTableSchemaMarkdownAsync(connection, databaseName, objectName, cancellationToken, context);
                 string definitionMarkdown = await TableSchemaRenderer.GetViewDefinitionMarkdownAsync(connection, objectName, cancellationToken);
                 return tableMarkdown + definitionMarkdown;
             }
-            return await TableSchemaRenderer.GetRoutineSchemaMarkdownAsync(connection, objectName, cancellationToken);
+            return await TableSchemaRenderer.GetRoutineSchemaMarkdownAsync(connection, objectName, cancellationToken, context);
         }
         catch (Exception ex)
         {
@@ -222,6 +228,14 @@ public sealed class SchemaService : ISchemaService
         ExecuteDetailQueryAsync(databaseName, tableName, "indexes",
             (connection, ct) => DetailSchemaRenderer.GetSchemaIndexesAsync(connection, tableName, databaseName, ct),
             cancellationToken);
+
+    public Task<Result<string>> GetExportSchemaForeignKeysAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "foreign keys",
+            (connection, ct) => DetailSchemaRenderer.GetSchemaForeignKeysAsync(connection, context.Source.QualifiedName, databaseName, ct, context), cancellationToken);
+
+    public Task<Result<string>> GetExportObjectReferencesAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "referencing entities",
+            (connection, ct) => DetailSchemaRenderer.GetObjectReferencesAsync(connection, context.Source.QualifiedName, databaseName, ct, context), cancellationToken);
 
     public Task<Result<string>> GetSchemaConstraintsAsync(string databaseName, string tableName, CancellationToken cancellationToken = default) =>
         ExecuteDetailQueryAsync(databaseName, tableName, "constraints",

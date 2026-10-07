@@ -23,7 +23,7 @@ internal sealed class TableSchemaRenderer
         _policyResolver = policyResolver;
     }
 
-    public async Task<string> GetTableSchemaMarkdownAsync(DbConnection connection, string databaseName, string tableName, CancellationToken cancellationToken)
+    public async Task<string> GetTableSchemaMarkdownAsync(DbConnection connection, string databaseName, string tableName, CancellationToken cancellationToken, SchemaRenderingContext? context = null)
     {
         // Query columns list
         string columnsSql = """
@@ -51,22 +51,28 @@ internal sealed class TableSchemaRenderer
         var columns = await connection.QueryAsync<ColumnRow>(
             new CommandDefinition(columnsSql, new { TableName = tableName }, cancellationToken: cancellationToken));
 
-        string? tableDesc = await _metadataProvider.GetTableDescriptionAsync(databaseName, tableName, cancellationToken);
-        var columnDescs = await _metadataProvider.GetColumnDescriptionsAsync(databaseName, tableName, cancellationToken);
-        var anonymizedFlags = await ResolveAnonymizedFlagsAsync(databaseName, tableName, columns, cancellationToken);
+        string? tableDesc = null;
+        IReadOnlyDictionary<string, string>? columnDescs = null;
+        IReadOnlyDictionary<string, ColumnAnonymizationState>? anonymizedFlags = null;
+        if (context is null)
+        {
+            tableDesc = await _metadataProvider.GetTableDescriptionAsync(databaseName, tableName, cancellationToken);
+            columnDescs = await _metadataProvider.GetColumnDescriptionsAsync(databaseName, tableName, cancellationToken);
+            anonymizedFlags = await ResolveAnonymizedFlagsAsync(databaseName, tableName, columns, cancellationToken);
+        }
 
         var triggers = (await QueryTriggersAsync(connection, tableName, cancellationToken)).ToList();
 
         var sb = new StringBuilder();
-        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"# Schema for Table/View: `{tableName}`");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"# Schema for Table/View: `{context?.Source.DisplayName ?? tableName}`");
         if (!string.IsNullOrWhiteSpace(tableDesc))
         {
             sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"*Description:* {tableDesc}").AppendLine();
         }
 
         AppendColumnsTable(sb, columns, columnDescs, anonymizedFlags);
-        AppendTriggersTable(sb, triggers);
-        await AppendDiscoveryIndexAsync(sb, connection, tableName, triggers, cancellationToken);
+        AppendTriggersTable(sb, triggers, context);
+        if (context is null) await AppendDiscoveryIndexAsync(sb, connection, tableName, triggers, cancellationToken);
 
         return sb.ToString();
     }
@@ -115,10 +121,12 @@ internal sealed class TableSchemaRenderer
     }
 
     private static void AppendColumnsTable(
-        StringBuilder sb, IEnumerable<ColumnRow> columns, IReadOnlyDictionary<string, string> columnDescs,
-        IReadOnlyDictionary<string, ColumnAnonymizationState> anonymizedFlags)
+        StringBuilder sb, IEnumerable<ColumnRow> columns, IReadOnlyDictionary<string, string>? columnDescs,
+        IReadOnlyDictionary<string, ColumnAnonymizationState>? anonymizedFlags)
     {
-        var headers = new[] { "Column Name", "Type", "Nullable", "Key/Identity", "Anonymized", "Description" };
+        string[] headers = anonymizedFlags is null
+            ? ["Column Name", "Type", "Nullable", "Key/Identity"]
+            : ["Column Name", "Type", "Nullable", "Key/Identity", "Anonymized", "Description"];
         var renderedRows = new List<string[]>();
         foreach (var col in columns)
         {
@@ -130,11 +138,18 @@ internal sealed class TableSchemaRenderer
             if (col.IsIdentity) keyFlags.Add("Identity");
             string keyStr = string.Join(", ", keyFlags);
 
-            anonymizedFlags.TryGetValue(col.ColumnName, out var state);
-            string anonymized = FormatAnonymizedState(state);
-
-            columnDescs.TryGetValue(col.ColumnName, out string? desc);
-            renderedRows.Add([col.ColumnName, type, nullable, keyStr, anonymized, desc ?? ""]);
+            if (anonymizedFlags is null)
+            {
+                renderedRows.Add([col.ColumnName, type, nullable, keyStr]);
+            }
+            else
+            {
+                anonymizedFlags.TryGetValue(col.ColumnName, out var state);
+                string anonymized = FormatAnonymizedState(state);
+                string? desc = null;
+                columnDescs?.TryGetValue(col.ColumnName, out desc);
+                renderedRows.Add([col.ColumnName, type, nullable, keyStr, anonymized, desc ?? ""]);
+            }
         }
         sb.AppendLine(MarkdownTableRenderer.Render(headers, renderedRows));
     }
@@ -146,7 +161,7 @@ internal sealed class TableSchemaRenderer
         _ => "No"
     };
 
-    private static void AppendTriggersTable(StringBuilder sb, List<TriggerRow> triggers)
+    private static void AppendTriggersTable(StringBuilder sb, List<TriggerRow> triggers, SchemaRenderingContext? context)
     {
         if (triggers.Count == 0) return;
 
@@ -154,7 +169,7 @@ internal sealed class TableSchemaRenderer
         var trigHeaders = new[] { "Trigger Name", "Insert", "Update", "Delete", "Status" };
         var trigRows = triggers.Select(t => new[]
         {
-            t.TriggerName,
+            context?.TriggerLink(t.ObjectId, t.TriggerName) ?? t.TriggerName,
             t.IsInsert == 1 ? "✓" : "",
             t.IsUpdate == 1 ? "✓" : "",
             t.IsDelete == 1 ? "✓" : "",
@@ -191,6 +206,7 @@ internal sealed class TableSchemaRenderer
     {
         string triggersSql = """
             SELECT 
+                object_id AS ObjectId,
                 name AS TriggerName,
                 OBJECTPROPERTY(object_id, 'ExecIsTriggerDisabled') AS IsDisabled,
                 OBJECTPROPERTY(object_id, 'ExecIsUpdateTrigger') AS IsUpdate,
@@ -224,7 +240,7 @@ internal sealed class TableSchemaRenderer
         return sb.ToString();
     }
 
-    public static async Task<string> GetRoutineSchemaMarkdownAsync(DbConnection connection, string routineName, CancellationToken cancellationToken)
+    public static async Task<string> GetRoutineSchemaMarkdownAsync(DbConnection connection, string routineName, CancellationToken cancellationToken, SchemaRenderingContext? context = null)
     {
         // Query DDL Definition
         string? ddl = await connection.QueryFirstOrDefaultAsync<string>(
@@ -234,11 +250,14 @@ internal sealed class TableSchemaRenderer
             new CommandDefinition("SELECT COUNT(*) FROM sys.parameters WHERE object_id = OBJECT_ID(@RoutineName)", new { RoutineName = routineName }, cancellationToken: cancellationToken));
 
         var sb = new StringBuilder();
-        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"# DDL Definition for Stored Procedure/Function: `{routineName}`");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"# DDL Definition for Stored Procedure/Function: `{context?.Source.DisplayName ?? routineName}`");
         sb.AppendLine();
         if (paramCount > 0)
         {
-            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"*Discovery:* This routine accepts `{paramCount}` parameter(s). Run `sql_get_routine_parameters` to view them.").AppendLine();
+            if (context is null)
+                sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"*Discovery:* This routine accepts `{paramCount}` parameter(s). Run `sql_get_routine_parameters` to view them.").AppendLine();
+            else
+                sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"*Parameters:* This routine accepts `{paramCount}` parameter(s).").AppendLine();
         }
 
         if (!string.IsNullOrWhiteSpace(ddl))
@@ -287,6 +306,7 @@ internal sealed class TableSchemaRenderer
 
     private sealed class TriggerRow
     {
+        public int ObjectId { get; init; }
         public string TriggerName { get; init; } = string.Empty;
         public int? IsDisabled { get; init; }
         public int? IsUpdate { get; init; }

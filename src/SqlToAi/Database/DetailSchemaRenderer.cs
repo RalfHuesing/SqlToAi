@@ -33,7 +33,7 @@ internal static class DetailSchemaRenderer
         return null;
     }
 
-    public static async Task<Result<string>> GetSchemaForeignKeysAsync(DbConnection connection, string tableName, string databaseName, CancellationToken cancellationToken)
+    public static async Task<Result<string>> GetSchemaForeignKeysAsync(DbConnection connection, string tableName, string databaseName, CancellationToken cancellationToken, SchemaRenderingContext? context = null)
     {
         var typeCheck = await ValidateTableOrViewAsync(connection, tableName, cancellationToken);
         if (typeCheck is not null)
@@ -44,6 +44,10 @@ internal static class DetailSchemaRenderer
         string sql = """
             SELECT
                 fk.name AS ForeignKeyName,
+                object_schema_name(fk.parent_object_id) AS ParentSchemaName,
+                object_name(fk.parent_object_id) AS ParentObjectName,
+                object_schema_name(fk.referenced_object_id) AS ReferencedSchemaName,
+                object_name(fk.referenced_object_id) AS ReferencedObjectName,
                 schema_name(fk.schema_id) + '.' + object_name(fk.parent_object_id) AS ParentTable,
                 col.name AS ParentColumn,
                 schema_name(fk.schema_id) + '.' + object_name(fk.referenced_object_id) AS ReferencedTable,
@@ -63,27 +67,31 @@ internal static class DetailSchemaRenderer
         // Composite-key FKs produce one row per column pair, all sharing the same FK name. Group
         // them back into a single table row so a 2-column FK reads as one entry instead of two,
         // which otherwise makes the result look twice as large as the Discovery Index's FK count.
-        var fkGroups = rows.GroupBy(r => new { r.ForeignKeyName, r.ParentTable, r.ReferencedTable });
+        var fkGroups = rows.GroupBy(r => new { r.ForeignKeyName, r.ParentTable, r.ReferencedTable, r.ParentSchemaName, r.ParentObjectName, r.ReferencedSchemaName, r.ReferencedObjectName });
 
         var renderedRows = new List<string[]>();
         foreach (var g in fkGroups)
         {
             var parentColumns = g.Select(r => r.ParentColumn).ToList();
             var referencedColumns = g.Select(r => r.ReferencedColumn).ToList();
+            string parentTable = context is null ? g.Key.ParentTable : $"{g.Key.ParentSchemaName}.{g.Key.ParentObjectName}";
+            string referencedTable = context is null ? g.Key.ReferencedTable : $"{g.Key.ReferencedSchemaName}.{g.Key.ReferencedObjectName}";
+            string parentLabel = FormatColumnReference(parentTable, parentColumns);
+            string referencedLabel = FormatColumnReference(referencedTable, referencedColumns);
             renderedRows.Add([
                 g.Key.ForeignKeyName,
-                FormatColumnReference(g.Key.ParentTable, parentColumns),
+                context?.ObjectLink(g.Key.ParentSchemaName, g.Key.ParentObjectName, parentLabel) ?? parentLabel,
                 "→",
-                FormatColumnReference(g.Key.ReferencedTable, referencedColumns)
+                context?.ObjectLink(g.Key.ReferencedSchemaName, g.Key.ReferencedObjectName, referencedLabel) ?? referencedLabel
             ]);
         }
 
         if (renderedRows.Count == 0)
         {
-            return $"No foreign keys found for table '{tableName}' in database '{databaseName}'.";
+            return $"No foreign keys found for table '{context?.Source.DisplayName ?? tableName}' in database '{databaseName}'.";
         }
 
-        return $"# Foreign Keys for `{tableName}`\n\n" + MarkdownTableRenderer.Render(["FK Name", "Source Column", "Dir", "Reference Column"], renderedRows);
+        return $"# Foreign Keys for `{context?.Source.DisplayName ?? tableName}`\n\n" + MarkdownTableRenderer.Render(["FK Name", "Source Column", "Dir", "Reference Column"], renderedRows);
     }
 
     /// <summary>
@@ -283,7 +291,7 @@ internal static class DetailSchemaRenderer
         return $"# Trigger Definition: `{triggerName}` (on table `{tableName}`)\n\n```sql\n{definition.Trim()}\n```";
     }
 
-    public static async Task<Result<string>> GetObjectReferencesAsync(DbConnection connection, string objectName, string databaseName, CancellationToken cancellationToken)
+    public static async Task<Result<string>> GetObjectReferencesAsync(DbConnection connection, string objectName, string databaseName, CancellationToken cancellationToken, SchemaRenderingContext? context = null)
     {
         // Check if object is table or view
         string? objectType = await connection.QueryFirstOrDefaultAsync<string>(
@@ -314,15 +322,15 @@ internal static class DetailSchemaRenderer
         var renderedRows = new List<string[]>();
         foreach (var r in rows)
         {
-            renderedRows.Add([ r.SchemaName, r.EntityName, r.ClassDescription ]);
+            renderedRows.Add([ r.SchemaName, context?.ObjectLink(r.SchemaName, r.EntityName, r.EntityName) ?? r.EntityName, r.ClassDescription ]);
         }
 
         if (renderedRows.Count == 0)
         {
-            return $"No objects reference '{objectName}' in database '{databaseName}'.";
+            return $"No objects reference '{context?.Source.DisplayName ?? objectName}' in database '{databaseName}'.";
         }
 
-        return $"# Referencing Entities for `{objectName}`\n\n" + MarkdownTableRenderer.Render(["Schema", "Entity Name", "Type"], renderedRows);
+        return $"# Referencing Entities for `{context?.Source.DisplayName ?? objectName}`\n\n" + MarkdownTableRenderer.Render(["Schema", "Entity Name", "Type"], renderedRows);
     }
 
     public static async Task<Result<string>> GetRoutineParametersAsync(DbConnection connection, string routineName, string databaseName, CancellationToken cancellationToken)
@@ -378,6 +386,10 @@ internal static class DetailSchemaRenderer
 
     private sealed class ForeignKeyRow
     {
+        public string ParentSchemaName { get; init; } = string.Empty;
+        public string ParentObjectName { get; init; } = string.Empty;
+        public string ReferencedSchemaName { get; init; } = string.Empty;
+        public string ReferencedObjectName { get; init; } = string.Empty;
         public string ForeignKeyName { get; init; } = string.Empty;
         public string ParentTable { get; init; } = string.Empty;
         public string ParentColumn { get; init; } = string.Empty;
