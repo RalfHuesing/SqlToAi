@@ -33,4 +33,8 @@ Application services and the token vault are registered as singletons. Query cal
 
 Schema discovery returns primary metadata first, with foreign keys, indexes and constraints available through separate tools. Metadata descriptions come from extended properties or configured SQL queries. String result masking is part of query execution, rather than a general middleware applied to all tool output.
 
+`SchemaService.SearchObjectsAsync` and `GetExportObjectsAsync` share the [object catalog query](../src/SqlToAi/Database/SchemaObjectDiscovery.cs). Interactive search retains its name/type filters, ordering and default limit of 100 results. Export discovery has no result limit and returns typed SQL-schema-qualified identities for tables, views, SQL procedures, SQL scalar/inline-table-valued/table-valued functions, and table/view DML triggers with their parent identities. Both entries apply the same database access checks, including support for `SchemaOnly`.
+
+`GetExportTriggerDefinitionAsync` validates the trigger's object ID, SQL schema/name and table/view parent association together, then retrieves its definition by that same ID. It shares definition retrieval and rendering with the existing trigger operation. The MCP trigger operation retains its simple-name definition lookup and its limitation for triggers outside the default schema; the export entry does not change MCP tool contracts or results.
+
 These pages describe the current implementation. Historical concepts and implementation plans in `tasks/` are context, not evidence that a behavior is implemented. Build, test and operational commands are in [development.md](development.md).

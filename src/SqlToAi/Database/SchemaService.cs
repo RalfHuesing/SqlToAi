@@ -118,40 +118,12 @@ public sealed class SchemaService : ISchemaService
         }
 
         int limit = maxResults ?? 100;
-        // Rank primary object types (tables, views, routines, triggers) ahead of the far more
-        // numerous constraint objects (FK/PK/DEFAULT/CHECK), which otherwise dominate alphabetically
-        // (e.g. "FOREIGN_KEY_CONSTRAINT" < "USER_TABLE") and crowd real objects out of the TOP N
-        // when no object_type filter is given.
-        string sql = $"""
-            SELECT TOP (@Limit)
-                schema_name(schema_id) AS SchemaName,
-                name AS ObjectName,
-                type_desc AS TypeDescription
-            FROM sys.objects
-            WHERE is_ms_shipped = 0
-              AND name LIKE @SearchPattern
-              AND (@TypeFilter IS NULL OR type_desc LIKE @TypeFilter)
-            ORDER BY
-                CASE type_desc
-                    WHEN 'USER_TABLE' THEN 0
-                    WHEN 'VIEW' THEN 1
-                    WHEN 'SQL_STORED_PROCEDURE' THEN 2
-                    WHEN 'SQL_SCALAR_FUNCTION' THEN 2
-                    WHEN 'SQL_TABLE_VALUED_FUNCTION' THEN 2
-                    WHEN 'SQL_INLINE_TABLE_VALUED_FUNCTION' THEN 2
-                    WHEN 'SQL_TRIGGER' THEN 3
-                    ELSE 9
-                END,
-                schema_name(schema_id), name
-            """;
-
         try
         {
             await using var connection = _connectionFactory.CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
 
-            var rows = await connection.QueryAsync<ObjectRow>(
-                new CommandDefinition(sql, new { Limit = limit, SearchPattern = $"%{searchTerm}%", TypeFilter = objectType }, cancellationToken: cancellationToken));
+            var rows = await SchemaObjectDiscovery.QueryAsync(connection, $"%{searchTerm}%", objectType, limit, false, cancellationToken);
 
             var renderedRows = new List<string[]>();
             foreach (var r in rows)
@@ -172,6 +144,32 @@ public sealed class SchemaService : ISchemaService
             return SqlToAiError.QueryError(ex.Message);
         }
     }
+
+    public async Task<Result<IReadOnlyList<SchemaObject>>> GetExportObjectsAsync(string databaseName, CancellationToken cancellationToken = default)
+    {
+        var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
+        if (accessCheck.IsFailure)
+        {
+            return accessCheck.Error;
+        }
+
+        try
+        {
+            await using var connection = _connectionFactory.CreateConnection(databaseName);
+            await connection.OpenAsync(cancellationToken);
+            var rows = await SchemaObjectDiscovery.QueryAsync(connection, "%", null, null, true, cancellationToken);
+            return rows.Select(row => row.ToSchemaObject()).ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to discover export objects in database {DatabaseName}.", databaseName);
+            return SqlToAiError.QueryError(ex.Message);
+        }
+    }
+
+    public Task<Result<string>> GetExportTriggerDefinitionAsync(string databaseName, SchemaObject trigger, CancellationToken cancellationToken = default)
+        => ExecuteDetailQueryAsync(databaseName, trigger.Identity.DisplayName, "export trigger definition",
+            (connection, ct) => DetailSchemaRenderer.GetExportTriggerDefinitionAsync(connection, trigger, ct), cancellationToken);
 
     public async Task<Result<string>> GetSchemaAsync(string databaseName, string objectName, CancellationToken cancellationToken = default)
     {
@@ -274,12 +272,5 @@ public sealed class SchemaService : ISchemaService
             _logger.LogError(ex, "Failed to retrieve {Operation} for {ObjectName} in database {DatabaseName}.", operationName, objectName, databaseName);
             return SqlToAiError.QueryError(ex.Message);
         }
-    }
-
-    private sealed class ObjectRow
-    {
-        public string SchemaName { get; init; } = string.Empty;
-        public string ObjectName { get; init; } = string.Empty;
-        public string TypeDescription { get; init; } = string.Empty;
     }
 }

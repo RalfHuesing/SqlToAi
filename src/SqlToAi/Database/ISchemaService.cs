@@ -33,6 +33,10 @@ public interface ISchemaService
     /// <returns>A Markdown string listing the matched objects.</returns>
     Task<Result<string>> SearchObjectsAsync(string databaseName, string searchTerm, int? maxResults = null, string? objectType = null, CancellationToken cancellationToken = default);
 
+    Task<Result<IReadOnlyList<SchemaObject>>> GetExportObjectsAsync(string databaseName, CancellationToken cancellationToken = default);
+
+    Task<Result<string>> GetExportTriggerDefinitionAsync(string databaseName, SchemaObject trigger, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Retrieves the primary schema for a table, view, stored procedure, or function.
     /// </summary>

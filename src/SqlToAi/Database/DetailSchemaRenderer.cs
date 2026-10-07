@@ -224,9 +224,57 @@ internal static class DetailSchemaRenderer
             return SqlToAiError.ObjectNotFound(triggerName);
         }
 
-        string? definition = await connection.QueryFirstOrDefaultAsync<string>(
-            new CommandDefinition("SELECT definition FROM sys.sql_modules WHERE object_id = OBJECT_ID(@TriggerName)", new { TriggerName = triggerName }, cancellationToken: cancellationToken));
+        string? definition = await ReadTriggerDefinitionAsync(connection, triggerName, null, cancellationToken);
+        return RenderTriggerDefinition(triggerName, tableName, definition);
+    }
 
+    public static async Task<Result<string>> GetExportTriggerDefinitionAsync(DbConnection connection, SchemaObject trigger, CancellationToken cancellationToken)
+    {
+        var identity = trigger.Identity;
+        var parent = trigger.Parent;
+        if (identity.Kind != SchemaObjectKind.Trigger || parent is null || parent.Kind is not (SchemaObjectKind.Table or SchemaObjectKind.View))
+        {
+            return SqlToAiError.InvalidParameters("Export trigger identity requires a table or view parent.");
+        }
+
+        // Validate the discovered ID, original SQL names, and parent association together.
+        // Module lookup below uses this same ID rather than resolving a simple name again.
+        int? objectId = await connection.QueryFirstOrDefaultAsync<int?>(new CommandDefinition("""
+            SELECT t.object_id
+            FROM sys.triggers t
+            INNER JOIN sys.objects o ON o.object_id = t.object_id
+            INNER JOIN sys.objects parent ON parent.object_id = t.parent_id
+            WHERE t.object_id = @ObjectId AND t.parent_class = 1
+              AND t.parent_id = @ParentObjectId
+              AND o.type = 'TR' AND o.is_ms_shipped = 0
+              AND o.schema_id = SCHEMA_ID(@SchemaName) AND o.name = @ObjectName
+              AND parent.schema_id = SCHEMA_ID(@ParentSchemaName) AND parent.name = @ParentObjectName
+              AND parent.type = @ParentType
+            """, new
+            {
+                identity.ObjectId, identity.SchemaName, identity.ObjectName,
+                ParentObjectId = parent.ObjectId, ParentSchemaName = parent.SchemaName, ParentObjectName = parent.ObjectName,
+                ParentType = parent.Kind == SchemaObjectKind.Table ? "U" : "V"
+            }, cancellationToken: cancellationToken));
+
+        if (!objectId.HasValue)
+        {
+            return SqlToAiError.ObjectNotFound(identity.DisplayName);
+        }
+
+        string? definition = await ReadTriggerDefinitionAsync(connection, identity.DisplayName, objectId.Value, cancellationToken);
+        return RenderTriggerDefinition(identity.DisplayName, parent.DisplayName, definition);
+    }
+
+    private static Task<string?> ReadTriggerDefinitionAsync(DbConnection connection, string triggerName, int? objectId, CancellationToken cancellationToken)
+        => connection.QueryFirstOrDefaultAsync<string>(new CommandDefinition(
+            objectId.HasValue
+                ? "SELECT definition FROM sys.sql_modules WHERE object_id = @ObjectId"
+                : "SELECT definition FROM sys.sql_modules WHERE object_id = OBJECT_ID(@TriggerName)",
+            new { TriggerName = triggerName, ObjectId = objectId }, cancellationToken: cancellationToken));
+
+    private static string RenderTriggerDefinition(string triggerName, string tableName, string? definition)
+    {
         if (string.IsNullOrWhiteSpace(definition))
         {
             return $"*Definition for trigger '{triggerName}' not available.* {DdlUnavailableNote}";

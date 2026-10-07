@@ -1,3 +1,4 @@
+using SqlToAi.Database;
 using SqlToAi.Domain;
 
 namespace SqlToAi.Tests.Integration;
@@ -44,6 +45,23 @@ public sealed class SchemaServiceIntegrationTests
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value);
         Assert.Contains("FakeProjects", result.Value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetExportObjectsAsync_ShouldReturnTypedCatalog()
+    {
+        var result = await _fx.SchemaService.GetExportObjectsAsync(_db, TestContext.Current.CancellationToken);
+        Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
+        Assert.Contains(result.Value, item => item.Identity.SchemaName == "dbo"
+            && item.Identity.ObjectName == "FakeProjects" && item.Identity.Kind == SchemaObjectKind.Table);
+        Assert.Contains(result.Value, item => item.Identity.SchemaName == "dbo"
+            && item.Identity.ObjectName == "vewFakeProjectList" && item.Identity.Kind == SchemaObjectKind.View);
+        Assert.All(result.Value, item => Assert.True(item.Identity.ObjectId > 0));
+
+        var table = Assert.Single(result.Value, item => item.Identity.SchemaName == "dbo" && item.Identity.ObjectName == "FakeProjects");
+        var invalidTrigger = new SchemaObject(table.Identity with { Kind = SchemaObjectKind.Trigger }, table.Identity);
+        var definition = await _fx.SchemaService.GetExportTriggerDefinitionAsync(_db, invalidTrigger, TestContext.Current.CancellationToken);
+        Assert.Equal(SqlToAiError.ObjectNotFound(table.Identity.DisplayName), definition.Error);
     }
 
     [Fact]
