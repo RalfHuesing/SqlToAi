@@ -1,5 +1,3 @@
-#nullable enable
-
 using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
@@ -7,7 +5,6 @@ using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Anonymization;
 
-// @covers SqlToAi.Anonymization.Anonymizer
 public sealed class AnonymizerTests
 {
     private static readonly Type TargetType = typeof(Anonymizer);

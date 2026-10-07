@@ -1,5 +1,3 @@
-#nullable enable
-
 using SqlToAi.Mcp;
 
 namespace SqlToAi.Tests.Mcp;

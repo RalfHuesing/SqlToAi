@@ -1,10 +1,7 @@
-#nullable enable
-
 using SqlToAi.Database;
 
 namespace SqlToAi.Tests.Database;
 
-// @covers SqlToAi.Database.SqlLiteralScanner
 public sealed class SqlLiteralScannerTests
 {
     private static string[] ExtractLiterals(string sql) =>

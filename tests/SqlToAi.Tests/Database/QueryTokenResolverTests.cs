@@ -1,5 +1,3 @@
-#nullable enable
-
 using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
@@ -7,7 +5,6 @@ using SqlToAi.Database;
 
 namespace SqlToAi.Tests.Database;
 
-// @covers SqlToAi.Database.QueryTokenResolver
 public sealed class QueryTokenResolverTests
 {
     private static QueryTokenResolver BuildResolver(ITokenVault vault, bool enabled = true)

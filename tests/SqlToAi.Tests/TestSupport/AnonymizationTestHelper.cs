@@ -1,5 +1,3 @@
-#nullable enable
-
 using SqlToAi.Configuration;
 
 namespace SqlToAi.Tests.TestSupport;

@@ -1,5 +1,3 @@
-#nullable enable
-
 using Microsoft.Extensions.Logging.Abstractions;
 using SqlToAi.Database;
 using SqlToAi.Domain;

@@ -1,11 +1,7 @@
-#nullable enable
-
 using System.Text;
 
 namespace SqlToAi.Tests.TestSupport;
 
-// @covers SqlToAi.Tests.TestSupport.TestTempDirectory
-// @covers SqlToAi.Tests.TestSupport.SolutionRootLocator
 public sealed class TestTempDirectoryTests
 {
     [Fact]

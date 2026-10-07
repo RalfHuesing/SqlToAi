@@ -1,11 +1,8 @@
-#nullable enable
-
 using SqlToAi.Database;
 using Xunit;
 
 namespace SqlToAi.Tests.Database;
 
-// @covers SqlToAi.Database.SqlScriptBatchSplitter
 public sealed class SqlScriptBatchSplitterTests
 {
     private static readonly System.Type TargetType = typeof(SqlScriptBatchSplitter);

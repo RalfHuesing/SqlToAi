@@ -1,5 +1,3 @@
-#nullable enable
-
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 
 namespace SqlToAi.Database;

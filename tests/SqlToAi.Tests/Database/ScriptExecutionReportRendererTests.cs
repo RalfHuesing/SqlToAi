@@ -1,11 +1,8 @@
-#nullable enable
-
 using SqlToAi.Database;
 using SqlToAi.Domain;
 
 namespace SqlToAi.Tests.Database;
 
-// @covers SqlToAi.Database.ScriptExecutionReportRenderer
 public sealed class ScriptExecutionReportRendererTests
 {
     [Fact]

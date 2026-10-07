@@ -1,5 +1,3 @@
-#nullable enable
-
 using SqlToAi.Domain;
 
 namespace SqlToAi.Tests.Integration;

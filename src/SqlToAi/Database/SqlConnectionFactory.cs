@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Data.Common;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;

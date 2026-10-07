@@ -1,10 +1,7 @@
-#nullable enable
-
 using SqlToAi.Domain;
 
 namespace SqlToAi.Tests.Domain;
 
-// @covers SqlToAi.Domain.TtlCache
 public sealed class TtlCacheTests
 {
     private static readonly string[] ExpectedKeysAThenB = ["A", "B"];

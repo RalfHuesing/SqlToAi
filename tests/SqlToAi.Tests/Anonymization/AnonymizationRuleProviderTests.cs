@@ -1,5 +1,3 @@
-#nullable enable
-
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
@@ -7,8 +5,6 @@ using SqlToAi.Configuration;
 
 namespace SqlToAi.Tests.Anonymization;
 
-// @covers SqlToAi.Anonymization.AnonymizationRuleProvider
-// @covers SqlToAi.Anonymization.AnonymizationRule
 public sealed class AnonymizationRuleProviderTests
 {
     private static readonly Type TargetType = typeof(AnonymizationRuleProvider);

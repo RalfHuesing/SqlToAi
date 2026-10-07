@@ -1,6 +1,3 @@
-#nullable enable
-
-// @covers SqlToAi.Database.TableSchemaRenderer
 namespace SqlToAi.Tests.Database;
 
 /// <summary>

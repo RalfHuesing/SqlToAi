@@ -1,5 +1,3 @@
-#nullable enable
-
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
 using SqlToAi.Database;

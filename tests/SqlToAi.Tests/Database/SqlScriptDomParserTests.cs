@@ -1,12 +1,9 @@
-#nullable enable
-
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 using SqlToAi.Database;
 using Xunit;
 
 namespace SqlToAi.Tests.Database;
 
-// @covers SqlToAi.Database.SqlScriptDomParser
 public sealed class SqlScriptDomParserTests
 {
     private static readonly System.Type TargetType = typeof(SqlScriptDomParser);

@@ -1,5 +1,3 @@
-#nullable enable
-
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,8 +9,6 @@ using Xunit;
 
 namespace SqlToAi.Tests.Configuration;
 
-// @covers SqlToAi.Configuration.AppSettingsMigrator
-// @covers SqlToAi.Configuration.MigrationResult
 public sealed class AppSettingsMigratorTests : IDisposable
 {
     private readonly string _tempDirectory;

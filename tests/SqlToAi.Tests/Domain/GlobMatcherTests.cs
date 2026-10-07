@@ -1,10 +1,7 @@
-#nullable enable
-
 using SqlToAi.Domain;
 
 namespace SqlToAi.Tests.Domain;
 
-// @covers SqlToAi.Domain.GlobMatcher
 public sealed class GlobMatcherTests
 {
     [Theory]

@@ -1,5 +1,3 @@
-#nullable enable
-
 using SqlToAi.Domain;
 using SqlToAi.Mcp;
 using static SqlToAi.Tests.Mcp.ToolDispatcherTestHelper;

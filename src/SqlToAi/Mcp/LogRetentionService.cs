@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.IO;
 using Microsoft.Extensions.Logging;
 using SqlToAi.Configuration;

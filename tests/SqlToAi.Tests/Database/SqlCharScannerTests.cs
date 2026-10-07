@@ -1,10 +1,7 @@
-#nullable enable
-
 using SqlToAi.Database;
 
 namespace SqlToAi.Tests.Database;
 
-// @covers SqlToAi.Database.SqlCharScanner
 public sealed class SqlCharScannerTests
 {
     [Fact]

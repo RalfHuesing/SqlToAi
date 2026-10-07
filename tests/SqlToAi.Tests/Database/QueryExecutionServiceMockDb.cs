@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Data.Common;
 using Microsoft.Extensions.Logging;
 using SqlToAi.Anonymization;

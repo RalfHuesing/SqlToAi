@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Net.Sockets;
 using System.Reflection;
 using Microsoft.Data.SqlClient;
@@ -8,7 +6,6 @@ using SqlToAi.Domain;
 
 namespace SqlToAi.Tests.Database;
 
-// @covers SqlToAi.Database.SqlToAiErrorMapper
 public sealed class SqlToAiErrorMapperTests
 {
     [Fact]

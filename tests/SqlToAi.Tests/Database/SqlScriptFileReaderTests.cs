@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Globalization;
 using System.Text;
 using SqlToAi.Configuration;
@@ -8,8 +6,6 @@ using SqlToAi.Domain;
 
 namespace SqlToAi.Tests.Database;
 
-// @covers SqlToAi.Database.SqlScriptFile
-// @covers SqlToAi.Database.SqlScriptFileReader
 public sealed class SqlScriptFileReaderTests : IDisposable
 {
     private readonly string _tempDirectory;

@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Text;
 using Dapper;
 using Microsoft.Extensions.Logging.Abstractions;

@@ -1,17 +1,9 @@
-#nullable enable
-
 using SqlToAi.Configuration;
 using Microsoft.Extensions.Configuration;
 using System.IO;
 
 namespace SqlToAi.Tests.Configuration;
 
-// @covers SqlToAi.Configuration.SqlToAiOptions
-// @covers SqlToAi.Configuration.SqlServerOptions
-// @covers SqlToAi.Configuration.DatabasesOptions
-// @covers SqlToAi.Configuration.AnonymizerOptions
-// @covers SqlToAi.Configuration.MetadataProviderOptions
-// @covers SqlToAi.Configuration.ConfigurationResolver
 public sealed class SqlToAiOptionsTests
 {
     private static readonly Type TargetType = typeof(SqlToAiOptions);

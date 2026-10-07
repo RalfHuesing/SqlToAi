@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-using SqlToAi.Database;
+﻿using SqlToAi.Database;
 using SqlToAi.Domain;
 using SqlToAi.Security;
 

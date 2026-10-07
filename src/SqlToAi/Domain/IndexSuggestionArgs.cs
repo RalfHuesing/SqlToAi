@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace SqlToAi.Domain;
 
 /// <summary>

@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Data.Common;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;

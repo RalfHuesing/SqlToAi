@@ -1,13 +1,9 @@
-#nullable enable
-
 using System.Data.Common;
 using Microsoft.Data.SqlClient;
 using SqlToAi.Database;
 
 namespace SqlToAi.Tests.Database;
 
-// @covers SqlToAi.Database.SecondaryConnectionBuilder
-// @covers SqlToAi.Database.SecondaryConnectionSettings
 public sealed class SecondaryConnectionBuilderTests
 {
     private static readonly Type TargetType = typeof(SecondaryConnectionBuilder);

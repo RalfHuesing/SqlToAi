@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Data.Common;
 using SqlToAi.Tests.TestSupport;
 

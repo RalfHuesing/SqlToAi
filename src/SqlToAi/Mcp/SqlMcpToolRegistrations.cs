@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;

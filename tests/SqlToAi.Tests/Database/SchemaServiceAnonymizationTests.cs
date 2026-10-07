@@ -1,5 +1,3 @@
-#nullable enable
-
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
@@ -12,7 +10,6 @@ namespace SqlToAi.Tests.Database;
 #pragma warning disable CS8765
 
 /// <summary>Covers <see cref="SchemaService"/>'s "Anonymized" column annotation specifically — split out from <see cref="SchemaServiceTests"/> to keep both files under the line-count limit.</summary>
-// @covers SqlToAi.Database.SchemaService
 public sealed class SchemaServiceAnonymizationTests
 {
     [Fact]

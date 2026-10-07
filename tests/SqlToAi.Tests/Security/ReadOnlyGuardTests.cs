@@ -1,11 +1,8 @@
-#nullable enable
-
 using SqlToAi.Security;
 using Xunit;
 
 namespace SqlToAi.Tests.Security;
 
-// @covers SqlToAi.Security.ReadOnlyGuard
 public sealed class ReadOnlyGuardTests
 {
     private static readonly System.Type TargetType = typeof(ReadOnlyGuard);

@@ -1,5 +1,3 @@
-#nullable enable
-
 using SqlToAi.Database;
 
 namespace SqlToAi.Tests.Database;
@@ -8,7 +6,6 @@ namespace SqlToAi.Tests.Database;
 /// Unit tests for <see cref="PerformanceMetricsCalculator"/>, verifying min/avg/max computation
 /// across single and multiple execution runs.
 /// </summary>
-// @covers PerformanceMetricsCalculator
 public sealed class PerformanceMetricsCalculatorTests
 {
     private static IReadOnlyList<string> MakeRunMessages(

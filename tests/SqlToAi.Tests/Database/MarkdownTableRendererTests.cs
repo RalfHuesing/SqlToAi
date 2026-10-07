@@ -1,10 +1,7 @@
-#nullable enable
-
 using SqlToAi.Database;
 
 namespace SqlToAi.Tests.Database;
 
-// @covers SqlToAi.Database.MarkdownTableRenderer
 public sealed class MarkdownTableRendererTests
 {
     [Fact]

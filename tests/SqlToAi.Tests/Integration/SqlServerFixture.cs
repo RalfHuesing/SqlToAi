@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-using System.IO;
+﻿using System.IO;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

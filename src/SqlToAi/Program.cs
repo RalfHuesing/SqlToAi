@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.CommandLine;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

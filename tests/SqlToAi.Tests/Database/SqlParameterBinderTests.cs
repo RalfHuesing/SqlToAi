@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Data;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;

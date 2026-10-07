@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Data;
 using System.Data.Common;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -15,7 +13,6 @@ namespace SqlToAi.Tests.Database;
 
 #pragma warning disable CS8765
 
-// @covers SqlToAi.Database.SchemaService
 public sealed class SchemaServiceTests
 {
     private static readonly Type TargetType = typeof(SchemaService);

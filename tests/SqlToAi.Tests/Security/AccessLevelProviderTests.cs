@@ -1,5 +1,3 @@
-#nullable enable
-
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
 using SqlToAi.Domain;
@@ -8,7 +6,6 @@ using Xunit;
 
 namespace SqlToAi.Tests.Security;
 
-// @covers SqlToAi.Security.AccessLevelProvider
 public sealed class AccessLevelProviderTests
 {
     [Fact]

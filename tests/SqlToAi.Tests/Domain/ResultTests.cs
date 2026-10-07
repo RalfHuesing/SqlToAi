@@ -1,10 +1,7 @@
-#nullable enable
-
 using SqlToAi.Domain;
 
 namespace SqlToAi.Tests.Domain;
 
-// @covers SqlToAi.Domain.Result
 public sealed class ResultTests
 {
     private static readonly Type TargetType = typeof(Result);

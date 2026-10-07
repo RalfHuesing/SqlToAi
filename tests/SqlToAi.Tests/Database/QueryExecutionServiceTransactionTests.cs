@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;

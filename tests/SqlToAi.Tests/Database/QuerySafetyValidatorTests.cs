@@ -1,5 +1,3 @@
-#nullable enable
-
 using SqlToAi.Database;
 using SqlToAi.Domain;
 using SqlToAi.Security;
@@ -7,7 +5,6 @@ using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Database;
 
-// @covers SqlToAi.Database.QuerySafetyValidator
 /// <summary>
 /// Single source of truth for the 6-stage guardrail-pipeline tests. Replaces 31 individual
 /// negative test cases that used to be duplicated across <c>QueryExecutionServiceTests</c>,

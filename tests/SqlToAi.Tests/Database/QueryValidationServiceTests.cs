@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-using System.Data.Common;
+﻿using System.Data.Common;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;

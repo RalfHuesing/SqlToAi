@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Data;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -11,7 +9,6 @@ using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Database;
 
-// @covers SqlToAi.Database.QueryExecutionService
 public sealed class QueryExecutionServiceBatchTests
 {
     [Fact]

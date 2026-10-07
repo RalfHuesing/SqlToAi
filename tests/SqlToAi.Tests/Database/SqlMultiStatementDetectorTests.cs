@@ -1,11 +1,8 @@
-#nullable enable
-
 using SqlToAi.Database;
 using Xunit;
 
 namespace SqlToAi.Tests.Database;
 
-// @covers SqlToAi.Database.SqlMultiStatementDetector
 public sealed class SqlMultiStatementDetectorTests
 {
     private static readonly System.Type TargetType = typeof(SqlMultiStatementDetector);

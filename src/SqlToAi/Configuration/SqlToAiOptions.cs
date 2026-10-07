@@ -1,5 +1,3 @@
-#nullable enable
-
 using RalfHuesing.Mcp.Observability;
 
 namespace SqlToAi.Configuration;

@@ -1,5 +1,3 @@
-#nullable enable
-
 using SqlToAi.Database;
 
 namespace SqlToAi.Mcp;

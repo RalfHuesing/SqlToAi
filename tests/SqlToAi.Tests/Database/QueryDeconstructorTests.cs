@@ -1,11 +1,8 @@
-#nullable enable
-
 using SqlToAi.Database;
 using Xunit;
 
 namespace SqlToAi.Tests.Database;
 
-// @covers SqlToAi.Database.QueryDeconstructor
 public sealed class QueryDeconstructorTests
 {
     private static readonly System.Type TargetType = typeof(QueryDeconstructor);

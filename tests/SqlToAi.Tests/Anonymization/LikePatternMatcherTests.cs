@@ -1,10 +1,7 @@
-#nullable enable
-
 using SqlToAi.Anonymization;
 
 namespace SqlToAi.Tests.Anonymization;
 
-// @covers SqlToAi.Anonymization.LikePatternMatcher
 public sealed class LikePatternMatcherTests
 {
     private static readonly Type TargetType = typeof(LikePatternMatcher);

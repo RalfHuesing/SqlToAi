@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Data;
 using System.Data.Common;
 using SqlToAi.Configuration;
@@ -12,7 +10,6 @@ namespace SqlToAi.Tests.Metadata;
 
 #pragma warning disable CS8765 // Nullability of parameter doesn't match overridden member
 
-// @covers SqlToAi.Metadata.MetadataProvider
 public sealed class MetadataProviderTests
 {
     private static readonly Type TargetType = typeof(MetadataProvider);

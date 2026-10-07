@@ -1,10 +1,7 @@
-#nullable enable
-
 using SqlToAi.Anonymization;
 
 namespace SqlToAi.Tests.Anonymization;
 
-// @covers SqlToAi.Anonymization.TokenVault
 public sealed class TokenVaultTests
 {
     [Fact]
