@@ -27,6 +27,7 @@ Reuse SqlToAi's existing database access, schema queries, and Markdown rendering
 - Preserve the existing `server` and `query` commands and the current MCP tool behavior.
 - Omit table/column descriptions sourced from metadata and metadata enrichment from export. Skip the metadata-provider calls through a small shared-renderer adjustment; do not introduce a separate renderer or remove descriptions by parsing Markdown. This exclusion does not apply to comments embedded in the original SQL definitions.
 - Omit the `Anonymized` column and skip anonymization-policy/rule-provider calls during export. These describe SqlToAi configuration rather than database structure. The MCP path retains its current anonymization indicators and rule handling.
+- After the general implementation audit, have agents perform exploratory exports of `DemoDB` through the actual CLI and inspect the generated files for correctness and usefulness to an offline LLM reader. Resolve findings and verify the corrections with fresh exports before declaring the task complete; follow the verification procedure below.
 
 ### Not
 
@@ -38,7 +39,7 @@ Reuse SqlToAi's existing database access, schema queries, and Markdown rendering
 - Reconstructing table `CREATE` scripts or extending the existing schema detail coverage with additional SQL Server features.
 - SQL Server object kinds beyond tables, views, SQL routines, and table/view DML triggers; server-level objects and DDL triggers are excluded.
 - New dependency analysis, dependency graphs, resolution of dynamic SQL, or exporting other databases referenced by definitions.
-- LLM calls, business-domain inference, or generation/modification of the consuming project's domain documentation.
+- LLM calls by the exporter, business-domain inference, or generation/modification of the consuming project's domain documentation. Agent review of the generated files is part of verification.
 - JSON/YAML export contracts, selectable formats, filters, export profiles, incremental exports, or a plugin architecture.
 - A new MCP export tool, another executable, or a client connection to the running MCP server.
 
@@ -90,6 +91,8 @@ Resolve each trigger definition through the same trigger identity validated agai
 
 New behavior is limited to the CLI entry, export coordination, filesystem output, the small shared discovery/rendering adjustments, and the shared trigger-identity correction. No general exporter framework or second set of catalog queries/renderers is needed.
 
+For test and exploratory export directories, reuse [TestTempDirectory.cs](../../tests/SqlToAi.Tests/TestSupport/TestTempDirectory.cs). It creates owned directories below the repository's `temp/` and cleans them up on disposal. Its owner marker makes the managed directory itself nonempty: use a fresh child directory, such as `GetPath("dump")`, as the CLI output target. Keep the owning instance alive until file inspection is finished, then dispose it; do not add another temporary-directory or cleanup mechanism.
+
 ## Verification
 
 - Exercise CLI input validation and file output with focused tests: required arguments, empty-directory handling, filename collisions, and propagation of service/file errors.
@@ -101,5 +104,13 @@ New behavior is limited to the CLI entry, export coordination, filesystem output
 - Verify that offline files do not instruct the reader to invoke MCP tools and that existing MCP output keeps its current behavior.
 - Verify that export omits metadata-sourced descriptions and does not invoke the metadata provider, while the existing MCP path retains enrichment and exported SQL definitions retain their comments.
 - Verify that export omits the `Anonymized` column and does not invoke anonymization-policy/rule providers even when central rules are enabled; the existing MCP path retains its indicators and rule handling.
-- Run an export against the configured demo database and inspect a table, a view, and a trigger/routine when present. Check that a domain-document reference can lead an agent to the relevant file using only the directory contents. Do not introduce example-data extraction or a completeness report for this check.
 - During implementation, run the repository's required build, tests, and quality checks and update the CLI documentation in `README.md` and `docs/architecture-spec.md`.
+
+### Exploratory DemoDB verification after the general audit
+
+- Run this practical phase after the general code/test/documentation audit and its corrections. Use sequential exploratory agents; their findings are feedback for an implementation agent, not permission for the reviewers to change production code.
+- One agent invokes the actual `export-schema` CLI against the configured `DemoDB`, reads the generated object files, and checks their correspondence to the source schema using existing schema operations. Inspect the available object kinds, table details, definitions, trigger-parent associations, and relative links. Check the resulting text, not just the exit code or file count.
+- A second agent independently performs a fresh `DemoDB` export and then evaluates the files as an offline reader, using only the exported directory during content review. Start at its `README.md`, find SQL objects by name, follow table relationships and trigger links, and assess whether the columns, constraints, and SQL definitions provide understandable context. Report concrete missing, misleading, inconsistent, malformed, or unusable content against the agreed scope; do not invent business explanations or request excluded features.
+- Each run uses an isolated `TestTempDirectory` below repository `temp/` and a fresh child output directory, with cleanup after inspection. The database remains read-only and no business records are exported. Missing object kinds in `DemoDB` are documented as limits of the live check; the known-object tests still cover every supported kind.
+- Fix actionable findings through the shared implementation, add focused regression tests where needed, and rerun the CLI into a fresh directory to check the affected output. Repeat affected checks when new findings remain; neither a successful general audit nor a successful CLI exit replaces content review. Completion requires both exploratory reviews and verification of their fixes, with no unresolved findings against the concept. An unavailable `DemoDB` or another genuine blocker leaves this phase incomplete.
+- Record concise invocation/inspection evidence, findings, and their resolution in the corresponding roadmap item. Temporary dumps are verification artifacts, not committed deliverables or a runtime completeness report. No new audit/export framework is required.
