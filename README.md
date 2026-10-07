@@ -7,6 +7,7 @@ results and performance. The server runs over stdio and is built with .NET 10.
 ## Capabilities
 
 - Inspect tables, views, routines, triggers, keys, indexes, and object references.
+- Export database schema as linked Markdown files for offline reading.
 - Execute parameterized queries and local `.sql` scripts, including `GO` batches.
 - Measure CPU time, elapsed time, reads, and execution plan warnings; compare a
   baseline query with a candidate and inspect missing-index suggestions.
@@ -15,6 +16,18 @@ results and performance. The server runs over stdio and is built with .NET 10.
   add table and column descriptions from SQL Server or a metadata database.
 
 See the [tool reference](docs/tools.md) for arguments and behavior.
+
+Export schema without starting the MCP server:
+
+```powershell
+.\SqlToAi.exe export-schema --database DemoDB --output C:\Doku\Database
+```
+
+The output directory must be absent or empty. The export contains schema details
+and SQL definitions, without business records, metadata descriptions or
+anonymization indicators. A failure returns a nonzero exit code and leaves any
+files already written. See [schema export](docs/development.md#schema-export)
+for file layout and retry behavior.
 
 ## Getting started
 

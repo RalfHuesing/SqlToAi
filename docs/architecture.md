@@ -22,7 +22,7 @@ Query services share `QuerySafetyValidator`. It combines database policy, access
 | [Database](../src/SqlToAi/Database/) | Connections, schema, metadata, queries, scripts, comparison, measurements and indexes |
 | [Anonymization](../src/SqlToAi/Anonymization/) | String transformations, central policy resolution and process-local token vault |
 | [Domain](../src/SqlToAi/Domain/) | Arguments, results, access levels and error catalog |
-| [Cli](../src/SqlToAi/Cli/) | Registry-generated CLI commands |
+| [Cli](../src/SqlToAi/Cli/) | Registry-generated query commands and schema export composition/files |
 | [tests](../tests/) | Unit and SQL Server integration tests |
 | [scripts](../scripts/) | Publish/deployment and release helpers |
 | [sql-scripts](../sql-scripts/) | Fictional schema and supporting SQL setup scripts |
@@ -40,5 +40,9 @@ Schema discovery returns primary metadata first, with foreign keys, indexes and 
 `GetExportSchemaAsync`, `GetExportSchemaForeignKeysAsync` and `GetExportObjectReferencesAsync` use an immutable [SchemaRenderingContext](../src/SqlToAi/Database/SchemaRenderingContext.cs) per call. It carries the typed source object and copies the coordinator's object-to-document path mapping. Schema services remain stateless singletons: their existing MCP entries use the default presentation without a context, preserving enrichment, discovery instructions, columns, notes and errors.
 
 Offline presentation selects the column format before enrichment and never invokes metadata, anonymization-policy or rule providers, including when central rules are enabled. It omits descriptions and the `Anonymized` column. Trigger overviews link by object ID; foreign keys and static referencing entities link from structured schema/name fields. Unknown link targets remain readable text. Relative link targets are URI-escaped using the supplied path mapping. SQL definitions retain their comments and existing unavailable-definition notes; generated navigation contains no MCP invocation instructions. Both presentations share database queries, access checks, failure handling and the Markdown table formatter. CLI orchestration and file output are separate from these rendering entries.
+
+`export-schema` resolves the singleton [SchemaExportService](../src/SqlToAi/Cli/SchemaExportService.cs) directly from the existing service provider and exits after writing UTF-8 Markdown. It composes typed unrestricted discovery, the offline entries, existing SQL-qualified index/constraint/parameter operations and typed trigger definitions. Tables/views collect all available detail sections in their document; routines include parameters, and triggers identify/link their table/view parent. A grouped root overview links every document.
+
+[SchemaExportPaths](../src/SqlToAi/Cli/SchemaExportPaths.cs) supplies one deterministic Windows-safe path mapping for filenames and every relative link, retaining original SQL names in headings. It checks all planned object paths for case-insensitive collisions before writes. The output must be absent or empty. Files use exclusive creation; the first failed service result or filesystem write stops export with a nonzero CLI exit code. Partial output remains, so retries need a new or manually emptied directory. Successful unavailable-definition notes permit exit zero. Unused kind directories are omitted. See [CLI export details](development.md#schema-export) for invocation, included sections and provider exclusions.
 
 These pages describe the current implementation. Historical concepts and implementation plans in `tasks/` are context, not evidence that a behavior is implemented. Build, test and operational commands are in [development.md](development.md).

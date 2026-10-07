@@ -19,6 +19,7 @@ internal sealed class SchemaPresentationFixture : IDatabaseConnectionFactory, IM
     public string ReferenceSchema { get; set; } = "sales";
     public string ReferenceName { get; set; } = "Customers";
     public bool RejectEnrichment { get; set; }
+    public bool ExportDiscovery { get; set; }
     public int MetadataCalls { get; private set; }
     public int RuleCalls { get; private set; }
     public int Connections { get; private set; }
@@ -49,6 +50,17 @@ internal sealed class SchemaPresentationFixture : IDatabaseConnectionFactory, IM
         if (FailQuery || (FailQueryTerm is not null && command.CommandText.Contains(FailQueryTerm, StringComparison.Ordinal)))
             throw new InvalidOperationException("fixed schema failure");
         string sql = command.CommandText;
+        if (ExportDiscovery && sql.Contains("ParentObjectId", StringComparison.Ordinal))
+        {
+            string description = ObjectType switch { "U" => "USER_TABLE", "V" => "VIEW", _ => "SQL_STORED_PROCEDURE" };
+            return new FakeDbDataReader(["ObjectId", "SchemaName", "ObjectName", "TypeDescription"], [[501, "sales", "Exported", description]]);
+        }
+        if (ExportDiscovery && sql.Contains("sys.indexes", StringComparison.Ordinal))
+            return new FakeDbDataReader(["IndexName", "IndexType", "IsUnique", "IsPrimaryKey", "ColumnName", "IsIncluded"], []);
+        if (ExportDiscovery && (sql.Contains("sys.default_constraints", StringComparison.Ordinal) || sql.Contains("sys.check_constraints", StringComparison.Ordinal)))
+            return new FakeDbDataReader(["ConstraintName", "ColumnName", "Definition", "ConstraintType"], []);
+        if (ExportDiscovery && sql.Contains("p.name AS ParameterName", StringComparison.Ordinal))
+            return new FakeDbDataReader(["ParameterName", "DataType", "MaxLength", "IsOutput"], [["@Id", "int", 4, false]]);
         if (sql.Contains("is_identity", StringComparison.Ordinal))
             return new FakeDbDataReader(["ColumnName", "DataType", "MaxLength", "Precision", "Scale", "IsNullable", "IsIdentity", "IsPrimaryKey"],
                 [["Id", "int", 4, 10, 0, false, true, 1], ["Email", "nvarchar", 80, 0, 0, true, false, 0]]);

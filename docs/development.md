@@ -31,6 +31,47 @@ The last successful content block goes to stdout; preceding notices/metrics go t
 
 Configuration is loaded beside the executable; relative script input paths resolve against the process working directory. See [tool arguments](tools.md) and [configuration](configuration.md).
 
+## Schema export
+
+The existing executable exports schema through shared application services,
+without starting MCP stdio. Both options are required:
+
+```powershell
+.\SqlToAi.exe export-schema --database DemoDB --output C:\Doku\Database
+```
+
+Configuration, credentials, database access checks and logging use the same
+startup as `server` and `query`; `SchemaOnly` access is sufficient. The target
+must be absent or empty, including no child directories. There are no overwrite
+or cleanup options.
+
+The root `README.md` groups relative links by kind. Object documents go into
+`tables/`, `views/`, `procedures/`, `functions/` and `triggers/`; unused directories
+are omitted. Tables and views include columns, incoming/outgoing foreign keys,
+indexes, constraints, static referencing entities and links to DML triggers.
+Views also include their SQL definition. SQL procedures and scalar, inline
+table-valued and table-valued functions include definitions and parameter
+details. Trigger files include the definition and identify/link their parent
+table or view. Coverage follows the existing schema operations, rather than
+reconstructing table creation scripts.
+
+Original SQL names remain in document headings and the overview. Filenames
+escape Windows-invalid characters, reserved names and mapping delimiters;
+long names use a bounded prefix and deterministic hash. All links use that same
+mapping with URI-escaped relative targets. All planned object paths are checked
+for case-insensitive collisions before any directory or file is created.
+
+Exit code zero means every operation and write succeeded. Existing successful
+unavailable-definition notes are included and permit success. The first failed
+service result or filesystem error returns a nonzero exit code and stops the
+export. Files already written remain; there is no rollback or cleanup. Retry
+with a new directory or manually empty the failed output first.
+
+Export does not query business records or invoke metadata, anonymization-policy
+or rule providers. Metadata descriptions, `Anonymized` indicators and generated
+MCP invocation instructions are omitted. Comments in SQL definitions are retained.
+Existing `server`, `query` and MCP output remain unchanged.
+
 ## Publish and redeploy
 
 [scripts/deploy.ps1](../scripts/deploy.ps1) stops running processes named `SqlToAi`, invokes tests, replaces `publish/` and produces a self-contained single-file `win-x64` build with its configuration. It does not use Native AOT. Existing publish configuration must be backed up before replacement.

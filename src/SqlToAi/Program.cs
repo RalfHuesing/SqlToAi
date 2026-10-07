@@ -63,7 +63,7 @@ internal static class Program
     }
 
     // -------------------------------------------------------------------------
-    // Command tree: `server` (default, MCP stdio loop) and `query <tool>` (CLI escape hatch)
+    // Command tree: `server` (default MCP stdio), `query <tool>` and `export-schema`.
     // -------------------------------------------------------------------------
 
     private static RootCommand BuildRootCommand(ServiceProvider serviceProvider)
@@ -81,6 +81,8 @@ internal static class Program
             new ToolRegistry().GetAll(),
             (toolName, arguments, cancellationToken) => ExecuteToolAsync(serviceProvider, toolName, arguments, cancellationToken));
         rootCommand.Add(queryCommand);
+        rootCommand.Add(SchemaExportCommand.Build((database, output, cancellationToken) =>
+            serviceProvider.GetRequiredService<SchemaExportService>().ExportAsync(database, output, cancellationToken)));
 
         return rootCommand;
     }
@@ -168,6 +170,7 @@ internal static class Program
         services.AddSingleton<IDatabaseConnectionFactory, SqlConnectionFactory>();
         services.AddSingleton<IMetadataProvider, MetadataProvider>();
         services.AddSingleton<ISchemaService, SchemaService>();
+        services.AddSingleton<SchemaExportService>();
         services.AddSingleton<QueryExecutionService>();
         services.AddSingleton<IQueryExecutionService>(sp => sp.GetRequiredService<QueryExecutionService>());
         services.AddSingleton<IQueryBatchExecutor>(sp => sp.GetRequiredService<QueryExecutionService>());

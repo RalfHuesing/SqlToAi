@@ -24,9 +24,9 @@ internal sealed class ExploreIssue : IExplorationScenario
 
 Use `context.OutputDirectory` for retained observations, `context.RepositoryRoot` to locate repository files, and `context.CancellationToken` for asynchronous work. `CallAsync` returns the raw result (including tool failures), or null after recording a dispatcher exception; cancellation and artifact-write failures stop the run. Calls are sequential. Keep tool names and inputs in `request.json`; numbered directories avoid using arbitrary tool names as file paths. See the [runner documentation](../../../docs/exploration.md).
 
-## Future schema Markdown export review
+## Schema Markdown export review
 
-The [schema-export concept](../../../tasks/schema-markdown-export/Konzept.md) and [roadmap](../../../tasks/schema-markdown-export/roadmap.md) remain draft/unimplemented. When their implementation and general audit are complete, the first reviewer must use a temporary task-specific scenario for `CallAsync` schema observations. They must still run the actual `export-schema` CLI and inspect the actual exported files; do not substitute direct tool calls for an export.
+The `export-schema` CLI is implemented; the [schema-export roadmap](../../../tasks/schema-markdown-export/roadmap.md) tracks its remaining audit and reviews against the [concept](../../../tasks/schema-markdown-export/Konzept.md). After the general audit, the first reviewer must use a temporary task-specific scenario for `CallAsync` schema observations. They must still run the actual `export-schema` CLI and inspect the actual exported files; do not substitute direct tool calls for an export.
 
 Before inspection, state concrete expected content and navigation, then assess whether the observed output is what an agent would expect for the object and offline use. Inspect requests, every response content block and error state, joined text, and recorded exceptions; runner exit zero is not a quality verdict. Keep expectations/findings in the roadmap, not assertions or approved snapshots in scenarios. Existing MCP output must remain unchanged; compare export differences against the task's explicit presentation contract rather than changing tool output to match the export.
 
