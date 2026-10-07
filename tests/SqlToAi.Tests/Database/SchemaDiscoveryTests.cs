@@ -142,7 +142,7 @@ public sealed class SchemaDiscoveryTests
             : new FakeDbDataReader(["definition"], [[definition]]));
         var result = await BuildService(factory).GetExportTriggerDefinitionAsync("DemoDB", trigger, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
-        Assert.Equal("*Definition for trigger 'sales.Changed' not available.* *Definition not available — either the object is encrypted, or the configured login lacks VIEW DEFINITION permission on it.*", result.Value);
+        Assert.Equal("*Definition for trigger `sales.Changed` not available.* *Definition not available — either the object is encrypted, or the configured login lacks VIEW DEFINITION permission on it.*", result.Value);
     }
 
     [Fact]

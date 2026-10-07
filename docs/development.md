@@ -55,7 +55,14 @@ details. Trigger files include the definition and identify/link their parent
 table or view. Coverage follows the existing schema operations, rather than
 reconstructing table creation scripts.
 
-Original SQL names remain in document headings and the overview. Filenames
+SQL names appear literally in document headings, navigation and detail tables.
+For names containing control characters, presentation uses visible escapes:
+`\r`, `\n`, `\t`, or `\uXXXX`; a literal backslash is shown as `\\` to keep these
+distinct. Markdown escaping and code-span delimiters retain literal backticks
+and entity-like names such as `A&amp;B`. These presentation rules also apply to
+the overview's database name and names in empty/unavailable-result notes.
+They do not alter SQL identity, lookup parameters or original SQL definitions
+and comments. Filenames
 escape Windows-invalid characters, reserved names and mapping delimiters;
 long names use a bounded prefix and deterministic hash. All links use that same
 mapping with URI-escaped relative targets. All planned object paths are checked

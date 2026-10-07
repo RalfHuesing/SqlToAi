@@ -52,6 +52,12 @@ public interface ISchemaService
 
     Task<Result<string>> GetExportObjectReferencesAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default);
 
+    Task<Result<string>> GetExportSchemaIndexesAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default);
+
+    Task<Result<string>> GetExportSchemaConstraintsAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default);
+
+    Task<Result<string>> GetExportRoutineParametersAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Retrieves outgoing and incoming foreign keys for a table.
     /// </summary>

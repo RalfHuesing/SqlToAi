@@ -237,6 +237,18 @@ public sealed class SchemaService : ISchemaService
         => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "referencing entities",
             (connection, ct) => DetailSchemaRenderer.GetObjectReferencesAsync(connection, context.Source.QualifiedName, databaseName, ct, context), cancellationToken);
 
+    public Task<Result<string>> GetExportSchemaIndexesAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "indexes",
+            (connection, ct) => DetailSchemaRenderer.GetSchemaIndexesAsync(connection, context.Source.QualifiedName, databaseName, ct, context), cancellationToken);
+
+    public Task<Result<string>> GetExportSchemaConstraintsAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "constraints",
+            (connection, ct) => DetailSchemaRenderer.GetSchemaConstraintsAsync(connection, context.Source.QualifiedName, databaseName, ct, context), cancellationToken);
+
+    public Task<Result<string>> GetExportRoutineParametersAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "routine parameters",
+            (connection, ct) => DetailSchemaRenderer.GetRoutineParametersAsync(connection, context.Source.QualifiedName, databaseName, ct, context), cancellationToken);
+
     public Task<Result<string>> GetSchemaConstraintsAsync(string databaseName, string tableName, CancellationToken cancellationToken = default) =>
         ExecuteDetailQueryAsync(databaseName, tableName, "constraints",
             (connection, ct) => DetailSchemaRenderer.GetSchemaConstraintsAsync(connection, tableName, databaseName, ct),

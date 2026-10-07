@@ -79,7 +79,7 @@ internal static class DetailSchemaRenderer
             string parentLabel = FormatColumnReference(parentTable, parentColumns);
             string referencedLabel = FormatColumnReference(referencedTable, referencedColumns);
             renderedRows.Add([
-                g.Key.ForeignKeyName,
+                context is null ? g.Key.ForeignKeyName : OfflineSqlNameFormatter.Text(g.Key.ForeignKeyName),
                 context?.ObjectLink(g.Key.ParentSchemaName, g.Key.ParentObjectName, parentLabel) ?? parentLabel,
                 "→",
                 context?.ObjectLink(g.Key.ReferencedSchemaName, g.Key.ReferencedObjectName, referencedLabel) ?? referencedLabel
@@ -88,10 +88,11 @@ internal static class DetailSchemaRenderer
 
         if (renderedRows.Count == 0)
         {
-            return $"No foreign keys found for table '{context?.Source.DisplayName ?? tableName}' in database '{databaseName}'.";
+            return context is null ? $"No foreign keys found for table '{tableName}' in database '{databaseName}'."
+                : $"No foreign keys found for table {OfflineSqlNameFormatter.Code(context.Source.DisplayName)} in database {OfflineSqlNameFormatter.Code(databaseName)}.";
         }
 
-        return $"# Foreign Keys for `{context?.Source.DisplayName ?? tableName}`\n\n" + MarkdownTableRenderer.Render(["FK Name", "Source Column", "Dir", "Reference Column"], renderedRows);
+        return $"# Foreign Keys for {(context is null ? $"`{tableName}`" : OfflineSqlNameFormatter.Code(context.Source.DisplayName))}\n\n" + MarkdownTableRenderer.Render(["FK Name", "Source Column", "Dir", "Reference Column"], renderedRows);
     }
 
     /// <summary>
@@ -102,7 +103,7 @@ internal static class DetailSchemaRenderer
     private static string FormatColumnReference(string table, List<string> columns) =>
         columns.Count == 1 ? $"{table}.{columns[0]}" : $"{table} ({string.Join(", ", columns)})";
 
-    public static async Task<Result<string>> GetSchemaIndexesAsync(DbConnection connection, string tableName, string databaseName, CancellationToken cancellationToken)
+    public static async Task<Result<string>> GetSchemaIndexesAsync(DbConnection connection, string tableName, string databaseName, CancellationToken cancellationToken, SchemaRenderingContext? context = null)
     {
         var typeCheck = await ValidateTableOrViewAsync(connection, tableName, cancellationToken);
         if (typeCheck is not null)
@@ -141,17 +142,17 @@ internal static class DetailSchemaRenderer
             {
                 if (col.IsIncluded)
                 {
-                    includes.Add(col.ColumnName);
+                    includes.Add(context is null ? col.ColumnName : OfflineSqlNameFormatter.Text(col.ColumnName));
                 }
                 else
                 {
-                    keys.Add(col.ColumnName);
+                    keys.Add(context is null ? col.ColumnName : OfflineSqlNameFormatter.Text(col.ColumnName));
                 }
             }
 
             string properties = g.Key.IsPrimaryKey ? "Primary Key" : (g.Key.IsUnique ? "Unique" : "Standard");
             renderedRows.Add([
-                g.Key.IndexName ?? "HEAP",
+                context is null ? g.Key.IndexName ?? "HEAP" : OfflineSqlNameFormatter.Text(g.Key.IndexName ?? "HEAP"),
                 g.Key.IndexType,
                 properties,
                 string.Join(", ", keys),
@@ -161,13 +162,14 @@ internal static class DetailSchemaRenderer
 
         if (renderedRows.Count == 0)
         {
-            return $"No indexes found for table '{tableName}' in database '{databaseName}'.";
+            return context is null ? $"No indexes found for table '{tableName}' in database '{databaseName}'."
+                : $"No indexes found for table {OfflineSqlNameFormatter.Code(context.Source.DisplayName)} in database {OfflineSqlNameFormatter.Code(databaseName)}.";
         }
 
-        return $"# Indexes for `{tableName}`\n\n" + MarkdownTableRenderer.Render(["Index Name", "Type", "Property", "Keys", "Included Columns"], renderedRows);
+        return $"# Indexes for {(context is null ? $"`{tableName}`" : OfflineSqlNameFormatter.Code(context.Source.DisplayName))}\n\n" + MarkdownTableRenderer.Render(["Index Name", "Type", "Property", "Keys", "Included Columns"], renderedRows);
     }
 
-    public static async Task<Result<string>> GetSchemaConstraintsAsync(DbConnection connection, string tableName, string databaseName, CancellationToken cancellationToken)
+    public static async Task<Result<string>> GetSchemaConstraintsAsync(DbConnection connection, string tableName, string databaseName, CancellationToken cancellationToken, SchemaRenderingContext? context = null)
     {
         var typeCheck = await ValidateTableOrViewAsync(connection, tableName, cancellationToken);
         if (typeCheck is not null)
@@ -206,19 +208,20 @@ internal static class DetailSchemaRenderer
         var renderedRows = new List<string[]>();
         foreach (var dc in defaultConstraints)
         {
-            renderedRows.Add([ dc.ConstraintName, dc.ColumnName ?? "", "DEFAULT", dc.Definition ]);
+            renderedRows.Add([ context is null ? dc.ConstraintName : OfflineSqlNameFormatter.Text(dc.ConstraintName), context is null ? dc.ColumnName ?? "" : OfflineSqlNameFormatter.Text(dc.ColumnName ?? ""), "DEFAULT", dc.Definition ]);
         }
         foreach (var cc in checkConstraints)
         {
-            renderedRows.Add([ cc.ConstraintName, cc.ColumnName ?? "", "CHECK", cc.Definition ]);
+            renderedRows.Add([ context is null ? cc.ConstraintName : OfflineSqlNameFormatter.Text(cc.ConstraintName), context is null ? cc.ColumnName ?? "" : OfflineSqlNameFormatter.Text(cc.ColumnName ?? ""), "CHECK", cc.Definition ]);
         }
 
         if (renderedRows.Count == 0)
         {
-            return $"No default or check constraints found for table '{tableName}' in database '{databaseName}'.";
+            return context is null ? $"No default or check constraints found for table '{tableName}' in database '{databaseName}'."
+                : $"No default or check constraints found for table {OfflineSqlNameFormatter.Code(context.Source.DisplayName)} in database {OfflineSqlNameFormatter.Code(databaseName)}.";
         }
 
-        return $"# Constraints for `{tableName}`\n\n" + MarkdownTableRenderer.Render(["Constraint Name", "Column", "Type", "Definition"], renderedRows);
+        return $"# Constraints for {(context is null ? $"`{tableName}`" : OfflineSqlNameFormatter.Code(context.Source.DisplayName))}\n\n" + MarkdownTableRenderer.Render(["Constraint Name", "Column", "Type", "Definition"], renderedRows);
     }
 
     public static async Task<Result<string>> GetTriggerDefinitionAsync(DbConnection connection, string tableName, string triggerName, string databaseName, CancellationToken cancellationToken)
@@ -271,7 +274,7 @@ internal static class DetailSchemaRenderer
         }
 
         string? definition = await ReadTriggerDefinitionAsync(connection, identity.DisplayName, objectId.Value, cancellationToken);
-        return RenderTriggerDefinition(identity.DisplayName, parent.DisplayName, definition);
+        return RenderTriggerDefinition(identity.DisplayName, parent.DisplayName, definition, offline: true);
     }
 
     private static Task<string?> ReadTriggerDefinitionAsync(DbConnection connection, string triggerName, int? objectId, CancellationToken cancellationToken)
@@ -281,14 +284,15 @@ internal static class DetailSchemaRenderer
                 : "SELECT definition FROM sys.sql_modules WHERE object_id = OBJECT_ID(@TriggerName)",
             new { TriggerName = triggerName, ObjectId = objectId }, cancellationToken: cancellationToken));
 
-    private static string RenderTriggerDefinition(string triggerName, string tableName, string? definition)
+    private static string RenderTriggerDefinition(string triggerName, string tableName, string? definition, bool offline = false)
     {
         if (string.IsNullOrWhiteSpace(definition))
         {
-            return $"*Definition for trigger '{triggerName}' not available.* {DdlUnavailableNote}";
+            return offline ? $"*Definition for trigger {OfflineSqlNameFormatter.Code(triggerName)} not available.* {DdlUnavailableNote}"
+                : $"*Definition for trigger '{triggerName}' not available.* {DdlUnavailableNote}";
         }
 
-        return $"# Trigger Definition: `{triggerName}` (on table `{tableName}`)\n\n```sql\n{definition.Trim()}\n```";
+        return $"# Trigger Definition: {(offline ? OfflineSqlNameFormatter.Code(triggerName) : $"`{triggerName}`")} (on table {(offline ? OfflineSqlNameFormatter.Code(tableName) : $"`{tableName}`")})\n\n```sql\n{definition.Trim()}\n```";
     }
 
     public static async Task<Result<string>> GetObjectReferencesAsync(DbConnection connection, string objectName, string databaseName, CancellationToken cancellationToken, SchemaRenderingContext? context = null)
@@ -322,18 +326,19 @@ internal static class DetailSchemaRenderer
         var renderedRows = new List<string[]>();
         foreach (var r in rows)
         {
-            renderedRows.Add([ r.SchemaName, context?.ObjectLink(r.SchemaName, r.EntityName, r.EntityName) ?? r.EntityName, r.ClassDescription ]);
+            renderedRows.Add([ context is null ? r.SchemaName : OfflineSqlNameFormatter.Text(r.SchemaName), context?.ObjectLink(r.SchemaName, r.EntityName, r.EntityName) ?? r.EntityName, r.ClassDescription ]);
         }
 
         if (renderedRows.Count == 0)
         {
-            return $"No objects reference '{context?.Source.DisplayName ?? objectName}' in database '{databaseName}'.";
+            return context is null ? $"No objects reference '{objectName}' in database '{databaseName}'."
+                : $"No objects reference {OfflineSqlNameFormatter.Code(context.Source.DisplayName)} in database {OfflineSqlNameFormatter.Code(databaseName)}.";
         }
 
-        return $"# Referencing Entities for `{context?.Source.DisplayName ?? objectName}`\n\n" + MarkdownTableRenderer.Render(["Schema", "Entity Name", "Type"], renderedRows);
+        return $"# Referencing Entities for {(context is null ? $"`{objectName}`" : OfflineSqlNameFormatter.Code(context.Source.DisplayName))}\n\n" + MarkdownTableRenderer.Render(["Schema", "Entity Name", "Type"], renderedRows);
     }
 
-    public static async Task<Result<string>> GetRoutineParametersAsync(DbConnection connection, string routineName, string databaseName, CancellationToken cancellationToken)
+    public static async Task<Result<string>> GetRoutineParametersAsync(DbConnection connection, string routineName, string databaseName, CancellationToken cancellationToken, SchemaRenderingContext? context = null)
     {
         // Check if object is procedure or function
         string? objectType = await connection.QueryFirstOrDefaultAsync<string>(
@@ -369,8 +374,8 @@ internal static class DetailSchemaRenderer
         {
             string pName = string.IsNullOrWhiteSpace(r.ParameterName) ? "(ReturnValue)" : r.ParameterName;
             renderedRows.Add([
-                pName,
-                r.DataType,
+                context is null ? pName : OfflineSqlNameFormatter.Text(pName),
+                context is null ? r.DataType : OfflineSqlNameFormatter.Text(r.DataType),
                 r.MaxLength == -1 ? "MAX" : r.MaxLength.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 r.IsOutput ? "Yes" : "No"
             ]);
@@ -378,10 +383,11 @@ internal static class DetailSchemaRenderer
 
         if (renderedRows.Count == 0)
         {
-            return $"Routine '{routineName}' accepts no parameters.";
+            return context is null ? $"Routine '{routineName}' accepts no parameters."
+                : $"Routine {OfflineSqlNameFormatter.Code(context.Source.DisplayName)} accepts no parameters.";
         }
 
-        return $"# Parameters for Routine `{routineName}`\n\n" + MarkdownTableRenderer.Render(["Parameter Name", "Type", "Length", "Output"], renderedRows);
+        return $"# Parameters for Routine {(context is null ? $"`{routineName}`" : OfflineSqlNameFormatter.Code(context.Source.DisplayName))}\n\n" + MarkdownTableRenderer.Render(["Parameter Name", "Type", "Length", "Output"], renderedRows);
     }
 
     private sealed class ForeignKeyRow

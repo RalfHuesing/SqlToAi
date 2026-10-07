@@ -81,7 +81,7 @@ public sealed class OfflineSchemaPresentationTests
         var service = fixture.CreateService();
         var context = Context(Customers);
         var fk = await service.GetExportSchemaForeignKeysAsync("DemoDB", context, TestContext.Current.CancellationToken);
-        Assert.Equal("# Foreign Keys for `sales.Customers`\n\n" + SchemaPresentationRegressionTests.Lines("| FK Name | Source Column | Dir | Reference Column |\n| --- | --- | --- | --- |\n| FK_Customer | [sales.Orders.CustomerId](sales.Orders.md) | → | [sales.Customers.Id](sales.Customers.md) |"), fk.Value);
+        Assert.Equal("# Foreign Keys for `sales.Customers`\n\n" + SchemaPresentationRegressionTests.Lines("| FK Name | Source Column | Dir | Reference Column |\n| --- | --- | --- | --- |\n| FK\\_Customer | [sales.Orders.CustomerId](sales.Orders.md) | → | [sales.Customers.Id](sales.Customers.md) |"), fk.Value);
         var refs = await service.GetExportObjectReferencesAsync("DemoDB", context, TestContext.Current.CancellationToken);
         Assert.Equal("# Referencing Entities for `sales.Customers`\n\n" + SchemaPresentationRegressionTests.Lines("| Schema | Entity Name | Type |\n| --- | --- | --- |\n| sales | [Overview](../views/sales.Overview.md) | OBJECT_OR_COLUMN |"), refs.Value);
         var missing = new SchemaRenderingContext(Customers, new Dictionary<SchemaObjectIdentity, string> { [Customers] = "tables/sales.Customers.md" });

@@ -64,7 +64,7 @@ internal sealed class TableSchemaRenderer
         var triggers = (await QueryTriggersAsync(connection, tableName, cancellationToken)).ToList();
 
         var sb = new StringBuilder();
-        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"# Schema for Table/View: `{context?.Source.DisplayName ?? tableName}`");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"# Schema for Table/View: {(context is null ? $"`{tableName}`" : OfflineSqlNameFormatter.Code(context.Source.DisplayName))}");
         if (!string.IsNullOrWhiteSpace(tableDesc))
         {
             sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"*Description:* {tableDesc}").AppendLine();
@@ -140,7 +140,7 @@ internal sealed class TableSchemaRenderer
 
             if (anonymizedFlags is null)
             {
-                renderedRows.Add([col.ColumnName, type, nullable, keyStr]);
+                renderedRows.Add([OfflineSqlNameFormatter.Text(col.ColumnName), OfflineSqlNameFormatter.Text(type), nullable, keyStr]);
             }
             else
             {
@@ -250,7 +250,7 @@ internal sealed class TableSchemaRenderer
             new CommandDefinition("SELECT COUNT(*) FROM sys.parameters WHERE object_id = OBJECT_ID(@RoutineName)", new { RoutineName = routineName }, cancellationToken: cancellationToken));
 
         var sb = new StringBuilder();
-        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"# DDL Definition for Stored Procedure/Function: `{context?.Source.DisplayName ?? routineName}`");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"# DDL Definition for Stored Procedure/Function: {(context is null ? $"`{routineName}`" : OfflineSqlNameFormatter.Code(context.Source.DisplayName))}");
         sb.AppendLine();
         if (paramCount > 0)
         {

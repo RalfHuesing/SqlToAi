@@ -185,15 +185,15 @@ public sealed class SchemaExportTests
     [InlineData("GetExportObjectsAsync")]
     [InlineData("GetExportSchemaAsync")]
     [InlineData("GetExportSchemaForeignKeysAsync")]
-    [InlineData("GetSchemaIndexesAsync")]
-    [InlineData("GetSchemaConstraintsAsync")]
+    [InlineData("GetExportSchemaIndexesAsync")]
+    [InlineData("GetExportSchemaConstraintsAsync")]
     [InlineData("GetExportObjectReferencesAsync")]
-    [InlineData("GetRoutineParametersAsync")]
+    [InlineData("GetExportRoutineParametersAsync")]
     [InlineData("GetExportTriggerDefinitionAsync")]
     public async Task FailedServiceResult_StopsAtFailureAndPreservesError(string operation)
     {
         using var temp = TestTempDirectory.Create();
-        var kind = operation == "GetRoutineParametersAsync" ? SchemaObjectKind.Procedure : SchemaObjectKind.Table;
+        var kind = operation == "GetExportRoutineParametersAsync" ? SchemaObjectKind.Procedure : SchemaObjectKind.Table;
         var parent = Object(1, "One", kind);
         var objects = operation == "GetExportTriggerDefinitionAsync"
             ? new[] { new SchemaObject(new SchemaObjectIdentity(2, "audit", "T", SchemaObjectKind.Trigger), parent.Identity), parent }
@@ -289,6 +289,24 @@ public sealed class SchemaExportTests
         Assert.Equal(0, fixture.MetadataCalls + fixture.PolicyCalls + fixture.RuleCalls);
     }
 
+    [Theory]
+    [MemberData(nameof(OfflineSqlNameTests.Names), MemberType = typeof(OfflineSqlNameTests))]
+    public async Task OverviewDatabaseAndUnmappedTriggerParent_UseLiteralSingleLineNames(string name, string textName, string codeName)
+    {
+        using var temp = TestTempDirectory.Create();
+        var parent = new SchemaObjectIdentity(101, "sales", name, SchemaObjectKind.Table);
+        var trigger = new SchemaObject(new SchemaObjectIdentity(301, "sales", name, SchemaObjectKind.Trigger), parent);
+        var (export, proxy) = Create(trigger);
+        proxy.TriggerText = DetailSchemaRenderer.DdlUnavailableNote;
+        string root = temp.GetPath("dump");
+        Assert.True((await export.ExportAsync(name, root, Token)).IsSuccess);
+        string overview = await File.ReadAllTextAsync(Path.Combine(root, "README.md"), Token);
+        Assert.Equal("# Database schema: " + textName, overview.Split('\n')[0].TrimEnd('\r'));
+        string document = await File.ReadAllTextAsync(Path.Combine(root, SchemaExportPaths.Create([trigger])[trigger.Identity]), Token);
+        Assert.Equal($"# Trigger: {codeName}\n\nParent: sales.{textName}\n\n{DetailSchemaRenderer.DdlUnavailableNote}", document);
+        Assert.Equal(0, proxy.InteractiveCalls);
+    }
+
     public class ExportSchemaProxy : DispatchProxy
     {
         internal IReadOnlyList<SchemaObject> Objects { get; set; } = [];
@@ -318,10 +336,10 @@ public sealed class SchemaExportTests
                         text += context.ObjectLink(trigger.Identity, trigger.Identity.ObjectName) + "\n";
                     break;
                 case "GetExportSchemaForeignKeysAsync": text = "foreign keys"; break;
-                case "GetSchemaIndexesAsync": text = "indexes " + args![1]; break;
-                case "GetSchemaConstraintsAsync": text = "constraints " + args![1]; break;
+                case "GetExportSchemaIndexesAsync": text = "indexes " + ((SchemaRenderingContext)args![1]!).Source.QualifiedName; break;
+                case "GetExportSchemaConstraintsAsync": text = "constraints " + ((SchemaRenderingContext)args![1]!).Source.QualifiedName; break;
                 case "GetExportObjectReferencesAsync": text = "references"; break;
-                case "GetRoutineParametersAsync": text = "parameters " + args![1]; break;
+                case "GetExportRoutineParametersAsync": text = "parameters " + ((SchemaRenderingContext)args![1]!).Source.QualifiedName; break;
                 case "GetExportTriggerDefinitionAsync": text = TriggerText ?? "trigger " + ((SchemaObject)args![1]!).Identity.ObjectId; break;
                 default: InteractiveCalls++; throw new InvalidOperationException("Unexpected interactive call " + method);
             }

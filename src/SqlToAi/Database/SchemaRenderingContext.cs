@@ -23,24 +23,20 @@ public sealed class SchemaRenderingContext
     public SchemaObjectIdentity Source { get; }
 
     internal string ObjectLink(string schemaName, string objectName, string label)
-        => _objects.TryGetValue((schemaName, objectName), out var identity) ? ObjectLink(identity, label) : label;
+        => _objects.TryGetValue((schemaName, objectName), out var identity) ? ObjectLink(identity, label) : OfflineSqlNameFormatter.Text(label);
 
     internal string ObjectLink(SchemaObjectIdentity identity, string label)
-        => _paths.TryGetValue(identity, out string? target) ? RelativeLink(_paths[Source], target, label) : label;
+        => _paths.TryGetValue(identity, out string? target) ? RelativeLink(_paths[Source], target, label) : OfflineSqlNameFormatter.Text(label);
 
     internal string TriggerLink(int objectId, string label)
-        => _triggers.TryGetValue(objectId, out var identity) ? ObjectLink(identity, label) : label;
+        => _triggers.TryGetValue(objectId, out var identity) ? ObjectLink(identity, label) : OfflineSqlNameFormatter.Text(label);
 
     public static string RelativeLink(string sourcePath, string targetPath, string label)
     {
         string? sourceDirectory = Path.GetDirectoryName(sourcePath);
         string relative = Path.GetRelativePath(string.IsNullOrEmpty(sourceDirectory) ? "." : sourceDirectory, targetPath);
         string url = string.Join('/', relative.Replace('\\', '/').Split('/').Select(Uri.EscapeDataString));
-        string text = label.Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("[", "\\[", StringComparison.Ordinal).Replace("]", "\\]", StringComparison.Ordinal)
-            .Replace("`", "\\`", StringComparison.Ordinal).Replace("*", "\\*", StringComparison.Ordinal)
-            .Replace("_", "\\_", StringComparison.Ordinal).Replace("<", "\\<", StringComparison.Ordinal)
-            .Replace(">", "\\>", StringComparison.Ordinal);
+        string text = OfflineSqlNameFormatter.Text(label);
         return $"[{text}]({url})";
     }
 }

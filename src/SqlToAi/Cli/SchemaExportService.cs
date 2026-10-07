@@ -27,7 +27,7 @@ internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaE
                 if (document.IsFailure) return Result.Failure(document.Error);
                 await WriteAsync(root, paths[item.Identity], document.Value, cancellationToken);
             }
-            var overview = new StringBuilder().Append("# Database schema: ").AppendLine(database).AppendLine();
+            var overview = new StringBuilder().Append("# Database schema: ").AppendLine(OfflineSqlNameFormatter.Text(database)).AppendLine();
             foreach (var group in objects.GroupBy(item => SchemaExportPaths.DirectoryFor(item.Identity.Kind)))
             {
                 overview.Append("## ").AppendLine(group.Key).AppendLine();
@@ -60,8 +60,8 @@ internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaE
             if (definition.IsFailure) return definition;
             if (item.Parent is null) return Result<string>.Failure(SqlToAiError.InvalidParameters("A trigger must identify its parent."));
             string parent = paths.TryGetValue(item.Parent, out string? parentPath)
-                ? SchemaRenderingContext.RelativeLink(paths[identity], parentPath, item.Parent.DisplayName) : item.Parent.DisplayName;
-            return Result<string>.Success($"# Trigger: `{identity.DisplayName}`\n\nParent: {parent}\n\n{definition.Value}");
+                ? SchemaRenderingContext.RelativeLink(paths[identity], parentPath, item.Parent.DisplayName) : OfflineSqlNameFormatter.Text(item.Parent.DisplayName);
+            return Result<string>.Success($"# Trigger: {OfflineSqlNameFormatter.Code(identity.DisplayName)}\n\nParent: {parent}\n\n{definition.Value}");
         }
         var primary = await schema.GetExportSchemaAsync(database, context, cancellationToken);
         if (primary.IsFailure) return primary;
@@ -70,11 +70,11 @@ internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaE
         if (identity.Kind is SchemaObjectKind.Table or SchemaObjectKind.View)
         {
             operations.Add(() => schema.GetExportSchemaForeignKeysAsync(database, context, cancellationToken));
-            operations.Add(() => schema.GetSchemaIndexesAsync(database, identity.QualifiedName, cancellationToken));
-            operations.Add(() => schema.GetSchemaConstraintsAsync(database, identity.QualifiedName, cancellationToken));
+            operations.Add(() => schema.GetExportSchemaIndexesAsync(database, context, cancellationToken));
+            operations.Add(() => schema.GetExportSchemaConstraintsAsync(database, context, cancellationToken));
             operations.Add(() => schema.GetExportObjectReferencesAsync(database, context, cancellationToken));
         }
-        else operations.Add(() => schema.GetRoutineParametersAsync(database, identity.QualifiedName, cancellationToken));
+        else operations.Add(() => schema.GetExportRoutineParametersAsync(database, context, cancellationToken));
         foreach (var operation in operations)
         {
             var result = await operation();
