@@ -8,11 +8,10 @@ Projekt-Orientierung für KI-Coding-Assistenten (.NET 10 / C# 14).
 - **Test:** `dotnet test SqlToAi.slnx` (xUnit v3)
 - **Umgebung:** Windows PowerShell (`pwsh`), Git immer mit `--no-pager`.
 
-## C#-Analyse & Qualität: AiNetLinter MCP-First (Verbindlich)
+## C#-Navigation: AiNetCodeNavigator MCP-First (Verbindlich)
 
-- **Workflow & Tools:** Proaktiv und primär gemäß [.agents/rules/AiNetLinter-McpWorkflow.mdc](.agents/rules/AiNetLinter-McpWorkflow.mdc) (keine Textsuch-Kaskaden für C#-Semantik).
-- **Linter-Grenzwerte:** Siehe [.agents/rules/AiNetLinter.mdc](.agents/rules/AiNetLinter.mdc).
-- **`targetPath`:** Absoluter Pfad zu `SqlToAi.slnx` (für alle MCP-Abfragen und `verify`).
+- **Workflow & Tools:** Proaktiv und primär gemäß [.agents/rules/08-ainetcodenavigator-mcp-navigation.mdc](.agents/rules/08-ainetcodenavigator-mcp-navigation.mdc).
+- **Target:** Absoluter Pfad zu `SqlToAi.slnx`.
 
 ## Architektur & Richtlinien
 

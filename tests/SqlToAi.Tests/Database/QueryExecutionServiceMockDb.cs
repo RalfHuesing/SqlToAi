@@ -194,8 +194,8 @@ internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
 /// <summary>
 /// Schema-table origin metadata (<c>BaseSchemaName</c>/<c>BaseTableName</c>/<c>BaseColumnName</c>)
 /// a mock reader reports for column 0, or "unavailable" (<see cref="Available"/> false) to simulate
-/// a provider without schema-table support. Bundled into its own record (see AiNetLinter
-/// <c>MaxConstructorDependencies</c>) so the mock DB constructors stay within the project's
+/// a provider without schema-table support. Bundled into its own record so the mock DB constructors
+/// stay within the project's
 /// parameter-count limit.
 /// </summary>
 internal sealed record MockSchemaOrigin(string? BaseTableName = null, string? BaseColumnName = null, bool Available = true, string? BaseSchemaName = null);

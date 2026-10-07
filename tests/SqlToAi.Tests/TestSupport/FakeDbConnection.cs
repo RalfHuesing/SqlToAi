@@ -8,8 +8,8 @@ namespace SqlToAi.Tests.TestSupport;
 
 /// <summary>
 /// Fixed identity values a <see cref="FakeDbConnection"/> reports, plus an optional transaction
-/// factory. Bundled into a record (see AiNetLinter <c>MaxMethodParameterCount</c>) so the
-/// connection constructor stays within the project's parameter-count limit. Defaults match the
+/// factory. Bundled into a record so the connection constructor stays within the project's
+/// parameter-count limit. Defaults match the
 /// values used by the majority of the pre-refactor mocks (schema/rule/exclusion/metadata), which
 /// never began a transaction; <see cref="BeginTransaction"/> stays <see langword="null"/> there and
 /// <see cref="FakeDbConnection.BeginDbTransaction"/> throws <see cref="NotImplementedException"/>,

@@ -5,8 +5,7 @@ namespace SqlToAi.Anonymization;
 /// <summary>
 /// Bundles the table/origin-column/exclusion context needed to make the exclusion decision in
 /// <see cref="IAnonymizer.Anonymize(string, AnonymizationColumnContext)"/> and
-/// <see cref="IAnonymizer.Tokenize(string, AnonymizationColumnContext)"/> into a single parameter
-/// object (see <c>.agents/rules/AiNetLinter.mdc</c>, <c>MaxMethodParameterCount</c>).
+/// <see cref="IAnonymizer.Tokenize(string, AnonymizationColumnContext)"/> into a single parameter object.
 /// </summary>
 /// <param name="TableName">The resolved base table name, or null/empty if unknown.</param>
 /// <param name="OriginColumnName">

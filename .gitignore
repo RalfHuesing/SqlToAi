@@ -77,7 +77,3 @@ Desktop.ini
 
 # Temporary files / scratch scripts
 temp/
-
-# AiNetLinter cache & profiling
-cache/
-measurements/
