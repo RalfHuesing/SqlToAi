@@ -37,24 +37,7 @@ Strikte Leitplanken für die Code-Erstellung, Sicherheitsprüfungen, Architektur
 - **Standardisierte Fehlerbehandlung (Error-Catalog):**
   - Alle Fehler müssen einem Code aus dem Katalog (`SQL-AI-0001` bis `SQL-AI-0110`) entsprechen.
 
-## 3. Windows-Umgebung & Tool-Regeln
-
-Diese Entwicklungsumgebung läuft **ausschließlich unter Windows**. Alle Shell-Befehle und Tool-Aufrufe müssen Windows-kompatibel sein.
-
-### Shell & Befehle
-- **Shell:** PowerShell 7 (`pwsh`) — kein Bash, kein `sh`, kein WSL.
-- Pfad-Trenner: Backslash `\` (oder forward slash `/` in .NET/git-Kontexten).
-- Keine Linux-Befehle wie `ls`, `cat`, `touch`, `find`, `grep` (als eigenständige Befehle), `rm -rf` etc.
-- Git muss **immer** mit `--no-pager` aufgerufen werden, z. B. `git --no-pager diff`.
-
-### Build & Test
-```powershell
-dotnet build          # Kompilieren
-dotnet test           # Tests ausführen
-dotnet run            # Starten (als MCP Server)
-```
-
-## 4. Updates, Dokumentation & Sprachen (Updates, Documentation & Languages)
+## 3. Updates, Dokumentation & Sprachen (Updates, Documentation & Languages)
 
 - **xUnit v3 Tests:** Pflicht für alle funktionalen Änderungen, Sicherheitsüberprüfungen (Safety-Check, Anonymisierung, Read-Only Guard) sowie für jede nicht-triviale Funktion.
 - **Dokumentations- & Kommentar-Richtlinien (Minimalistisch, Sachlich, Aktuell):**
@@ -72,7 +55,7 @@ dotnet run            # Starten (als MCP Server)
 - **Commits (Pflicht):** Commits werden **autonom in sinnvollen Abständen** gemacht — nach jedem abgeschlossenen Feature, nach jedem behobenen Fehler, nach jedem grünen Test-Lauf. Kein Warten auf explizite Aufforderung. Jeder Commit-Vorschlag schließt mit `### Commit-Vorschlag` (Conventional Commit, Deutsch, imperativ).
 - **Keine hartkodierten Werte (No Magic Values) & AppSettings-Pflicht:** Numerische Limits, Timeouts, Default-Werte und konfigurierbare Strings dürfen **niemals direkt in `.cs`-Dateien** eingetragen werden. Alle Konfigurationswerte kommen aus der `appsettings.json` (gebunden via `IOptions<T>`). Defaults werden als Property-Initializer in der jeweiligen `*Options`-Klasse gesetzt und sind dort dokumentiert — nie im aufrufenden Code. **Jede neu eingeführte Konfigurationsoption muss zwingend auch lückenlos in der Haupt-`appsettings.json` mit sinnvollen Defaults definiert sein**, um die automatische Startup-Synchronisierung (`AppSettingsMigrator`) zu gewährleisten.
 
-## 5. Qualitätsdrift-Prävention & Tech Debt
+## 4. Qualitätsdrift-Prävention & Tech Debt
 
 - **Zero-Warning-Direktive:** Das Projekt nutzt `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`. Neuer Code darf keine Compiler-Warnungen einführen.
 - **Result-Pattern:** Bevorzuge `Result<T>` für die Fehlerbehandlung, besonders an den Schnittstellen der MCP-Tools (Error-Catalog).
@@ -83,7 +66,7 @@ dotnet run            # Starten (als MCP Server)
   - **Meldepflicht bei größeren Refactorings:** Wenn die Behebung von Tech Debt ein **größeres oder strukturelles Refactoring** erfordert, ist dies nicht eigenmächtig durchzuführen, sondern dem Nutzer **transparent zu melden und vorab abzustimmen**.
 - **Semantische C#-Code-Intelligence (MCP Server):** Für alle C#-Symbol-, Referenz-, Aufruf- und Abhängigkeitsanalysen ist verbindlich der AiNetCodeNavigator MCP-Server gemäß [.agents/rules/08-ainetcodenavigator-mcp-navigation.mdc](08-ainetcodenavigator-mcp-navigation.mdc) zu nutzen.
 
-## 6. Agentische Planung & Mitdenken (Agentic Planning)
+## 5. Agentische Planung & Mitdenken (Agentic Planning)
 
 - **Aktives Mitdenken:** Bei der agentischen Planung, Konzeption oder Besprechung von Aufgaben sollst du proaktiv mitdenken.
 - **Interaktive Rückfragen:** Stelle bei Bedarf interaktive Fragen, die eine klare Beschreibung des Problems/Szenarios sowie konkrete Handlungsempfehlungen beinhalten, um Unklarheiten zu beseitigen und das beste Design zu wählen.

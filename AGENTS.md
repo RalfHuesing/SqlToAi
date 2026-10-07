@@ -6,7 +6,7 @@ Projekt-Orientierung für KI-Coding-Assistenten (.NET 10 / C# 14).
 
 - **Build:** `dotnet build SqlToAi.slnx`
 - **Test:** `dotnet test SqlToAi.slnx` (xUnit v3)
-- **Umgebung:** Windows PowerShell (`pwsh`), Git immer mit `--no-pager`.
+- **Umgebung:** Windows PowerShell (`pwsh`), `rg` statt `grep`, Git immer mit `--no-pager` (Details: [.agents/rules/system-specs.mdc](.agents/rules/system-specs.mdc)).
 
 ## C#-Navigation: AiNetCodeNavigator MCP-First (Verbindlich)
 
