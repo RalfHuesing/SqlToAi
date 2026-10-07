@@ -23,5 +23,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SqlToAi\SqlToAi.csproj" />
+    <ProjectReference Include="..\..\tools\SqlToAi.Exploration\SqlToAi.Exploration.csproj" />
   </ItemGroup>
 </Project>

@@ -32,6 +32,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="SqlToAi.Tests" />
+    <InternalsVisibleTo Include="SqlToAi.Exploration" />
   </ItemGroup>
 
   <ItemGroup>

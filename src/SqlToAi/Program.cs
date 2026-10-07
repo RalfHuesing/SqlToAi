@@ -135,15 +135,15 @@ internal static class Program
     // Configuration & DI
     // -------------------------------------------------------------------------
 
-    private static IConfiguration BuildConfiguration() =>
+    internal static IConfiguration BuildConfiguration(string? basePath = null) =>
         new ConfigurationBuilder()
-            .SetBasePath(AppContext.BaseDirectory)
+            .SetBasePath(basePath ?? AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
             .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"}.json", optional: true)
             .AddEnvironmentVariables()
             .Build();
 
-    private static ServiceProvider BuildServiceProvider(IConfiguration configuration, SqlToAiOptions sqlToAiOptions)
+    internal static ServiceProvider BuildServiceProvider(IConfiguration configuration, SqlToAiOptions sqlToAiOptions)
     {
         var services = new ServiceCollection();
 

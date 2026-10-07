@@ -104,9 +104,11 @@ For test and exploratory export directories, reuse [TestTempDirectory.cs](../../
 - Verify that offline files do not instruct the reader to invoke MCP tools and that existing MCP output keeps its current behavior.
 - Verify that export omits metadata-sourced descriptions and does not invoke the metadata provider, while the existing MCP path retains enrichment and exported SQL definitions retain their comments.
 - Verify that export omits the `Anonymized` column and does not invoke anonymization-policy/rule providers even when central rules are enabled; the existing MCP path retains its indicators and rule handling.
-- During implementation, run the repository's required build, tests, and quality checks and update the CLI documentation in `README.md` and `docs/architecture-spec.md`.
+- During implementation, run the repository's required build, tests, and quality checks and update the CLI documentation in `README.md`, `docs/development.md`, and `docs/architecture.md`.
 
 ### Exploratory DemoDB verification after the general audit
+
+The [transport-free exploration runner](../../docs/exploration.md) is available for temporary supporting scenarios and direct schema-tool observations. Follow its [scenario authoring guidance](../../tools/SqlToAi.Exploration/Scenarios/README.md). It does not implement the exporter or replace the actual CLI invocations, owned temporary directories, or either independent review below.
 
 - Run this practical phase after the general code/test/documentation audit and its corrections. Use sequential exploratory agents; their findings are feedback for an implementation agent, not permission for the reviewers to change production code.
 - One agent invokes the actual `export-schema` CLI against the configured `DemoDB`, reads the generated object files, and checks their correspondence to the source schema using existing schema operations. Inspect the available object kinds, table details, definitions, trigger-parent associations, and relative links. Check the resulting text, not just the exit code or file count.
