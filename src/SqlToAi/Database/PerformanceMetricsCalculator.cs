@@ -3,6 +3,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using SqlToAi.Domain;
+using SqlToAi.Security;
 
 namespace SqlToAi.Database;
 
@@ -11,13 +12,13 @@ namespace SqlToAi.Database;
 /// STATISTICS IO/TIME message captures. Separated from <see cref="PerformanceMeasurementService"/>
 /// so the pure calculation logic can be unit-tested without database infrastructure.
 /// </summary>
-internal static class PerformanceMetricsCalculator
+internal static partial class PerformanceMetricsCalculator
 {
-    private static readonly Regex CpuTimeRegex = new(
-        @"CPU time = (\d+) ms,\s+elapsed time = (\d+) ms", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    [GeneratedRegex(@"CPU time = (\d+) ms,\s+elapsed time = (\d+) ms", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
+    private static partial Regex CpuTimeRegex();
 
-    private static readonly Regex IoReadsRegex = new(
-        @"logical reads (\d+),\s+physical reads (\d+),\s+read-ahead reads (\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    [GeneratedRegex(@"logical reads (\d+),\s+physical reads (\d+),\s+read-ahead reads (\d+)", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
+    private static partial Regex IoReadsRegex();
 
     /// <summary>
     /// Computes <see cref="PerformanceMetrics"/> from per-run message captures.
@@ -83,7 +84,7 @@ internal static class PerformanceMetricsCalculator
         bool hasMatch = false;
         foreach (string msg in messages)
         {
-            var cpuMatch = CpuTimeRegex.Match(msg);
+            var cpuMatch = CpuTimeRegex().Match(msg);
             if (cpuMatch.Success)
             {
                 hasMatch = true;
@@ -91,7 +92,7 @@ internal static class PerformanceMetricsCalculator
                 elapsed += long.Parse(cpuMatch.Groups[2].Value, CultureInfo.InvariantCulture);
             }
 
-            var ioMatch = IoReadsRegex.Match(msg);
+            var ioMatch = IoReadsRegex().Match(msg);
             if (ioMatch.Success)
             {
                 logical   += long.Parse(ioMatch.Groups[1].Value, CultureInfo.InvariantCulture);

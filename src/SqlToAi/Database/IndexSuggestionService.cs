@@ -98,7 +98,7 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
 
         try
         {
-            using var connection = _connectionFactory.CreateConnection(args.DatabaseName);
+            await using var connection = _connectionFactory.CreateConnection(args.DatabaseName);
             await connection.OpenAsync(cancellationToken);
 
             IReadOnlyList<MissingIndexRow> rows = await LoadSuggestionsAsync(connection, args, cancellationToken);

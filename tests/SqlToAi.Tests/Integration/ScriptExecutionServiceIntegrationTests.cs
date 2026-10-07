@@ -266,7 +266,7 @@ public sealed class ScriptExecutionServiceIntegrationTests
 
     private async Task<long> CountMarkerAsync(string marker)
     {
-        using var connection = _fixture.ConnectionFactory.CreateConnection(_databaseName);
+        await using var connection = _fixture.ConnectionFactory.CreateConnection(_databaseName);
         await connection.OpenAsync(TestContext.Current.CancellationToken);
         return await connection.ExecuteScalarAsync<long>(new CommandDefinition(
             "SELECT COUNT(*) FROM dbo.FakeProjects WHERE ProjectName = @Marker",
@@ -276,7 +276,7 @@ public sealed class ScriptExecutionServiceIntegrationTests
 
     private async Task DeleteMarkerAsync(string marker)
     {
-        using var connection = _fixture.ConnectionFactory.CreateConnection(_databaseName);
+        await using var connection = _fixture.ConnectionFactory.CreateConnection(_databaseName);
         await connection.OpenAsync(CancellationToken.None);
         await connection.ExecuteAsync(new CommandDefinition(
             "DELETE FROM dbo.FakeProjects WHERE ProjectName = @Marker",

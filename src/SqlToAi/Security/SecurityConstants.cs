@@ -9,8 +9,13 @@ namespace SqlToAi.Security;
 public static class SecurityConstants
 {
     /// <summary>
+    /// ReDoS-protection timeout in milliseconds (200 ms).
+    /// </summary>
+    public const int DefaultRegexTimeoutMs = 200;
+
+    /// <summary>
     /// ReDoS-protection timeout applied to every regex compiled by the server.
     /// Exceeding this budget aborts the match and is treated as "not safe" (fail-closed).
     /// </summary>
-    public static readonly TimeSpan DefaultRegexTimeout = TimeSpan.FromMilliseconds(200);
+    public static readonly TimeSpan DefaultRegexTimeout = TimeSpan.FromMilliseconds(DefaultRegexTimeoutMs);
 }

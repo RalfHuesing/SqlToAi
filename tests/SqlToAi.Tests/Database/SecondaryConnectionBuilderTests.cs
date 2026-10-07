@@ -18,7 +18,7 @@ public sealed class SecondaryConnectionBuilderTests
         var settings = new SecondaryConnectionSettings(null, null, null, null, false, 30);
         var fallback = new FakeConnectionFactory();
 
-        var connection = SecondaryConnectionBuilder.Create(settings, "SqlToAi-Test", "FallbackDb", fallback);
+        using var connection = SecondaryConnectionBuilder.Create(settings, "SqlToAi-Test", "FallbackDb", fallback);
 
         Assert.Same(fallback.ReturnedConnection, connection);
         Assert.Equal("FallbackDb", fallback.LastDatabaseName);
@@ -30,7 +30,7 @@ public sealed class SecondaryConnectionBuilderTests
         var settings = new SecondaryConnectionSettings(null, "ConfiguredDb", null, null, false, 30);
         var fallback = new FakeConnectionFactory();
 
-        SecondaryConnectionBuilder.Create(settings, "SqlToAi-Test", "FallbackDb", fallback);
+        using var connection = SecondaryConnectionBuilder.Create(settings, "SqlToAi-Test", "FallbackDb", fallback);
 
         Assert.Equal("ConfiguredDb", fallback.LastDatabaseName);
     }

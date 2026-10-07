@@ -64,7 +64,9 @@ internal sealed class FakeDbDataReader : DbDataReader
         return false;
     }
 
+#pragma warning disable MA0042 // In-memory test fake completes synchronously via Task.FromResult
     public override Task<bool> ReadAsync(CancellationToken cancellationToken) => Task.FromResult(Read());
+#pragma warning restore MA0042
 
     public override bool NextResult()
     {
@@ -77,7 +79,9 @@ internal sealed class FakeDbDataReader : DbDataReader
         return false;
     }
 
+#pragma warning disable MA0042 // In-memory test fake completes synchronously via Task.FromResult
     public override Task<bool> NextResultAsync(CancellationToken cancellationToken) => Task.FromResult(NextResult());
+#pragma warning restore MA0042
 
     public override string GetName(int ordinal) => CurrentSet.Columns[ordinal];
 

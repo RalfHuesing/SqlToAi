@@ -90,7 +90,7 @@ internal static class Program
     private static async Task<int> RunServerAsync(ServiceProvider serviceProvider, CancellationToken cancellationToken)
     {
         var serverOptions = serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value;
-        var transport = new StdioServerTransport(serverOptions);
+        await using var transport = new StdioServerTransport(serverOptions);
         await using var server = McpServer.Create(transport, serverOptions, serviceProvider: serviceProvider);
         await server.RunAsync(cancellationToken);
         return 0;

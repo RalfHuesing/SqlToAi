@@ -65,9 +65,9 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
 
         try
         {
-            using var connection = _dependencies.ConnectionFactory.CreateConnection(args.DatabaseName);
+            await using var connection = _dependencies.ConnectionFactory.CreateConnection(args.DatabaseName);
             await connection.OpenAsync(cancellationToken);
-            using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+            await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 
             try
             {
@@ -242,12 +242,12 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
 
     private static async Task<string?> RunQueryOnceAsync(DbConnection connection, DbTransaction transaction, QueryPerformanceArgs args, CancellationToken ct)
     {
-        using var cmd = connection.CreateCommand();
+        await using var cmd = connection.CreateCommand();
         cmd.CommandText = args.Query;
         cmd.Transaction = transaction;
         SqlParameterBinder.BindParameters(cmd, args.Parameters);
 
-        using var reader = await cmd.ExecuteReaderAsync(ct);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
         string? xmlPlanText = null;
 
         do
@@ -299,7 +299,10 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
         {
             string table = mi.Attribute("Table")?.Value ?? "UnknownTable";
             string impactStr = mi.Parent?.Attribute("Impact")?.Value ?? mi.Parent?.Parent?.Attribute("Impact")?.Value ?? "0";
-            double.TryParse(impactStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double impact);
+            if (!double.TryParse(impactStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double impact))
+            {
+                impact = 0.0;
+            }
 
             var equality = new List<string>();
             var inequality = new List<string>();

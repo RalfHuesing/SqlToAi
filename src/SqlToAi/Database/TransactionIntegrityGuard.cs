@@ -33,7 +33,7 @@ internal static class TransactionIntegrityGuard
     /// <summary>Reads the current <c>@@TRANCOUNT</c> on the given connection/transaction.</summary>
     public static async Task<int> GetTranCountAsync(DbConnection connection, DbTransaction transaction, CancellationToken cancellationToken)
     {
-        using var command = connection.CreateCommand();
+        await using var command = connection.CreateCommand();
         command.CommandText = "SELECT @@TRANCOUNT";
         command.Transaction = transaction;
         object? value = await command.ExecuteScalarAsync(cancellationToken);

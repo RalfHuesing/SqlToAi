@@ -128,10 +128,10 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
     {
         try
         {
-            using var connection = _connectionFactory.CreateConnection(databaseName);
+            await using var connection = _connectionFactory.CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
 
-            using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+            await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
             int baselineTranCount = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, cancellationToken);
 
             Result<QueryExecutionResult> result;
@@ -217,7 +217,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-        using var command = args.Connection.CreateCommand();
+        await using var command = args.Connection.CreateCommand();
         command.CommandText = args.Query;
         command.Transaction = transaction;
         command.CommandTimeout = _options.CommandTimeoutSeconds;
@@ -233,7 +233,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
                 ? CommandBehavior.SequentialAccess | CommandBehavior.KeyInfo
                 : CommandBehavior.SequentialAccess;
 
-            using var reader = await command.ExecuteReaderAsync(behavior, cancellationToken);
+            await using var reader = await command.ExecuteReaderAsync(behavior, cancellationToken);
             do
             {
                 string[] columnNames = GetColumnNames(reader);

@@ -148,7 +148,7 @@ public sealed class QueryExecutionServiceTests
     public async Task ExecuteBatchAsync_ShouldReadMultipleResultSets_AndSerializeAllRows()
     {
         var options = new SqlToAiOptions();
-        var reader = new FakeDbDataReader([
+        await using var reader = new FakeDbDataReader([
             new FakeDbResultSet(["Col1"], [["A"], ["B"]]),
             new FakeDbResultSet(["Col2"], [["C"]])
         ]);
@@ -159,7 +159,7 @@ public sealed class QueryExecutionServiceTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var conn = factory.CreateConnection();
+        await using var conn = factory.CreateConnection();
         await conn.OpenAsync(TestContext.Current.CancellationToken);
         var args = new QueryBatchExecutionArgs(
             conn, null, TestConstants.DatabaseName, "SELECT 'A'; SELECT 'C'", 100, false, null);

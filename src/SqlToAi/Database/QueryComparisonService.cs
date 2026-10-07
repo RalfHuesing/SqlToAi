@@ -80,10 +80,10 @@ public sealed class QueryComparisonService : IQueryComparisonService
 
         try
         {
-            using var connection = _dependencies.ConnectionFactory.CreateConnection(args.DatabaseName);
+            await using var connection = _dependencies.ConnectionFactory.CreateConnection(args.DatabaseName);
             await connection.OpenAsync(cancellationToken);
 
-            using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+            await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 
             try
             {
@@ -212,12 +212,12 @@ public sealed class QueryComparisonService : IQueryComparisonService
         object? parameters,
         CancellationToken ct)
     {
-        using var cmd = connection.CreateCommand();
+        await using var cmd = connection.CreateCommand();
         cmd.CommandText = query;
         cmd.Transaction = transaction;
         SqlParameterBinder.BindParameters(cmd, parameters);
 
-        using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SchemaOnly, ct);
+        await using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SchemaOnly, ct);
         var list = new List<(string Name, string Type)>(reader.FieldCount);
         for (int i = 0; i < reader.FieldCount; i++)
         {
@@ -245,7 +245,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         }
         sb.AppendLine(string.Create(CultureInfo.InvariantCulture, $"SELECT COUNT_BIG(*) FROM ({d.MainSelect}) AS SqlToAiCountSubQuery"));
 
-        using var cmd = connection.CreateCommand();
+        await using var cmd = connection.CreateCommand();
         cmd.CommandText = sb.ToString();
         cmd.Transaction = transaction;
         SqlParameterBinder.BindParameters(cmd, parameters);
@@ -297,7 +297,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         int maxDiffRows,
         CancellationToken ct)
     {
-        using var cmd = connection.CreateCommand();
+        await using var cmd = connection.CreateCommand();
         cmd.CommandText = exceptQuery;
         cmd.Transaction = transaction;
 
@@ -307,7 +307,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
             SqlParameterBinder.BindParameters(cmd, secondaryParams);
         }
 
-        using var reader = await cmd.ExecuteReaderAsync(ct);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
 
         var names = new string[reader.FieldCount];
         for (int i = 0; i < reader.FieldCount; i++)
@@ -323,7 +323,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
             var rowDict = new Dictionary<string, object?>(names.Length, StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < names.Length; i++)
             {
-                rowDict[names[i]] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                rowDict[names[i]] = await reader.IsDBNullAsync(i, ct) ? null : reader.GetValue(i);
             }
             sb.AppendLine(JsonSerializer.Serialize(rowDict, typeof(Dictionary<string, object?>), SqlToAi.Mcp.McpJsonContext.Default));
             count++;

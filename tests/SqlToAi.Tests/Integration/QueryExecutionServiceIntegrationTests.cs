@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
@@ -110,7 +110,7 @@ public sealed class QueryExecutionServiceIntegrationTests
 
     private async Task<long> CountFakeProjectsAsync()
     {
-        using var connection = _fx.ConnectionFactory.CreateConnection(_db);
+        await using var connection = _fx.ConnectionFactory.CreateConnection(_db);
         await connection.OpenAsync(TestContext.Current.CancellationToken);
         return await connection.ExecuteScalarAsync<long>("SELECT COUNT(*) FROM dbo.FakeProjects");
     }

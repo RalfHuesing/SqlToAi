@@ -91,7 +91,7 @@ public sealed class MetadataProvider : IMetadataProvider
 
         try
         {
-            using var connection = CreateConnection(databaseName);
+            await using var connection = CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
 
             string? description = await connection.QueryFirstOrDefaultAsync<string>(
@@ -142,7 +142,7 @@ public sealed class MetadataProvider : IMetadataProvider
 
         try
         {
-            using var connection = CreateConnection(databaseName);
+            await using var connection = CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
 
             var rows = await connection.QueryAsync<object>(

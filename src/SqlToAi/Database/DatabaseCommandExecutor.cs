@@ -14,7 +14,7 @@ internal static class DatabaseCommandExecutor
     /// </summary>
     public static async Task ExecuteSetOptionAsync(DbConnection connection, DbTransaction? transaction, string sql, CancellationToken ct)
     {
-        using var cmd = connection.CreateCommand();
+        await using var cmd = connection.CreateCommand();
         cmd.CommandText = sql;
         cmd.Transaction = transaction;
         await cmd.ExecuteNonQueryAsync(ct);

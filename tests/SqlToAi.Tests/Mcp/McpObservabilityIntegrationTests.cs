@@ -52,7 +52,7 @@ public sealed class McpObservabilityIntegrationTests : IDisposable
         };
 
         var dispatcher = new FakeTestDispatcher();
-        var host = CreateTestHost(dispatcher, obsOptions, serverRead, serverWrite);
+        using var host = CreateTestHost(dispatcher, obsOptions, serverRead, serverWrite);
         await host.StartAsync(ct);
 
         await using var client = await CreateClientAsync(clientWrite, clientRead, ct);
@@ -78,7 +78,7 @@ public sealed class McpObservabilityIntegrationTests : IDisposable
         var ct = TestContext.Current.CancellationToken;
         var (clientRead, clientWrite, serverRead, serverWrite) = CreateDuplexPipes();
         var dispatcher = new FakeTestDispatcher();
-        var host = CreateTestHost(dispatcher, new McpObservabilityOptions { Enabled = false }, serverRead, serverWrite);
+        using var host = CreateTestHost(dispatcher, new McpObservabilityOptions { Enabled = false }, serverRead, serverWrite);
         await host.StartAsync(ct);
 
         await using var client = await CreateClientAsync(clientWrite, clientRead, ct);
@@ -120,7 +120,7 @@ public sealed class McpObservabilityIntegrationTests : IDisposable
         };
 
         var dispatcher = new FakeTestDispatcher();
-        var host = CreateTestHost(dispatcher, obsOptions, serverRead, serverWrite);
+        using var host = CreateTestHost(dispatcher, obsOptions, serverRead, serverWrite);
         await host.StartAsync(ct);
 
         await using var client = await CreateClientAsync(clientWrite, clientRead, ct);
@@ -178,7 +178,7 @@ public sealed class McpObservabilityIntegrationTests : IDisposable
         };
 
         var dispatcher = new FakeTestDispatcher();
-        var host = CreateTestHost(dispatcher, obsOptions, serverRead, serverWrite);
+        using var host = CreateTestHost(dispatcher, obsOptions, serverRead, serverWrite);
         await host.StartAsync(ct);
 
         await using var client = await CreateClientAsync(clientWrite, clientRead, ct);
@@ -230,7 +230,7 @@ public sealed class McpObservabilityIntegrationTests : IDisposable
         };
 
         var dispatcher = new FakeTestDispatcher();
-        var host = CreateTestHost(dispatcher, obsOptions, serverRead, serverWrite);
+        using var host = CreateTestHost(dispatcher, obsOptions, serverRead, serverWrite);
         await host.StartAsync(ct);
 
         await using var client = await CreateClientAsync(clientWrite, clientRead, ct);
@@ -263,7 +263,7 @@ public sealed class McpObservabilityIntegrationTests : IDisposable
             ResponseText = "This is a very long response that exceeds ten characters."
         };
 
-        var host = CreateTestHost(dispatcher, obsOptions, serverRead, serverWrite);
+        using var host = CreateTestHost(dispatcher, obsOptions, serverRead, serverWrite);
         await host.StartAsync(ct);
 
         await using var client = await CreateClientAsync(clientWrite, clientRead, ct);
@@ -339,7 +339,7 @@ public sealed class McpObservabilityIntegrationTests : IDisposable
 
     private static async Task<string[]> ReadAllLinesSharedAsync(string filePath, CancellationToken ct)
     {
-        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new StreamReader(stream, Encoding.UTF8);
         var lines = new List<string>();
         while (await reader.ReadLineAsync(ct) is { } line)

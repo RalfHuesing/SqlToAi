@@ -69,10 +69,10 @@ public sealed class QueryValidationService : IQueryValidationService
 
         try
         {
-            using var connection = _connectionFactory.CreateConnection(databaseName);
-            connection.Open();
+            await using var connection = _connectionFactory.CreateConnection(databaseName);
+            await connection.OpenAsync(cancellationToken);
 
-            using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+            await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
             try
             {
                 await ExecuteParseonlyValidationAsync(connection, transaction, query, parameters, cancellationToken);
@@ -101,7 +101,7 @@ public sealed class QueryValidationService : IQueryValidationService
         object? parameters,
         CancellationToken cancellationToken)
     {
-        using var setNoexecCmd = connection.CreateCommand();
+        await using var setNoexecCmd = connection.CreateCommand();
         setNoexecCmd.CommandText = "SET NOEXEC ON";
         setNoexecCmd.Transaction = transaction;
         setNoexecCmd.CommandTimeout = _queryExecutionOptions.CommandTimeoutSeconds;
@@ -109,7 +109,7 @@ public sealed class QueryValidationService : IQueryValidationService
 
         try
         {
-            using var queryCmd = connection.CreateCommand();
+            await using var queryCmd = connection.CreateCommand();
             queryCmd.CommandText = query;
             queryCmd.Transaction = transaction;
             queryCmd.CommandTimeout = _queryExecutionOptions.CommandTimeoutSeconds;
@@ -118,7 +118,7 @@ public sealed class QueryValidationService : IQueryValidationService
         }
         finally
         {
-            using var resetCmd = connection.CreateCommand();
+            await using var resetCmd = connection.CreateCommand();
             resetCmd.CommandText = "SET NOEXEC OFF";
             resetCmd.Transaction = transaction;
             resetCmd.CommandTimeout = _queryExecutionOptions.CommandTimeoutSeconds;

@@ -69,7 +69,7 @@ public sealed class SchemaService : ISchemaService
     {
         try
         {
-            using var connection = _connectionFactory.CreateConnection();
+            await using var connection = _connectionFactory.CreateConnection();
             await connection.OpenAsync(cancellationToken);
 
             var databases = await connection.QueryAsync<string>(
@@ -149,7 +149,7 @@ public sealed class SchemaService : ISchemaService
 
         try
         {
-            using var connection = _connectionFactory.CreateConnection(databaseName);
+            await using var connection = _connectionFactory.CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
 
             var rows = await connection.QueryAsync<ObjectRow>(
@@ -185,7 +185,7 @@ public sealed class SchemaService : ISchemaService
 
         try
         {
-            using var connection = _connectionFactory.CreateConnection(databaseName);
+            await using var connection = _connectionFactory.CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
 
             // 1. Identify object type
@@ -267,7 +267,7 @@ public sealed class SchemaService : ISchemaService
 
         try
         {
-            using var connection = _connectionFactory.CreateConnection(databaseName);
+            await using var connection = _connectionFactory.CreateConnection(databaseName);
             await connection.OpenAsync(cancellationToken);
             return await query(connection, cancellationToken);
         }

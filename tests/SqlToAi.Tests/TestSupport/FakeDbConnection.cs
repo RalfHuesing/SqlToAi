@@ -77,7 +77,7 @@ internal sealed class FakeDbConnection : DbConnection
     {
         if (_options.BeginTransaction is null)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
         LastTransaction = _options.BeginTransaction(this, isolationLevel);
         return LastTransaction;
