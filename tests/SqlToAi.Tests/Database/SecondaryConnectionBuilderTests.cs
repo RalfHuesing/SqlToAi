@@ -11,7 +11,7 @@ public sealed class SecondaryConnectionBuilderTests
     [Fact]
     public void Create_ShouldUseFallbackFactory_WhenServerIsNotConfigured()
     {
-        var settings = new SecondaryConnectionSettings(null, null, null, null, false, 30);
+        var settings = new SecondaryConnectionSettings(null, null, null, null, false, true, 30);
         var fallback = new FakeConnectionFactory();
 
         using var connection = SecondaryConnectionBuilder.Create(settings, "SqlToAi-Test", "FallbackDb", fallback);
@@ -23,7 +23,7 @@ public sealed class SecondaryConnectionBuilderTests
     [Fact]
     public void Create_ShouldPreferConfiguredDatabase_OverFallbackDatabaseName()
     {
-        var settings = new SecondaryConnectionSettings(null, "ConfiguredDb", null, null, false, 30);
+        var settings = new SecondaryConnectionSettings(null, "ConfiguredDb", null, null, false, true, 30);
         var fallback = new FakeConnectionFactory();
 
         using var connection = SecondaryConnectionBuilder.Create(settings, "SqlToAi-Test", "FallbackDb", fallback);
@@ -32,9 +32,28 @@ public sealed class SecondaryConnectionBuilderTests
     }
 
     [Fact]
+    public void Create_ShouldInheritPrimaryFactoryPolicy_WhenDedicatedServerIsAbsent()
+    {
+        var primaryOptions = new SqlToAi.Configuration.SqlToAiOptions();
+        primaryOptions.SqlServer.Server = "primary-server";
+        primaryOptions.SqlServer.IntegratedSecurity = true;
+        primaryOptions.SqlServer.TrustServerCertificate = false;
+        var primaryFactory = new SqlConnectionFactory(Microsoft.Extensions.Options.Options.Create(primaryOptions));
+        var secondarySettings = new SecondaryConnectionSettings(null, "RulesDb", null, null, true, true, 30);
+
+        using var connection = SecondaryConnectionBuilder.Create(secondarySettings, "SqlToAi-Test", "FallbackDb", primaryFactory);
+
+        var sqlConnection = Assert.IsType<SqlConnection>(connection);
+        var builder = new SqlConnectionStringBuilder(sqlConnection.ConnectionString);
+        Assert.Equal("RulesDb", builder.InitialCatalog);
+        Assert.Equal(SqlConnectionEncryptOption.Mandatory, builder.Encrypt);
+        Assert.False(builder.TrustServerCertificate);
+    }
+
+    [Fact]
     public void Create_ShouldBuildDedicatedConnection_WhenServerIsConfigured()
     {
-        var settings = new SecondaryConnectionSettings("my-server", "MyDb", "user", "pass", false, 15);
+        var settings = new SecondaryConnectionSettings("my-server", "MyDb", "user", "pass", false, false, 15);
         var fallback = new FakeConnectionFactory();
 
         using DbConnection connection = SecondaryConnectionBuilder.Create(settings, "SqlToAi-Test", "FallbackDb", fallback);
@@ -44,13 +63,15 @@ public sealed class SecondaryConnectionBuilderTests
         Assert.Equal("my-server", builder.DataSource);
         Assert.Equal("MyDb", builder.InitialCatalog);
         Assert.Equal("user", builder.UserID);
+        Assert.Equal(SqlConnectionEncryptOption.Mandatory, builder.Encrypt);
+        Assert.False(builder.TrustServerCertificate);
         Assert.Equal(0, fallback.ConnectionCreatedCount);
     }
 
     [Fact]
     public void Create_ShouldThrow_WhenServerConfiguredButNoDatabaseAndNoFallback()
     {
-        var settings = new SecondaryConnectionSettings("my-server", null, "user", "pass", false, 15);
+        var settings = new SecondaryConnectionSettings("my-server", null, "user", "pass", false, false, 15);
         var fallback = new FakeConnectionFactory();
 
         Assert.Throws<InvalidOperationException>(() =>
@@ -60,7 +81,7 @@ public sealed class SecondaryConnectionBuilderTests
     [Fact]
     public void Create_ShouldThrow_WhenCredentialsMissing_AndIntegratedSecurityIsFalse()
     {
-        var settings = new SecondaryConnectionSettings("my-server", "MyDb", null, null, false, 15);
+        var settings = new SecondaryConnectionSettings("my-server", "MyDb", null, null, false, false, 15);
         var fallback = new FakeConnectionFactory();
 
         Assert.Throws<InvalidOperationException>(() =>
@@ -70,13 +91,43 @@ public sealed class SecondaryConnectionBuilderTests
     [Fact]
     public void Create_ShouldUseIntegratedSecurity_WhenConfigured()
     {
-        var settings = new SecondaryConnectionSettings("my-server", "MyDb", null, null, true, 15);
+        var settings = new SecondaryConnectionSettings("my-server", "MyDb", null, null, true, true, 15);
         var fallback = new FakeConnectionFactory();
 
         using DbConnection connection = SecondaryConnectionBuilder.Create(settings, "SqlToAi-Test", "FallbackDb", fallback);
 
         var sqlConnection = Assert.IsType<SqlConnection>(connection);
         var builder = new SqlConnectionStringBuilder(sqlConnection.ConnectionString);
+        Assert.True(builder.IntegratedSecurity);
+        Assert.Equal(SqlConnectionEncryptOption.Mandatory, builder.Encrypt);
+        Assert.True(builder.TrustServerCertificate);
+    }
+
+    [Fact]
+    public void Create_ShouldKeepEncryptionAndDefaultCertificateValidation_ForSqlAuthentication()
+    {
+        var settings = new SecondaryConnectionSettings("my-server", "MyDb", "user", "pass", false, false, 15);
+        var fallback = new FakeConnectionFactory();
+
+        using DbConnection connection = SecondaryConnectionBuilder.Create(settings, "SqlToAi-Test", "FallbackDb", fallback);
+
+        var builder = new SqlConnectionStringBuilder(connection.ConnectionString);
+        Assert.Equal(SqlConnectionEncryptOption.Mandatory, builder.Encrypt);
+        Assert.False(builder.TrustServerCertificate);
+        Assert.False(builder.IntegratedSecurity);
+    }
+
+    [Fact]
+    public void Create_ShouldKeepEncryption_WhenTrustExceptionIsExplicit()
+    {
+        var settings = new SecondaryConnectionSettings("my-server", "MyDb", null, null, true, true, 15);
+        var fallback = new FakeConnectionFactory();
+
+        using DbConnection connection = SecondaryConnectionBuilder.Create(settings, "SqlToAi-Test", "FallbackDb", fallback);
+
+        var builder = new SqlConnectionStringBuilder(connection.ConnectionString);
+        Assert.Equal(SqlConnectionEncryptOption.Mandatory, builder.Encrypt);
+        Assert.True(builder.TrustServerCertificate);
         Assert.True(builder.IntegratedSecurity);
     }
 

@@ -19,7 +19,7 @@ Update canonical documentation in the same slice as the behavior it describes. V
 
 ## T1 — Apply secure endpoint settings to every connection path
 
-- [ ] T1: Implement and verify explicit encryption and endpoint-specific certificate trust.
+- [x] T1: Implement and verify explicit encryption and endpoint-specific certificate trust.
 
 **Intention:** Make encrypted transport and default certificate validation consistent for primary, dedicated secondary and secondary-to-primary fallback connections.
 
@@ -38,7 +38,9 @@ Keep the [main template](../../src/SqlToAi/appsettings.json) and [demo profile](
 - Existing credentials, application names, authentication, timeouts and user-owned settings retain their responsibilities. Documentation states that the exception skips identity validation while keeping encryption enabled.
 - Required build/test results and any infrastructure limitations are recorded; relevant tests pass and the slice is committed.
 
-**Completion evidence:** Pending.
+**Completion evidence:** Implementation agent: `gpt-6-luna`, reasoning effort `high`. Inspected the primary and secondary builders and both provider call paths. Both builders now set `Encrypt=Mandatory` and take `TrustServerCertificate` from their endpoint options, whose omitted/default value is `false`; secondary fallback still delegates to the primary factory. Configuration binding, main and demo template defaults, explicit trust exceptions, provider-specific option forwarding, primary/secondary isolation, and fallback policy are covered by tests. Updated `configuration.md`, `security.md`, `SETUP.md`, and `development.md`; docs describe the compatibility change, exact JSON/environment names, the certificate-identity exception with encryption retained, and the absence of automatic migration. The shipped DemoDB profile remains strict by default.
+
+Validation on this revision: `dotnet build SqlToAi.slnx` exit 0 (0 warnings, 0 errors); `dotnet test SqlToAi.slnx --filter "FullyQualifiedName!~Integration"` exit 0 (784 passed); full `dotnet test SqlToAi.slnx --logger "console;verbosity=minimal"` exit 1 (793 passed, 36 failed, 829 total). All 36 failures are SQL integration cases unable to pass TLS login because the local SQL Server presents a certificate chain from an untrusted CA; no additional server/certificate was provisioned and the demo profile was not changed to trust it automatically. This does not establish T4 transport evidence. `git diff --check` passed. Atomic commit: recorded after commit in the implementation report.
 
 ## T2 — Keep primary TLS failures actionable and safe
 

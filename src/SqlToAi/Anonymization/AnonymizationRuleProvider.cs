@@ -68,15 +68,7 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
 
         try
         {
-            var settings = new SecondaryConnectionSettings(
-                _options.AnonymizationRules.Server,
-                _options.AnonymizationRules.Database,
-                _options.AnonymizationRules.UserId,
-                _options.AnonymizationRules.Password,
-                _options.AnonymizationRules.IntegratedSecurity,
-                _options.AnonymizationRules.CommandTimeoutSeconds);
-
-            await using var connection = SecondaryConnectionBuilder.Create(settings, SecondaryConnectionBuilder.AnonymizationRulesApplicationName, string.Empty, _connectionFactory);
+            await using var connection = CreateConnection();
             await connection.OpenAsync(cancellationToken);
 
             string? safeTableName = await connection.QueryFirstOrDefaultAsync<string>(
@@ -110,6 +102,24 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
             _logger.LogError(ex, "Failed to load anonymization rules from {TableName}.", tableName);
             return [];
         }
+    }
+
+    private DbConnection CreateConnection()
+    {
+        var settings = new SecondaryConnectionSettings(
+            _options.AnonymizationRules.Server,
+            _options.AnonymizationRules.Database,
+            _options.AnonymizationRules.UserId,
+            _options.AnonymizationRules.Password,
+            _options.AnonymizationRules.IntegratedSecurity,
+            _options.AnonymizationRules.TrustServerCertificate,
+            _options.AnonymizationRules.CommandTimeoutSeconds);
+
+        return SecondaryConnectionBuilder.Create(
+            settings,
+            SecondaryConnectionBuilder.AnonymizationRulesApplicationName,
+            string.Empty,
+            _connectionFactory);
     }
 
     /// <summary>

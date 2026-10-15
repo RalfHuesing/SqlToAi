@@ -2,6 +2,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
+using System.Data.Common;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 
 namespace SqlToAi.Tests.Anonymization;
 
@@ -16,6 +19,33 @@ public sealed class AnonymizationRuleProviderTests
         options.AnonymizationRules.TableName = "dbo.AnonymizationRules";
         options.AnonymizationRules.CacheTtlSeconds = cacheTtlSeconds;
         return options;
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CreateConnection_ShouldUseBoundRuleTrustSetting_IndependentlyOfPrimary(bool trustRulesCertificate)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SqlToAi:SqlServer:TrustServerCertificate"] = (!trustRulesCertificate).ToString(),
+                ["SqlToAi:AnonymizationRules:Server"] = "rules-server",
+                ["SqlToAi:AnonymizationRules:Database"] = "RulesDb",
+                ["SqlToAi:AnonymizationRules:IntegratedSecurity"] = "true",
+                ["SqlToAi:AnonymizationRules:TrustServerCertificate"] = trustRulesCertificate.ToString()
+            })
+            .Build();
+        var options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>()!;
+        var provider = new AnonymizationRuleProvider(new DummyConnectionFactory(), Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
+        var method = typeof(AnonymizationRuleProvider).GetMethod("CreateConnection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+
+        using var connection = (DbConnection)method.Invoke(provider, null)!;
+
+        var builder = new SqlConnectionStringBuilder(connection.ConnectionString);
+        Assert.Equal("RulesDb", builder.InitialCatalog);
+        Assert.Equal(SqlConnectionEncryptOption.Mandatory, builder.Encrypt);
+        Assert.Equal(trustRulesCertificate, builder.TrustServerCertificate);
     }
 
     [Fact]

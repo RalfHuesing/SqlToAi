@@ -33,6 +33,17 @@ are denied. Restrict SQL Server permissions too. The separate
 and `ReadWrite` access. Copy selected values only for that deliberate local demo;
 the host never loads this profile automatically.
 
+SQL connections require encryption and validate the server certificate by default.
+Existing settings that omit `TrustServerCertificate` now validate certificates;
+startup does not rewrite or migrate them. For a local SQL Server with a
+self-signed certificate, deliberately set `SqlServer.TrustServerCertificate` to
+`true` in the user file or process environment. This skips certificate identity
+validation while keeping encryption required. It applies only to the primary
+server; separately configured metadata and anonymization-rule servers require
+their own `MetadataProvider.TrustServerCertificate` or
+`AnonymizationRules.TrustServerCertificate` setting. The demo profile leaves all
+exceptions disabled.
+
 Save the file and restart the MCP server in your client after every configuration
 change. Configure a stdio entry with an absolute executable path, for example:
 

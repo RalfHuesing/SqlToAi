@@ -12,6 +12,7 @@
       "UserId": "Agent",
       "Password": "Agent!",
       "IntegratedSecurity": false,
+      "TrustServerCertificate": false,
       "ConnectTimeoutSeconds": 30
     }
   }

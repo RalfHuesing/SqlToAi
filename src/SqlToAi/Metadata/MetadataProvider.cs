@@ -187,6 +187,7 @@ public sealed class MetadataProvider : IMetadataProvider
             _options.MetadataProvider.UserId,
             _options.MetadataProvider.Password,
             _options.MetadataProvider.IntegratedSecurity,
+            _options.MetadataProvider.TrustServerCertificate,
             _options.MetadataProvider.CommandTimeoutSeconds);
 
         return SecondaryConnectionBuilder.Create(settings, SecondaryConnectionBuilder.MetadataApplicationName, databaseName, _connectionFactory);

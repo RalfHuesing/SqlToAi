@@ -5,6 +5,8 @@ using SqlToAi.Database;
 using SqlToAi.Metadata;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 
 namespace SqlToAi.Tests.Metadata;
 
@@ -194,6 +196,33 @@ public sealed class MetadataProviderTests
         Assert.Contains("Data Source=custom-metadata-server", connection.ConnectionString);
         Assert.Contains("Initial Catalog=TargetDb", connection.ConnectionString);
         Assert.Contains("Integrated Security=True", connection.ConnectionString);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CreateConnection_ShouldUseBoundMetadataTrustSetting_IndependentlyOfPrimary(bool trustMetadataCertificate)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SqlToAi:SqlServer:TrustServerCertificate"] = (!trustMetadataCertificate).ToString(),
+                ["SqlToAi:MetadataProvider:Server"] = "metadata-server",
+                ["SqlToAi:MetadataProvider:Database"] = "MetadataDb",
+                ["SqlToAi:MetadataProvider:IntegratedSecurity"] = "true",
+                ["SqlToAi:MetadataProvider:TrustServerCertificate"] = trustMetadataCertificate.ToString()
+            })
+            .Build();
+        var options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>()!;
+        var provider = new MetadataProvider(new DummyConnectionFactory(), Options.Create(options), NullLogger<MetadataProvider>.Instance);
+        var method = typeof(MetadataProvider).GetMethod("CreateConnection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+
+        using var connection = (DbConnection)method.Invoke(provider, new object[] { "TargetDb" })!;
+
+        var builder = new SqlConnectionStringBuilder(connection.ConnectionString);
+        Assert.Equal("MetadataDb", builder.InitialCatalog);
+        Assert.Equal(SqlConnectionEncryptOption.Mandatory, builder.Encrypt);
+        Assert.Equal(trustMetadataCertificate, builder.TrustServerCertificate);
     }
 
     [Fact]

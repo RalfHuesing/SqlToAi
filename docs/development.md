@@ -9,7 +9,7 @@ dotnet build SqlToAi.slnx
 dotnet test SqlToAi.slnx
 ```
 
-Tests use xUnit v3. [SqlServerFixture](../tests/SqlToAi.Tests/Integration/SqlServerFixture.cs) explicitly loads the separate fictional DemoDB profile copied as `appsettings.integration.json`; it never reads the maintainer's user configuration root. Integration tests require a local SQL Server matching that profile and the fictional schema. [sql-scripts/README.md](../sql-scripts/README.md) describes setup. Contributor instructions start at [AGENTS.md](../AGENTS.md).
+Tests use xUnit v3. [SqlServerFixture](../tests/SqlToAi.Tests/Integration/SqlServerFixture.cs) explicitly loads the separate fictional DemoDB profile copied as `appsettings.integration.json`; it never reads the maintainer's user configuration root. The profile keeps certificate validation enabled. Integration tests require a local SQL Server matching that profile and the fictional schema; for a local self-signed certificate, copy the profile and deliberately set `SqlServer.TrustServerCertificate` to `true` in the test-only copy. Encryption remains required, and this exception skips server identity validation. This does not opt in automatically in the shipped profile. [sql-scripts/README.md](../sql-scripts/README.md) describes setup. Contributor instructions start at [AGENTS.md](../AGENTS.md).
 
 ## Manual tool calls
 

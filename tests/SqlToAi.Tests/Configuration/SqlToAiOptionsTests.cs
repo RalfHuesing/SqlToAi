@@ -32,7 +32,10 @@ public sealed class SqlToAiOptionsTests
         Assert.Null(options.SqlServer.UserId);
         Assert.Null(options.SqlServer.Password);
         Assert.False(options.SqlServer.IntegratedSecurity);
+        Assert.False(options.SqlServer.TrustServerCertificate);
         Assert.False(options.MetadataProvider.IntegratedSecurity);
+        Assert.False(options.MetadataProvider.TrustServerCertificate);
+        Assert.False(options.AnonymizationRules.TrustServerCertificate);
         Assert.True(options.Anonymizer.Enabled);
         Assert.True(options.MetadataProvider.Enabled);
         Assert.Equal("ScramblePattern", options.Anonymizer.DefaultMode);
@@ -61,6 +64,10 @@ public sealed class SqlToAiOptionsTests
         Assert.Equal(defaults.SqlServer.UserId, templateOptions.SqlServer.UserId);
         Assert.Equal(defaults.SqlServer.Password, templateOptions.SqlServer.Password);
         Assert.Equal(defaults.SqlServer.IntegratedSecurity, templateOptions.SqlServer.IntegratedSecurity);
+        Assert.False(templateOptions.SqlServer.TrustServerCertificate);
+        Assert.False(templateOptions.MetadataProvider.TrustServerCertificate);
+        Assert.False(templateOptions.AnonymizationRules.TrustServerCertificate);
+        Assert.False(demoOptions.SqlServer.TrustServerCertificate);
         Assert.Equal(defaults.Logging.AppLog.Enabled, templateOptions.Logging.AppLog.Enabled);
         Assert.Equal(defaults.Logging.ErrorLog.Enabled, templateOptions.Logging.ErrorLog.Enabled);
 
@@ -97,7 +104,14 @@ public sealed class SqlToAiOptionsTests
         {
           "SqlServer": {
             "Server": "my-server",
-            "IntegratedSecurity": true
+            "IntegratedSecurity": true,
+            "TrustServerCertificate": true
+          },
+          "MetadataProvider": {
+            "TrustServerCertificate": false
+          },
+          "AnonymizationRules": {
+            "TrustServerCertificate": true
           },
           "Databases": {
             "ReadWrite": ["DemoDB"],
@@ -125,6 +139,9 @@ public sealed class SqlToAiOptionsTests
         // Assert
         Assert.Equal("my-server", options.SqlServer.Server);
         Assert.True(options.SqlServer.IntegratedSecurity);
+        Assert.True(options.SqlServer.TrustServerCertificate);
+        Assert.False(options.MetadataProvider.TrustServerCertificate);
+        Assert.True(options.AnonymizationRules.TrustServerCertificate);
 
         var rw = Assert.Single(options.Databases.ReadWrite);
         Assert.Equal("DemoDB", rw);

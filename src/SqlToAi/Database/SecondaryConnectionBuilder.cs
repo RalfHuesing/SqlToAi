@@ -14,6 +14,7 @@ internal sealed record SecondaryConnectionSettings(
     string? UserId,
     string? Password,
     bool IntegratedSecurity,
+    bool TrustServerCertificate,
     int CommandTimeoutSeconds);
 
 /// <summary>
@@ -51,7 +52,8 @@ internal static class SecondaryConnectionBuilder
                 ? targetDb
                 : throw new InvalidOperationException($"{applicationName} SQL connection error: Database name must be explicitly specified."),
             ApplicationName = applicationName,
-            TrustServerCertificate = true, // Facilitate developer local connections
+            Encrypt = SqlConnectionEncryptOption.Mandatory,
+            TrustServerCertificate = settings.TrustServerCertificate,
             ConnectTimeout = settings.CommandTimeoutSeconds
         };
 

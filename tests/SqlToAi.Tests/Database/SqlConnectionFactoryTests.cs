@@ -1,6 +1,7 @@
 using SqlToAi.Configuration;
 using SqlToAi.Database;
 using Microsoft.Extensions.Options;
+using Microsoft.Data.SqlClient;
 
 namespace SqlToAi.Tests.Database;
 
@@ -44,6 +45,9 @@ public sealed class SqlConnectionFactoryTests
         Assert.Contains("User ID=test-user", connection.ConnectionString);
         Assert.Contains("Password=secret", connection.ConnectionString);
         Assert.DoesNotContain("Application Intent=ReadOnly", connection.ConnectionString);
+        var builder = new SqlConnectionStringBuilder(connection.ConnectionString);
+        Assert.Equal(SqlConnectionEncryptOption.Mandatory, builder.Encrypt);
+        Assert.False(builder.TrustServerCertificate);
     }
 
     [Fact]
@@ -76,6 +80,25 @@ public sealed class SqlConnectionFactoryTests
         // Assert
         Assert.Contains("Integrated Security=True", connection.ConnectionString);
         Assert.Contains("Initial Catalog=MyDb", connection.ConnectionString);
+        var builder = new SqlConnectionStringBuilder(connection.ConnectionString);
+        Assert.Equal(SqlConnectionEncryptOption.Mandatory, builder.Encrypt);
+        Assert.False(builder.TrustServerCertificate);
+    }
+
+    [Fact]
+    public void CreateConnection_ShouldAllowExplicitTrustException_WithoutDisablingEncryption()
+    {
+        var options = new SqlToAiOptions();
+        options.SqlServer.Server = "localhost";
+        options.SqlServer.IntegratedSecurity = true;
+        options.SqlServer.TrustServerCertificate = true;
+        var factory = new SqlConnectionFactory(Options.Create(options));
+
+        using var connection = factory.CreateConnection("MyDb");
+
+        var builder = new SqlConnectionStringBuilder(connection.ConnectionString);
+        Assert.Equal(SqlConnectionEncryptOption.Mandatory, builder.Encrypt);
+        Assert.True(builder.TrustServerCertificate);
     }
 
     [Fact]

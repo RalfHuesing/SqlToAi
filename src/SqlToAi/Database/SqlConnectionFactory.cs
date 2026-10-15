@@ -38,7 +38,8 @@ public sealed class SqlConnectionFactory : IDatabaseConnectionFactory
         {
             DataSource = _options.SqlServer.Server,
             ApplicationName = "SqlToAi",
-            TrustServerCertificate = true, // Facilitate developer local connections
+            Encrypt = SqlConnectionEncryptOption.Mandatory,
+            TrustServerCertificate = _options.SqlServer.TrustServerCertificate,
             ConnectTimeout = _options.SqlServer.ConnectTimeoutSeconds
         };
 

@@ -24,6 +24,7 @@ public sealed class SqlServerOptions
     public string? UserId { get; set; }
     public string? Password { get; set; }
     public bool IntegratedSecurity { get; set; }
+    public bool TrustServerCertificate { get; set; }
     public List<string> ExcludedDatabases { get; set; } = [];
 
     /// <summary>ADO.NET connection (login) timeout in seconds, i.e. how long to wait when opening the connection.</summary>
@@ -129,6 +130,7 @@ public sealed class AnonymizationRulesOptions
     public string? UserId { get; set; }
     public string? Password { get; set; }
     public bool IntegratedSecurity { get; set; }
+    public bool TrustServerCertificate { get; set; }
     public int CommandTimeoutSeconds { get; set; } = 30;
 
     /// <summary>Name of the rule table, e.g. <c>dbo.AnonymizationRules</c>.</summary>
@@ -149,6 +151,7 @@ public sealed class MetadataProviderOptions
     public string? UserId { get; set; }
     public string? Password { get; set; }
     public bool IntegratedSecurity { get; set; }
+    public bool TrustServerCertificate { get; set; }
     public int CommandTimeoutSeconds { get; set; } = 30;
     public string TableMetadataQuery { get; set; } = string.Empty;
     public string ColumnMetadataQuery { get; set; } = string.Empty;
