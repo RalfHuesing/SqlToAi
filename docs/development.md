@@ -9,7 +9,59 @@ dotnet build SqlToAi.slnx
 dotnet test SqlToAi.slnx
 ```
 
-Tests use xUnit v3. [SqlServerFixture](../tests/SqlToAi.Tests/Integration/SqlServerFixture.cs) explicitly loads the separate fictional DemoDB profile copied as `appsettings.integration.json`; it never reads the maintainer's user configuration root. The profile keeps certificate validation enabled. Integration tests require a local SQL Server matching that profile and the fictional schema; for a local self-signed certificate, copy the profile and deliberately set `SqlServer.TrustServerCertificate` to `true` in the test-only copy. Encryption remains required, and this exception skips server identity validation. This does not opt in automatically in the shipped profile. [sql-scripts/README.md](../sql-scripts/README.md) describes setup. Contributor instructions start at [AGENTS.md](../AGENTS.md).
+Tests use xUnit v3. [SqlServerFixture](../tests/SqlToAi.Tests/Integration/SqlServerFixture.cs) explicitly loads the separate fictional DemoDB profile copied as `appsettings.integration.json`; it never reads the maintainer's user configuration root. The profile keeps certificate validation enabled. Integration tests require a local SQL Server matching that profile and the fictional schema. [sql-scripts/README.md](../sql-scripts/README.md) describes setup. Contributor instructions start at [AGENTS.md](../AGENTS.md).
+
+The general integration fixture accepts explicit test-process environment overrides after loading that profile, using the `SQLTOAI_INTEGRATION_` prefix followed by the configuration path with double underscores. For a deliberate exception on the existing local self-signed server:
+
+```powershell
+$env:SQLTOAI_INTEGRATION_SqlToAi__SqlServer__TrustServerCertificate = 'true'
+try {
+    dotnet test SqlToAi.slnx
+} finally {
+    Remove-Item Env:SQLTOAI_INTEGRATION_SqlToAi__SqlServer__TrustServerCertificate
+}
+```
+
+This accepts the presented certificate without authenticating server identity; encryption remains required. The override affects this fixture only, is never inferred, and does not edit shipped profiles or user settings. Other fixture options use the same prefix, for example `SQLTOAI_INTEGRATION_SqlToAi__SqlServer__Server`. Dedicated metadata/rule endpoints require their own explicit trust settings. A successful suite using this exception does not establish secure-default certificate authentication.
+
+### Local TLS evidence
+
+[TlsConnectionIntegrationTests](../tests/SqlToAi.Tests/Integration/TlsConnectionIntegrationTests.cs) loads only the test input file explicitly selected by `SQLTOAI_TLS_TEST_PROFILE`. It ignores the general fixture overrides above and selects trust independently for every case. An absent file setting or endpoint section is reported as skipped/unverified, never passed. An invalid configured file or failed configured case fails the test.
+
+Store this file outside the checkout. Each optional section has this shape, using an existing fictional test database and an account allowed to read its own connection row in `sys.dm_exec_connections`:
+
+```json
+{
+  "LocalUntrusted": {
+    "Database": "DemoDB",
+    "SqlServer": {
+      "Server": "localhost\\MSSQLSERVER2022",
+      "IntegratedSecurity": true,
+      "ConnectTimeoutSeconds": 5,
+      "TrustServerCertificate": false
+    }
+  }
+}
+```
+
+Use credentials appropriate to that existing test instance; SQL authentication uses `UserId`, `Password` and `IntegratedSecurity=false`. Do not commit credentials or print the input file. The input must omit `TrustServerCertificate` or set it to `false`; the test itself applies deliberate exceptions. No certificate, trust-store or server configuration changes are performed.
+
+- `TrustedTcp`: an already available `tcp:host,port` endpoint whose certificate chain, validity and name validate for the test process. Default connections must succeed.
+- `UntrustedTcp`: an already available `tcp:host,port` endpoint with an untrusted certificate. Defaults must reject it; separate explicit exceptions must succeed with observed encryption.
+- `LocalUntrusted`: an optional existing local untrusted named instance. This provides limited evidence when TCP is unavailable. The observed transport is reported and must not be presented as TCP evidence.
+
+```powershell
+$env:SQLTOAI_TLS_TEST_PROFILE = 'C:\LocalTests\sqltoai-tls.json'
+try {
+    dotnet test SqlToAi.slnx --filter 'FullyQualifiedName~TlsConnectionIntegrationTests' --logger 'console;verbosity=detailed'
+} finally {
+    Remove-Item Env:SQLTOAI_TLS_TEST_PROFILE
+}
+```
+
+The cases open real primary and provider-created dedicated connections and query `encrypt_option` and `net_transport` for `@@SPID`; TCP sections require `TRUE|TCP`. Provider connection creation is inspected through each provider's existing private method, without a production test hook. Metadata also runs the observation query inside its actual custom-description lookup. The rule provider's actual optional lookup runs separately against a deliberately missing fictional table: it verifies connection-error handling/default masking, but its lookup session is not directly observed. The separately observed rule-provider-created connection must not be described as observation of that lookup session. No business rows or SQL objects are modified by these TLS cases.
+
+Rejection cases retain their own results alongside successful exception cases. Dedicated strict providers run with the primary exception enabled and verify that the primary factory is never called. Local fallback cases use opposite secondary settings and verify primary policy; a real primary validation-service failure must return `SQL-AI-0105`. Captured optional-provider logs identify the section and TLS failure without exception payloads. A skipped trusted/TCP case remains missing acceptance evidence even if the rest of the suite succeeds. Record endpoint labels, trust settings, observed transport/encryption and limitations when reporting results.
 
 ## Manual tool calls
 

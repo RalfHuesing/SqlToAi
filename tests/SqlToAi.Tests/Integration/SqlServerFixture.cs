@@ -41,6 +41,7 @@ public sealed class SqlServerFixture
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Path.GetDirectoryName(appsettingsPath)!)
             .AddJsonFile(Path.GetFileName(appsettingsPath), optional: false, reloadOnChange: false)
+            .AddEnvironmentVariables("SQLTOAI_INTEGRATION_")
             .Build();
 
         Options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
