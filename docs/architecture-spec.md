@@ -2,7 +2,7 @@
 
 The former combined concept and specification has been replaced by focused references:
 
-- [Configuration](configuration.md): connection settings, migration, metadata and logging.
+- [Configuration](configuration.md): manual settings setup, connections, metadata and logging.
 - [Security](security.md): access levels, guards, masking, tokenization and permissions.
 - [Tools](tools.md): arguments, results, limitations and error codes.
 - [Architecture](architecture.md): runtime and implementation map.

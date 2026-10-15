@@ -6,5 +6,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/SqlToAi/SqlToAi.csproj" />
     <InternalsVisibleTo Include="SqlToAi.Tests" />
+    <InternalsVisibleTo Include="SqlToAi.StartupHarness" />
   </ItemGroup>
 </Project>

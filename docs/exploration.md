@@ -25,7 +25,9 @@ Exit `0` means the scenario finished technically, even when calls returned `IsEr
 
 ## Configuration and baseline
 
-The runner reads the required `src/SqlToAi/appsettings.json`, the optional `appsettings.<DOTNET_ENVIRONMENT or Production>.json` in that directory, and the same environment-variable provider and `ConfigurationResolver` as the executable. It reuses the actual application service registrations and security policies. It does not migrate or rewrite source configuration, configure the executable's Serilog sinks, or run log retention. Existing configuration value/file expansion semantics remain unchanged; run from the repository root. Credentials are never copied into the run manifest.
+Scenario execution uses the executable's shared loading boundary: required `%LOCALAPPDATA%\SqlToAi\appsettings.json`, optional `appsettings.<DOTNET_ENVIRONMENT or Production>.json` in that user directory, then environment variables. Manually create and configure the base file from the supplied template before running a scenario; neither overrides nor source/executable-adjacent settings replace it. See [configuration setup](configuration.md#manual-setup-and-updates).
+
+The runner validates configuration before creating or printing artifact information. Missing, invalid or unreadable settings produce exit `1`, no stdout output and a direct stderr diagnostic with the expected absolute settings path and manual setup/restart guidance. `--list` and argument usage do not require configuration. The runner reuses actual application service registrations, configuration value/file expansion and security policies. It never creates, imports, rewrites or backs up settings, configures the executable's Serilog sinks, or runs log retention. Run from the repository root. Credentials are never copied into the run manifest.
 
 `ExploreSqlTools` is the permanent baseline. It exercises all 17 SQL tools against `DemoDB`: database/object discovery, `dbo.FakeProjects` schema and details, `dbo.spFakeSysTan` parameters, query validation, parameterized execution, a catalog query, a two-batch SQL file, differing-query comparison, performance, a benchmark, and index suggestions. It also records a missing trigger, a missing argument, an unknown tool, and invalid SELECT syntax, followed by another valid query to show continuation. It never executes the procedure, creates a trigger/index, or changes business records or schema. Query output uses constants and catalog metadata.
 
@@ -35,7 +37,7 @@ The baseline retains the configured access level: the template gives `DemoDB` `R
 
 Each run creates a retained, git-ignored directory under `temp/exploration/<ScenarioName>/<UTC-timestamp>/` and prints its absolute path. Retained observation artifacts use ordinary directories so agents can inspect them after the process exits; they are not managed test workspaces.
 
-- `run.json`: scenario, source configuration directory, resolved DemoDB access level and timeout; no configuration/credentials dump.
+- `run.json`: scenario, user configuration directory, resolved DemoDB access level and timeout; no configuration/credentials dump.
 - `01/`, `02/`, ...: one directory per call. `request.json` contains its tool name and typed arguments; `response.json` preserves the complete result, including every content block and `isError`; `response.txt` joins all content text in order, including notices and metrics.
 - A call's `error.txt` captures a thrown dispatcher exception instead of a response. Later calls still run.
 - Root `error.txt` records a technical run failure or timeout when the artifact directory is writable. If setup or writing that file fails, stderr reports the technical failure and exit remains `1`.

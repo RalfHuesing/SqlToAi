@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
@@ -90,10 +89,10 @@ public sealed class ExplorationTests
     {
         using var temp = TestTempDirectory.Create();
         temp.CreateFile("appsettings.json", """{"SqlToAi":{"Databases":{"ReadOnly":["ExplorationTestDatabase"]}}}""");
-        var configuration = SqlToAi.Program.BuildConfiguration(temp.DirectoryPath);
-        var options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>()!;
-        ConfigurationResolver.Resolve(options);
-        await using var services = SqlToAi.Program.BuildServiceProvider(configuration, options);
+        using var startup = UserConfiguration.Load(temp.DirectoryPath);
+        startup.Options.Observability.Enabled = false;
+        startup.Options.Observability.LogDirectory = temp.GetPath("observability");
+        await using var services = SqlToAi.Program.BuildServiceProvider(startup.Configuration, startup.Options);
         Assert.Contains("ExplorationTestDatabase", services.GetRequiredService<IOptions<SqlToAiOptions>>().Value.Databases.ReadOnly);
         var dispatcher = services.GetRequiredService<IToolDispatcher>();
         var result = await dispatcher.DispatchAsync(new ToolCallParams { Name = "exploration_unknown_tool" }, TestContext.Current.CancellationToken);

@@ -4,7 +4,7 @@ SqlToAi is a .NET 10 / C# 14 process hosting MCP over stdio, with a CLI that dis
 
 ## Runtime
 
-[Program.cs](../src/SqlToAi/Program.cs) migrates and loads configuration, resolves environment/file values, creates Serilog sinks, registers services and selects server or CLI execution. The server uses the ModelContextProtocol SDK. Stdio is reserved for MCP messages; manual CLI calls send data to stdout and notices/errors to stderr.
+[Program.cs](../src/SqlToAi/Program.cs) loads required user configuration through [UserConfiguration](../src/SqlToAi/Configuration/UserConfiguration.cs), resolves environment/file values, creates Serilog sinks, registers services and selects server or CLI execution. The shared loading boundary requires `%LOCALAPPDATA%\SqlToAi\appsettings.json` before services, logging or transport start. Missing, invalid or unreadable settings return exit code `1` with an actionable direct stderr diagnostic; startup does not create, import, rewrite or back up configuration. See [manual setup and loading precedence](configuration.md). The server uses the ModelContextProtocol SDK. Stdio is reserved for MCP messages; manual CLI calls send data to stdout and notices/errors to stderr.
 
 `ToolRegistry` defines SQL tool names, schemas and descriptions. `SqlMcpToolRegistrations` creates SDK registrations; `ToolDispatcher` invokes application services and formats MCP results. The CLI builds its commands from the registry. Optional feedback registration comes from the observability package.
 
@@ -16,7 +16,7 @@ Query services share `QuerySafetyValidator`. It combines database policy, access
 
 | Location | Responsibility |
 | --- | --- |
-| [Configuration](../src/SqlToAi/Configuration/) | Options, migration, environment expansion and metadata-query file loading |
+| [Configuration](../src/SqlToAi/Configuration/) | Required user configuration, options, environment expansion and metadata-query file loading |
 | [Mcp](../src/SqlToAi/Mcp/) | Registry, dispatcher, SDK registrations and MCP content |
 | [Security](../src/SqlToAi/Security/) | Database exclusions/access levels and ScriptDom read-only guard |
 | [Database](../src/SqlToAi/Database/) | Connections, schema, metadata, queries, scripts, comparison, measurements and indexes |

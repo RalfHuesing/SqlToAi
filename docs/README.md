@@ -2,7 +2,7 @@
 
 | Reference | Contents |
 | --- | --- |
-| [Configuration](configuration.md) | Settings, credentials, migration, metadata and logs |
+| [Configuration](configuration.md) | Manual settings setup, credentials, metadata and logs |
 | [Security](security.md) | Access policy, guards, masking and their limits |
 | [Tools](tools.md) | SQL tool arguments, results and error codes |
 | [Architecture](architecture.md) | Runtime, components and source locations |

@@ -1,10 +1,10 @@
 # Configuration
 
-Settings are under the `SqlToAi` root. The [shipped template](../src/SqlToAi/appsettings.json) is copied beside the executable; [option classes](../src/SqlToAi/Configuration/SqlToAiOptions.cs) define binding defaults. The template enables **ReadWrite for DemoDB** with a local demo SQL login. Replace those settings before connecting to another database.
+The required settings file is `%LOCALAPPDATA%\SqlToAi\appsettings.json`, resolved from Windows Local Application Data independently of the installation and working directories. The JSON settings use the `SqlToAi` section. The [shipped template](../src/SqlToAi/appsettings.json) is supplied beside the executable for manual setup; [option classes](../src/SqlToAi/Configuration/SqlToAiOptions.cs) define binding defaults. The template currently enables **ReadWrite for DemoDB** with a local demo SQL login. Review and configure it before use.
 
 ## Loading and credentials
 
-Configuration loads from the executable directory, in this order: `appsettings.json`, `appsettings.{DOTNET_ENVIRONMENT}.json` (default environment: `Production`), then environment variables. Restart after changes. Double underscores address nested keys:
+Configuration loads from the user directory, in this order: required `appsettings.json`, optional `appsettings.{DOTNET_ENVIRONMENT}.json` (default environment: `Production`), then environment variables. An environment-specific file or environment variables cannot replace the required base file. Overrides apply only in memory; startup never persists credentials or other overrides. Restart after changes. Double underscores address nested keys:
 
 ```powershell
 $env:SqlToAi__SqlServer__Server = 'localhost\SQLEXPRESS'
@@ -30,9 +30,13 @@ Database names are selected by tool arguments. The primary connection factory cu
 
 Row limits constrain returned rows; they do not bound SQL Server's query cost or row scans. Command and connection timeouts are separate.
 
-## Configuration migration
+## Manual setup and updates
 
-At startup, `AppSettingsMigrator` compares the local `appsettings.json` with the embedded template. It inserts missing keys, removes keys absent from the template and preserves existing values for retained keys. Before changing the file, it creates `appsettings.json.bak`. Review the backup and effective settings after upgrading, especially access lists and secrets. Migration applies to the base JSON file, rather than environment overrides.
+Create `%LOCALAPPDATA%\SqlToAi\` yourself, copy the supplied template there as `appsettings.json`, and edit the credentials and access policy deliberately before restarting. This is required for the default MCP server, explicit `server`, `query`, `export-schema`, and exploration scenario execution. Exploration listing and argument usage remain available without configuration.
+
+If the base file is absent, startup exits with code `1` before services, MCP transport or database work. It writes a direct stderr diagnostic containing the reason, absolute expected settings path, and manual template setup/restart guidance. Stdout contains no diagnostic text. Invalid or unreadable settings also produce a direct stderr diagnostic independently of file logging. Client display of stderr depends on the client.
+
+Startup never creates settings, migrates or rewrites JSON, imports legacy files, or generates configuration backups. Existing values and unknown keys remain unchanged. Executable-adjacent files are left untouched and are never a fallback. This intentionally changes the old location: manually create, relocate and adapt your settings at the user path. Compare future templates and apply configuration changes manually after binary updates; there is no migration command.
 
 ## Metadata enrichment
 
@@ -53,6 +57,6 @@ Serilog writes to `{exe-dir}/log/app/` and `{exe-dir}/log/error/`. `Logging.Dire
 
 Tool-call logging and optional `report_observability_feedback` registration use `RalfHuesing.Mcp.Observability`. Shipped settings enable tool-call and response logging, leave `LogDirectory=null` and set `MaxResponseLength=0` (unlimited). The package default location is `%LOCALAPPDATA%\RalfHuesing\McpObservability\SqlToAi\{yyyy-MM-dd}\`; set `LogDirectory` explicitly when a fixed location is required. Feedback types are `issue`, `positive`, `comment`, `suggestion` and `incident`.
 
-The package records tool names, timings, status, sanitized arguments and optionally responses. Secret-key redaction does not imply that SQL text, arbitrary parameter values or returned data are safe to log. Treat logs and configuration backups as sensitive files. Disable response logging with `EnableResponseLogging=false`, or set a positive response-length limit where appropriate.
+The package records tool names, timings, status, sanitized arguments and optionally responses. Secret-key redaction does not imply that SQL text, arbitrary parameter values or returned data are safe to log. Treat logs and settings as sensitive files. Disable response logging with `EnableResponseLogging=false`, or set a positive response-length limit where appropriate.
 
 `Logging.McpTrail` remains in the template and options, but the current host registers observability rather than a separate legacy trail writer. Do not rely on that section as an active request/response logging control.

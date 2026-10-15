@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="src/SqlToAi/SqlToAi.csproj" />
   <Project Path="tests/SqlToAi.Tests/SqlToAi.Tests.csproj" />
+  <Project Path="tests/SqlToAi.StartupHarness/SqlToAi.StartupHarness.csproj" />
   <Project Path="tools/SqlToAi.Exploration/SqlToAi.Exploration.csproj" />
 </Solution>

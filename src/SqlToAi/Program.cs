@@ -20,32 +20,20 @@ namespace SqlToAi;
 
 internal static class Program
 {
-    private static async Task<int> Main(string[] args)
+    private static Task<int> Main(string[] args) => RunAsync(args);
+
+    internal static async Task<int> RunAsync(string[] args, string? userRoot = null)
     {
-        string appSettingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-        MigrationResult migrationResult = AppSettingsMigrator.Migrate(appSettingsPath);
+        using var startup = UserConfiguration.LoadOrReport(userRoot);
+        return startup is null ? 1 : await RunConfiguredAsync(args, startup);
+    }
 
-        IConfiguration configuration = BuildConfiguration();
-
-        var sqlToAiOptions = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
-        ConfigurationResolver.Resolve(sqlToAiOptions);
-
-        // ---------------------------------------------------------------------------
-        // Serilog (file-based, rolling) — used by both Microsoft.Extensions.Logging
-        // and direct Serilog.Log.Logger consumers. Stdout stays clean for the MCP
-        // stdio protocol (and for `query` output), Serilog writes to stderr at
-        // Information+ and to file at the configured level.
-        // ---------------------------------------------------------------------------
-        Log.Logger = BuildLogger(sqlToAiOptions.Logging);
-
-        foreach (string entry in migrationResult.LogEntries)
-        {
-            Log.Information("[ConfigMigration] {Message}", entry);
-        }
-
+    private static async Task<int> RunConfiguredAsync(string[] args, UserConfiguration startup)
+    {
+        Log.Logger = BuildLogger(startup.Options.Logging);
         try
         {
-            await using ServiceProvider serviceProvider = BuildServiceProvider(configuration, sqlToAiOptions);
+            await using ServiceProvider serviceProvider = BuildServiceProvider(startup.Configuration, startup.Options);
 
             // ---------------------------------------------------------------------------
             // Run retention sweep on startup (best-effort)
@@ -136,14 +124,6 @@ internal static class Program
     // -------------------------------------------------------------------------
     // Configuration & DI
     // -------------------------------------------------------------------------
-
-    internal static IConfiguration BuildConfiguration(string? basePath = null) =>
-        new ConfigurationBuilder()
-            .SetBasePath(basePath ?? AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
-            .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"}.json", optional: true)
-            .AddEnvironmentVariables()
-            .Build();
 
     internal static ServiceProvider BuildServiceProvider(IConfiguration configuration, SqlToAiOptions sqlToAiOptions)
     {

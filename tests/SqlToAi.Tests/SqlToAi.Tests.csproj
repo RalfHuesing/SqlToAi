@@ -24,5 +24,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SqlToAi\SqlToAi.csproj" />
     <ProjectReference Include="..\..\tools\SqlToAi.Exploration\SqlToAi.Exploration.csproj" />
+    <ProjectReference Include="..\SqlToAi.StartupHarness\SqlToAi.StartupHarness.csproj" />
   </ItemGroup>
 </Project>

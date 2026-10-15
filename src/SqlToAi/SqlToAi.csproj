@@ -33,10 +33,10 @@
   <ItemGroup>
     <InternalsVisibleTo Include="SqlToAi.Tests" />
     <InternalsVisibleTo Include="SqlToAi.Exploration" />
+    <InternalsVisibleTo Include="SqlToAi.StartupHarness" />
   </ItemGroup>
 
   <ItemGroup>
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
-    <EmbeddedResource Include="appsettings.json" />
   </ItemGroup>
 </Project>

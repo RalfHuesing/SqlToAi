@@ -8,10 +8,10 @@ status: ready
 
 Give every SqlToAi entry point on Windows x64 one predictable, user-owned settings and logging location. Configuration setup and upgrades are manual; startup requires an existing settings file, and binary updates preserve deliberate user settings without importing or rewriting older configuration.
 
-## Current behavior and evidence
+## Baseline behavior and evidence at concept approval
 
 - [Configuration documentation](../../docs/configuration.md) says JSON files load beside the executable, followed by environment-specific settings and environment variables. Relative metadata query files also resolve beside the executable.
-- The same document describes startup migration that adds template keys, removes unknown keys, preserves retained values, and writes a backup. [AppSettingsMigrator](../../src/SqlToAi/Configuration/AppSettingsMigrator.cs) is the implementation to replace rather than extend with a new migration path.
+- At concept approval, that document described startup migration that added template keys, removed unknown keys, preserved retained values, and wrote a backup. The former `Configuration/AppSettingsMigrator.cs` implementation is to be removed rather than extended with a new migration path.
 - [Program.cs](../../src/SqlToAi/Program.cs) currently invokes that migrator before loading configuration; the migrator creates a missing file from the embedded template, and `BuildConfiguration` marks the base JSON file optional. Both behaviors conflict with the required startup failure when the user file is absent.
 - The shipped [settings template](../../src/SqlToAi/appsettings.json) currently grants `DemoDB` `ReadWrite`, contains demo SQL credentials, and enables tool-call and unlimited response logging.
 - Application/error logs default below the executable directory. Observability can write to its package default under `%LOCALAPPDATA%\RalfHuesing\McpObservability\SqlToAi`; response logging may include query results. [Security documentation](../../docs/security.md) states that logs and errors can expose sensitive data and that masking does not cover every output.
