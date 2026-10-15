@@ -1,4 +1,3 @@
-using System.IO.Pipelines;
 using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -7,9 +6,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using ModelContextProtocol.Client;
-using ModelContextProtocol.Protocol;
-using ModelContextProtocol.Server;
 using SqlToAi.Configuration;
 using SqlToAi.Mcp;
 using SqlToAi.Tests.TestSupport;
@@ -123,7 +119,6 @@ public sealed class UserPathTests
         Assert.DoesNotContain("Application path probe", error, StringComparison.Ordinal);
         Assert.False(Directory.Exists(temp.GetPath("log")));
     }
-
 
     [Fact]
     public async Task SqlInputAndSchemaOutput_KeepCwdSemantics()

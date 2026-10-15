@@ -1,5 +1,3 @@
-
-
 namespace SqlToAi.Configuration;
 
 /// <summary>

@@ -3,8 +3,8 @@
 This self-contained Windows x64 package needs no separately installed .NET runtime.
 Extract all package files into an installation directory. The supplied
 `appsettings.json` is a conservative **template**: it grants no
-database access, contains no working credentials, and disables full SQL/tool-argument
-and response logging. Application/error diagnostics remain enabled.
+database access and contains no working credentials. Application/error
+diagnostics remain enabled.
 
 ## Create your settings manually
 
