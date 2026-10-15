@@ -135,6 +135,11 @@ public static class SqlToAiErrorMapper
         return false;
     }
 
+    internal static string GetSafeConnectionFailureCategory(Exception exception) =>
+        IsTlsException(exception)
+            ? "TLS/certificate connection failure"
+            : "SQL connection or provider failure";
+
     private static bool IsCertificateError(int number) => unchecked((uint)number) is
         0x80090322 or 0x80090325 or 0x80090326 or 0x80090327 or 0x80090328 or 0x80090331
         or >= 0x800B0101 and <= 0x800B0114;

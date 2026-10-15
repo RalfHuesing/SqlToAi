@@ -36,6 +36,7 @@ internal sealed class SchemaScopedRuleProvider(string excludedSchema) : IAnonymi
 /// </summary>
 internal sealed class CapturingLogger<T> : ILogger<T>
 {
+    public List<(string Message, Exception? Exception)> Entries { get; } = [];
     public string? LastMessage { get; private set; }
     public Exception? LastException { get; private set; }
 
@@ -46,6 +47,7 @@ internal sealed class CapturingLogger<T> : ILogger<T>
     {
         LastMessage = formatter(state, exception);
         LastException = exception;
+        Entries.Add((LastMessage, exception));
     }
 }
 

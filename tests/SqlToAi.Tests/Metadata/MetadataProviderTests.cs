@@ -7,6 +7,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using SqlToAi.Tests.Database;
+using SqlToAi.Tests.TestSupport;
+using System.Net;
+using System.Net.Sockets;
 
 namespace SqlToAi.Tests.Metadata;
 
@@ -16,6 +21,91 @@ public sealed class MetadataProviderTests
 {
     private static readonly Type TargetType = typeof(MetadataProvider);
     public static string? LastTableNameParameter { get; set; }
+
+    [Theory]
+    [InlineData("table")]
+    [InlineData("columns")]
+    public async Task Lookup_TlsOpenFailure_PreservesMissingResultAndLogsOnlySafeDiagnostic(string lookup)
+    {
+        const string marker = "synthetic-secret-marker";
+        var failure = SqlExceptionFactory.Create(unchecked((int)0x80090325),
+            $"Untrusted certificate Password={marker};Server=raw-connection-marker;", severity: 20,
+            inner: new InvalidOperationException($"inner {marker};Server=raw-connection-marker;"));
+        var connection = new FakeDbConnection(_ => throw new NotSupportedException(), new FakeDbConnectionOptions(OpenFailure: failure));
+        var factory = new DummyConnectionFactory(connection);
+        var logger = new CapturingLogger<MetadataProvider>();
+        var options = new SqlToAiOptions();
+        options.MetadataProvider.Enabled = true;
+        var provider = new MetadataProvider(factory, Options.Create(options), logger);
+
+        if (lookup == "table")
+        {
+            Assert.Null(await provider.GetTableDescriptionAsync("TargetDb", "dbo.Customers", TestContext.Current.CancellationToken));
+        }
+        else
+        {
+            Assert.Empty(await provider.GetColumnDescriptionsAsync("TargetDb", "dbo.Customers", TestContext.Current.CancellationToken));
+        }
+
+        Assert.Equal(1, factory.ConnectionCreatedCount);
+        Assert.Equal(1, connection.OpenCount);
+        Assert.NotEmpty(logger.Entries);
+        foreach (var (message, exception) in logger.Entries)
+        {
+            Assert.Contains("MetadataProvider", message);
+            Assert.Contains("TLS/certificate connection failure", message);
+            Assert.DoesNotContain(marker, message);
+            Assert.DoesNotContain("raw-connection-marker", message);
+            Assert.Null(exception);
+        }
+    }
+
+    [Theory]
+    [InlineData("table")]
+    [InlineData("columns")]
+    public async Task DedicatedLookup_OpenFailureDoesNotRetryPrimaryFactory(string lookup)
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        Task accepted = Task.Run(async () =>
+        {
+            using TcpClient client = await listener.AcceptTcpClientAsync(TestContext.Current.CancellationToken);
+        }, TestContext.Current.CancellationToken);
+
+        var factory = new DummyConnectionFactory();
+        var logger = new CapturingLogger<MetadataProvider>();
+        var options = new SqlToAiOptions();
+        options.MetadataProvider.Enabled = true;
+        options.MetadataProvider.Server = $"127.0.0.1,{port}";
+        options.MetadataProvider.Database = "MetadataDb";
+        options.MetadataProvider.UserId = "metadata-user-marker";
+        options.MetadataProvider.Password = "metadata-password-marker";
+        options.MetadataProvider.IntegratedSecurity = false;
+        options.MetadataProvider.TrustServerCertificate = false;
+        options.MetadataProvider.CommandTimeoutSeconds = 2;
+        var provider = new MetadataProvider(factory, Options.Create(options), logger);
+
+        if (lookup == "table")
+        {
+            Assert.Null(await provider.GetTableDescriptionAsync("TargetDb", "dbo.Customers", TestContext.Current.CancellationToken));
+        }
+        else
+        {
+            Assert.Empty(await provider.GetColumnDescriptionsAsync("TargetDb", "dbo.Customers", TestContext.Current.CancellationToken));
+        }
+        await accepted.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, factory.ConnectionCreatedCount);
+        Assert.NotEmpty(logger.Entries);
+        foreach (var (message, exception) in logger.Entries)
+        {
+            Assert.Contains("MetadataProvider", message);
+            Assert.Contains("connection", message, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("metadata-password-marker", message);
+            Assert.Null(exception);
+        }
+    }
 
     [Fact]
     public async Task GetTableDescriptionAsync_ShouldReturnNull_WhenDisabled()

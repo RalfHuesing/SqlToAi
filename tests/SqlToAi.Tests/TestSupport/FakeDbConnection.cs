@@ -17,6 +17,7 @@ internal sealed record FakeDbConnectionOptions(
     string Database = "MockDb",
     string DataSource = "MockServer",
     string ServerVersion = "1.0",
+    Exception? OpenFailure = null,
     Func<FakeDbConnection, IsolationLevel, FakeDbTransaction>? BeginTransaction = null);
 
 /// <summary>
@@ -56,11 +57,25 @@ internal sealed class FakeDbConnection : DbConnection
     /// distinction.
     /// </summary>
     public FakeDbCommand? LastCommand { get; set; }
+    public int OpenCount { get; private set; }
 
-    public override void Open() => _state = ConnectionState.Open;
+    public override void Open()
+    {
+        OpenCount++;
+        if (_options.OpenFailure is not null)
+        {
+            throw _options.OpenFailure;
+        }
+        _state = ConnectionState.Open;
+    }
 
     public override Task OpenAsync(CancellationToken cancellationToken)
     {
+        OpenCount++;
+        if (_options.OpenFailure is not null)
+        {
+            return Task.FromException(_options.OpenFailure);
+        }
         _state = ConnectionState.Open;
         return Task.CompletedTask;
     }

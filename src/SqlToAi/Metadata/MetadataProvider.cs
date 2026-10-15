@@ -99,7 +99,8 @@ public sealed class MetadataProvider : IMetadataProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve table description for {TableName} in database {DatabaseName}.", tableName, databaseName);
+            string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
+            _logger.LogError("MetadataProvider {FailureType} while retrieving a table description.", failureType);
             return null;
         }
     }
@@ -156,7 +157,8 @@ public sealed class MetadataProvider : IMetadataProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve column descriptions for table {TableName} in database {DatabaseName}.", tableName, databaseName);
+            string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
+            _logger.LogError("MetadataProvider {FailureType} while retrieving column descriptions.", failureType);
         }
 
         return dict;

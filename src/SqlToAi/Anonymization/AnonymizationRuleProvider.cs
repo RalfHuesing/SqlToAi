@@ -99,7 +99,8 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load anonymization rules from {TableName}.", tableName);
+            string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
+            _logger.LogError("AnonymizationRules {FailureType} while loading central rules; default masking remains active.", failureType);
             return [];
         }
     }
@@ -138,7 +139,8 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to check for optional SchemaPattern column on rule table {TableName}.", tableName);
+            string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
+            _logger.LogWarning("AnonymizationRules {FailureType} while checking the optional SchemaPattern column; using schema-agnostic rules.", failureType);
             return false;
         }
     }

@@ -5,6 +5,11 @@ using SqlToAi.Configuration;
 using System.Data.Common;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using SqlToAi.Tests.Database;
+using SqlToAi.Tests.TestSupport;
+using System.Net;
+using System.Net.Sockets;
 
 namespace SqlToAi.Tests.Anonymization;
 
@@ -167,6 +172,77 @@ public sealed class AnonymizationRuleProviderTests
         bool excluded = await provider.IsExcludedAsync("AnyDb", string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
 
         Assert.False(excluded);
+    }
+
+    [Fact]
+    public async Task IsExcludedAsync_TlsOpenFailureKeepsDefaultMaskingAndCachesEmptyRulesSafely()
+    {
+        const string marker = "synthetic-secret-marker";
+        var failure = SqlExceptionFactory.Create(unchecked((int)0x80090325),
+            $"Untrusted certificate Password={marker};Server=raw-connection-marker;", severity: 20,
+            inner: new InvalidOperationException($"inner {marker};Server=raw-connection-marker;"));
+        var connection = new FakeDbConnection(_ => throw new NotSupportedException(), new FakeDbConnectionOptions(OpenFailure: failure));
+        var factory = new DummyConnectionFactory(connection);
+        var logger = new CapturingLogger<AnonymizationRuleProvider>();
+        var provider = new AnonymizationRuleProvider(factory, Options.Create(BuildOptions()), logger);
+
+        bool first = await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
+        bool second = await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
+
+        Assert.False(first);
+        Assert.False(second);
+        Assert.Equal(1, factory.ConnectionCreatedCount);
+        Assert.Equal(1, connection.OpenCount);
+        Assert.NotEmpty(logger.Entries);
+        foreach (var (message, exception) in logger.Entries)
+        {
+            Assert.Contains("AnonymizationRules", message);
+            Assert.Contains("TLS/certificate connection failure", message);
+            Assert.Contains("default masking remains active", message);
+            Assert.DoesNotContain(marker, message);
+            Assert.DoesNotContain("raw-connection-marker", message);
+            Assert.Null(exception);
+        }
+    }
+
+    [Fact]
+    public async Task IsExcludedAsync_DedicatedOpenFailureDoesNotRetryPrimaryAndCachesFallback()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        Task accepted = Task.Run(async () =>
+        {
+            using TcpClient client = await listener.AcceptTcpClientAsync(TestContext.Current.CancellationToken);
+        }, TestContext.Current.CancellationToken);
+
+        var options = BuildOptions();
+        options.AnonymizationRules.Server = $"127.0.0.1,{port}";
+        options.AnonymizationRules.Database = "RulesDb";
+        options.AnonymizationRules.UserId = "rules-user-marker";
+        options.AnonymizationRules.Password = "rules-password-marker";
+        options.AnonymizationRules.IntegratedSecurity = false;
+        options.AnonymizationRules.TrustServerCertificate = false;
+        options.AnonymizationRules.CommandTimeoutSeconds = 2;
+        var factory = new DummyConnectionFactory();
+        var logger = new CapturingLogger<AnonymizationRuleProvider>();
+        var provider = new AnonymizationRuleProvider(factory, Options.Create(options), logger);
+
+        bool first = await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
+        bool second = await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
+        await accepted.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        Assert.False(first);
+        Assert.False(second);
+        Assert.Equal(0, factory.ConnectionCreatedCount);
+        Assert.NotEmpty(logger.Entries);
+        foreach (var (message, exception) in logger.Entries)
+        {
+            Assert.Contains("AnonymizationRules", message);
+            Assert.Contains("connection", message, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("rules-password-marker", message);
+            Assert.Null(exception);
+        }
     }
 
     // -------------------------------------------------------------------------
