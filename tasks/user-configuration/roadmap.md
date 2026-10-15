@@ -1,0 +1,63 @@
+# Per-user configuration and data paths — implementation roadmap
+
+## Basis and execution contract
+
+Implement the approved [concept](Konzept.md) in dependency order. This roadmap does not authorize execution during stage 2. All executable items are open; the concept approval does not verify implementation.
+
+Each numbered checkbox is one session-sized slice, including inspection, implementation, relevant xUnit v3 tests, canonical documentation, validation, and an atomic commit. Execute sequentially; resume at the first open checkbox. Record concise completion evidence beneath the corresponding item before closing it, without adding tracking files. If a slice no longer fits one session, split it before execution while preserving its acceptance criteria.
+
+For every code slice run `dotnet build SqlToAi.slnx` and `dotnet test SqlToAi.slnx` from the repository root. Compiler/analyzer warnings are errors. Record actual results and prerequisites; an unavailable SQL Server is not evidence that integration tests passed. Stage and commit all files belonging to the verified slice, including tests, documentation, and roadmap updates. Do not push, tag, release, or publish externally.
+
+Configuration tests must use isolated temporary user roots, including any subprocesses. Carry the selected root through configuration loading, option resolution, service registration, and logging. Use internal injection/test seams rather than a new public path option; never read, change, or delete the maintainer's real `%LOCALAPPDATA%\SqlToAi` files. Restore test environment changes and avoid races between tests.
+
+## Ordered slices
+
+- [ ] **1. Require user configuration and fail startup visibly.**
+
+  **Intention:** Make the user file mandatory and stop before services or transport can conceal a configuration failure.
+
+  **Scope:** Introduce a shared Windows Local Application Data root resolver and loading/startup boundary in [Configuration](../../src/SqlToAi/Configuration/) and [Program.cs](../../src/SqlToAi/Program.cs). Load the required base file and optional environment-specific file from that root, followed by environment overrides. Preserve runtime override precedence. Remove [AppSettingsMigrator](../../src/SqlToAi/Configuration/AppSettingsMigrator.cs), migration logging, backup creation, and the migration-only embedded-resource registration in [SqlToAi.csproj](../../src/SqlToAi/SqlToAi.csproj). Replace the [migration tests](../../tests/SqlToAi.Tests/Configuration/AppSettingsMigratorTests.cs) with tests of the required-file contract. Update [Exploration startup](../../tools/SqlToAi.Exploration/Program.cs) to use the same boundary for scenario execution and validate configuration before printing artifact information. Update [configuration](../../docs/configuration.md), [architecture](../../docs/architecture.md), and [exploration](../../docs/exploration.md) documentation for this slice. Remove the obsolete embedded-migration-template instruction from [development rules](../../.agents/rules/development.mdc), retaining option/template consistency requirements.
+
+  **Exclusions:** No automatic creation, migration/import utility, executable/source-directory fallback, new public configuration-path option, template-profile change, or unrelated exploration redesign. Diagnostic logging and configuration-owned path relocation are completed in slice 3.
+
+  **Acceptance:** Default server startup, explicit `server`, valid `query`, `export-schema`, and exploration scenario startup share the required-file check. A missing base file yields exit `1`, no stdout output, and a direct stderr diagnostic with reason, resolved absolute expected path, manual template setup instructions, and restart guidance. It does not start MCP transport, perform database work, or create settings/backups. Capture the process exit and streams through an isolated startup harness, not only an exception assertion. Environment-only, environment-JSON-only, and legacy-file-only setups still fail. Existing files, including unknown keys, remain byte-for-byte unchanged across repeated/concurrent loads. Invalid/unreadable files yield useful stderr diagnostics without relying on file logging. No migrator references or obsolete embedding remain. Tests, links, documentation, build, and tests are verified and the slice is committed.
+
+- [ ] **2. Supply safe manual defaults and an explicit demo example.**
+
+  **Intention:** Manual setup starts with no database grants or working credentials and no full SQL/response logging.
+
+  **Scope:** Align [appsettings.json](../../src/SqlToAi/appsettings.json), [SqlToAiOptions](../../src/SqlToAi/Configuration/SqlToAiOptions.cs), and relevant [logging defaults](../../src/SqlToAi/Configuration/LoggingOptions.cs), including bound observability options. Supply the fictional DemoDB profile as a separate, deliberately selected example; the host never loads it implicitly. Replace the stale `SQLTOAI_CONNECTION_STRING` hint with supported per-field environment overrides. Inspect and adapt [SqlServerFixture](../../tests/SqlToAi.Tests/Integration/SqlServerFixture.cs), configuration/observability tests, and exploration expectations that relied on the permissive main template. Give SQL integration tests an explicit demo test configuration rather than silently consuming the real user root or weakening the safe main template. Update [README](../../README.md), [configuration](../../docs/configuration.md), [security](../../docs/security.md), [development](../../docs/development.md), [exploration](../../docs/exploration.md), and [SQL setup instructions](../../sql-scripts/README.md) where affected.
+
+  **Exclusions:** No credential vault, configuration wizard, automatic demo activation, change to access precedence, masking guarantees, SQL TLS behavior, or new integration-test infrastructure beyond adapting affected configuration consumers.
+
+  **Acceptance:** Tests compare security-relevant template values with effective bound defaults. The conservative profile grants no database access, contains no working demo credentials, and disables full SQL/tool-argument and response logging; normal application/error diagnostics remain available. Omitted observability settings do not restore unsafe package defaults. Runtime environment overrides work with an existing base file and never persist secrets. The separate demo profile is explicit and documented; configuration/security tests cover denied access as well as deliberate demo activation. Integration tests retain meaningful SQL assertions with documented prerequisites. Documentation makes setup and future configuration changes manual and accurately describes data exposure. The slice passes required validation and is committed.
+
+- [ ] **3. Resolve metadata and all default logs beneath the user root.**
+
+  **Intention:** Installation location and working directory cannot redirect configuration-owned files or default log output.
+
+  **Scope:** Apply the shared root in [ConfigurationResolver](../../src/SqlToAi/Configuration/ConfigurationResolver.cs), [LoggingOptions](../../src/SqlToAi/Configuration/LoggingOptions.cs), Serilog setup, options post-configuration, observability registration, and [LogRetentionService](../../src/SqlToAi/Mcp/LogRetentionService.cs). Resolve relative metadata SQL paths and relative log overrides from the user root; preserve explicit absolute paths and environment expansion. Ensure both directly supplied options and DI-bound options receive consistent resolution without applying the root twice. Set explicit default observability/feedback destinations below `%LOCALAPPDATA%\SqlToAi\log\` instead of allowing the package's independent default root. Keep the inactive legacy trail configuration accurate without introducing a new writer. Update canonical configuration, security, architecture, and exploration documentation as affected.
+
+  **Exclusions:** No change to SQL input/output CWD semantics, exploration observation-artifact locations, retention policy, logging limits, redaction/anonymization behavior, or unrelated logging refactoring.
+
+  **Acceptance:** Tests cover relative/absolute metadata files, missing metadata files, inline SQL, environment-expanded paths, arbitrary CWD, and consistent roots across server/CLI/export/exploration. Existing SQL script input and export output still resolve from CWD. Exercise enabled application, error, observability, and feedback output in a temporary root and assert actual destinations, including options omitted from JSON; explicit absolute overrides remain effective. Root/logger initialization failures produce useful stderr output even if file logging cannot initialize. Test an unwritable root and a read-only installation without touching real user data. Retention uses the same resolved log root and does not affect legacy installation files. Required validation passes and the slice is committed.
+
+- [ ] **4. Verify packaged manual setup and binary replacement.**
+
+  **Intention:** A distributed binary consumes deliberate user settings while replacement preserves settings and logs.
+
+  **Scope:** Inspect [project copy rules](../../src/SqlToAi/SqlToAi.csproj), [deployment](../../scripts/deploy.ps1), and [release archive preparation](../../.github/workflows/release.yml). Make only configuration/template packaging adjustments needed to supply the conservative template and explicit demo example. Complete README and packaged setup instructions with the expected user path, manual copy/edit/restart sequence, stderr failure example, environment-file precedence, and manual relocation/adaptation of older settings. Correct the obsolete publish-directory configuration-backup instructions in [development documentation](../../docs/development.md). Add or complete focused regression coverage for preservation and independent install/CWD behavior.
+
+  **Exclusions:** No release publication, version increment, tag/push, unrelated CI/release-gate fixes, automatic import, or migration/backup utility. Do not invoke deployment/release scripts that stop active clients, replace the shared publish directory, or publish Git state; validate with direct local publish into an isolated directory.
+
+  **Acceptance:** A local self-contained single-file `win-x64` publish contains usable manual templates, with no requirement to modify installation files at runtime. With no user base file, the packaged startup contract from slice 1 still fails even when a template is beside the executable. After manual setup in an isolated root, replacement of only binaries/package files preserves configuration and logs byte-for-byte without generating backups or reading legacy settings. Read-only install and changed CWD cases remain valid. Check documented setup commands, package contents, relative links, and stale migration/fallback/default-path claims against observed behavior. Required build/tests pass and the slice is committed.
+
+- [ ] **5. Audit the complete concept and close the roadmap.**
+
+  **Intention:** Verify that the combined slices meet the approved contract and that no requirement was lost between them.
+
+  **Scope:** Review slices 1–4 against every Must, target-contract statement, and verification criterion in [Konzept.md](Konzept.md). Inspect final runtime wiring, effective defaults, affected test consumers, package contents, and canonical documentation. Use existing test and completion evidence; rerun checks when changes, failures, missing evidence, or unresolved concerns justify them. Record concise final acceptance evidence here and commit the audit/roadmap updates with any focused corrections.
+
+  **Exclusions:** No additional client test matrix, live database or client changes outside the test setup, SQL connection-security work, release-gate redesign, or publication.
+
+  **Acceptance:** All preceding checkboxes and their acceptance criteria are actually verified. Evidence covers fatal missing-file startup and client-capturable stderr; mandatory base file despite overrides; no automatic creation/migration/backups; shared root for every runtime entry point; safe defaults and deliberate demo setup; relative/absolute paths and CWD boundaries; all default log destinations; invalid/unreadable settings and unwritable-root diagnostics; isolated tests; concurrent starts; read-only installation; preservation across binary replacement; and untouched legacy files. Build and full test results are successful with warnings treated as errors, or the item remains open with the concrete missing prerequisite recorded. Documentation matches implementation and retains accurate security limitations. All task changes and completion evidence are committed; the working tree is clean.

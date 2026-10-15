@@ -1,5 +1,5 @@
 ---
-status: draft
+status: ready
 ---
 
 # Per-user configuration and data paths
@@ -61,4 +61,4 @@ Give every SqlToAi entry point on Windows x64 one predictable, user-owned settin
 
 - Scope provenance: [SqlToAi public distribution and discovery](../mcp-server-dictionary/Konzept.md). Publication consumes this task's completed behavior; implementing it does not depend on publishing or completing that parent task.
 - Parallel contracts: [SQL connection security](../sql-connection-security/Konzept.md) and [release validation](../release-validation/Konzept.md).
-- This concept is fully specified and has no open design decisions; it remains `draft` until explicit concept approval.
+- This concept is approved and has no open design decisions.
