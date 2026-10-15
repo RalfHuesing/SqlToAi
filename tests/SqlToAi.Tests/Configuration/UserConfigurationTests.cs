@@ -61,6 +61,65 @@ public sealed class UserConfigurationTests
         Assert.False(Directory.Exists(temp.GetPath("temp/exploration")));
     }
 
+    [Theory]
+    [InlineData("AppLog", 0)]
+    [InlineData("AppLog", -1)]
+    [InlineData("ErrorLog", 0)]
+    [InlineData("ErrorLog", -1)]
+    public async Task InvalidEnabledFileRetention_FailsWithActionableConfigurationDiagnostic(string sink, int count)
+    {
+        using var temp = TestTempDirectory.Create();
+        string file = temp.CreateFile("user-root/appsettings.json",
+            $"{{ \"SqlToAi\": {{ \"Logging\": {{ \"{sink}\": {{ \"RetainedFileCount\": {count} }} }} }} }}");
+        string root = Path.GetDirectoryName(file)!;
+
+        var result = await RunAsync(temp, root, "query-help");
+
+        AssertFailure(result, root);
+        Assert.Contains($"SqlToAi.Logging.{sink}.RetainedFileCount", result.Error, StringComparison.Ordinal);
+        Assert.Contains("greater than zero", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(count.ToString(System.Globalization.CultureInfo.InvariantCulture), result.Error, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unhandled exception", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("At least one file must be retained", result.Error, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(temp.GetPath("logs")));
+    }
+
+    [Theory]
+    [InlineData("AppLog", 1)]
+    [InlineData("AppLog", int.MaxValue)]
+    [InlineData("ErrorLog", 1)]
+    [InlineData("ErrorLog", int.MaxValue)]
+    public async Task PositiveFileRetention_IsAcceptedAtStartup(string sink, int count)
+    {
+        using var temp = TestTempDirectory.Create();
+        temp.CreateFile("user-root/appsettings.json",
+            $"{{ \"SqlToAi\": {{ \"Logging\": {{ \"{sink}\": {{ \"RetainedFileCount\": {count} }} }} }} }}");
+
+        var result = await RunAsync(temp, temp.GetPath("user-root"), "query-help");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("sql_list_databases", result.Output, StringComparison.Ordinal);
+        Assert.Empty(result.Error);
+    }
+
+    [Theory]
+    [InlineData("AppLog", 0)]
+    [InlineData("AppLog", -1)]
+    [InlineData("ErrorLog", 0)]
+    [InlineData("ErrorLog", -1)]
+    public async Task InvalidRetention_IsIgnoredWhenFileSinkIsDisabled(string sink, int count)
+    {
+        using var temp = TestTempDirectory.Create();
+        temp.CreateFile("user-root/appsettings.json",
+            $"{{ \"SqlToAi\": {{ \"Logging\": {{ \"{sink}\": {{ \"Enabled\": false, \"RetainedFileCount\": {count} }} }} }} }}");
+
+        var result = await RunAsync(temp, temp.GetPath("user-root"), "query-help");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("sql_list_databases", result.Output, StringComparison.Ordinal);
+        Assert.Empty(result.Error);
+    }
+
     [Fact]
     public async Task UnreadableFile_FailsWithUsefulDirectDiagnostic()
     {

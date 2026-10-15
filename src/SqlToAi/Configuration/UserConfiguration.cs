@@ -56,6 +56,7 @@ internal sealed class UserConfiguration : IDisposable
                 .Build();
             var options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
             ConfigurationResolver.Resolve(options, root);
+            ValidateLoggingOptions(options.Logging, expectedPath);
             EnsureWritableDirectory(root);
             return new UserConfiguration(root, configuration, options);
         }
@@ -76,6 +77,22 @@ internal sealed class UserConfiguration : IDisposable
             throw new ConfigurationStartupException(
                 $"{reason} ({exception.GetType().Name}). Expected base settings file: '{expectedPath}'. " +
                 "Create and configure this file manually from the supplied appsettings.json template, then restart.", exception);
+        }
+    }
+
+    private static void ValidateLoggingOptions(LoggingOptions logging, string settingsPath)
+    {
+        ValidateSinkRetention(logging.AppLog, "SqlToAi.Logging.AppLog.RetainedFileCount", settingsPath);
+        ValidateSinkRetention(logging.ErrorLog, "SqlToAi.Logging.ErrorLog.RetainedFileCount", settingsPath);
+    }
+
+    private static void ValidateSinkRetention(FileLogSinkOptions sink, string settingName, string settingsPath)
+    {
+        if (sink.Enabled && sink.RetainedFileCount <= 0)
+        {
+            throw new ConfigurationStartupException(
+                $"{settingName} must be greater than zero when its file sink is enabled (configured value: {sink.RetainedFileCount}). " +
+                $"Settings file: '{settingsPath}'. Correct this value manually using the supplied appsettings.json template, then restart.");
         }
     }
 
