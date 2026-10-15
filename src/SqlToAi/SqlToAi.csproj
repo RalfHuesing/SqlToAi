@@ -27,7 +27,6 @@
     <PackageReference Include="Serilog.Settings.Configuration" />
     <PackageReference Include="System.CommandLine" />
     <PackageReference Include="ModelContextProtocol" />
-    <PackageReference Include="RalfHuesing.Mcp.Observability" />
   </ItemGroup>
 
   <ItemGroup>

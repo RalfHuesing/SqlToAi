@@ -34,9 +34,9 @@
     <PackageVersion Include="Serilog.Settings.Configuration" Version="10.0.1" />
     <!-- CLI -->
     <PackageVersion Include="System.CommandLine" Version="2.0.9" />
-    <!-- MCP & Observability -->
+    <!-- MCP -->
     <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
-    <PackageVersion Include="RalfHuesing.Mcp.Observability" Version="1.0.2" />
+
     <!-- Test -->
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />

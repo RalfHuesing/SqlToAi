@@ -32,17 +32,12 @@ public static class StartupHarness
             startup.Options.SqlServer.Server,
             startup.Options.SqlServer.Password,
             BoundServer = boundOptions.SqlServer.Server,
-            ObservabilityEnabled = boundOptions.Observability.Enabled,
-            ToolCallLogging = boundOptions.Observability.EnableToolCallLogging,
-            ResponseLogging = boundOptions.Observability.EnableResponseLogging,
             AppLogEnabled = boundOptions.Logging.AppLog.Enabled,
             ErrorLogEnabled = boundOptions.Logging.ErrorLog.Enabled,
             DirectMetadata = startup.Options.MetadataProvider.TableMetadataQuery,
             BoundMetadata = boundOptions.MetadataProvider.TableMetadataQuery,
             DirectLogRoot = startup.Options.Logging.GetAbsoluteRoot(),
             BoundLogRoot = boundOptions.Logging.GetAbsoluteRoot(),
-            DirectObservabilityRoot = startup.Options.Observability.LogDirectory,
-            BoundObservabilityRoot = boundOptions.Observability.LogDirectory,
             Probe = startup.Configuration["StartupProbe"]
         }));
         return 0;

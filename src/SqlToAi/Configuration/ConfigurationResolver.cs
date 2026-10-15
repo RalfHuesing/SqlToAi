@@ -38,9 +38,6 @@ public static class ConfigurationResolver
         ResolveSqlFiles(options, root);
         options.Logging.Directory = ResolvePath(options.Logging.Directory, root);
         options.Logging.McpTrail.Directory = ResolvePath(options.Logging.McpTrail.Directory, options.Logging.Directory);
-        options.Observability.LogDirectory = ResolvePath(
-            string.IsNullOrWhiteSpace(options.Observability.LogDirectory)
-                ? Path.Combine("log", "observability") : options.Observability.LogDirectory, root);
         options.ResolvedRootDirectory = root;
     }
 

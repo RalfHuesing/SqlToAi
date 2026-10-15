@@ -90,8 +90,6 @@ public sealed class ExplorationTests
         using var temp = TestTempDirectory.Create();
         temp.CreateFile("appsettings.json", """{"SqlToAi":{"Databases":{"ReadOnly":["ExplorationTestDatabase"]}}}""");
         using var startup = UserConfiguration.Load(temp.DirectoryPath);
-        startup.Options.Observability.Enabled = false;
-        startup.Options.Observability.LogDirectory = temp.GetPath("observability");
         await using var services = SqlToAi.Program.BuildServiceProvider(startup.Configuration, startup.Options);
         Assert.Contains("ExplorationTestDatabase", services.GetRequiredService<IOptions<SqlToAiOptions>>().Value.Databases.ReadOnly);
         var dispatcher = services.GetRequiredService<IToolDispatcher>();

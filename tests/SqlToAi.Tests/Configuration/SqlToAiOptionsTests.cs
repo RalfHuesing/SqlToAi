@@ -23,7 +23,6 @@ public sealed class SqlToAiOptionsTests
         Assert.NotNull(options.Databases);
         Assert.NotNull(options.Anonymizer);
         Assert.NotNull(options.MetadataProvider);
-        Assert.NotNull(options.Observability);
 
         Assert.Empty(options.Databases.ReadWrite);
         Assert.Empty(options.Databases.ReadOnly);
@@ -38,13 +37,6 @@ public sealed class SqlToAiOptionsTests
         Assert.True(options.MetadataProvider.Enabled);
         Assert.Equal("ScramblePattern", options.Anonymizer.DefaultMode);
         Assert.Equal(10_485_760L, options.QueryExecution.MaxScriptFileSizeBytes);
-
-        Assert.True(options.Observability.Enabled);
-        Assert.False(options.Observability.EnableToolCallLogging);
-        Assert.True(options.Observability.EnableFeedbackTool);
-        Assert.Equal(Path.Combine("log", "observability"), options.Observability.LogDirectory);
-        Assert.False(options.Observability.EnableResponseLogging);
-        Assert.Equal(0, options.Observability.MaxResponseLength);
         Assert.True(options.Logging.AppLog.Enabled);
         Assert.True(options.Logging.ErrorLog.Enabled);
         Assert.False(options.Logging.McpTrail.Enabled);
@@ -69,9 +61,6 @@ public sealed class SqlToAiOptionsTests
         Assert.Equal(defaults.SqlServer.UserId, templateOptions.SqlServer.UserId);
         Assert.Equal(defaults.SqlServer.Password, templateOptions.SqlServer.Password);
         Assert.Equal(defaults.SqlServer.IntegratedSecurity, templateOptions.SqlServer.IntegratedSecurity);
-        Assert.Equal(defaults.Observability.EnableToolCallLogging, templateOptions.Observability.EnableToolCallLogging);
-        Assert.Equal(defaults.Observability.EnableResponseLogging, templateOptions.Observability.EnableResponseLogging);
-        Assert.Equal(defaults.Observability.LogDirectory, templateOptions.Observability.LogDirectory!.Replace('/', Path.DirectorySeparatorChar));
         Assert.Equal(defaults.Logging.AppLog.Enabled, templateOptions.Logging.AppLog.Enabled);
         Assert.Equal(defaults.Logging.ErrorLog.Enabled, templateOptions.Logging.ErrorLog.Enabled);
 
@@ -96,8 +85,6 @@ public sealed class SqlToAiOptionsTests
         configuration.Bind(options);
 
         Assert.Empty(options.Databases.ReadWrite);
-        Assert.False(options.Observability.EnableToolCallLogging);
-        Assert.False(options.Observability.EnableResponseLogging);
         Assert.True(options.Logging.AppLog.Enabled);
         Assert.True(options.Logging.ErrorLog.Enabled);
     }
@@ -123,13 +110,6 @@ public sealed class SqlToAiOptionsTests
           },
           "QueryExecution": {
             "MaxScriptFileSizeBytes": 2048
-          },
-          "Observability": {
-            "Enabled": true,
-            "EnableToolCallLogging": false,
-            "EnableFeedbackTool": true,
-            "LogDirectory": "custom_log",
-            "MaxResponseLength": 500
           }
         }
         """;
@@ -155,12 +135,6 @@ public sealed class SqlToAiOptionsTests
         Assert.True(options.Anonymizer.Enabled);
         Assert.Equal("Hash", options.Anonymizer.DefaultMode);
         Assert.Equal(2048L, options.QueryExecution.MaxScriptFileSizeBytes);
-
-        Assert.True(options.Observability.Enabled);
-        Assert.False(options.Observability.EnableToolCallLogging);
-        Assert.True(options.Observability.EnableFeedbackTool);
-        Assert.Equal("custom_log", options.Observability.LogDirectory);
-        Assert.Equal(500, options.Observability.MaxResponseLength);
     }
 
     private static SqlToAiOptions LoadOptions(string fileName)

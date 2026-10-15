@@ -1,6 +1,6 @@
 # SQL tool reference
 
-The server registers 17 SQL tools. Optional observability feedback is separate. Required arguments are listed below; `database` is an explicit target name wherever shown. Failed tool results set MCP `isError=true`; catalog errors appear as `[SQL-AI-...] message` in text content. Successful content can be Markdown or JSON, depending on the tool.
+The server registers 17 SQL tools. Required arguments are listed below; `database` is an explicit target name wherever shown. Failed tool results set MCP `isError=true`; catalog errors appear as `[SQL-AI-...] message` in text content. Successful content can be Markdown or JSON, depending on the tool.
 
 ## Discovery and schema
 

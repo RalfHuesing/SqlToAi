@@ -105,8 +105,7 @@ public sealed class UserConfigurationTests
         Dictionary<string, string?> environment = new()
         {
             ["SqlToAi__SqlServer__Server"] = "runtime-server",
-            ["SqlToAi__SqlServer__Password"] = "runtime-test-secret",
-            ["SqlToAi__Observability__Enabled"] = "true"
+            ["SqlToAi__SqlServer__Password"] = "runtime-test-secret"
         };
         var result = await RunAsync(temp, Path.GetDirectoryName(file)!, "inspect", environment);
         Assert.Equal(0, result.ExitCode);
@@ -116,9 +115,6 @@ public sealed class UserConfigurationTests
         Assert.Equal("runtime-server", output.RootElement.GetProperty("BoundServer").GetString());
         Assert.Equal("runtime-test-secret", output.RootElement.GetProperty("Password").GetString());
         Assert.Equal("environment-file", output.RootElement.GetProperty("Probe").GetString());
-        Assert.True(output.RootElement.GetProperty("ObservabilityEnabled").GetBoolean());
-        Assert.False(output.RootElement.GetProperty("ToolCallLogging").GetBoolean());
-        Assert.False(output.RootElement.GetProperty("ResponseLogging").GetBoolean());
         Assert.True(output.RootElement.GetProperty("AppLogEnabled").GetBoolean());
         Assert.True(output.RootElement.GetProperty("ErrorLogEnabled").GetBoolean());
         Assert.Equal(before, await File.ReadAllBytesAsync(file, TestContext.Current.CancellationToken));
@@ -205,8 +201,6 @@ public sealed class UserConfigurationTests
         start.Environment["DOTNET_ENVIRONMENT"] = "StartupTest";
         start.Environment["LOCALAPPDATA"] = temp.GetPath("local-app-data");
         start.Environment["SqlToAi__Logging__Directory"] = temp.GetPath("logs");
-        start.Environment["SqlToAi__Observability__LogDirectory"] = temp.GetPath("observability");
-        start.Environment["SqlToAi__Observability__Enabled"] = "false";
         if (environment is not null)
             foreach (var pair in environment) start.Environment[pair.Key] = pair.Value;
 

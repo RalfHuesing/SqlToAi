@@ -84,7 +84,6 @@ There is no special `SQLTOAI_CONNECTION_STRING` setting.
 ## Logs and updates
 
 Default application/error logs are below the user root's `log\app` and `log\error`.
-Observability and feedback records use `log\observability\SqlToAi\{yyyy-MM-dd}`.
 Relative metadata SQL files and relative log overrides resolve from the user root;
 absolute paths remain absolute. User-selected SQL input and schema-export output
 paths still resolve from CWD. The installation may be read-only; the user root and
@@ -101,8 +100,7 @@ user path, review credentials/access/logging against the new conservative templa
 and relocate relative metadata SQL files (or use absolute paths). Move old logs
 manually only if wanted. There is no automatic fallback, import, or migration command.
 
-Treat settings and logs as sensitive. Enabling tool-call/response logging can expose
-SQL arguments and results. String masking does not cover every type or output;
+Treat settings and logs as sensitive. String masking does not cover every type or output;
 tokens are reversible within the running server. Application access checks do not
 replace SQL Server permissions.
 

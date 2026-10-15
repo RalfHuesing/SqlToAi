@@ -10,7 +10,6 @@ using Microsoft.Extensions.Options;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using RalfHuesing.Mcp.Observability;
 using SqlToAi.Configuration;
 using SqlToAi.Mcp;
 using SqlToAi.Tests.TestSupport;
@@ -22,9 +21,7 @@ public sealed class UserPathTests
 {
     private static Dictionary<string, string?> DefaultPaths => new()
     {
-        ["SqlToAi__Logging__Directory"] = null,
-        ["SqlToAi__Observability__LogDirectory"] = null,
-        ["SqlToAi__Observability__Enabled"] = null
+        ["SqlToAi__Logging__Directory"] = null
     };
 
     [Fact]
@@ -48,11 +45,8 @@ public sealed class UserPathTests
             Assert.Equal(sql, bound.MetadataProvider.TableMetadataQuery);
             Assert.Equal(temp.GetPath("user/log"), bound.Logging.GetAbsoluteRoot());
             Assert.Equal(bound.Logging.Directory, startup.Options.Logging.Directory);
-            Assert.Equal(temp.GetPath("user/log/observability"), bound.Observability.LogDirectory);
-            Assert.Equal(bound.Observability.LogDirectory, startup.Options.Observability.LogDirectory);
         }
         var direct = new SqlToAiOptions();
-        direct.Observability.Enabled = false;
         var configuration = new ConfigurationBuilder().Build();
         await using var directServices = Program.BuildServiceProvider(configuration, direct, root);
         Assert.Equal(temp.GetPath("user/log"), direct.Logging.GetAbsoluteRoot());
@@ -91,18 +85,14 @@ public sealed class UserPathTests
         var environment = DefaultPaths;
         environment["SQLTOAI_TEST_METADATA"] = external;
         environment["SQLTOAI_TEST_LOGS"] = temp.GetPath("absolute-logs");
-        environment["SQLTOAI_TEST_OBSERVABILITY"] = "relative-observability";
         environment["SqlToAi__MetadataProvider__TableMetadataQuery"] = "%SQLTOAI_TEST_METADATA%";
         environment["SqlToAi__Logging__Directory"] = "%SQLTOAI_TEST_LOGS%";
-        environment["SqlToAi__Observability__LogDirectory"] = "%SQLTOAI_TEST_OBSERVABILITY%";
         var result = await UserConfigurationTests.RunAsync(temp, root, "inspect", environment);
         Assert.Equal(0, result.ExitCode);
         Assert.Empty(result.Error);
         using var document = JsonDocument.Parse(result.Output);
         foreach (string property in new[] { "DirectLogRoot", "BoundLogRoot" })
             Assert.Equal(temp.GetPath("absolute-logs"), document.RootElement.GetProperty(property).GetString());
-        foreach (string property in new[] { "DirectObservabilityRoot", "BoundObservabilityRoot" })
-            Assert.Equal(temp.GetPath("user/relative-observability"), document.RootElement.GetProperty(property).GetString());
         Assert.Equal("SELECT 'external'", document.RootElement.GetProperty("BoundMetadata").GetString());
     }
 
@@ -134,59 +124,6 @@ public sealed class UserPathTests
         Assert.False(Directory.Exists(temp.GetPath("log")));
     }
 
-    [Theory]
-    [InlineData("omitted")]
-    [InlineData("relative")]
-    [InlineData("absolute")]
-    [InlineData("null")]
-    public async Task ActualMcpToolAndFeedbackRecords_UseResolvedProductionDestination(string mode)
-    {
-        using var temp = TestTempDirectory.Create();
-        string root = temp.CreateSubdirectory("user");
-        var values = new Dictionary<string, string?>();
-        if (mode != "omitted") values["SqlToAi:Observability:EnableToolCallLogging"] = "true";
-        if (mode == "relative") values["SqlToAi:Observability:LogDirectory"] = "custom-observability";
-        if (mode == "absolute") values["SqlToAi:Observability:LogDirectory"] = temp.GetPath("external-observability");
-        if (mode == "null") values["SqlToAi:Observability:LogDirectory"] = null;
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
-        var options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new();
-        await using var services = Program.BuildServiceProvider(configuration, options, root);
-        var serverOptions = services.GetRequiredService<IOptions<McpServerOptions>>().Value;
-        var outgoing = new Pipe();
-        var incoming = new Pipe();
-        await using var serverTransport = new StreamServerTransport(incoming.Reader.AsStream(), outgoing.Writer.AsStream(), "path-test");
-        await using var server = McpServer.Create(serverTransport, serverOptions, serviceProvider: services);
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        deadline.CancelAfter(TimeSpan.FromSeconds(15));
-        var running = server.RunAsync(deadline.Token);
-        await using (var client = await McpClient.CreateAsync(
-            new StreamClientTransport(incoming.Writer.AsStream(), outgoing.Reader.AsStream()), cancellationToken: deadline.Token))
-        {
-            var result = await client.CallToolAsync("report_observability_feedback", new Dictionary<string, object?>
-            {
-                ["feedbackType"] = "comment", ["title"] = "Path test", ["description"] = "Temporary data only"
-            }, cancellationToken: deadline.Token);
-            Assert.False(result.IsError ?? false);
-            var observation = services.GetRequiredService<IMcpObservabilityService>();
-            await observation.FlushAsync(deadline.Token);
-            string expectedRoot = mode switch
-            {
-                "relative" => temp.GetPath("user/custom-observability"),
-                "absolute" => temp.GetPath("external-observability"),
-                _ => temp.GetPath("user/log/observability")
-            };
-            string log = Assert.Single(Directory.GetFiles(expectedRoot, "*.jsonl", SearchOption.AllDirectories));
-            Assert.Equal(log, observation.CurrentLogFilePath);
-            await using var stream = new FileStream(log, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            using var reader = new StreamReader(stream);
-            string contents = await reader.ReadToEndAsync(deadline.Token);
-            Assert.Contains("\"recordType\":\"feedback\"", contents, StringComparison.Ordinal);
-            Assert.Equal(mode != "omitted", contents.Contains("\"recordType\":\"tool_call\"", StringComparison.Ordinal));
-            Assert.False(Directory.Exists(temp.GetPath("log")));
-        }
-        await deadline.CancelAsync();
-        try { await running; } catch (OperationCanceledException) { }
-    }
 
     [Fact]
     public async Task SqlInputAndSchemaOutput_KeepCwdSemantics()
@@ -237,7 +174,7 @@ public sealed class UserPathTests
     {
         using var temp = TestTempDirectory.Create();
         string root = temp.CreateSubdirectory("user");
-        temp.CreateFile("user/appsettings.json", """{"SqlToAi":{"Logging":{"AppLog":{"Enabled":false},"ErrorLog":{"Enabled":false}},"Observability":{"Enabled":false}}}""");
+        temp.CreateFile("user/appsettings.json", """{"SqlToAi":{"Logging":{"AppLog":{"Enabled":false},"ErrorLog":{"Enabled":false}}}}""");
         using (DenyWrites(root))
         {
             var result = await UserConfigurationTests.RunAsync(temp, root, "server", DefaultPaths);
@@ -253,7 +190,6 @@ public sealed class UserPathTests
     [Theory]
     [InlineData("app")]
     [InlineData("error")]
-    [InlineData("observability")]
     public async Task FileInsteadOfLogDirectory_FailsWithPathOnStderr(string sink)
     {
         using var temp = TestTempDirectory.Create();

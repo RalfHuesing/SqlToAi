@@ -129,10 +129,7 @@ Query comparison checks schema, row counts, and distinct set differences. It
 does not establish row ordering or duplicate multiplicity. Benchmark results
 describe the measured executions and do not guarantee a production improvement.
 
-Full SQL/tool-argument and response logging are disabled in both the shipped
-template and omitted-setting defaults. Application and error diagnostics remain
-enabled. If you deliberately enable observability logging, SQL arguments and
-results can contain sensitive data. Review the [security boundaries](docs/security.md)
+Application and error diagnostics remain enabled. Review the [security boundaries](docs/security.md)
 and logging settings before use.
 
 ## Documentation and development

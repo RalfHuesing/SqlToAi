@@ -1,4 +1,4 @@
-using RalfHuesing.Mcp.Observability;
+
 
 namespace SqlToAi.Configuration;
 
@@ -15,14 +15,6 @@ public sealed class SqlToAiOptions
     public MetadataProviderOptions MetadataProvider { get; set; } = new();
     public QueryExecutionOptions QueryExecution { get; set; } = new();
     public LoggingOptions Logging { get; set; } = new();
-    // The package defaults argument and response logging to enabled. Keep SqlToAi's
-    // omitted-setting behavior conservative instead of inheriting those package defaults.
-    public McpObservabilityOptions Observability { get; set; } = new()
-    {
-        LogDirectory = Path.Combine("log", "observability"),
-        EnableToolCallLogging = false,
-        EnableResponseLogging = false
-    };
 }
 
 /// <summary>

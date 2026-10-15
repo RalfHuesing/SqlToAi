@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using RalfHuesing.Mcp.Observability;
 using Serilog;
 using Serilog.Events;
 using SqlToAi.Anonymization;
@@ -135,9 +134,6 @@ internal static class Program
     {
         string root = rootDirectory ?? sqlToAiOptions.ResolvedRootDirectory ?? UserConfiguration.ResolveRoot();
         ConfigurationResolver.Resolve(sqlToAiOptions, root);
-        if (sqlToAiOptions.Observability.Enabled &&
-            (sqlToAiOptions.Observability.EnableToolCallLogging || sqlToAiOptions.Observability.EnableFeedbackTool))
-            UserConfiguration.EnsureWritableDirectory(sqlToAiOptions.Observability.LogDirectory!);
         var services = new ServiceCollection();
 
         services.AddSingleton(sqlToAiOptions);
@@ -196,7 +192,7 @@ internal static class Program
             sp.GetRequiredService<IAnonymizationRuleProvider>(),
             sp.GetRequiredService<IQueryTokenResolver>()));
 
-        // MCP & Observability
+        // MCP
         services.AddSingleton<ToolRegistry>();
         services.AddSingleton<IToolDispatcher, ToolDispatcher>();
         services.AddSingleton<LogRetentionService>(sp =>
@@ -212,8 +208,7 @@ internal static class Program
                 Version = typeof(Program).Assembly.GetName().Version?.ToString() ?? McpConstants.ServerVersion
             };
             serverOptions.ServerInstructions = McpConstants.ServerInstructions;
-        })
-        .WithObservability(sqlToAiOptions.Observability);
+        });
 
         services.AddSingleton<IConfigureOptions<McpServerOptions>>(sp =>
             new ConfigureNamedOptions<McpServerOptions>(Options.DefaultName, options =>

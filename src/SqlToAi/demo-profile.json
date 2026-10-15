@@ -13,15 +13,6 @@
       "Password": "Agent!",
       "IntegratedSecurity": false,
       "ConnectTimeoutSeconds": 30
-    },
-    "Observability": {
-      "Enabled": true,
-      "EnableToolCallLogging": false,
-      "EnableFeedbackTool": true,
-      "LogDirectory": "log/observability",
-      "EnableResponseLogging": false,
-      "MaxResponseLength": 0,
-      "FeedbackConfirmationMessage": "Feedback recorded. Thank you."
     }
   }
 }
