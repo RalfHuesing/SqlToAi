@@ -168,8 +168,8 @@ public sealed class UserConfigurationTests
         Assert.Contains("restart", result.Error, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static async Task<ProcessResult> RunAsync(TestTempDirectory temp, string root, string entry,
-        Dictionary<string, string?>? environment = null)
+    internal static async Task<ProcessResult> RunAsync(TestTempDirectory temp, string root, string entry,
+        Dictionary<string, string?>? environment = null, string? harnessDirectory = null)
     {
         var start = new ProcessStartInfo("dotnet")
         {
@@ -182,10 +182,10 @@ public sealed class UserConfigurationTests
         };
         start.ArgumentList.Add("exec");
         start.ArgumentList.Add("--runtimeconfig");
-        start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "SqlToAi.Tests.runtimeconfig.json"));
+        start.ArgumentList.Add(Path.Combine(harnessDirectory ?? AppContext.BaseDirectory, "SqlToAi.Tests.runtimeconfig.json"));
         start.ArgumentList.Add("--depsfile");
-        start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "SqlToAi.Tests.deps.json"));
-        start.ArgumentList.Add(typeof(StartupHarness.StartupHarness).Assembly.Location);
+        start.ArgumentList.Add(Path.Combine(harnessDirectory ?? AppContext.BaseDirectory, "SqlToAi.Tests.deps.json"));
+        start.ArgumentList.Add(harnessDirectory is null ? typeof(StartupHarness.StartupHarness).Assembly.Location : Path.Combine(harnessDirectory, "SqlToAi.StartupHarness.dll"));
         start.ArgumentList.Add(root);
         start.ArgumentList.Add(entry is "exploration" or "list" or "usage" ? "exploration" : entry);
         string[] arguments = entry switch
@@ -221,5 +221,5 @@ public sealed class UserConfigurationTests
         return new ProcessResult(process.ExitCode, await output, await error);
     }
 
-    private sealed record ProcessResult(int ExitCode, string Output, string Error);
+    internal sealed record ProcessResult(int ExitCode, string Output, string Error);
 }

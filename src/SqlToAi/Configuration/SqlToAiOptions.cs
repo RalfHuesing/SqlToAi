@@ -7,6 +7,7 @@ namespace SqlToAi.Configuration;
 /// </summary>
 public sealed class SqlToAiOptions
 {
+    internal string? ResolvedRootDirectory { get; set; }
     public SqlServerOptions SqlServer { get; set; } = new();
     public DatabasesOptions Databases { get; set; } = new();
     public AnonymizerOptions Anonymizer { get; set; } = new();
@@ -18,6 +19,7 @@ public sealed class SqlToAiOptions
     // omitted-setting behavior conservative instead of inheriting those package defaults.
     public McpObservabilityOptions Observability { get; set; } = new()
     {
+        LogDirectory = Path.Combine("log", "observability"),
         EnableToolCallLogging = false,
         EnableResponseLogging = false
     };

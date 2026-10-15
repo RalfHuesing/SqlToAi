@@ -16,14 +16,35 @@ public static class ConfigurationResolver
     /// <param name="options">The options to process.</param>
     public static void Resolve(SqlToAiOptions? options)
     {
+        if (options is null) return;
+        Resolve(options, options.ResolvedRootDirectory ?? UserConfiguration.ResolveRoot());
+    }
+
+    internal static void Resolve(SqlToAiOptions? options, string rootDirectory)
+    {
         if (options == null) return;
+        string root = Path.GetFullPath(rootDirectory);
+        if (options.ResolvedRootDirectory is not null)
+        {
+            if (!string.Equals(root, options.ResolvedRootDirectory, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Options have already been resolved against a different user root.");
+            return;
+        }
 
         // 1. Expand environment variables
         ExpandEnvironmentVariables(options);
 
         // 2. Resolve SQL file paths
-        ResolveSqlFiles(options);
+        ResolveSqlFiles(options, root);
+        options.Logging.Directory = ResolvePath(options.Logging.Directory, root);
+        options.Logging.McpTrail.Directory = ResolvePath(options.Logging.McpTrail.Directory, options.Logging.Directory);
+        options.Observability.LogDirectory = ResolvePath(
+            string.IsNullOrWhiteSpace(options.Observability.LogDirectory)
+                ? Path.Combine("log", "observability") : options.Observability.LogDirectory, root);
+        options.ResolvedRootDirectory = root;
     }
+
+    private static string ResolvePath(string path, string root) => Path.GetFullPath(Expand(path), root);
 
     private static void ExpandEnvironmentVariables(SqlToAiOptions options)
     {
@@ -69,22 +90,14 @@ public static class ConfigurationResolver
             options.AnonymizationRules.Password = Expand(options.AnonymizationRules.Password);
         }
 
-        if (options.Logging != null)
-        {
-            options.Logging.Directory = Expand(options.Logging.Directory);
-            if (options.Logging.McpTrail != null)
-            {
-                options.Logging.McpTrail.Directory = Expand(options.Logging.McpTrail.Directory);
-            }
-        }
     }
 
-    private static void ResolveSqlFiles(SqlToAiOptions options)
+    private static void ResolveSqlFiles(SqlToAiOptions options, string root)
     {
         if (options.MetadataProvider != null)
         {
-            options.MetadataProvider.TableMetadataQuery = ResolveValue(options.MetadataProvider.TableMetadataQuery);
-            options.MetadataProvider.ColumnMetadataQuery = ResolveValue(options.MetadataProvider.ColumnMetadataQuery);
+            options.MetadataProvider.TableMetadataQuery = ResolveValue(options.MetadataProvider.TableMetadataQuery, root);
+            options.MetadataProvider.ColumnMetadataQuery = ResolveValue(options.MetadataProvider.ColumnMetadataQuery, root);
         }
     }
 
@@ -111,7 +124,7 @@ public static class ConfigurationResolver
         }
     }
 
-    private static string ResolveValue(string value)
+    private static string ResolveValue(string value, string root)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -122,9 +135,7 @@ public static class ConfigurationResolver
 
         if (trimmedValue.EndsWith(".sql", StringComparison.OrdinalIgnoreCase))
         {
-            string fullPath = Path.IsPathRooted(trimmedValue)
-                ? trimmedValue
-                : Path.Combine(AppContext.BaseDirectory, trimmedValue);
+            string fullPath = Path.GetFullPath(trimmedValue, root);
 
             if (File.Exists(fullPath))
             {

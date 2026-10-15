@@ -30,10 +30,10 @@ internal static class Program
 
     private static async Task<int> RunConfiguredAsync(string[] args, UserConfiguration startup)
     {
-        Log.Logger = BuildLogger(startup.Options.Logging);
         try
         {
-            await using ServiceProvider serviceProvider = BuildServiceProvider(startup.Configuration, startup.Options);
+            Log.Logger = BuildLogger(startup.Options.Logging);
+            await using ServiceProvider serviceProvider = BuildServiceProvider(startup.Configuration, startup.Options, startup.RootDirectory);
 
             // ---------------------------------------------------------------------------
             // Run retention sweep on startup (best-effort)
@@ -44,9 +44,15 @@ internal static class Program
             ParseResult parseResult = rootCommand.Parse(args);
             return await parseResult.InvokeAsync();
         }
+        catch (Exception exception) when (exception is ConfigurationStartupException or IOException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"Startup failed: {exception.Message}");
+            return 1;
+        }
         finally
         {
             await Log.CloseAndFlushAsync();
+            Serilog.Debugging.SelfLog.Disable();
         }
     }
 
@@ -125,14 +131,19 @@ internal static class Program
     // Configuration & DI
     // -------------------------------------------------------------------------
 
-    internal static ServiceProvider BuildServiceProvider(IConfiguration configuration, SqlToAiOptions sqlToAiOptions)
+    internal static ServiceProvider BuildServiceProvider(IConfiguration configuration, SqlToAiOptions sqlToAiOptions, string? rootDirectory = null)
     {
+        string root = rootDirectory ?? sqlToAiOptions.ResolvedRootDirectory ?? UserConfiguration.ResolveRoot();
+        ConfigurationResolver.Resolve(sqlToAiOptions, root);
+        if (sqlToAiOptions.Observability.Enabled &&
+            (sqlToAiOptions.Observability.EnableToolCallLogging || sqlToAiOptions.Observability.EnableFeedbackTool))
+            UserConfiguration.EnsureWritableDirectory(sqlToAiOptions.Observability.LogDirectory!);
         var services = new ServiceCollection();
 
         services.AddSingleton(sqlToAiOptions);
         services.AddOptions();
         services.Configure<SqlToAiOptions>(configuration.GetSection("SqlToAi"));
-        services.PostConfigure<SqlToAiOptions>(options => ConfigurationResolver.Resolve(options));
+        services.PostConfigure<SqlToAiOptions>(options => ConfigurationResolver.Resolve(options, root));
 
         services.AddLogging(logging =>
         {
@@ -218,8 +229,10 @@ internal static class Program
     // Serilog setup
     // -------------------------------------------------------------------------
 
-    private static Serilog.Core.Logger BuildLogger(LoggingOptions options)
+    internal static Serilog.Core.Logger BuildLogger(LoggingOptions options)
     {
+        // Rolling sinks open lazily and report I/O failures through SelfLog.
+        Serilog.Debugging.SelfLog.Enable(message => Console.Error.WriteLine($"Logging failure: {message}"));
         var config = new LoggerConfiguration()
             .Enrich.FromLogContext()
             .WriteTo.Console(
@@ -230,6 +243,7 @@ internal static class Program
 
         if (options.AppLog.Enabled)
         {
+            UserConfiguration.EnsureWritableDirectory(Path.Combine(options.GetAbsoluteRoot(), "app"));
             string appPath = Path.Combine(options.GetAbsoluteRoot(), "app", "app-.log");
             config = config.WriteTo.File(
                 appPath,
@@ -243,6 +257,7 @@ internal static class Program
 
         if (options.ErrorLog.Enabled)
         {
+            UserConfiguration.EnsureWritableDirectory(Path.Combine(options.GetAbsoluteRoot(), "error"));
             string errorPath = Path.Combine(options.GetAbsoluteRoot(), "error", "error-.log");
             config = config.WriteTo.File(
                 errorPath,

@@ -55,14 +55,18 @@ internal sealed class UserConfiguration : IDisposable
                 .AddEnvironmentVariables()
                 .Build();
             var options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
-            ConfigurationResolver.Resolve(options);
+            ConfigurationResolver.Resolve(options, root);
+            EnsureWritableDirectory(root);
             return new UserConfiguration(root, configuration, options);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or FormatException or InvalidOperationException or JsonException)
+        catch (Exception exception) when (exception is ConfigurationStartupException or IOException or UnauthorizedAccessException or FormatException or InvalidOperationException or JsonException)
         {
             (configuration as IDisposable)?.Dispose();
+            if (exception is ConfigurationStartupException) throw;
             string reason = exception switch
             {
+                FileNotFoundException { FileName: { } missingFile } when !string.Equals(missingFile, expectedPath, StringComparison.OrdinalIgnoreCase)
+                    => $"A configured SQL file '{missingFile}' is missing",
                 FileNotFoundException or DirectoryNotFoundException => "A required settings file is missing",
                 UnauthorizedAccessException => "Settings cannot be read because access is denied",
                 FormatException or InvalidDataException or JsonException => "Settings JSON is invalid",
@@ -75,7 +79,23 @@ internal sealed class UserConfiguration : IDisposable
         }
     }
 
+    internal static void EnsureWritableDirectory(string directory)
+    {
+        try
+        {
+            Directory.CreateDirectory(directory);
+            using var probe = new FileStream(Path.Combine(directory, $".sqltoai-write-probe-{Guid.NewGuid():N}"),
+                FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new ConfigurationStartupException(
+                $"User data/log directory '{directory}' is not writable ({exception.GetType().Name}). " +
+                "Check the configured path and write permissions, then restart.", exception);
+        }
+    }
+
     public void Dispose() => (Configuration as IDisposable)?.Dispose();
 }
 
-internal sealed class ConfigurationStartupException(string message, Exception innerException) : Exception(message, innerException);
+internal sealed class ConfigurationStartupException(string message, Exception? innerException = null) : Exception(message, innerException);

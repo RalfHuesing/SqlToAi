@@ -8,6 +8,8 @@ SqlToAi is a .NET 10 / C# 14 process hosting MCP over stdio, with a CLI that dis
 
 `ToolRegistry` defines SQL tool names, schemas and descriptions. `SqlMcpToolRegistrations` creates SDK registrations; `ToolDispatcher` invokes application services and formats MCP results. The CLI builds its commands from the registry. Optional feedback registration comes from the observability package.
 
+The selected user root follows configuration through direct options, DI post-configuration, logging and retention. Relative metadata and logging paths resolve there once per options instance; DI binds its own instance against the same root. Default application/error logs, observability and feedback reside under `%LOCALAPPDATA%\SqlToAi\log\`. Explicit absolute paths remain supported; SQL input and schema-export output still use CWD. Root and logging failures have direct stderr diagnostics independent of file sinks. See [path and logging details](configuration.md#logs-and-observability).
+
 [SqlToAi.Exploration](exploration.md) reuses the executable's configuration and service-provider factories to invoke `IToolDispatcher` directly. It retains all inputs, content blocks and failures for manual inspection without starting MCP transport; scenarios do not run as automated tests.
 
 Query services share `QuerySafetyValidator`. It combines database policy, access-level selection, read-only parsing and statement-count restrictions. Execution and script services control transactions and result serialization. The protection limits are in [security.md](security.md); argument/result contracts are in [tools.md](tools.md).

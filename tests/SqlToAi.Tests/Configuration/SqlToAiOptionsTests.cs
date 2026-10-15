@@ -4,6 +4,7 @@ using SqlToAi.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using System.IO;
+using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Configuration;
 
@@ -41,7 +42,7 @@ public sealed class SqlToAiOptionsTests
         Assert.True(options.Observability.Enabled);
         Assert.False(options.Observability.EnableToolCallLogging);
         Assert.True(options.Observability.EnableFeedbackTool);
-        Assert.Null(options.Observability.LogDirectory);
+        Assert.Equal(Path.Combine("log", "observability"), options.Observability.LogDirectory);
         Assert.False(options.Observability.EnableResponseLogging);
         Assert.Equal(0, options.Observability.MaxResponseLength);
         Assert.True(options.Logging.AppLog.Enabled);
@@ -70,6 +71,7 @@ public sealed class SqlToAiOptionsTests
         Assert.Equal(defaults.SqlServer.IntegratedSecurity, templateOptions.SqlServer.IntegratedSecurity);
         Assert.Equal(defaults.Observability.EnableToolCallLogging, templateOptions.Observability.EnableToolCallLogging);
         Assert.Equal(defaults.Observability.EnableResponseLogging, templateOptions.Observability.EnableResponseLogging);
+        Assert.Equal(defaults.Observability.LogDirectory, templateOptions.Observability.LogDirectory!.Replace('/', Path.DirectorySeparatorChar));
         Assert.Equal(defaults.Logging.AppLog.Enabled, templateOptions.Logging.AppLog.Enabled);
         Assert.Equal(defaults.Logging.ErrorLog.Enabled, templateOptions.Logging.ErrorLog.Enabled);
 
@@ -187,46 +189,29 @@ public sealed class SqlToAiOptionsTests
     [Fact]
     public void ConfigurationResolver_ShouldResolveRelativeAndAbsolutePaths()
     {
-        // Arrange
-        string relativeFileName = "test-relative-query.sql";
-        string absoluteFileName = Path.Combine(Path.GetTempPath(), "test-absolute-query.sql");
-
-        string relativeSql = "SELECT 'Relative';";
-        string absoluteSql = "SELECT 'Absolute';";
-
-        string relativeFullPath = Path.Combine(AppContext.BaseDirectory, relativeFileName);
-        File.WriteAllText(relativeFullPath, relativeSql);
-        File.WriteAllText(absoluteFileName, absoluteSql);
-
-        try
-        {
-            var options = new SqlToAiOptions();
-            options.MetadataProvider.TableMetadataQuery = relativeFileName;
-            options.MetadataProvider.ColumnMetadataQuery = absoluteFileName;
-
-            // Act
-            ConfigurationResolver.Resolve(options);
-
-            // Assert
-            Assert.Equal(relativeSql, options.MetadataProvider.TableMetadataQuery);
-            Assert.Equal(absoluteSql, options.MetadataProvider.ColumnMetadataQuery);
-        }
-        finally
-        {
-            if (File.Exists(relativeFullPath)) File.Delete(relativeFullPath);
-            if (File.Exists(absoluteFileName)) File.Delete(absoluteFileName);
-        }
+        using var temp = TestTempDirectory.Create();
+        string root = temp.CreateSubdirectory("user-root");
+        temp.CreateFile("user-root/relative.sql", "SELECT 'Relative';");
+        string absolutePath = temp.CreateFile("external/absolute.sql", "SELECT 'Absolute';");
+        var options = new SqlToAiOptions();
+        options.MetadataProvider.TableMetadataQuery = "relative.sql";
+        options.MetadataProvider.ColumnMetadataQuery = absolutePath;
+        ConfigurationResolver.Resolve(options, root);
+        Assert.Equal("SELECT 'Relative';", options.MetadataProvider.TableMetadataQuery);
+        Assert.Equal("SELECT 'Absolute';", options.MetadataProvider.ColumnMetadataQuery);
     }
 
     [Fact]
     public void ConfigurationResolver_ShouldThrowFileNotFoundException_WhenFileDoesNotExist()
     {
+        using var temp = TestTempDirectory.Create();
         // Arrange
         var options = new SqlToAiOptions();
         options.MetadataProvider.TableMetadataQuery = "non-existent-script.sql";
 
         // Act & Assert
-        Assert.Throws<FileNotFoundException>(() => ConfigurationResolver.Resolve(options));
+        var exception = Assert.Throws<FileNotFoundException>(() => ConfigurationResolver.Resolve(options, temp.DirectoryPath));
+        Assert.Equal(temp.GetPath("non-existent-script.sql"), exception.FileName);
     }
 
     [Fact]

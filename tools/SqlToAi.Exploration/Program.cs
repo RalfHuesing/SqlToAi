@@ -38,7 +38,7 @@ internal static class ExplorationRunner
             Console.WriteLine($"Artifacts: {outputDirectory}");
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(seconds));
             var configurationDirectory = startup.RootDirectory;
-            await using var services = SqlToAi.Program.BuildServiceProvider(startup.Configuration, startup.Options);
+            await using var services = SqlToAi.Program.BuildServiceProvider(startup.Configuration, startup.Options, startup.RootDirectory);
             var context = new ExplorationContext(services.GetRequiredService<IToolDispatcher>(), repositoryRoot, outputDirectory, timeout.Token);
             var access = services.GetRequiredService<IAccessLevelProvider>();
             await context.WriteJsonAsync(Path.Combine(outputDirectory, "run.json"), new
@@ -55,7 +55,9 @@ internal static class ExplorationRunner
         }
         catch (Exception exception)
         {
-            Console.Error.WriteLine($"Technical execution failed ({exception.GetType().Name}).");
+            Console.Error.WriteLine(exception is ConfigurationStartupException or IOException or UnauthorizedAccessException
+                ? $"Technical execution failed: {exception.Message}"
+                : $"Technical execution failed ({exception.GetType().Name}).");
             if (outputDirectory is not null)
             {
                 try

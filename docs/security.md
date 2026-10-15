@@ -56,6 +56,7 @@ Specificity ranks exact text above partial wildcards above `%` in each of the fo
 - Script execution reads local files available to the server process; URLs and UNC paths are rejected, but access is not restricted to one script directory.
 - SQL text, parameters and results can reach the client's model provider and local logs. Review both before using sensitive data.
 - Full SQL/tool-argument and response logging are disabled in the main template and effective option defaults. Application and error diagnostics remain enabled. Enabling observability logging can expose SQL text, parameter values, or returned data; the package's argument sanitization does not guarantee those values are safe.
+- Default diagnostic, observability and feedback files share `%LOCALAPPDATA%\SqlToAi\log\`; explicit log-path overrides remain supported. A user-owned destination does not add encryption, redaction or access isolation beyond Windows permissions. Treat feedback descriptions, log files and startup stderr as potentially sensitive. See [logging paths and controls](configuration.md#logs-and-observability).
 
 ## SQL Server permissions
 

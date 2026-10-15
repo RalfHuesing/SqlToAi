@@ -1,13 +1,11 @@
 namespace SqlToAi.Configuration;
 
 /// <summary>
-/// Root configuration for the file-based logging subsystem. All paths are resolved relative
-/// to the directory containing the executable (<see cref="AppContext.BaseDirectory"/>), so the
-/// logs live next to the .exe regardless of where the process was launched from.
+/// File logging paths are resolved against the shared per-user configuration root.
 /// </summary>
 public sealed class LoggingOptions
 {
-    /// <summary>Root directory for all log files, relative to the executable directory.</summary>
+    /// <summary>Log root, absolute or relative to the user configuration directory.</summary>
     public string Directory { get; set; } = "log";
 
     /// <summary>Settings for the rolling application log (lifecycle events, request logs, info).</summary>
@@ -34,9 +32,9 @@ public sealed class LoggingOptions
         RetainedDays = 14
     };
 
-    /// <summary>Resolves the absolute root log directory next to the running executable.</summary>
+    /// <summary>Resolves the log root independently of the working and installation directories.</summary>
     public string GetAbsoluteRoot() =>
-        Path.Combine(AppContext.BaseDirectory, Directory);
+        Path.IsPathFullyQualified(Directory) ? Directory : Path.GetFullPath(Directory, UserConfiguration.ResolveRoot());
 }
 
 /// <summary>Options for a single rolling file sink.</summary>
@@ -67,7 +65,7 @@ public sealed class McpTrailOptions
     /// <summary>Whether the MCP trail is recorded at all.</summary>
     public bool Enabled { get; set; } = false;
 
-    /// <summary>Subdirectory (under <see cref="LoggingOptions.Directory"/>) where the trail lives.</summary>
+    /// <summary>Trail directory, absolute or relative to <see cref="LoggingOptions.Directory"/>.</summary>
     public string Directory { get; set; } = "mcp";
 
     /// <summary>How many days of MCP-trail files to keep. Files older than this are deleted on startup.</summary>
