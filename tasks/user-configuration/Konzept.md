@@ -10,17 +10,23 @@ Give every SqlToAi entry point on Windows x64 one predictable, user-owned settin
 
 ## Baseline behavior and evidence at concept approval
 
-- [Configuration documentation](../../docs/configuration.md) says JSON files load beside the executable, followed by environment-specific settings and environment variables. Relative metadata query files also resolve beside the executable.
-- At concept approval, that document described startup migration that added template keys, removed unknown keys, preserved retained values, and wrote a backup. The former `Configuration/AppSettingsMigrator.cs` implementation is to be removed rather than extended with a new migration path.
-- [Program.cs](../../src/SqlToAi/Program.cs) currently invokes that migrator before loading configuration; the migrator creates a missing file from the embedded template, and `BuildConfiguration` marks the base JSON file optional. Both behaviors conflict with the required startup failure when the user file is absent.
-- The shipped [settings template](../../src/SqlToAi/appsettings.json) currently grants `DemoDB` `ReadWrite`, contains demo SQL credentials, and enables tool-call and unlimited response logging.
-- Application/error logs default below the executable directory. Observability can write to its package default under `%LOCALAPPDATA%\RalfHuesing\McpObservability\SqlToAi`; response logging may include query results. [Security documentation](../../docs/security.md) states that logs and errors can expose sensitive data and that masking does not cover every output.
+These historical observations explain the original change; linked source and documentation now describe the completed implementation.
+
+- [Configuration documentation](../../docs/configuration.md) described JSON loading beside the executable, followed by environment-specific settings and environment variables. Relative metadata query files also resolved beside the executable.
+- That document described startup migration that added template keys, removed unknown keys, preserved retained values, and wrote a backup. The former `Configuration/AppSettingsMigrator.cs` was selected for removal rather than extension with a new migration path.
+- [Program.cs](../../src/SqlToAi/Program.cs) invoked that migrator before loading configuration; the migrator created a missing file from the embedded template, and `BuildConfiguration` marked the base JSON file optional. Both behaviors conflicted with the required startup failure when the user file was absent.
+- The shipped [settings template](../../src/SqlToAi/appsettings.json) granted `DemoDB` `ReadWrite`, contained demo SQL credentials, and enabled tool-call and unlimited response logging.
+- Application/error logs defaulted below the executable directory. Observability could write to its package default under `%LOCALAPPDATA%\RalfHuesing\McpObservability\SqlToAi`; response logging could include query results. [Security documentation](../../docs/security.md) already documented sensitive data in logs/errors and incomplete masking coverage.
+
+## Confirmed scope adjustment
+
+On 2026-10-15, the user explicitly confirmed that Observability is obsolete and its removal is intended. Commits `1a0f303` and `223db95` remove that feature. The original requirements for active observability/feedback output, destinations, options and tests are superseded; restoring the feature is outside this task. The current logging scope covers application/error diagnostics and the documented inactive legacy `McpTrail` settings. Historical implementation evidence remains in the [roadmap](roadmap.md).
 
 ## Scope
 
 ### Must
 
-- Use `%LOCALAPPDATA%\SqlToAi\` as the single default user root for MCP server, CLI, schema export, and exploration entry points. Store `appsettings.json` and all default logs below it, including application, error, observability, and feedback output.
+- Use `%LOCALAPPDATA%\SqlToAi\` as the single default user root for MCP server, CLI, schema export, and exploration entry points. Store `appsettings.json` and all default application/error logs below it.
 - Require an existing `%LOCALAPPDATA%\SqlToAi\appsettings.json`. If it is missing, terminate startup immediately with exit code `1`, before starting MCP transport or database work. Never create or copy a settings file automatically, including on first run.
 - Write the startup failure directly to stderr, independently of configured file logging, so clients can capture it. Include the failure reason, the resolved absolute expected file path, and an instruction to create/configure that file manually from the supplied template and restart. Keep stdout free of diagnostic text. Client-specific display of stderr is outside the server's control.
 - Supply a conservative settings template for manual setup. It contains no working credentials, grants no database access, and does not enable full SQL or response logging. Keep the fictional demo as a separate example that users enable deliberately.
@@ -35,6 +41,7 @@ Give every SqlToAi entry point on Windows x64 one predictable, user-owned settin
 
 - Automatic first-run settings creation, portable mode, executable-directory fallback, legacy import, configuration migration tooling, or automatic schema conversion. Moving/adapting existing settings is a manual user task.
 - Credential vaults, profile managers, configuration wizards/editors, or a second configuration-path command-line option.
+- Restoration of the removed observability/feedback feature.
 - New client compatibility testing. SQL TLS and certificate options belong to [SQL connection security](../sql-connection-security/Konzept.md); CI and release gates belong to [release validation](../release-validation/Konzept.md).
 - Implementation, executable roadmap items, directory submissions or release publication within this concept-planning stage.
 
@@ -44,7 +51,7 @@ Give every SqlToAi entry point on Windows x64 one predictable, user-owned settin
 - A missing base settings file is fatal for every entry point, including first run. Startup emits the actionable stderr diagnostic and exits with code `1`; it does not start an MCP session, connect to SQL Server, or generate a settings file. Concurrent starts cannot create or replace configuration. Existing files remain byte-for-byte unchanged unless the user edits them.
 - The template and bound option defaults agree on a no-access, no-demo-credentials, no-full-query/response-logging profile. Demo setup is separately and explicitly selected.
 - Environment overrides apply at runtime only after the required base file is present and are never copied into configuration files or backups. Relative configuration-owned files resolve under the user root; SQL input/output paths retain CWD semantics.
-- Logs default under `%LOCALAPPDATA%\SqlToAi\log\`, covering application, error, observability, and feedback output. Existing security and masking limitations remain documented.
+- Application/error logs default under `%LOCALAPPDATA%\SqlToAi\log\`. Existing security and masking limitations remain documented.
 - Replacing binaries preserves settings and logs. Legacy executable-adjacent files are neither read, changed, nor deleted by configuration startup. Users manually create, relocate, and adapt configuration; no migration or backup mechanism is supplied.
 
 ## Verification
@@ -53,7 +60,7 @@ Give every SqlToAi entry point on Windows x64 one predictable, user-owned settin
 - Capture a server process start without the base settings file: assert exit code `1`, a stderr message with reason, resolved absolute file path and manual setup/restart guidance, no stdout output, no MCP initialization or SQL connection, and no generated settings file. Repeat with only environment overrides, only an environment-specific JSON file, and only an executable-adjacent legacy file; each must still fail. Verify the shared failure contract for CLI, export, and exploration without adding a client test matrix.
 - Verify shared path resolution for server, CLI, export, and exploration, plus relative/absolute metadata paths and unchanged CWD SQL-file behavior.
 - Compare the relevant template values with bound option defaults; confirm a manually configured profile based on the supplied template has no grants, working demo credentials, full SQL logging, or response logging, and that demo activation is deliberate. Normal application/error diagnostics remain available and do not imply universal secret or query-data sanitization.
-- Check environment overrides without persisting secrets, all default log destinations, and byte-for-byte preservation across starts and binary replacement. Confirm legacy files remain untouched and unused, and startup performs no configuration migration, schema rewriting, relocation, or backup creation.
+- Check environment overrides without persisting secrets, all default application/error log destinations, and byte-for-byte preservation across starts and binary replacement. Confirm legacy files remain untouched and unused, and startup performs no configuration migration, schema rewriting, relocation, or backup creation.
 - Run automated configuration tests against an isolated temporary user-data root; tests must never access the maintainer's real `%LOCALAPPDATA%\SqlToAi` directory. No client test matrix is added.
 - Update configuration, security, and packaged setup documentation to explain mandatory manual setup and configuration updates, the fatal missing-file behavior and stderr diagnostic, without expanding anonymization or log-redaction claims.
 
