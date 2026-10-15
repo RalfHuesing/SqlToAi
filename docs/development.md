@@ -81,7 +81,7 @@ Existing `server`, `query` and MCP output remain unchanged.
 
 ## Publish and redeploy
 
-[scripts/deploy.ps1](../scripts/deploy.ps1) stops running processes named `SqlToAi`, invokes tests, replaces `publish/` and produces a self-contained single-file `win-x64` build with its configuration. It does not use Native AOT. Existing publish configuration must be backed up before replacement.
+[scripts/deploy.ps1](../scripts/deploy.ps1) stops running processes named `SqlToAi`, invokes tests, replaces `publish/` and produces a self-contained single-file `win-x64` build with manual settings templates, a package README and license. It does not use Native AOT. Runtime settings and logs live under the separate Windows user root and are preserved when package files are replaced; publish-directory settings are templates only. See [manual package setup](../SETUP.md) for initial setup and manual adaptation of legacy settings.
 
 ```powershell
 .\scripts\deploy.ps1

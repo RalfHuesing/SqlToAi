@@ -309,6 +309,36 @@ public sealed class UserPathTests
     }
 
     [Fact]
+    public async Task PackageReplacement_PreservesUserSettingsAndExistingLogsAtUnrelatedCwd()
+    {
+        using var temp = TestTempDirectory.Create();
+        string root = temp.CreateSubdirectory("user");
+        string install = temp.CreateSubdirectory("installation");
+        string settings = temp.CreateFile("user/appsettings.json",
+            """{ "SqlToAi": { "SqlServer": { "Server": "manual-user-server" } }, "UnknownUserKey": [1, 2] }""");
+        string existingLog = temp.CreateFile("user/log/app/existing.log", "existing diagnostic bytes\r\n");
+        string legacyLog = temp.CreateFile("installation/log/legacy.log", "legacy bytes\r\n");
+        byte[] settingsBefore = await File.ReadAllBytesAsync(settings, TestContext.Current.CancellationToken);
+        byte[] logBefore = await File.ReadAllBytesAsync(existingLog, TestContext.Current.CancellationToken);
+        for (int replacement = 0; replacement < 2; replacement++)
+        {
+            foreach (string file in Directory.EnumerateFiles(AppContext.BaseDirectory))
+                File.Copy(file, Path.Combine(install, Path.GetFileName(file)), overwrite: true);
+            string legacy = temp.CreateFile("installation/appsettings.json", "invalid legacy template");
+            var result = await UserConfigurationTests.RunAsync(temp, root, "query-help", DefaultPaths, install);
+            Assert.Equal(0, result.ExitCode);
+            Assert.Contains("sql_list_databases", result.Output, StringComparison.Ordinal);
+            Assert.Empty(result.Error);
+            Assert.Equal(settingsBefore, await File.ReadAllBytesAsync(settings, TestContext.Current.CancellationToken));
+            Assert.Equal(logBefore, await File.ReadAllBytesAsync(existingLog, TestContext.Current.CancellationToken));
+            Assert.Equal("invalid legacy template", await File.ReadAllTextAsync(legacy, TestContext.Current.CancellationToken));
+            Assert.Equal("legacy bytes\r\n", await File.ReadAllTextAsync(legacyLog, TestContext.Current.CancellationToken));
+            Assert.Empty(Directory.GetFiles(temp.DirectoryPath, "*.bak", SearchOption.AllDirectories));
+            Assert.Empty(Directory.GetFiles(temp.DirectoryPath, "*backup*", SearchOption.AllDirectories));
+        }
+    }
+
+    [Fact]
     public void Retention_UsesResolvedUserLogRootAndPreservesLegacyDirectories()
     {
         using var temp = TestTempDirectory.Create();

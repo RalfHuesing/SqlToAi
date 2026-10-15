@@ -36,21 +36,7 @@ jobs:
       - name: Prepare Release Archive
         shell: pwsh
         run: |
-          # appsettings.json ins Publish-Verzeichnis kopieren falls nicht bereits vorhanden
-          if (-not (Test-Path "./publish/appsettings.json") -and (Test-Path "src/SqlToAi/appsettings.json")) {
-            Copy-Item "src/SqlToAi/appsettings.json" "./publish/appsettings.json"
-          }
-
-          # README.md ins Publish-Verzeichnis kopieren
-          if (Test-Path "README.md") {
-            Copy-Item "README.md" "./publish/README.md"
-          }
-
-          # LICENSE ins Publish-Verzeichnis kopieren
-          if (Test-Path "LICENSE") {
-            Copy-Item "LICENSE" "./publish/LICENSE"
-          }
-
+          # Templates, package README and license are supplied by the project publish rules.
           # Archiv aus dem Publish-Verzeichnis erstellen (kein "publish/"-Prefix im Archiv)
           Push-Location "./publish"
           7z a "../SqlToAi-win-x64.zip" . -r | Out-Null

@@ -85,15 +85,16 @@ catch {
 # 5. Verification and cleanup of build artifacts
 Write-Host "[5/5] Verifying build output..." -ForegroundColor Yellow
 $ExePath = Join-Path $PublishDir "SqlToAi.exe"
-$ConfigPath = Join-Path $PublishDir "appsettings.json"
 
 if (-not (Test-Path $ExePath)) {
     Write-Error "Executable was not found in output directory."
     exit 1
 }
-if (-not (Test-Path $ConfigPath)) {
-    Write-Error "appsettings.json was not found in output directory."
-    exit 1
+foreach ($packageFile in @("appsettings.json", "demo-profile.json", "README.md", "LICENSE")) {
+    if (-not (Test-Path (Join-Path $PublishDir $packageFile))) {
+        Write-Error "$packageFile was not found in output directory."
+        exit 1
+    }
 }
 
 Write-Host ""

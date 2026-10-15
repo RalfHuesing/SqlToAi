@@ -31,6 +31,11 @@ for file layout and retry behavior.
 
 ## Getting started
 
+For a downloaded Windows package, follow [manual package setup](SETUP.md)
+(included as `README.md` beside the executable). The self-contained package needs no
+separate .NET runtime. Setup creates the required user file manually; package updates
+preserve user settings and logs.
+
 You need the .NET 10 SDK, a reachable SQL Server, and a database login with the
 permissions required by the tools you use.
 
