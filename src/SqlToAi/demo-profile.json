@@ -1,0 +1,27 @@
+{
+  "SqlToAi": {
+    "Databases": {
+      "CacheTtlSeconds": 300,
+      "ReadWrite": [ "DemoDB" ],
+      "ReadOnly": [],
+      "ReadOnlyAnonymized": [],
+      "SchemaOnly": []
+    },
+    "SqlServer": {
+      "Server": "%COMPUTERNAME%\\MSSQLSERVER2022",
+      "UserId": "Agent",
+      "Password": "Agent!",
+      "IntegratedSecurity": false,
+      "ConnectTimeoutSeconds": 30
+    },
+    "Observability": {
+      "Enabled": true,
+      "EnableToolCallLogging": false,
+      "EnableFeedbackTool": true,
+      "LogDirectory": null,
+      "EnableResponseLogging": false,
+      "MaxResponseLength": 0,
+      "FeedbackConfirmationMessage": "Feedback recorded. Thank you."
+    }
+  }
+}

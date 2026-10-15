@@ -14,7 +14,7 @@ Access lists use exact, case-insensitive database names. Unlisted databases reso
 | `ReadWrite` | Query/script execution can persist changes |
 | `None` | Access blocked; default for unlisted databases |
 
-The shipped template explicitly puts `DemoDB` in `ReadWrite`. Database discovery returns permitted databases only. Index suggestions also accept `SchemaOnly`, since they read metadata.
+The shipped main template has empty access lists, so every database, including `DemoDB`, is denied until an administrator configures a level deliberately. The separate fictional DemoDB example explicitly grants `ReadWrite` for a local test database and is never loaded by the host automatically. Database discovery returns permitted databases only. Index suggestions also accept `SchemaOnly`, since they read metadata.
 
 ## Query guards and transactions
 
@@ -55,6 +55,7 @@ Specificity ranks exact text above partial wildcards above `%` in each of the fo
 - The primary connection factory sets `TrustServerCertificate=true`, disabling certificate validation through that setting.
 - Script execution reads local files available to the server process; URLs and UNC paths are rejected, but access is not restricted to one script directory.
 - SQL text, parameters and results can reach the client's model provider and local logs. Review both before using sensitive data.
+- Full SQL/tool-argument and response logging are disabled in the main template and effective option defaults. Application and error diagnostics remain enabled. Enabling observability logging can expose SQL text, parameter values, or returned data; the package's argument sanitization does not guarantee those values are safe.
 
 ## SQL Server permissions
 

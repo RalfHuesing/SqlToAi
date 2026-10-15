@@ -9,7 +9,7 @@ dotnet build SqlToAi.slnx
 dotnet test SqlToAi.slnx
 ```
 
-Tests use xUnit v3. [SqlServerFixture](../tests/SqlToAi.Tests/Integration/SqlServerFixture.cs) locates an `appsettings.json` in the test output or source tree and reads it directly, without the host's environment-variable configuration provider. Integration tests require its configured SQL Server and fictional schema. [sql-scripts/README.md](../sql-scripts/README.md) describes setup. Contributor instructions start at [AGENTS.md](../AGENTS.md).
+Tests use xUnit v3. [SqlServerFixture](../tests/SqlToAi.Tests/Integration/SqlServerFixture.cs) explicitly loads the separate fictional DemoDB profile copied as `appsettings.integration.json`; it never reads the maintainer's user configuration root. Integration tests require a local SQL Server matching that profile and the fictional schema. [sql-scripts/README.md](../sql-scripts/README.md) describes setup. Contributor instructions start at [AGENTS.md](../AGENTS.md).
 
 ## Manual tool calls
 
@@ -29,7 +29,7 @@ The last successful content block goes to stdout; preceding notices/metrics go t
 .\SqlToAi.exe query sql_execute_query --database ReportingDB --query 'SELECT TOP 5 * FROM dbo.Customers' > rows.jsonl
 ```
 
-Configuration is loaded beside the executable; relative script input paths resolve against the process working directory. See [tool arguments](tools.md) and [configuration](configuration.md).
+Configuration is loaded from `%LOCALAPPDATA%\SqlToAi\appsettings.json`; create and configure it manually from the shipped conservative template. Relative script input paths resolve against the process working directory. See [tool arguments](tools.md) and [configuration](configuration.md).
 
 ## Schema export
 

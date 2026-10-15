@@ -97,8 +97,7 @@ public sealed class UserConfigurationTests
         using var temp = TestTempDirectory.Create();
         string file = temp.CreateFile("user-root/appsettings.json", """
             { "StartupProbe": "base", "SqlToAi": {
-              "SqlServer": { "Server": "base-server" },
-              "Observability": { "Enabled": false }
+              "SqlServer": { "Server": "base-server" }
             } }
             """);
         temp.CreateFile("user-root/appsettings.StartupTest.json", """{"StartupProbe":"environment-file","SqlToAi":{"SqlServer":{"Server":"environment-file-server"}}}""");
@@ -106,7 +105,8 @@ public sealed class UserConfigurationTests
         Dictionary<string, string?> environment = new()
         {
             ["SqlToAi__SqlServer__Server"] = "runtime-server",
-            ["SqlToAi__SqlServer__Password"] = "runtime-test-secret"
+            ["SqlToAi__SqlServer__Password"] = "runtime-test-secret",
+            ["SqlToAi__Observability__Enabled"] = "true"
         };
         var result = await RunAsync(temp, Path.GetDirectoryName(file)!, "inspect", environment);
         Assert.Equal(0, result.ExitCode);
@@ -116,6 +116,11 @@ public sealed class UserConfigurationTests
         Assert.Equal("runtime-server", output.RootElement.GetProperty("BoundServer").GetString());
         Assert.Equal("runtime-test-secret", output.RootElement.GetProperty("Password").GetString());
         Assert.Equal("environment-file", output.RootElement.GetProperty("Probe").GetString());
+        Assert.True(output.RootElement.GetProperty("ObservabilityEnabled").GetBoolean());
+        Assert.False(output.RootElement.GetProperty("ToolCallLogging").GetBoolean());
+        Assert.False(output.RootElement.GetProperty("ResponseLogging").GetBoolean());
+        Assert.True(output.RootElement.GetProperty("AppLogEnabled").GetBoolean());
+        Assert.True(output.RootElement.GetProperty("ErrorLogEnabled").GetBoolean());
         Assert.Equal(before, await File.ReadAllBytesAsync(file, TestContext.Current.CancellationToken));
         Assert.Equal(2, Directory.EnumerateFiles(Path.GetDirectoryName(file)!).Count());
     }

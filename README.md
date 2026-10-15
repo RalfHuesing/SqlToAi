@@ -45,10 +45,13 @@ The Windows executable and configuration are written to
 
 ### Configure database access
 
-Edit `appsettings.json` beside the executable before starting it. The
-[shipped template](src/SqlToAi/appsettings.json) contains a local demo login
-(`Agent` / `Agent!`) and grants `ReadWrite` access to `DemoDB`. Replace those
-settings with your server and access lists.
+Before starting SqlToAi, create `%LOCALAPPDATA%\SqlToAi\appsettings.json`
+manually from the [shipped template](src/SqlToAi/appsettings.json). The main
+template has no database grants or working credentials; set the server,
+credentials, and access lists deliberately. The separate
+[DemoDB example](src/SqlToAi/demo-profile.json) contains fictional
+local demo credentials and `ReadWrite` access. Select it manually for a local
+test database only; the host does not load it automatically.
 
 For Windows authentication and string masking, replace the `Databases` and
 `SqlServer` sections with the following, substituting your database and server:
@@ -73,8 +76,8 @@ These sections belong inside the existing `SqlToAi` object. Keep
 denied. Use a SQL Server login with restricted permissions as well as the
 application access lists.
 
-See [configuration](docs/configuration.md) for SQL authentication, environment
-overrides, metadata, logging, and automatic configuration migration.
+See [configuration](docs/configuration.md) for manual setup, SQL authentication,
+per-field environment overrides, metadata, and logging.
 
 ### Connect an MCP client
 
@@ -121,9 +124,11 @@ Query comparison checks schema, row counts, and distinct set differences. It
 does not establish row ordering or duplicate multiplicity. Benchmark results
 describe the measured executions and do not guarantee a production improvement.
 
-Tool-call and response logging is enabled in the shipped configuration. SQL
-arguments and results can contain sensitive data. Review the
-[security boundaries](docs/security.md) and logging settings before use.
+Full SQL/tool-argument and response logging are disabled in both the shipped
+template and omitted-setting defaults. Application and error diagnostics remain
+enabled. If you deliberately enable observability logging, SQL arguments and
+results can contain sensitive data. Review the [security boundaries](docs/security.md)
+and logging settings before use.
 
 ## Documentation and development
 

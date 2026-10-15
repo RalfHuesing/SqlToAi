@@ -25,6 +25,11 @@ public static class StartupHarness
             startup.Options.SqlServer.Server,
             startup.Options.SqlServer.Password,
             BoundServer = boundOptions.SqlServer.Server,
+            ObservabilityEnabled = boundOptions.Observability.Enabled,
+            ToolCallLogging = boundOptions.Observability.EnableToolCallLogging,
+            ResponseLogging = boundOptions.Observability.EnableResponseLogging,
+            AppLogEnabled = boundOptions.Logging.AppLog.Enabled,
+            ErrorLogEnabled = boundOptions.Logging.ErrorLog.Enabled,
             Probe = startup.Configuration["StartupProbe"]
         }));
         return 0;

@@ -1,5 +1,8 @@
 using SqlToAi.Configuration;
+using SqlToAi.Domain;
+using SqlToAi.Security;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using System.IO;
 
 namespace SqlToAi.Tests.Configuration;
@@ -9,7 +12,7 @@ public sealed class SqlToAiOptionsTests
     private static readonly Type TargetType = typeof(SqlToAiOptions);
 
     [Fact]
-    public void SqlToAiOptions_ShouldHaveDefaultValues()
+    public async Task SqlToAiOptions_ShouldHaveDefaultValues()
     {
         // Act
         var options = new SqlToAiOptions();
@@ -21,6 +24,13 @@ public sealed class SqlToAiOptionsTests
         Assert.NotNull(options.MetadataProvider);
         Assert.NotNull(options.Observability);
 
+        Assert.Empty(options.Databases.ReadWrite);
+        Assert.Empty(options.Databases.ReadOnly);
+        Assert.Empty(options.Databases.ReadOnlyAnonymized);
+        Assert.Empty(options.Databases.SchemaOnly);
+        Assert.Equal(string.Empty, options.SqlServer.Server);
+        Assert.Null(options.SqlServer.UserId);
+        Assert.Null(options.SqlServer.Password);
         Assert.False(options.SqlServer.IntegratedSecurity);
         Assert.False(options.MetadataProvider.IntegratedSecurity);
         Assert.True(options.Anonymizer.Enabled);
@@ -29,11 +39,65 @@ public sealed class SqlToAiOptionsTests
         Assert.Equal(10_485_760L, options.QueryExecution.MaxScriptFileSizeBytes);
 
         Assert.True(options.Observability.Enabled);
-        Assert.True(options.Observability.EnableToolCallLogging);
+        Assert.False(options.Observability.EnableToolCallLogging);
         Assert.True(options.Observability.EnableFeedbackTool);
         Assert.Null(options.Observability.LogDirectory);
-        Assert.True(options.Observability.EnableResponseLogging);
+        Assert.False(options.Observability.EnableResponseLogging);
         Assert.Equal(0, options.Observability.MaxResponseLength);
+        Assert.True(options.Logging.AppLog.Enabled);
+        Assert.True(options.Logging.ErrorLog.Enabled);
+        Assert.False(options.Logging.McpTrail.Enabled);
+
+        var accessLevels = new AccessLevelProvider(Options.Create(options));
+        Assert.Equal(AccessLevel.None,
+            await accessLevels.GetAccessLevelAsync("DemoDB", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ShippedTemplate_UsesSafeBoundDefaults_AndDemoExampleIsExplicit()
+    {
+        var templateOptions = LoadOptions("appsettings.json");
+        var demoOptions = LoadOptions("appsettings.integration.json");
+        var defaults = new SqlToAiOptions();
+
+        Assert.Equal(defaults.Databases.ReadWrite, templateOptions.Databases.ReadWrite);
+        Assert.Equal(defaults.Databases.ReadOnly, templateOptions.Databases.ReadOnly);
+        Assert.Equal(defaults.Databases.ReadOnlyAnonymized, templateOptions.Databases.ReadOnlyAnonymized);
+        Assert.Equal(defaults.Databases.SchemaOnly, templateOptions.Databases.SchemaOnly);
+        Assert.Equal(defaults.SqlServer.Server, templateOptions.SqlServer.Server);
+        Assert.Equal(defaults.SqlServer.UserId, templateOptions.SqlServer.UserId);
+        Assert.Equal(defaults.SqlServer.Password, templateOptions.SqlServer.Password);
+        Assert.Equal(defaults.SqlServer.IntegratedSecurity, templateOptions.SqlServer.IntegratedSecurity);
+        Assert.Equal(defaults.Observability.EnableToolCallLogging, templateOptions.Observability.EnableToolCallLogging);
+        Assert.Equal(defaults.Observability.EnableResponseLogging, templateOptions.Observability.EnableResponseLogging);
+        Assert.Equal(defaults.Logging.AppLog.Enabled, templateOptions.Logging.AppLog.Enabled);
+        Assert.Equal(defaults.Logging.ErrorLog.Enabled, templateOptions.Logging.ErrorLog.Enabled);
+
+        var safeAccess = new AccessLevelProvider(Options.Create(templateOptions));
+        Assert.Equal(AccessLevel.None,
+            await safeAccess.GetAccessLevelAsync("DemoDB", TestContext.Current.CancellationToken));
+        Assert.Equal("Agent", demoOptions.SqlServer.UserId);
+        Assert.Equal("Agent!", demoOptions.SqlServer.Password);
+        Assert.Contains("DemoDB", demoOptions.Databases.ReadWrite);
+        Assert.Equal(AccessLevel.ReadWrite,
+            await new AccessLevelProvider(Options.Create(demoOptions))
+                .GetAccessLevelAsync("DemoDB", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void OmittedSettings_WhenBoundThroughConfigurationKeepSafeDefaults()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>())
+            .Build();
+        var options = new SqlToAiOptions();
+        configuration.Bind(options);
+
+        Assert.Empty(options.Databases.ReadWrite);
+        Assert.False(options.Observability.EnableToolCallLogging);
+        Assert.False(options.Observability.EnableResponseLogging);
+        Assert.True(options.Logging.AppLog.Enabled);
+        Assert.True(options.Logging.ErrorLog.Enabled);
     }
 
     [Fact]
@@ -95,6 +159,13 @@ public sealed class SqlToAiOptionsTests
         Assert.True(options.Observability.EnableFeedbackTool);
         Assert.Equal("custom_log", options.Observability.LogDirectory);
         Assert.Equal(500, options.Observability.MaxResponseLength);
+    }
+
+    private static SqlToAiOptions LoadOptions(string fileName)
+    {
+        using var stream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, fileName));
+        var configuration = new ConfigurationBuilder().AddJsonStream(stream).Build();
+        return configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
     }
 
     [Fact]

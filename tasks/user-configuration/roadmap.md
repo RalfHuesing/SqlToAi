@@ -30,7 +30,7 @@ Configuration tests must use isolated temporary user roots, including any subpro
 
   Slice boundary: conservative defaults/demo setup remain in slice 2. Slice 3 must carry `UserConfiguration.RootDirectory` through `ConfigurationResolver`, DI post-configuration and all logging/retention registrations; their production path semantics are unchanged here. Packaging and replacement verification remain in slice 4.
 
-- [ ] **2. Supply safe manual defaults and an explicit demo example.**
+- [x] **2. Supply safe manual defaults and an explicit demo example.**
 
   **Intention:** Manual setup starts with no database grants or working credentials and no full SQL/response logging.
 
@@ -39,6 +39,8 @@ Configuration tests must use isolated temporary user roots, including any subpro
   **Exclusions:** No credential vault, configuration wizard, automatic demo activation, change to access precedence, masking guarantees, SQL TLS behavior, or new integration-test infrastructure beyond adapting affected configuration consumers.
 
   **Acceptance:** Tests compare security-relevant template values with effective bound defaults. The conservative profile grants no database access, contains no working demo credentials, and disables full SQL/tool-argument and response logging; normal application/error diagnostics remain available. Omitted observability settings do not restore unsafe package defaults. Runtime environment overrides work with an existing base file and never persist secrets. The separate demo profile is explicit and documented; configuration/security tests cover denied access as well as deliberate demo activation. Integration tests retain meaningful SQL assertions with documented prerequisites. Documentation makes setup and future configuration changes manual and accurately describes data exposure. The slice passes required validation and is committed.
+
+  **Completion evidence (2026-10-15; implementation: gpt-6-luna / high):** The main [settings template](../../src/SqlToAi/appsettings.json) and `SqlToAiOptions` defaults now have empty database allow lists, no server credentials, disabled tool-call/response logging and enabled application/error diagnostics. The inactive legacy MCP trail defaults to disabled. Configuration tests compare security-relevant template values with effective defaults, verify `DemoDB` resolves to `None` by default and to `ReadWrite` only in the deliberate [demo profile](../../src/SqlToAi/demo-profile.json), and exercise omitted settings through `IOptions<SqlToAiOptions>` with observability enabled. The runtime override test confirms a per-field password remains in memory and the user file stays byte-for-byte unchanged. SQL integration tests explicitly load the demo profile through `appsettings.integration.json`; they do not read the user root. README, configuration, security, development, exploration and SQL setup documentation describe manual setup, per-field overrides, the opt-in profile and data exposure. Changed Markdown links resolve; both JSON profiles parse; `git diff --check` passes. `dotnet build SqlToAi.slnx` passed with **0 warnings/errors**; `dotnet test SqlToAi.slnx` passed **795/795**, including all **45 SQL integration tests** against the configured test instance. All configuration and subprocess roots used by tests are temporary. Atomic commit: `feat: liefere sichere Konfigurationsdefaults`.
 
 - [ ] **3. Resolve metadata and all default logs beneath the user root.**
 

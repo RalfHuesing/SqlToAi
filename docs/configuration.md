@@ -1,6 +1,6 @@
 # Configuration
 
-The required settings file is `%LOCALAPPDATA%\SqlToAi\appsettings.json`, resolved from Windows Local Application Data independently of the installation and working directories. The JSON settings use the `SqlToAi` section. The [shipped template](../src/SqlToAi/appsettings.json) is supplied beside the executable for manual setup; [option classes](../src/SqlToAi/Configuration/SqlToAiOptions.cs) define binding defaults. The template currently enables **ReadWrite for DemoDB** with a local demo SQL login. Review and configure it before use.
+The required settings file is `%LOCALAPPDATA%\SqlToAi\appsettings.json`, resolved from Windows Local Application Data independently of the installation and working directories. The JSON settings use the `SqlToAi` section. Create the file manually from the [shipped template](../src/SqlToAi/appsettings.json); [option classes](../src/SqlToAi/Configuration/SqlToAiOptions.cs) define binding defaults. The conservative template contains no database grants or working credentials. The separate [fictional DemoDB example](../src/SqlToAi/demo-profile.json) deliberately grants `ReadWrite` and includes throwaway local credentials. Its filename is outside the automatic `appsettings.{Environment}.json` pattern. Copy its selected values into the user file only for a local demo database.
 
 ## Loading and credentials
 
@@ -11,7 +11,7 @@ $env:SqlToAi__SqlServer__Server = 'localhost\SQLEXPRESS'
 $env:SqlToAi__SqlServer__IntegratedSecurity = 'true'
 ```
 
-Selected connection fields, database access lists, metadata queries, token delimiters and logging paths support `%VARIABLE%` expansion. There is no special `SQLTOAI_CONNECTION_STRING` override: configure individual `SqlServer` fields. `IntegratedSecurity=true` uses the process identity; otherwise both `UserId` and `Password` are required. Keep credentials outside version control, for example through `SqlToAi__SqlServer__Password`.
+Selected connection fields, database access lists, metadata queries, token delimiters and logging paths support `%VARIABLE%` expansion. There is no special `SQLTOAI_CONNECTION_STRING` override. Use per-field environment overrides such as `SqlToAi__SqlServer__Server`, `SqlToAi__SqlServer__UserId`, `SqlToAi__SqlServer__Password`, and `SqlToAi__SqlServer__IntegratedSecurity`; double underscores address nested JSON fields. `IntegratedSecurity=true` uses the process identity; otherwise both `UserId` and `Password` are required. Keep credentials outside version control, for example through `SqlToAi__SqlServer__Password`.
 
 Database names are selected by tool arguments. The primary connection factory currently sets `TrustServerCertificate=true`; configuration does not expose a certificate-validation switch. See [security limits](security.md#boundaries-and-data-exposure).
 
@@ -20,19 +20,19 @@ Database names are selected by tool arguments. The primary connection factory cu
 | Section | Fields and behavior |
 | --- | --- |
 | `SqlServer` | `Server`, `UserId`, `Password`, `IntegratedSecurity`, `ConnectTimeoutSeconds` (30), `ExcludedDatabases` (glob patterns, empty by default) |
-| `Databases` | `SchemaOnly`, `ReadOnlyAnonymized`, `ReadOnly`, `ReadWrite`: exact database names; see [access policy](security.md#database-access). `CacheTtlSeconds` defaults to 300; access-level resolution itself reads in-memory lists. |
+| `Databases` | `SchemaOnly`, `ReadOnlyAnonymized`, `ReadOnly`, `ReadWrite`: exact database names; all lists are empty by default; see [access policy](security.md#database-access). `CacheTtlSeconds` defaults to 300; access-level resolution itself reads in-memory lists. |
 | `Anonymizer` | `Enabled` (true), `DefaultMode` (`ScramblePattern` or `Hash`), `Tokenization.Enabled` (false), `Tokenization.Prefix` / `Suffix` (both `§§§`) |
 | `AnonymizationRules` | `Enabled` (false), `Server`, `Database`, `UserId`, `Password`, `IntegratedSecurity`, `TableName` (`dbo.AnonymizationRules`), `CommandTimeoutSeconds` (30), `CacheTtlSeconds` (300) |
 | `MetadataProvider` | `Enabled` (true), `Server`, `Database`, `UserId`, `Password`, `IntegratedSecurity`, `TableMetadataQuery`, `ColumnMetadataQuery`, `CommandTimeoutSeconds` (30 in options) |
 | `QueryExecution` | `DefaultRowLimit` (100), `MaxRowLimit` (1000), `CommandTimeoutSeconds` (30), `MaxScriptFileSizeBytes` (10485760 = 10 MiB) |
 | `Logging` | `Directory` (`log`), `AppLog`, `ErrorLog`, legacy `McpTrail` settings; see below |
-| `Observability` | `Enabled`, `EnableToolCallLogging`, `EnableFeedbackTool`, `LogDirectory`, `EnableResponseLogging`, `MaxResponseLength`, `FeedbackConfirmationMessage`; see below |
+| `Observability` | `Enabled`, `EnableToolCallLogging` (false by default), `EnableFeedbackTool`, `LogDirectory`, `EnableResponseLogging` (false by default), `MaxResponseLength`, `FeedbackConfirmationMessage`; see below |
 
 Row limits constrain returned rows; they do not bound SQL Server's query cost or row scans. Command and connection timeouts are separate.
 
 ## Manual setup and updates
 
-Create `%LOCALAPPDATA%\SqlToAi\` yourself, copy the supplied template there as `appsettings.json`, and edit the credentials and access policy deliberately before restarting. This is required for the default MCP server, explicit `server`, `query`, `export-schema`, and exploration scenario execution. Exploration listing and argument usage remain available without configuration.
+Create `%LOCALAPPDATA%\SqlToAi\` yourself, copy the supplied conservative template there as `appsettings.json`, and edit the server, credentials, and access policy deliberately before restarting. The main template grants no database access. The separate DemoDB example is an opt-in local test profile: it includes fictional throwaway credentials and grants `ReadWrite` to `DemoDB`. Copy its values into the required user file only when intentionally using that local demo database. Its filename is not matched by automatic environment-file loading. This setup is required for the default MCP server, explicit `server`, `query`, `export-schema`, and exploration scenario execution. Exploration listing and argument usage remain available without configuration.
 
 If the base file is absent, startup exits with code `1` before services, MCP transport or database work. It writes a direct stderr diagnostic containing the reason, absolute expected settings path, and manual template setup/restart guidance. Stdout contains no diagnostic text. Invalid or unreadable settings also produce a direct stderr diagnostic independently of file logging. Client display of stderr depends on the client.
 
@@ -55,7 +55,7 @@ These are `MetadataProvider` fields. A value ending in `.sql` is loaded from a f
 
 Serilog writes to `{exe-dir}/log/app/` and `{exe-dir}/log/error/`. `Logging.Directory` changes the root. Each sink supports `Enabled`, `Level`, `RollingInterval` and `RetainedFileCount`. Defaults are daily rotation, Information/30 files for the application sink and Warning/90 files for the error sink. File counts are not a guarantee of retention in days.
 
-Tool-call logging and optional `report_observability_feedback` registration use `RalfHuesing.Mcp.Observability`. Shipped settings enable tool-call and response logging, leave `LogDirectory=null` and set `MaxResponseLength=0` (unlimited). The package default location is `%LOCALAPPDATA%\RalfHuesing\McpObservability\SqlToAi\{yyyy-MM-dd}\`; set `LogDirectory` explicitly when a fixed location is required. Feedback types are `issue`, `positive`, `comment`, `suggestion` and `incident`.
+Tool-call logging and optional `report_observability_feedback` registration use `RalfHuesing.Mcp.Observability`. Both the shipped template and the `SqlToAiOptions` initializer explicitly disable tool-call and response logging because the package enables them by default. Omitted settings therefore retain the conservative behavior. Application and error diagnostic file sinks remain enabled. `LogDirectory=null` leaves the package's destination at `%LOCALAPPDATA%\RalfHuesing\McpObservability\SqlToAi\{yyyy-MM-dd}\` for feedback records; set `LogDirectory` explicitly when needed. Feedback types are `issue`, `positive`, `comment`, `suggestion` and `incident`.
 
 The package records tool names, timings, status, sanitized arguments and optionally responses. Secret-key redaction does not imply that SQL text, arbitrary parameter values or returned data are safe to log. Treat logs and settings as sensitive files. Disable response logging with `EnableResponseLogging=false`, or set a positive response-length limit where appropriate.
 

@@ -11,9 +11,8 @@ using SqlToAi.Security;
 namespace SqlToAi.Tests.Integration;
 
 /// <summary>
-/// Shared fixture for integration tests that exercise the real services against a live SQL Server.
-/// Reads configuration from <c>src/SqlToAi/appsettings.json</c> (the same file the runtime uses)
-/// and builds the real DI graph â€” no mocks, no test doubles.
+/// Shared fixture for live SQL integration tests.
+/// Explicitly loads the copied DemoDB example profile instead of user settings.
 /// </summary>
 public sealed class SqlServerFixture
 {
@@ -36,7 +35,9 @@ public sealed class SqlServerFixture
 
     public SqlServerFixture()
     {
-        string appsettingsPath = LocateAppsettings();
+        string appsettingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.integration.json");
+        if (!File.Exists(appsettingsPath))
+            throw new FileNotFoundException("The explicit SQL integration demo profile was not copied to the test output.", appsettingsPath);
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Path.GetDirectoryName(appsettingsPath)!)
             .AddJsonFile(Path.GetFileName(appsettingsPath), optional: false, reloadOnChange: false)
@@ -63,21 +64,6 @@ public sealed class SqlServerFixture
         IndexSuggestionService = new IndexSuggestionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, optionsWrapper, NullLogger<IndexSuggestionService>.Instance);
     }
 
-    private static string LocateAppsettings()
-    {
-        string? dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && dir is not null; i++)
-        {
-            string candidate = Path.Combine(dir, "appsettings.json");
-            if (File.Exists(candidate)) return candidate;
-
-            string srcCandidate = Path.Combine(dir, "src", "SqlToAi", "appsettings.json");
-            if (File.Exists(srcCandidate)) return srcCandidate;
-
-            dir = Path.GetDirectoryName(dir);
-        }
-        throw new FileNotFoundException("Could not locate appsettings.json for integration tests.");
-    }
 }
 
 /// <summary>

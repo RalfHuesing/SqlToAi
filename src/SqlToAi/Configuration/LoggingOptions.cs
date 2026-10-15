@@ -29,7 +29,7 @@ public sealed class LoggingOptions
     /// <summary>Settings for the structured MCP tool-call trail (one JSONL per call).</summary>
     public McpTrailOptions McpTrail { get; set; } = new()
     {
-        Enabled = true,
+        Enabled = false,
         Directory = "mcp",
         RetainedDays = 14
     };
@@ -65,7 +65,7 @@ public sealed class FileLogSinkOptions
 public sealed class McpTrailOptions
 {
     /// <summary>Whether the MCP trail is recorded at all.</summary>
-    public bool Enabled { get; set; } = true;
+    public bool Enabled { get; set; } = false;
 
     /// <summary>Subdirectory (under <see cref="LoggingOptions.Directory"/>) where the trail lives.</summary>
     public string Directory { get; set; } = "mcp";

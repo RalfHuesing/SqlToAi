@@ -2,6 +2,18 @@
 
 This directory contains the SQL script (`01_fictional_schema.sql`) to set up the fictional database schema used in the integration and unit tests for the `SqlToAi` project.
 
+For a local manual demo or SQL integration test setup, use the separate
+[DemoDB example profile](../src/SqlToAi/demo-profile.json). It grants
+`ReadWrite` access to `DemoDB` and contains fictional throwaway credentials for
+the configured local SQL Server instance. The production host never loads this
+file automatically. The main [settings template](../src/SqlToAi/appsettings.json)
+contains no credentials or database grants.
+
+The automated SQL integration fixture explicitly loads this demo profile from
+the test output as `appsettings.integration.json`. It does not inspect
+`%LOCALAPPDATA%\SqlToAi` or use the main template. The local SQL Server must
+provide the configured `DemoDB` database and fictional schema.
+
 ## Schema Overview
 
 The fictional schema replaces real ERP tables with generic counterparts to avoid dependencies on actual production ERP systems.
