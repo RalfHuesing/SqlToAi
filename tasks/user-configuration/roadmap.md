@@ -78,6 +78,8 @@ Configuration tests must use isolated temporary user roots, including any subpro
 
 - [ ] **5. Audit the complete concept and close the roadmap.**
 
+  **Resume checkpoint (2026-10-15):** Paused at the user's request because the usage limit was approaching. Implementation slices 1–4 are complete and committed (`63ad818`, `1975319`, `caf4564`, `cb4606f`); no known implementation finding remains. The independent final audit has not started. Resume here with a separate read-only audit agent using `gpt-6.1-sol / high`, review the concept and completion evidence, and follow stage 3's limit of at most one correction item if findings require changes. Keep this checkbox open until the audit acceptance is verified. Latest validation is 820/820 tests, including 45 SQL integration tests, and a zero-warning build. Local publish, harness and TRX evidence is under `temp/user-configuration-validation/`; these ignored artifacts are local evidence, not committed deliverables, and may need regeneration if unavailable. Do not run deployment/release scripts or access the real user configuration for verification.
+
   **Intention:** Verify that the combined slices meet the approved contract and that no requirement was lost between them.
 
   **Scope:** Review slices 1–4 against every Must, target-contract statement, and verification criterion in [Konzept.md](Konzept.md). Inspect final runtime wiring, effective defaults, affected test consumers, package contents, and canonical documentation. Use existing test and completion evidence; rerun checks when changes, failures, missing evidence, or unresolved concerns justify them. Record concise final acceptance evidence here and commit the audit/roadmap updates with any focused corrections.
