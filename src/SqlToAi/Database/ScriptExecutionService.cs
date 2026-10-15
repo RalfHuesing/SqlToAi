@@ -129,7 +129,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
         CancellationToken cancellationToken)
     {
         await using var connection = _connectionFactory.CreateConnection(request.DatabaseName);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await PrimaryConnection.OpenAsync(connection, cancellationToken).ConfigureAwait(false);
         var args = new QueryBatchExecutionArgs(
             connection,
             null,
@@ -183,7 +183,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
         CancellationToken cancellationToken)
     {
         await using var connection = _connectionFactory.CreateConnection(request.DatabaseName);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await PrimaryConnection.OpenAsync(connection, cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection
             .BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
             .ConfigureAwait(false);

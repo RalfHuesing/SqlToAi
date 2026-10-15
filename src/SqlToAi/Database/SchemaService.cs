@@ -68,7 +68,7 @@ public sealed class SchemaService : ISchemaService
         try
         {
             await using var connection = _connectionFactory.CreateConnection();
-            await connection.OpenAsync(cancellationToken);
+            await PrimaryConnection.OpenAsync(connection, cancellationToken);
 
             var databases = await connection.QueryAsync<string>(
                 new CommandDefinition("SELECT name FROM sys.databases WHERE state = 0", cancellationToken: cancellationToken));
@@ -82,6 +82,12 @@ public sealed class SchemaService : ISchemaService
         }
         catch (Exception ex)
         {
+            if (ex is PrimaryConnectionException { IsTlsFailure: true }
+                or PrimaryConnectionException { Error.Code: SqlToAiError.TimeoutCode })
+            {
+                _logger.LogWarning(ex, "SqlServer catalog connection failed.");
+                return SqlToAiErrorMapper.MapException(ex);
+            }
             _logger.LogWarning(ex, "Failed to query sys.databases catalog. Falling back to configured static database lists.");
             var staticAllowed = _options.Databases.ReadWrite
                 .Concat(_options.Databases.ReadOnly)
@@ -121,7 +127,7 @@ public sealed class SchemaService : ISchemaService
         try
         {
             await using var connection = _connectionFactory.CreateConnection(databaseName);
-            await connection.OpenAsync(cancellationToken);
+            await PrimaryConnection.OpenAsync(connection, cancellationToken);
 
             var rows = await SchemaObjectDiscovery.QueryAsync(connection, $"%{searchTerm}%", objectType, limit, false, cancellationToken);
 
@@ -141,7 +147,7 @@ public sealed class SchemaService : ISchemaService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to search objects in database {DatabaseName}.", databaseName);
-            return SqlToAiError.QueryError(ex.Message);
+            return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
         }
     }
 
@@ -156,14 +162,14 @@ public sealed class SchemaService : ISchemaService
         try
         {
             await using var connection = _connectionFactory.CreateConnection(databaseName);
-            await connection.OpenAsync(cancellationToken);
+            await PrimaryConnection.OpenAsync(connection, cancellationToken);
             var rows = await SchemaObjectDiscovery.QueryAsync(connection, "%", null, null, true, cancellationToken);
             return rows.Select(row => row.ToSchemaObject()).ToArray();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to discover export objects in database {DatabaseName}.", databaseName);
-            return SqlToAiError.QueryError(ex.Message);
+            return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
         }
     }
 
@@ -188,7 +194,7 @@ public sealed class SchemaService : ISchemaService
         try
         {
             await using var connection = _connectionFactory.CreateConnection(databaseName);
-            await connection.OpenAsync(cancellationToken);
+            await PrimaryConnection.OpenAsync(connection, cancellationToken);
 
             // 1. Identify object type
             var typeCode = await connection.QueryFirstOrDefaultAsync<string>(
@@ -215,7 +221,7 @@ public sealed class SchemaService : ISchemaService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to retrieve schema for {ObjectName} in database {DatabaseName}.", objectName, databaseName);
-            return SqlToAiError.QueryError(ex.Message);
+            return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
         }
     }
 
@@ -272,7 +278,7 @@ public sealed class SchemaService : ISchemaService
     /// <summary>
     /// Common skeleton for the six detail-query delegations: verify access, open a connection,
     /// run a single DetailSchemaRenderer call inside a try/catch, log and translate any
-    /// exception to <see cref="SqlToAiError.QueryError"/>.
+    /// exception while preserving safe connection errors and existing query-error handling.
     /// </summary>
     private async Task<Result<string>> ExecuteDetailQueryAsync(
         string databaseName,
@@ -290,13 +296,13 @@ public sealed class SchemaService : ISchemaService
         try
         {
             await using var connection = _connectionFactory.CreateConnection(databaseName);
-            await connection.OpenAsync(cancellationToken);
+            await PrimaryConnection.OpenAsync(connection, cancellationToken);
             return await query(connection, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to retrieve {Operation} for {ObjectName} in database {DatabaseName}.", operationName, objectName, databaseName);
-            return SqlToAiError.QueryError(ex.Message);
+            return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
         }
     }
 }

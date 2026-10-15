@@ -68,7 +68,7 @@ public sealed class QueryValidationService : IQueryValidationService
         try
         {
             await using var connection = _connectionFactory.CreateConnection(databaseName);
-            await connection.OpenAsync(cancellationToken);
+            await PrimaryConnection.OpenAsync(connection, cancellationToken);
 
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
             try

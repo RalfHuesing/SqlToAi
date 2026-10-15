@@ -97,7 +97,7 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
         try
         {
             await using var connection = _connectionFactory.CreateConnection(args.DatabaseName);
-            await connection.OpenAsync(cancellationToken);
+            await PrimaryConnection.OpenAsync(connection, cancellationToken);
 
             IReadOnlyList<MissingIndexRow> rows = await LoadSuggestionsAsync(connection, args, cancellationToken);
             return RenderMarkdown(rows, args.DatabaseName);
@@ -109,7 +109,7 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
         catch (Exception ex)
         {
             LogSuggestFailed(_logger, args.DatabaseName, ex);
-            return SqlToAiError.QueryError(ex.Message);
+            return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
         }
     }
 

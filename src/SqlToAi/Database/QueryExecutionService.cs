@@ -127,7 +127,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
         try
         {
             await using var connection = _connectionFactory.CreateConnection(databaseName);
-            await connection.OpenAsync(cancellationToken);
+            await PrimaryConnection.OpenAsync(connection, cancellationToken);
 
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
             int baselineTranCount = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, cancellationToken);

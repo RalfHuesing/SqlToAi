@@ -88,8 +88,8 @@ The implementation source is [SqlToAiError.cs](../src/SqlToAi/Domain/SqlToAiErro
 | `SQL-AI-0102` | SQL syntax or execution error |
 | `SQL-AI-0103` | Object not found |
 | `SQL-AI-0104` | Database access denied, exclusion matched or `USE` rejected |
-| `SQL-AI-0105` | Connection/infrastructure failure |
-| `SQL-AI-0106` | Execution timeout |
+| `SQL-AI-0105` | Connection/infrastructure failure, including primary TLS/certificate validation or handshake failure |
+| `SQL-AI-0106` | Connection or execution timeout |
 | `SQL-AI-0107` | Mutation blocked or access level does not permit data execution |
 | `SQL-AI-0108` | Object-reference lookup requires table/view |
 | `SQL-AI-0109` | Routine-parameter lookup requires procedure/function |
@@ -97,3 +97,5 @@ The implementation source is [SqlToAiError.cs](../src/SqlToAi/Domain/SqlToAiErro
 | `SQL-AI-0111` | Script file not found |
 | `SQL-AI-0112` | Script exceeds configured size limit |
 | `SQL-AI-0113` | Script extension is not `.sql` |
+
+Primary connection-open failures use safe diagnostics identifying the `SqlServer` configuration section. TLS/certificate failures return `SQL-AI-0105`, including database discovery, schema/export operations and index suggestions; database discovery does not conceal these failures behind its configured-list fallback. Actual connection timeouts return `SQL-AI-0106`, even when the timeout occurs during a TLS handshake. The diagnostics discard raw provider messages and inner exception payloads before service logging, so authentication secrets and full connection strings from those exceptions cannot reach the response or connection-failure logs. Ordinary SQL execution errors retain their existing handling. No connection failure triggers a retry with weaker encryption or certificate checks.

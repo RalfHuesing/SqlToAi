@@ -1,5 +1,7 @@
 using System;
 using System.Net.Sockets;
+using System.ComponentModel;
+using System.Security.Authentication;
 using Microsoft.Data.SqlClient;
 using SqlToAi.Domain;
 
@@ -10,6 +12,7 @@ namespace SqlToAi.Database;
 /// </summary>
 public static class SqlToAiErrorMapper
 {
+    internal const string PrimaryTlsFailureMessage = "SqlServer TLS/certificate validation or handshake failed. Check the server certificate trust, validity and name, and the encrypted transport configuration.";
     /// <summary>
     /// Maps the given exception to a corresponding <see cref="SqlToAiError"/>.
     /// </summary>
@@ -18,9 +21,19 @@ public static class SqlToAiErrorMapper
     /// <returns>A structured <see cref="SqlToAiError"/> instance.</returns>
     public static SqlToAiError MapException(Exception ex, string? customQueryErrorMessage = null)
     {
+        if (ex is PrimaryConnectionException connectionException)
+        {
+            return connectionException.Error;
+        }
+
         if (IsTimeoutException(ex))
         {
             return SqlToAiError.Timeout();
+        }
+
+        if (IsTlsException(ex))
+        {
+            return SqlToAiError.InfrastructureError(PrimaryTlsFailureMessage);
         }
 
         if (IsInfrastructureException(ex))
@@ -38,16 +51,19 @@ public static class SqlToAiErrorMapper
     /// </summary>
     public static bool IsTimeoutException(Exception ex)
     {
-        if (ex is TimeoutException)
+        if (ex is PrimaryConnectionException connectionException)
         {
-            return true;
+            return connectionException.Error.Code == SqlToAiError.TimeoutCode;
         }
 
-        if (ex is SqlException sqlEx && (sqlEx.Number == SqlServerErrorCode.ClientQueryTimeout
-            || sqlEx.Number == SqlServerErrorCode.SemaphoreTimeout
-            || sqlEx.Number == SqlServerErrorCode.WaitTimeout))
+        for (Exception? current = ex; current != null; current = current.InnerException)
         {
-            return true;
+            if (current is TimeoutException
+                || current is SqlException sql && sql.Errors.Cast<SqlError>().Any(error => error.Number is
+                    SqlServerErrorCode.ClientQueryTimeout or SqlServerErrorCode.SemaphoreTimeout or SqlServerErrorCode.WaitTimeout))
+            {
+                return true;
+            }
         }
 
         return false;
@@ -58,6 +74,15 @@ public static class SqlToAiErrorMapper
     /// </summary>
     public static bool IsInfrastructureException(Exception ex)
     {
+        if (ex is PrimaryConnectionException connectionException)
+        {
+            return connectionException.Error.Code == SqlToAiError.InfrastructureErrorCode;
+        }
+
+        if (IsTlsException(ex))
+        {
+            return true;
+        }
         if (ex is SocketException || ex.InnerException is SocketException)
         {
             return true;
@@ -86,4 +111,31 @@ public static class SqlToAiErrorMapper
 
         return false;
     }
+
+    internal static bool IsTlsException(Exception exception)
+    {
+        for (Exception? current = exception; current != null; current = current.InnerException)
+        {
+            if (current is AuthenticationException
+                || current is Win32Exception native && IsCertificateError(native.NativeErrorCode))
+            {
+                return true;
+            }
+
+            if (current is SqlException sql && sql.Errors.Cast<SqlError>().Any(error =>
+                IsCertificateError(error.Number)
+                || (error.Number == 0 || error.Class >= 20)
+                    && (error.Message.Contains("SSL Provider", StringComparison.OrdinalIgnoreCase)
+                        || error.Message.Contains("TLS handshake", StringComparison.OrdinalIgnoreCase))))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsCertificateError(int number) => unchecked((uint)number) is
+        0x80090322 or 0x80090325 or 0x80090326 or 0x80090327 or 0x80090328 or 0x80090331
+        or >= 0x800B0101 and <= 0x800B0114;
 }

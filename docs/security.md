@@ -46,6 +46,12 @@ The [rule table script](../sql-scripts/03_anonymization_rules.sql) defines datab
 
 Specificity ranks exact text above partial wildcards above `%` in each of the four dimensions. A rule dominates another only if it is at least as specific in every dimension and more specific in one. Among remaining incomparable rules, protective rules (`Anonymize=1`) win over permissive rules; a weighted score breaks remaining ties. Database specificity alone therefore cannot override a conflicting exact-column protection rule. For example, `(%, %, FakeConsultants, %, 0)` opens a table while `(%, %, FakeConsultants, FullName, 1)` keeps that column protected. Rules are cached for `AnonymizationRules.CacheTtlSeconds` using the connection in [configuration.md](configuration.md).
 
+## Primary connection failures
+
+Primary TLS/certificate validation and handshake failures return `SQL-AI-0105` with a safe `SqlServer` diagnostic. This also applies to schema discovery/export and index suggestions. Database discovery returns the connection error for TLS failures and connection timeouts instead of substituting the configured database list. Actual timeouts retain `SQL-AI-0106`; a timeout during the pre-login handshake is still a timeout.
+
+The primary connection-open boundary discards raw provider messages and inner exceptions before service loggers receive the failure. Responses and connection-failure exception payloads therefore contain no credentials or full connection strings taken from those exceptions. Diagnostics direct the administrator to certificate trust, validity, name and transport configuration. There is no retry with encryption or certificate validation disabled. This protection is scoped to connection-open failures; ordinary SQL execution errors, query text and other logs retain the exposure limits below.
+
 ## Boundaries and data exposure
 
 - Numeric identifiers, dates, binary values and other non-string columns are not masked.

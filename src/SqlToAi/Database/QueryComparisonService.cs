@@ -79,7 +79,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         try
         {
             await using var connection = _dependencies.ConnectionFactory.CreateConnection(args.DatabaseName);
-            await connection.OpenAsync(cancellationToken);
+            await PrimaryConnection.OpenAsync(connection, cancellationToken);
 
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 

@@ -2,7 +2,6 @@ using System.Data;
 using System.Data.Common;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Microsoft.Data.SqlClient;
 using SqlToAi.Configuration;
 using SqlToAi.Database;
 using SqlToAi.Domain;
@@ -279,8 +278,7 @@ public sealed class IndexSuggestionServiceTests
     [Fact]
     public async Task SuggestIndexesAsync_PermissionDeniedSqlException_ReturnsGracefulDegradationNote()
     {
-        // SqlException has no public constructor; build it via the internal CreateInstance helper.
-        var sqlEx = CreateSqlException(number: 300, message: "The user does not have permission to perform this action. VIEW SERVER STATE permission is required.");
+        var sqlEx = SqlExceptionFactory.Create(number: 300, message: "The user does not have permission to perform this action. VIEW SERVER STATE permission is required.");
         var service = BuildService(throwOnExecuteReader: sqlEx);
 
         var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs("DemoDB"), TestContext.Current.CancellationToken);
@@ -299,7 +297,7 @@ public sealed class IndexSuggestionServiceTests
     [Fact]
     public async Task SuggestIndexesAsync_GenericSqlException_ReturnsQueryError()
     {
-        var sqlEx = CreateSqlException(number: 102, message: "Incorrect syntax near 'SELECTX'.");
+        var sqlEx = SqlExceptionFactory.Create(number: 102, message: "Incorrect syntax near 'SELECTX'.");
         var service = BuildService(throwOnExecuteReader: sqlEx);
 
         var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs("DemoDB"), TestContext.Current.CancellationToken);
@@ -315,16 +313,16 @@ public sealed class IndexSuggestionServiceTests
     [Fact]
     public void PerformanceMeasurementService_IsPermissionError_RefactoredToHelper_StillRecognizesShowplanError()
     {
-        var byNumber = CreateSqlException(number: 262, message: "Some unrelated message");
-        var byMessage = CreateSqlException(number: 9999, message: "VIEW permission denied to SHOWPLAN object");
-        var unrelated = CreateSqlException(number: 102, message: "Incorrect syntax");
+        var byNumber = SqlExceptionFactory.Create(number: 262, message: "Some unrelated message");
+        var byMessage = SqlExceptionFactory.Create(number: 9999, message: "VIEW permission denied to SHOWPLAN object");
+        var unrelated = SqlExceptionFactory.Create(number: 102, message: "Incorrect syntax");
 
         Assert.True(PerformanceMeasurementService.IsPermissionError(byNumber, 262, "SHOWPLAN"));
         Assert.True(PerformanceMeasurementService.IsPermissionError(byMessage, 262, "SHOWPLAN"));
         Assert.False(PerformanceMeasurementService.IsPermissionError(unrelated, 262, "SHOWPLAN"));
 
         // And the new VIEW SERVER STATE use case works the same way
-        var vssByMessage = CreateSqlException(number: 5000, message: "Insufficient permission for VIEW SERVER STATE");
+        var vssByMessage = SqlExceptionFactory.Create(number: 5000, message: "Insufficient permission for VIEW SERVER STATE");
         Assert.True(PerformanceMeasurementService.IsPermissionError(vssByMessage, 300, "VIEW SERVER STATE"));
     }
 
@@ -341,53 +339,6 @@ public sealed class IndexSuggestionServiceTests
         Assert.Null(args.TableName);
         Assert.Null(args.MinScore);
         Assert.Equal(10, args.Top);
-    }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Builds a <see cref="SqlException"/> via the internal constructor without requiring
-    /// the full ADO.NET plumbing. <c>SqlException</c> has no public constructor, so we use
-    /// the internal <c>(string, SqlErrorCollection)</c> constructor plus reflection-built
-    /// <c>SqlError</c>/<c>SqlErrorCollection</c> instances — the established escape hatch
-    /// when unit-testing permission-error code paths against the real exception type.
-    /// </summary>
-    private static SqlException CreateSqlException(int number, string message)
-    {
-        const System.Reflection.BindingFlags nonPublicInstance = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
-
-        // Build an empty SqlErrorCollection via the parameterless internal constructor.
-        var errorsCtor = typeof(SqlErrorCollection).GetConstructor(nonPublicInstance, binder: null, types: Type.EmptyTypes, modifiers: null)
-            ?? throw new InvalidOperationException("SqlErrorCollection parameterless constructor not found.");
-        var errorCollection = (SqlErrorCollection)errorsCtor.Invoke(Array.Empty<object>());
-
-        // Build a single SqlError with the given number/message via the internal constructor.
-        // Constructor signature (Microsoft.Data.SqlClient 7.0): SqlError(int infoNumber, byte errorState,
-        //     byte errorClass, string server, string errorMessage, string procedure, int lineNumber,
-        //     Exception exception)
-        var errorCtor = typeof(SqlError).GetConstructor(
-            nonPublicInstance,
-            binder: null,
-            types: [typeof(int), typeof(byte), typeof(byte), typeof(string), typeof(string), typeof(string), typeof(int), typeof(Exception)],
-            modifiers: null)
-            ?? throw new InvalidOperationException("SqlError internal constructor not found.");
-        var error = (SqlError)errorCtor.Invoke([number, (byte)0, (byte)16, "TestServer", message, "TestProc", 1, null!]);
-
-        // Add the error to the collection (Add is internal on SqlErrorCollection).
-        var addMethod = typeof(SqlErrorCollection).GetMethod("Add", nonPublicInstance)
-            ?? throw new InvalidOperationException("SqlErrorCollection.Add not found.");
-        addMethod.Invoke(errorCollection, [error]);
-
-        // Finally, instantiate SqlException via its internal (string, SqlErrorCollection, Exception, Guid) constructor.
-        var sqlExceptionCtor = typeof(SqlException).GetConstructor(
-            nonPublicInstance,
-            binder: null,
-            types: [typeof(string), typeof(SqlErrorCollection), typeof(Exception), typeof(Guid)],
-            modifiers: null)
-            ?? throw new InvalidOperationException("SqlException internal constructor not found.");
-        return (SqlException)sqlExceptionCtor.Invoke([message, errorCollection, null!, Guid.Empty]);
     }
 
     // -------------------------------------------------------------------------
