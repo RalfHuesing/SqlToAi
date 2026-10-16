@@ -11,7 +11,7 @@ namespace SqlToAi.Tests.Mcp;
 internal static class ToolDispatcherTestHelper
 {
     public static ToolDispatcher BuildDispatcher(
-        FakeSchemaService? schema = null,
+        ISchemaService? schema = null,
         FakeQueryExecutionService? exec = null,
         FakeScriptExecutionService? script = null,
         FakeQueryValidationService? validation = null,
@@ -95,6 +95,9 @@ internal sealed class FakeSchemaService : ISchemaService
         => throw new NotSupportedException();
 
     public Task<Result<string>> GetExportTriggerDefinitionAsync(string databaseName, SchemaObject trigger, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<Result<SchemaBatchResponse>> GetSchemaBatchAsync(string databaseName, JsonElement objectName = default, JsonElement objectNames = default, CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
 
     public bool ListDatabasesCalled { get; private set; }

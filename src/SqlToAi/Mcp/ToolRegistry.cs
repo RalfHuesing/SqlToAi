@@ -105,16 +105,31 @@ public sealed class ToolRegistry
     private static ToolDefinition BuildGetSchema() => new()
     {
         Name = McpConstants.ToolGetSchema,
-        Description = "Returns the primary schema of a table, view, procedure, or function as a Markdown document, enriched with metadata descriptions.",
+        Description = "Returns enriched primary schemas for tables, views, procedures or functions. " +
+            "Omitted/null object_names preserves scalar object_name validation and Markdown. " +
+            "Any supplied array (including []) selects a bounded JSON batch: object_name first, then object_names; " +
+            "trim names and ignore null/empty/whitespace entries. At least one name must remain. " +
+            "Use schema-qualified names when ambiguous. Defaults: 10 inputs before deduplication, 65536 UTF-8 bytes. " +
+            "Results retain input order and duplicates with status ok/error/not_returned; complete is true only for all ok. " +
+            "Errors or response_limit omissions set isError; request detail sections separately.",
         InputSchema = new ToolInputSchema
         {
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
-                [McpConstants.ArgObjectName] = StringParam("The name of the database object (table, view, procedure, or function)."),
-                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
+                [McpConstants.ArgObjectName] = NullableParameter("string", "Optional scalar name; required when object_names is absent/null."),
+                [McpConstants.ArgObjectNames] = NullableParameter("array", "Optional array of names. A supplied array selects batch mode, including [].",
+                    NullableParameter("string", "Object name; null/empty/whitespace entries are ignored.")),
+                [McpConstants.ArgDatabase] = StringParam("Target database name. Required.")
             },
-            Required = [McpConstants.ArgObjectName, McpConstants.ArgDatabase]
+            Required = [McpConstants.ArgDatabase]
         }
+    };
+
+    private static ToolParameterDefinition NullableParameter(string type, string description, ToolParameterDefinition? items = null) => new()
+    {
+        Type = null,
+        Description = description,
+        AnyOf = [new() { Type = type, Items = items }, new() { Type = "null" }]
     };
 
     private static ToolDefinition BuildGetSchemaForeignKeys() =>

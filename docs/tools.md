@@ -10,7 +10,7 @@ The server registers 17 SQL tools. Required arguments are listed below; `databas
 | `sql_search_databases` | `search_term` | None | Permitted databases matching a substring |
 | `sql_validate_query` | `query`, `database` | `parameters` | Validation message; SQL Server `NOEXEC` compilation without executing the query |
 | `sql_search_objects` | `search_term`, `database` | `max_results`, `object_type` | Object matches; `object_type` matches SQL Server `type_desc`, supporting LIKE patterns such as `SQL_%` |
-| `sql_get_schema` | `object_name`, `database` | None | Primary schema and descriptions for tables, views, procedures or functions |
+| `sql_get_schema` | `database` | `object_name`, `object_names` | Scalar primary-schema Markdown, or an ordered JSON batch envelope |
 | `sql_get_schema_foreign_keys` | `object_name`, `database` | None | Inbound/outbound foreign keys |
 | `sql_get_schema_indexes` | `object_name`, `database` | None | Indexes, key and included columns |
 | `sql_get_schema_constraints` | `object_name`, `database` | None | Default/check constraint definitions |
@@ -19,6 +19,45 @@ The server registers 17 SQL tools. Required arguments are listed below; `databas
 | `sql_get_routine_parameters` | `object_name`, `database` | None | Procedure/function parameter names, types and directions |
 
 Schema details are separate calls so clients can request only relevant metadata. Validation is not a guarantee that all objects exist or that later execution will succeed: `NOEXEC` can defer name resolution. Schema definitions are raw text; [security.md](security.md) describes exposure limits.
+
+### Primary schema selection
+
+`sql_get_schema` preserves scalar validation and Markdown when `object_names` is
+omitted or null: a non-empty string `object_name` is then required. A supplied
+array, including `[]`, selects batch mode. Combine `object_name` first, followed
+by `object_names` in order; null, empty and whitespace-only names are ignored and
+other names are trimmed. At least one name must remain. Both selection fields
+and array entries accept null; other non-string names and non-array lists fail
+with `SQL-AI-0001`. Details remain separate tools.
+
+These argument objects are accepted by the registered MCP tool:
+
+```json
+{"database":"DemoDB","object_name":"Orders"}
+{"database":"DemoDB","object_names":["Orders","Customers"]}
+{"database":"DemoDB","object_name":" Orders ","object_names":[null," ","Customers","Orders"]}
+{"database":"DemoDB","object_name":"Orders","object_names":[]}
+```
+
+Batch identifiers can be unqualified or SQL-schema-qualified, including quoted
+names such as `[sales].[Order Details]`. Unqualified names must be unambiguous;
+SQL Server's catalog comparison rules apply. Cross-database names are rejected.
+Duplicate inputs and aliases retain separate ordered results while sharing fetches.
+
+Batch output is one JSON text block with `complete` and `results`. Every normalized
+input has `object_name`, `status` and either `markdown` for `ok`, `error` with
+catalog `code`/`message` for `error`, or `reason=response_limit` for `not_returned`.
+Object errors allow successful siblings. Validation/access/catalog failures fail
+the whole request. `complete=true` and MCP `isError=false` only when every entry
+is `ok`; mixed errors and omissions retain the envelope with `isError=true`.
+
+The defaults allow 10 non-empty inputs before deduplication and 65,536 UTF-8 bytes
+of exact JSON text, including metadata. A whole schema/error that cannot fit and
+all following entries become `not_returned`; earlier entries remain. If identifying
+omission metadata alone cannot fit, the call fails before database work. No text
+is silently truncated and no cursor is returned. Narrow the selection or request
+fewer names after omissions. See [batch limits](configuration.md#schema-batch-limits)
+and [CLI array syntax](development.md#manual-tool-calls).
 
 ## Query and script execution
 

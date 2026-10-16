@@ -207,7 +207,7 @@ public sealed class SchemaService : ISchemaService
     public async Task<Result<string>> GetSchemaAsync(string databaseName, string objectName, CancellationToken cancellationToken = default)
         => await GetSchemaCoreAsync(databaseName, objectName, null, cancellationToken);
 
-    internal async Task<Result<SchemaBatchResponse>> GetSchemaBatchAsync(
+    public async Task<Result<SchemaBatchResponse>> GetSchemaBatchAsync(
         string databaseName, JsonElement objectName = default, JsonElement objectNames = default, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(databaseName))

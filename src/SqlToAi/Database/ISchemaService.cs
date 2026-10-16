@@ -1,3 +1,4 @@
+using System.Text.Json;
 using SqlToAi.Domain;
 
 namespace SqlToAi.Database;
@@ -45,6 +46,9 @@ public interface ISchemaService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A Markdown representation of the object's schema.</returns>
     Task<Result<string>> GetSchemaAsync(string databaseName, string objectName, CancellationToken cancellationToken = default);
+
+    Task<Result<SchemaBatchResponse>> GetSchemaBatchAsync(
+        string databaseName, JsonElement objectName = default, JsonElement objectNames = default, CancellationToken cancellationToken = default);
 
     Task<Result<string>> GetExportSchemaAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default);
 

@@ -34,7 +34,7 @@ Row limits constrain returned rows; they do not bound SQL Server's query cost or
 
 ### Schema batch limits
 
-The internal schema batch service counts normalized non-empty input entries before
+The `sql_get_schema` batch service counts normalized non-empty input entries before
 deduplication. `SchemaBatch.MaxInputCount` rejects excessive selections before
 database/schema work. `MaxResponseBytes` bounds the exact serialized JSON response
 text, including the envelope, all input names, status fields, complete catalog
@@ -48,8 +48,9 @@ response budget, that input and all remaining inputs receive `not_returned` with
 `reason=response_limit`; earlier results remain available. Duplicate names retain
 their own entries and consume response space even when their schema fetch is reused.
 These options apply only to batch composition; scalar schema responses and
-filesystem exports retain their existing limits and behavior. The batch service is
-currently internal; MCP/CLI registration is a separate integration step.
+filesystem exports retain their existing limits and behavior. Batch mode is selected
+by a supplied `object_names` array through MCP or the [CLI](development.md#manual-tool-calls);
+absent/null arrays preserve scalar lookup.
 
 ## Manual setup and updates
 

@@ -162,7 +162,7 @@ No implementation or practical verification has been performed by creating this 
     `high`. Atomic commit reference: the direct child of `6dc3c5e` with subject
     `feat: Begrenze und komponiere Schema-Stapel` (this slice). Items 3â€“8 remain open.
 
-- [ ] **3. Expose scalar and batch schema calls consistently.**
+- [x] **3. Expose scalar and batch schema calls consistently.**
 
   **Intention:** Make the parameter forms agents see actually callable through all
   existing entry points.
@@ -183,6 +183,55 @@ No implementation or practical verification has been performed by creating this 
   arrays selecting the envelope, combined inputs and invalid types, and correct
   `isError` propagation. Existing command tests remain valid. Documented examples
   are exercised with the actual parsers/binders; build/tests pass.
+
+  **Completion evidence (2026-10-16):**
+
+  - Exposed `GetSchemaBatchAsync` through `ISchemaService` with its retained
+    `SchemaBatchResponse`; the existing singleton DI registration therefore
+    supplies both paths. `ToolDispatcher` preserves legacy scalar validation and
+    Markdown for absent/null `object_names`, routes supplied arrays (including
+    `[]`) through batch normalization, and returns the original measured JSON
+    with `isError=!Complete`. Request failures keep catalog error responses.
+    Schema detail tools and export behavior are unchanged; inventory remains 17.
+  - Registry parameters now require only `database`, advertise nullable scalar,
+    array and array-entry forms, and explain normalization, budgets, ordered
+    results and failure/omission flags. SDK registration reuses the registry's
+    description and exact input schema. Nullable JSON-element delegate arguments
+    preserve shapes for validation rather than coercing invalid names. Review
+    caught that `JsonElement=default` fails SDK schema creation; nullable defaults
+    fix this and the registered invocation tests verify actual binding.
+  - The generated CLI accepts `--object_names` as exactly one JSON array/null
+    token, clones parsed JSON for dispatch, and reports invalid JSON/non-array
+    tokens as parse errors. Explicit arity and token-count handling prevent
+    missing/multiple tokens from throwing. Existing unrelated parsers retain their
+    behavior. Updated `docs/tools.md` and `docs/development.md` with scalar, list,
+    combined and empty-array examples, and removed stale internal-only batch
+    integration wording from architecture/configuration docs.
+  - Added 37 cases in `tests/SqlToAi.Tests/Mcp/SchemaToolSurfaceTests.cs` using the
+    existing database test factory. They invoke the tools returned by
+    `SqlMcpToolRegistrations.BuildToolCollection` through SDK `InvokeAsync` with
+    JSON arguments and an in-memory server context; no running MCP transport or
+    external database is needed. Coverage includes omitted/null arrays and scalar
+    Markdown equality, one/multiple/combined/empty arrays, normalization and
+    duplicates, invalid scalar/list/item types, empty selection, ordered mixed
+    success/error siblings, full response-limit omission, count-before-dedup and
+    denied access. Complete batches have `isError=false`; mixed/omitted and
+    request-wide failures have `isError=true`. Registry/SDK schemas are compared
+    including nullable item shapes. Native dispatcher string arrays also work.
+    The documented CLI forms run through the actual parser and dispatcher into
+    `SchemaService`; malformed/non-array, missing and multiple tokens are checked.
+  - Validation: all 37 focused cases passed. `dotnet build SqlToAi.slnx` passed
+    with zero warnings/errors. `dotnet test SqlToAi.slnx --logger
+    'console;verbosity=quiet'` passed: 1011 successful, 19 existing TLS endpoint
+    skips, zero failures, 1030 total. The skipped certificate scenarios still
+    require `SQLTOAI_TLS_TEST_PROFILE`. `git diff --check` passed. This evidence
+    proves binding/parser behavior, not the practical usability review or access
+    through the maintainer's configuration; item 4 remains open. No user settings,
+    database permissions or temporary exploration scenarios were changed.
+  - Actual delegated implementation setting: `gpt-6.1-sol`, reasoning effort
+    `medium`. Atomic commit reference: the direct child of `21edecc` with subject
+    `feat: Integriere Schema-Stapel in MCP und CLI` (this slice). Items 4–8 remain
+    open and were not implemented.
 
 - [ ] **4. Review schema parameter usability through real exploration.**
 

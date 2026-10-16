@@ -86,8 +86,7 @@ internal sealed class ToolDispatcher : IToolDispatcher
                     ct)),
 
             [McpConstants.ToolGetSchema] = (paramsObj, ct) =>
-                CallAsync(() => _schemaService.GetSchemaAsync(
-                    GetDb(paramsObj), Require(paramsObj, McpConstants.ArgObjectName), ct)),
+                GetSchemaAsync(paramsObj, ct),
 
             [McpConstants.ToolGetSchemaForeignKeys] = (paramsObj, ct) =>
                 CallAsync(() => _schemaService.GetSchemaForeignKeysAsync(
@@ -278,6 +277,34 @@ internal sealed class ToolDispatcher : IToolDispatcher
             : result.Value?.ToString() ?? string.Empty;
 
         return ToolCallResult.Success(text);
+    }
+
+    private async Task<ToolCallResult> GetSchemaAsync(ToolCallParams call, CancellationToken ct)
+    {
+        try
+        {
+            JsonElement names = GetJsonArgument(call, McpConstants.ArgObjectNames);
+            if (names.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+                return await CallAsync(() => _schemaService.GetSchemaAsync(GetDb(call), Require(call, McpConstants.ArgObjectName), ct));
+
+            var batch = await _schemaService.GetSchemaBatchAsync(GetDb(call), GetJsonArgument(call, McpConstants.ArgObjectName), names, ct);
+            if (batch.IsFailure) return ToolCallResult.Failure(batch.Error.Code, batch.Error.Message);
+            return new ToolCallResult
+            {
+                Content = [new ToolContent { Text = batch.Value.Json }],
+                IsError = !batch.Value.Complete
+            };
+        }
+        catch (ArgumentException ex)
+        {
+            return ToolCallResult.Failure(SqlToAiError.InvalidParametersCode, ex.Message);
+        }
+    }
+
+    private static JsonElement GetJsonArgument(ToolCallParams call, string key)
+    {
+        object? value = GetObject(call, key);
+        return value is JsonElement json ? json : JsonSerializer.SerializeToElement(value, McpJsonContext.Default.Options);
     }
 
     private Task<ToolCallResult> UnknownTool(string toolName)

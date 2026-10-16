@@ -116,7 +116,13 @@ public sealed class ToolInputSchema
 public sealed class ToolParameterDefinition
 {
     [JsonPropertyName("type")]
-    public string Type { get; init; } = "string";
+    public string? Type { get; init; } = "string";
+
+    [JsonPropertyName("anyOf")]
+    public IReadOnlyList<ToolParameterDefinition>? AnyOf { get; init; }
+
+    [JsonPropertyName("items")]
+    public ToolParameterDefinition? Items { get; init; }
 
     [JsonPropertyName("description")]
     public string Description { get; init; } = string.Empty;

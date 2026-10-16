@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.Text.Json;
 using SqlToAi.Mcp;
 
 namespace SqlToAi.Cli;
@@ -69,6 +70,41 @@ internal static class ToolCommandFactory
         bool required)
     {
         string optionName = "--" + argKey;
+
+        if (parameterDefinition.Type == "array" || parameterDefinition.AnyOf?.Any(shape => shape.Type == "array") == true)
+        {
+            var option = new Option<JsonElement?>(optionName)
+            {
+                Description = parameterDefinition.Description + " Supply one JSON array token, e.g. '[\"dbo.Orders\",null]'.",
+                Required = required,
+                Arity = ArgumentArity.ExactlyOne,
+                CustomParser = result =>
+                {
+                    if (result.Tokens.Count != 1)
+                    {
+                        result.AddError("Expected one JSON array token or null.");
+                        return null;
+                    }
+                    try
+                    {
+                        using var document = JsonDocument.Parse(result.Tokens.Single().Value);
+                        if (document.RootElement.ValueKind is not (JsonValueKind.Array or JsonValueKind.Null))
+                        {
+                            result.AddError("Expected a JSON array or null.");
+                            return null;
+                        }
+                        return document.RootElement.Clone();
+                    }
+                    catch (JsonException)
+                    {
+                        result.AddError("Expected a valid JSON array or null.");
+                        return null;
+                    }
+                }
+            };
+            command.Add(option);
+            return (argKey, parseResult => parseResult.GetValue(option));
+        }
 
         if (string.Equals(parameterDefinition.Type, "boolean", StringComparison.OrdinalIgnoreCase))
         {

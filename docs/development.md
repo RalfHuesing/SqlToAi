@@ -113,6 +113,25 @@ With no arguments, or with `server`, the executable starts MCP stdio. `query <to
 .\SqlToAi.exe query sql_execute_file --file_path .\scripts\report.sql --database ReportingDB --requested_row_limit 100 --parameters '{"CustomerId":42}'
 ```
 
+For primary schemas, pass `--object_names` as **one JSON array token**. PowerShell
+single quotes preserve the JSON double quotes; separate space-delimited names are
+not array syntax. Scalar, list, combined and empty-array forms use the same
+selection rules as [MCP calls](tools.md#primary-schema-selection):
+
+```powershell
+.\SqlToAi.exe query sql_get_schema --database DemoDB --object_name Orders
+.\SqlToAi.exe query sql_get_schema --database DemoDB --object_names '["Orders","Customers"]'
+.\SqlToAi.exe query sql_get_schema --database DemoDB --object_name ' Orders ' --object_names '[null," ","Customers","Orders"]'
+.\SqlToAi.exe query sql_get_schema --database DemoDB --object_name Orders --object_names '[]'
+```
+
+Omitting `--object_names` or passing the JSON token `null` preserves scalar
+Markdown. Any array selects the JSON envelope, even a single name or `[]` combined
+with a scalar. An empty normalized selection fails. Malformed JSON/non-array
+tokens are CLI parse errors; incorrect array entries fail tool validation. Batch
+errors and omissions set the error flag, so their complete JSON envelope goes to
+stderr and the command exits with code 1; successful batches go to stdout.
+
 The last successful content block goes to stdout; preceding notices/metrics go to stderr. Errors go to stderr and exit with code 1. Export query rows as JSON Lines with normal shell redirection:
 
 ```powershell

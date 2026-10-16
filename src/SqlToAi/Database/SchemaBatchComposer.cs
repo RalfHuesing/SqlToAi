@@ -6,7 +6,7 @@ using SqlToAi.Domain;
 
 namespace SqlToAi.Database;
 
-internal sealed record SchemaBatchResponse(string Json, bool Complete);
+public sealed record SchemaBatchResponse(string Json, bool Complete);
 
 internal static class SchemaBatchComposer
 {

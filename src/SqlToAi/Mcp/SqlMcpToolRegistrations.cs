@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -75,8 +76,18 @@ public static class SqlMcpToolRegistrations
         McpServerPrimitiveCollection<McpServerTool> tools,
         IToolDispatcher dispatcher)
     {
-        RegisterDetailTool(tools, dispatcher, McpConstants.ToolGetSchema,
-            "Returns the primary schema of a table, view, procedure, or function as a Markdown document, enriched with metadata descriptions.");
+        ToolDefinition definition = new ToolRegistry().GetAll().Single(tool => tool.Name == McpConstants.ToolGetSchema);
+        McpServerTool schemaTool = McpServerTool.Create(
+            (string database, JsonElement? object_name = null, JsonElement? object_names = null, CancellationToken ct = default) =>
+                ExecuteAsync(dispatcher, McpConstants.ToolGetSchema, new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    [McpConstants.ArgDatabase] = database,
+                    [McpConstants.ArgObjectName] = object_name,
+                    [McpConstants.ArgObjectNames] = object_names
+                }, ct),
+            new McpServerToolCreateOptions { Name = definition.Name, Description = definition.Description });
+        schemaTool.ProtocolTool.InputSchema = JsonSerializer.SerializeToElement(definition.InputSchema, McpJsonContext.Default.ToolInputSchema);
+        tools.Add(schemaTool);
         RegisterDetailTool(tools, dispatcher, McpConstants.ToolGetSchemaForeignKeys,
             "Returns all inbound and outbound foreign keys for a table as a Markdown table.");
         RegisterDetailTool(tools, dispatcher, McpConstants.ToolGetSchemaIndexes,

@@ -56,7 +56,6 @@ public sealed class ToolRegistryTests
     [InlineData(McpConstants.ToolSearchDatabases, McpConstants.ArgSearchTerm)]
     [InlineData(McpConstants.ToolValidateQuery, McpConstants.ArgQuery)]
     [InlineData(McpConstants.ToolSearchObjects, McpConstants.ArgSearchTerm)]
-    [InlineData(McpConstants.ToolGetSchema, McpConstants.ArgObjectName)]
     [InlineData(McpConstants.ToolGetSchemaForeignKeys, McpConstants.ArgObjectName)]
     [InlineData(McpConstants.ToolGetSchemaIndexes, McpConstants.ArgObjectName)]
     [InlineData(McpConstants.ToolGetSchemaConstraints, McpConstants.ArgObjectName)]

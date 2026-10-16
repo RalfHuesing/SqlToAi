@@ -20,6 +20,7 @@ namespace SqlToAi.Mcp;
 
 [JsonSerializable(typeof(Dictionary<string, object?>))]
 [JsonSerializable(typeof(IReadOnlyList<string>))]
+[JsonSerializable(typeof(string[]))]
 [JsonSerializable(typeof(JsonElement))]
 [JsonSerializable(typeof(JsonElement?))]
 [JsonSerializable(typeof(short))]
