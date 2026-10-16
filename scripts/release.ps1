@@ -217,10 +217,13 @@ function Get-CheckedDraft {
     if ($draft.body -cnotmatch "(?m)^Automated run: $([regex]::Escape($RunUrl)) \(attempt \d+\)\r?$") {
         throw 'Draft does not belong to the successful release workflow.'
     }
-    if ([regex]::Matches($draft.body, '(?m)^ZIP SHA-256: ([0-9a-f]{64})\r?$').Count -ne 1) {
-        throw 'Draft is missing its unique workflow-generated ZIP hash.'
+    foreach ($format in @('ZIP', 'MCPB')) {
+        if ([regex]::Matches($draft.body, "(?m)^$format SHA-256: ([0-9a-f]{64})\r?$").Count -ne 1) {
+            throw "Draft is missing its unique workflow-generated $format hash."
+        }
     }
-    foreach ($name in @('SqlToAi-win-x64.zip', 'SqlToAi-win-x64.zip.sha256')) {
+    if (@($draft.assets).Count -ne 4) { throw 'Draft must contain exactly the two checked archives and their checksums.' }
+    foreach ($name in @('SqlToAi-win-x64.zip', 'SqlToAi-win-x64.zip.sha256', 'SqlToAi-win-x64.mcpb', 'SqlToAi-win-x64.mcpb.sha256')) {
         if (@($draft.assets | Where-Object name -CEQ $name).Count -ne 1) {
             throw "Draft is missing its unique expected asset: $name"
         }
@@ -236,12 +239,16 @@ function Complete-DraftHandoff {
     $directory = Join-Path ([System.IO.Path]::GetTempPath()) ('SqlToAi-draft-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $directory | Out-Null
     try {
-        gh release download $TagName --pattern SqlToAi-win-x64.zip --pattern SqlToAi-win-x64.zip.sha256 --dir $directory | Out-Host
+        gh release download $TagName --pattern SqlToAi-win-x64.zip --pattern SqlToAi-win-x64.zip.sha256 `
+            --pattern SqlToAi-win-x64.mcpb --pattern SqlToAi-win-x64.mcpb.sha256 --dir $directory | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "gh release download failed (exit $LASTEXITCODE)." }
-        $hash = (Get-FileHash -LiteralPath (Join-Path $directory 'SqlToAi-win-x64.zip') -Algorithm SHA256).Hash.ToLowerInvariant()
-        $expected = [regex]::Match($draft.body, '(?m)^ZIP SHA-256: ([0-9a-f]{64})\r?$').Groups[1].Value
-        if ($hash -cne $expected -or [System.IO.File]::ReadAllText((Join-Path $directory 'SqlToAi-win-x64.zip.sha256')) -cne "$hash  SqlToAi-win-x64.zip`n") {
-            throw 'Downloaded ZIP/checksum differs from the workflow-checked hash.'
+        foreach ($format in @('zip', 'mcpb')) {
+            $name = "SqlToAi-win-x64.$format"
+            $hash = (Get-FileHash -LiteralPath (Join-Path $directory $name) -Algorithm SHA256).Hash.ToLowerInvariant()
+            $expected = [regex]::Match($draft.body, "(?m)^$($format.ToUpperInvariant()) SHA-256: ([0-9a-f]{64})\r?$").Groups[1].Value
+            if ($hash -cne $expected -or [System.IO.File]::ReadAllText((Join-Path $directory "$name.sha256")) -cne "$hash  $name`n") {
+                throw "Downloaded $name/checksum differs from the workflow-checked hash."
+            }
         }
         # Re-read before editing so a concurrent publication or notes change is refused.
         $current = Get-CheckedDraft -TagName $TagName -Commit $Commit -Version $Version -RunUrl $RunUrl
@@ -252,7 +259,7 @@ function Complete-DraftHandoff {
         $lines.Add('## Local validation recorded by release.ps1')
         $lines.Add('')
         $lines.Add("Tested source: $Commit; version: $Version; tag: $TagName")
-        $lines.Add('Maintainer-supplied local execution facts; local test binaries do not prove CI ZIP byte identity.')
+        $lines.Add('Maintainer-supplied local execution facts; local test binaries do not prove CI archive byte identity.')
         foreach ($selection in @(
             @{ Name = 'Offline'; Trx = $Offline; Command = 'scripts/validate.ps1 -ResultsDirectory <temporary-directory> (dependency audit, build, offline tests)' },
             @{ Name = 'Ordinary SQL'; Trx = $Sql; Command = "dotnet test SqlToAi.slnx --no-build --no-restore --filter 'Category=Integration' --results-directory <temporary-directory> --logger 'trx;LogFileName=Integration.trx' -- RunConfiguration.TreatNoTestsAsError=true" },
@@ -344,7 +351,7 @@ try {
     Invoke-GitStep "git commit" { git --no-pager commit -m $commitMessage }
     if ($DryRun) {
         Write-Host '[PLAN] Validate the release commit: scripts/validate.ps1 (audit/build/offline), then Category=Integration (no skips), then Category=TlsIntegration (missing cases unverified).'
-        Write-Host '[PLAN] Require authenticated gh before mutations; require unchanged HEAD, clean working tree and main before push/tag. Wait for the exact tag/source workflow, verify downloaded draft ZIP/checksum and record sanitized local results. Publication remains manual.'
+        Write-Host '[PLAN] Require authenticated gh before mutations; require unchanged HEAD, clean working tree and main before push/tag. Wait for the exact tag/source workflow, verify both downloaded draft archives/checksums and record sanitized local results. Publication remains manual.'
     }
     else {
         $releaseCommit = Get-HeadCommit
@@ -381,7 +388,7 @@ try {
                 $name = [regex]::Replace($test.testName, '[\p{Cc}\p{Cf}]', ' ')
                 Write-Host "Unverified TLS: $name"
             }
-            Write-Host 'Review/disclose missing TLS evidence and source dependency exceptions in the draft. Local test binaries are not proof of CI ZIP byte identity.'
+            Write-Host 'Review/disclose missing TLS evidence and source dependency exceptions in the draft. Local test binaries are not proof of CI archive byte identity.'
         }
         finally {
             $resolvedResults = (Resolve-Path -LiteralPath $resultsDirectory).Path

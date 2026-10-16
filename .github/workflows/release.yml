@@ -17,6 +17,7 @@ jobs:
     runs-on: windows-latest
     outputs:
       sha256: ${{ steps.package.outputs.sha256 }}
+      mcpb-sha256: ${{ steps.package.outputs.mcpb-sha256 }}
     steps:
       - name: Check out tagged source
         uses: actions/checkout@v4
@@ -41,7 +42,7 @@ jobs:
         shell: pwsh
         run: ./scripts/validate.ps1
 
-      - name: Package once and check the actual ZIP executable
+      - name: Package once and check both actual archive launches
         id: package
         shell: pwsh
         env:
@@ -52,17 +53,21 @@ jobs:
           $directory = Join-Path $env:RUNNER_TEMP 'release-package'
           $package = & ./scripts/package.ps1 -OutputDirectory $directory
           $checked = & ./scripts/smoke-package.ps1 -ZipPath $package.ZipPath -DisposableProfile
+          $checkedBundle = & ./scripts/smoke-package.ps1 -McpbPath $package.McpbPath -DisposableProfile
           $hash = (Get-FileHash -LiteralPath $package.ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($checked.ZipPath -cne $package.ZipPath -or $checked.Sha256 -cne $package.Sha256 -or $hash -cne $package.Sha256) {
-              throw 'The ZIP changed between packaging and smoke verification.'
+          $bundleHash = (Get-FileHash -LiteralPath $package.McpbPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($checked.ZipPath -cne $package.ZipPath -or $checked.Sha256 -cne $package.Sha256 -or $hash -cne $package.Sha256 -or
+              $checkedBundle.McpbPath -cne $package.McpbPath -or $checkedBundle.Sha256 -cne $package.McpbSha256 -or $bundleHash -cne $package.McpbSha256) {
+              throw 'An archive changed between packaging and smoke verification.'
           }
           $notes = @"
           Source commit: $($source.Commit)
           Version: $($source.Version) (tag $($source.Tag))
           ZIP SHA-256: $hash
+          MCPB SHA-256: $bundleHash
           Automated run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID (attempt $env:GITHUB_RUN_ATTEMPT)
 
-          Automated checks passed: dependency restore/audit (direct and transitive, all severities), build, offline tests, and the extracted Windows ZIP executable's missing-settings/MCP startup checks on a fresh GitHub Windows runner. The runner has the .NET SDK installed; this is not an SDK-free-machine test. See the run logs for counts and diagnostics.
+          Automated checks passed: dependency restore/audit (direct and transitive, all severities), build, offline tests, and both extracted Windows archives' missing-settings/MCP startup checks, including the MCPB manifest and declared command, on a fresh GitHub Windows runner. The runner has the .NET SDK installed; this is not an SDK-free-machine test. See the run logs for counts and diagnostics.
 
           ## Maintainer review required before publication
 
@@ -70,11 +75,12 @@ jobs:
           - Dedicated TLS: PENDING review. Record the command/results and unverified cases. Trusted/untrusted TCP endpoints remain unavailable under the accepted environment limitation; disclose and review that limitation for this release. Missing/failed ordinary SQL or failed configured TLS blocks publication.
           - Dependency exceptions: PENDING review. Inspect ``NuGetAuditSuppress`` items and associated advisory/package/version/risk reviews in this source. Record each maintainer-approved exception here, or explicitly record none after review. A green audit with suppressions is not absence of findings.
 
-          Publish this existing draft and these checked assets through GitHub only after completing review. Do not rebuild or replace the ZIP. Changed source or bytes require applicable checks and fresh review. Reruns refuse every existing draft/public release; investigate partial drafts before deleting one and rerunning with all review fields pending again.
+          Publish this existing draft and these checked assets through GitHub only after completing review. Do not rebuild or replace either archive. Changed source or bytes require applicable checks and fresh review. Reruns refuse every existing draft/public release; investigate partial drafts before deleting one and rerunning with all review fields pending again.
           "@
           [System.IO.File]::WriteAllText((Join-Path $directory 'release-notes.md'), $notes)
           "sha256=$hash" >> $env:GITHUB_OUTPUT
-          "Checked ZIP SHA-256: $hash. Draft creation follows only after artifact transfer and checksum verification; local SQL/TLS/exception review remains pending." >> $env:GITHUB_STEP_SUMMARY
+          "mcpb-sha256=$bundleHash" >> $env:GITHUB_OUTPUT
+          "Checked ZIP SHA-256: $hash; MCPB SHA-256: $bundleHash. Draft creation follows only after artifact transfer and both checksum verifications; local SQL/TLS/exception review remains pending." >> $env:GITHUB_STEP_SUMMARY
 
       - name: Transfer the checked bytes and review notes
         uses: actions/upload-artifact@v4
@@ -83,6 +89,8 @@ jobs:
           path: |
             ${{ runner.temp }}/release-package/SqlToAi-win-x64.zip
             ${{ runner.temp }}/release-package/SqlToAi-win-x64.zip.sha256
+            ${{ runner.temp }}/release-package/SqlToAi-win-x64.mcpb
+            ${{ runner.temp }}/release-package/SqlToAi-win-x64.mcpb.sha256
             ${{ runner.temp }}/release-package/release-notes.md
           if-no-files-found: error
           retention-days: 7
@@ -113,7 +121,8 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_COMMIT: ${{ github.sha }}
           RELEASE_SHA256: ${{ needs.build.outputs.sha256 }}
+          RELEASE_MCPB_SHA256: ${{ needs.build.outputs.mcpb-sha256 }}
         run: |
           ./scripts/create-release-draft.ps1 -Tag $env:RELEASE_TAG -SourceCommit $env:RELEASE_COMMIT `
             -Repository $env:GITHUB_REPOSITORY -PackageDirectory (Join-Path $env:RUNNER_TEMP 'checked-release') `
-            -ExpectedSha256 $env:RELEASE_SHA256
+            -ExpectedSha256 $env:RELEASE_SHA256 -ExpectedMcpbSha256 $env:RELEASE_MCPB_SHA256
