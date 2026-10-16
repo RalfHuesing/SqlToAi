@@ -26,7 +26,8 @@ complete schema documentation through the existing export implementation.
    and `output_path`. Selected export accepts the same single/list selection forms;
    full export rejects object selections. An empty selection never means full export.
 4. Reuse the existing export service, rendering, filename mapping and supported
-   object kinds. Full export retains its current layout and contents. Selected
+   object kinds. Both scopes write the same directory layout with an overview and
+   individual object documents. Full export retains its current contents. Selected
    export filters the discovered objects before composition; it does not recursively
    export referenced objects and must not generate links to unexported files.
 5. Require a fully qualified server-side output path. The destination directory
@@ -62,16 +63,10 @@ cleanup options, new rendering formats, background jobs and changes to CLI behav
   duplicate objects are not fetched twice. Existing single-object clients work.
 - Missing input, batch limits, object failures and response limits produce explicit
   results without silently discarding successful siblings or requested objects.
-- Full export matches existing CLI coverage; selected export contains exactly the
-  selected objects and valid links or readable names for unexported references.
+- Both export scopes use the existing directory layout. Full export matches CLI
+  coverage; selected export contains exactly the selected objects and valid links
+  or readable names for unexported references.
 - Relative paths, file destinations and non-empty directories are rejected. Absolute
   paths to absent or empty directories work without overwriting existing files.
 - Denied databases stay denied; schema-only access works. Failures report partial
   output honestly, and the tool description clearly announces a potentially large dump.
-
-## Open decision
-
-For selected export, use the existing directory layout (recommended for maximum
-code reuse), or combine the selected objects into one Markdown file (requires
-additional composition and different destination validation)? Full export remains
-a directory tree in either case.
