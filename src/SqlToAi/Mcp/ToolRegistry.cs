@@ -32,6 +32,7 @@ public sealed class ToolRegistry
         BuildValidateQuery(),
         BuildSearchObjects(),
         BuildGetSchema(),
+        BuildExportSchema(),
         BuildGetSchemaForeignKeys(),
         BuildGetSchemaIndexes(),
         BuildGetSchemaConstraints(),
@@ -122,6 +123,36 @@ public sealed class ToolRegistry
                 [McpConstants.ArgDatabase] = StringParam("Target database name. Required.")
             },
             Required = [McpConstants.ArgDatabase]
+        }
+    };
+
+    private static ToolDefinition BuildExportSchema() => new()
+    {
+        Name = McpConstants.ToolExportSchema,
+        Description = "Deliberately creates persistent schema documentation on the SERVER filesystem. " +
+            "Can produce a large dump with many files and take substantial time; the agent needs access to that filesystem. " +
+            "Requires database access (SchemaOnly is sufficient) and server process write permissions. " +
+            "Explicit scope selected requires object_name and/or object_names; all exports the whole permitted catalog and rejects non-empty selections. " +
+            "Names are scalar-first, trimmed, with null/empty/whitespace ignored; use schema-qualified names when ambiguous. " +
+            "Selected export resolves all names before writes, deduplicates objects and does not expand dependencies. " +
+            "output_path must be a fully qualified Windows drive-rooted or UNC directory, absent or completely empty. " +
+            "Relative, drive/root-relative, URL and device-namespace paths are rejected. " +
+            "Returns compact JSON status completed/failed/cancelled, resolved output_path when valid, partial_output and catalog error/reason; no contents. " +
+            "Failures/cancellation set isError and retain files/child directories (partial_output=true, including incomplete files); an empty root alone is false. " +
+            "Retry with an empty root, otherwise a new or manually emptied directory. No automatic cleanup. " +
+            "Offline UTF-8 Markdown schema documentation, not a SQL backup; batch response limits do not apply. Existing command timeouts and cancellation apply.",
+        InputSchema = new ToolInputSchema
+        {
+            Properties = new Dictionary<string, ToolParameterDefinition>
+            {
+                [McpConstants.ArgDatabase] = StringParam("Target database name. Required."),
+                [McpConstants.ArgScope] = StringParam("Required explicit scope: selected or all. Never defaults to all."),
+                [McpConstants.ArgOutputPath] = StringParam("Required fully qualified Windows server directory: drive-rooted or UNC; absent or completely empty."),
+                [McpConstants.ArgObjectName] = NullableParameter("string", "Optional scalar selection name."),
+                [McpConstants.ArgObjectNames] = NullableParameter("array", "Optional selection array; combine after scalar, ignoring null/empty/whitespace entries.",
+                    NullableParameter("string", "Object name; null/empty/whitespace entries are ignored."))
+            },
+            Required = [McpConstants.ArgDatabase, McpConstants.ArgScope, McpConstants.ArgOutputPath]
         }
     };
 

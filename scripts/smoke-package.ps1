@@ -212,14 +212,14 @@ try {
         $discovery = Read-McpResponse $process 2
         $expected = @(
             'sql_list_databases', 'sql_search_databases', 'sql_validate_query', 'sql_search_objects',
-            'sql_get_schema', 'sql_get_schema_foreign_keys', 'sql_get_schema_indexes', 'sql_get_schema_constraints',
+            'sql_get_schema', 'sql_export_schema', 'sql_get_schema_foreign_keys', 'sql_get_schema_indexes', 'sql_get_schema_constraints',
             'sql_get_trigger_definition', 'sql_get_object_references', 'sql_get_routine_parameters',
             'sql_execute_query', 'sql_execute_file', 'sql_compare_queries', 'sql_measure_performance',
             'sql_benchmark_optimization', 'sql_suggest_indexes'
         )
         if ($discovery.nextCursor -or @($discovery.tools).Count -ne $expected.Count -or
             (Compare-Object ($expected | Sort-Object) (@($discovery.tools.name) | Sort-Object) -CaseSensitive)) {
-            throw 'Packaged tools/list does not match the expected 17 SQL tools.'
+            throw 'Packaged tools/list does not match the expected 18 SQL tools.'
         }
         $process.StandardInput.Close()
         $tail = $process.StandardOutput.ReadToEndAsync()
@@ -241,7 +241,7 @@ try {
     if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) {
         throw 'Archive bytes changed during the smoke check.'
     }
-    Write-Host "Package smoke passed: initialization, 17 tools, protocol-only stdout, separate stderr, spaces/different CWD, unchanged settings. SHA-256 $hash"
+    Write-Host "Package smoke passed: initialization, 18 tools, protocol-only stdout, separate stderr, spaces/different CWD, unchanged settings. SHA-256 $hash"
     if ($isBundle) { [pscustomobject]@{ McpbPath = $archive; Sha256 = $hash } }
     else { [pscustomobject]@{ ZipPath = $archive; Sha256 = $hash } }
 }

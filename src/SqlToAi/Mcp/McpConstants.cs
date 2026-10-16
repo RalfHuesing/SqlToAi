@@ -45,6 +45,7 @@ internal static class McpConstants
     internal const string ToolValidateQuery = "sql_validate_query";
     internal const string ToolSearchObjects = "sql_search_objects";
     internal const string ToolGetSchema = "sql_get_schema";
+    internal const string ToolExportSchema = "sql_export_schema";
     internal const string ToolGetSchemaForeignKeys = "sql_get_schema_foreign_keys";
     internal const string ToolGetSchemaIndexes = "sql_get_schema_indexes";
     internal const string ToolGetSchemaConstraints = "sql_get_schema_constraints";
@@ -63,6 +64,8 @@ internal static class McpConstants
     // -------------------------------------------------------------------------
 
     internal const string ArgDatabase = "database";
+    internal const string ArgScope = "scope";
+    internal const string ArgOutputPath = "output_path";
     internal const string ArgFilePath = "file_path";
     internal const string ArgUseTransaction = "use_transaction";
     internal const string ArgSearchTerm = "search_term";

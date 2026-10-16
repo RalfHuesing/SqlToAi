@@ -1,3 +1,4 @@
+using SqlToAi.Cli;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
@@ -190,7 +191,8 @@ public sealed class PrimaryConnectionFailureTests
                 new IndexSuggestionService(Factory, security, access, options, _loggers.CreateLogger<IndexSuggestionService>()));
             _dispatcher = new ToolDispatcher(Schema, query, Script,
                 new QueryValidationService(Factory, safety, options, _loggers.CreateLogger<QueryValidationService>()),
-                analysis, options, _loggers.CreateLogger<ToolDispatcher>());
+                analysis, options, _loggers.CreateLogger<ToolDispatcher>(),
+                new SchemaExportService(Schema, _loggers.CreateLogger<SchemaExportService>()));
         }
 
         internal FailingOpenFactory Factory { get; }

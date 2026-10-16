@@ -1,6 +1,6 @@
 # SQL tool reference
 
-The server registers 17 SQL tools. Required arguments are listed below; `database` is an explicit target name wherever shown. Failed tool results set MCP `isError=true`; catalog errors appear as `[SQL-AI-...] message` in text content. Successful content can be Markdown or JSON, depending on the tool.
+The server registers 18 SQL tools. Required arguments are listed below; `database` is an explicit target name wherever shown. Failed tool results set MCP `isError=true`; catalog errors appear as `[SQL-AI-...] message` in text content or structured `error` objects in JSON envelopes. Successful content can be Markdown or JSON, depending on the tool.
 
 ## Discovery and schema
 
@@ -11,6 +11,7 @@ The server registers 17 SQL tools. Required arguments are listed below; `databas
 | `sql_validate_query` | `query`, `database` | `parameters` | Validation message; SQL Server `NOEXEC` compilation without executing the query |
 | `sql_search_objects` | `search_term`, `database` | `max_results`, `object_type` | Object matches; `object_type` matches SQL Server `type_desc`, supporting LIKE patterns such as `SQL_%` |
 | `sql_get_schema` | `database` | `object_name`, `object_names` | Scalar primary-schema Markdown, or an ordered JSON batch envelope |
+| `sql_export_schema` | `database`, `scope`, `output_path` | `object_name`, `object_names` | Persistent server filesystem dump; compact JSON outcome |
 | `sql_get_schema_foreign_keys` | `object_name`, `database` | None | Inbound/outbound foreign keys |
 | `sql_get_schema_indexes` | `object_name`, `database` | None | Indexes, key and included columns |
 | `sql_get_schema_constraints` | `object_name`, `database` | None | Default/check constraint definitions |
@@ -58,6 +59,44 @@ omission metadata alone cannot fit, the call fails before database work. No text
 is silently truncated and no cursor is returned. Narrow the selection or request
 fewer names after omissions. See [batch limits](configuration.md#schema-batch-limits)
 and [CLI array syntax](development.md#manual-tool-calls).
+
+### Schema export
+
+Call `sql_export_schema` deliberately: it creates persistent schema documentation
+on the **server filesystem**, can write a large dump with many files and take
+substantial time. The agent needs access to that filesystem. Database access
+(`SchemaOnly` suffices) and server process write permissions are required.
+
+Required `scope` is exactly `selected` or `all`; it never defaults to full export.
+Selected scope uses the scalar/list normalization described above, requires at
+least one name and resolves the entire selection before writes. Aliases export
+once; dependencies and trigger parents are not recursively included. Full scope
+rejects non-empty selections; absent/null/empty/whitespace selections are harmless.
+Wrong selection types fail in either scope.
+
+`output_path` must be a fully qualified Windows directory on the server, such as
+`C:\Doku\Selected` or `\\server\share\Selected`. Relative, drive-relative,
+root-relative, URL and device-namespace paths are rejected. The directory must be
+absent or completely empty, including no child directories; an existing file fails.
+
+```json
+{"database":"DemoDB","scope":"selected","output_path":"C:\\Doku\\Selected","object_name":"dbo.FakeProjects","object_names":["dbo.FakeAddresses"]}
+```
+
+Both scopes reuse the [CLI dump layout](development.md#schema-export), with UTF-8
+Markdown `README.md` and individual documents for tables, views, SQL routines and
+table/view DML triggers. This is offline schema documentation, not a SQL backup.
+Batch response budgets do not apply; existing command timeouts and cancellation do.
+
+One compact JSON text block contains `status` (`completed`, `failed`, `cancelled`),
+`output_path` when resolved, `partial_output`, and a catalog `error` (`code`,
+`message`) or cancellation `reason=cancelled` when applicable. No dump contents
+are returned. Failed/cancelled outcomes set `isError=true`, stop immediately and
+retain output. `partial_output=true` means retained files or child directories,
+including incomplete files; an empty root alone is false. Completed exports set
+it false. Successful unavailable-definition notes are document content.
+Retry can reuse an empty root; otherwise use a new or manually emptied directory.
+There is no automatic cleanup or staging.
 
 ## Query and script execution
 

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
+using SqlToAi.Cli;
 using SqlToAi.Database;
 using SqlToAi.Domain;
 using SqlToAi.Mcp;
@@ -15,7 +16,8 @@ internal static class ToolDispatcherTestHelper
         FakeQueryExecutionService? exec = null,
         FakeScriptExecutionService? script = null,
         FakeQueryValidationService? validation = null,
-        DatabaseAnalysisServices? analysis = null)
+        DatabaseAnalysisServices? analysis = null,
+        SchemaExportService? export = null)
     {
         var options = new SqlToAiOptions();
         return new ToolDispatcher(
@@ -29,7 +31,8 @@ internal static class ToolDispatcherTestHelper
                 new FakeOptimizationBenchmarkService(),
                 new FakeIndexSuggestionService()),
             Options.Create(options),
-            NullLogger<ToolDispatcher>.Instance);
+            NullLogger<ToolDispatcher>.Instance,
+            export ?? new SchemaExportService(schema ?? new FakeSchemaService(), NullLogger<SchemaExportService>.Instance));
     }
 
     public static ToolCallParams Call(string toolName, params (string key, object value)[] args)

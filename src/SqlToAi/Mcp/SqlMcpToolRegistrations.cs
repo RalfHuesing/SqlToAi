@@ -11,7 +11,7 @@ namespace SqlToAi.Mcp;
 public static class SqlMcpToolRegistrations
 {
     /// <summary>
-    /// Builds and returns the collection of all 17 SQL tools, wired to the provided <paramref name="dispatcher"/>.
+    /// Builds and returns the collection of all 18 SQL tools, wired to the provided <paramref name="dispatcher"/>.
     /// </summary>
     public static McpServerPrimitiveCollection<McpServerTool> BuildToolCollection(IToolDispatcher dispatcher)
     {
@@ -88,6 +88,21 @@ public static class SqlMcpToolRegistrations
             new McpServerToolCreateOptions { Name = definition.Name, Description = definition.Description });
         schemaTool.ProtocolTool.InputSchema = JsonSerializer.SerializeToElement(definition.InputSchema, McpJsonContext.Default.ToolInputSchema);
         tools.Add(schemaTool);
+        ToolDefinition exportDefinition = new ToolRegistry().GetAll().Single(tool => tool.Name == McpConstants.ToolExportSchema);
+        McpServerTool exportTool = McpServerTool.Create(
+            (JsonElement? database = null, JsonElement? scope = null, JsonElement? output_path = null, JsonElement? object_name = null,
+                JsonElement? object_names = null, CancellationToken ct = default) =>
+                ExecuteAsync(dispatcher, McpConstants.ToolExportSchema, new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    [McpConstants.ArgDatabase] = database,
+                    [McpConstants.ArgScope] = scope,
+                    [McpConstants.ArgOutputPath] = output_path,
+                    [McpConstants.ArgObjectName] = object_name,
+                    [McpConstants.ArgObjectNames] = object_names
+                }, ct),
+            new McpServerToolCreateOptions { Name = exportDefinition.Name, Description = exportDefinition.Description });
+        exportTool.ProtocolTool.InputSchema = JsonSerializer.SerializeToElement(exportDefinition.InputSchema, McpJsonContext.Default.ToolInputSchema);
+        tools.Add(exportTool);
         RegisterDetailTool(tools, dispatcher, McpConstants.ToolGetSchemaForeignKeys,
             "Returns all inbound and outbound foreign keys for a table as a Markdown table.");
         RegisterDetailTool(tools, dispatcher, McpConstants.ToolGetSchemaIndexes,

@@ -3,7 +3,7 @@ using SqlToAi.Mcp;
 namespace SqlToAi.Tests.Mcp;
 
 /// <summary>
-/// Unit tests for <see cref="ToolRegistry"/> — validates that all 17 tools are correctly registered
+/// Unit tests for <see cref="ToolRegistry"/> — validates that all 18 tools are correctly registered
 /// and that their schema definitions are consistent with <see cref="McpConstants"/>.
 /// </summary>
 public sealed class ToolRegistryTests
@@ -13,7 +13,7 @@ public sealed class ToolRegistryTests
     [Fact]
     public void GetAll_ShouldReturn_SeventeenTools()
     {
-        Assert.Equal(17, _registry.GetAll().Count);
+        Assert.Equal(18, _registry.GetAll().Count);
     }
 
     [Fact]

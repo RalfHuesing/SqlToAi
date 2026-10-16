@@ -60,6 +60,7 @@ The primary connection-open boundary discards raw provider messages and inner ex
 
 ## Boundaries and data exposure
 
+- `sql_export_schema` deliberately persists raw schema/DDL documentation on the server filesystem, potentially in many large files. Database policy applies, including `SchemaOnly`; the process also needs filesystem write permission. Fully qualified Windows drive/UNC paths are accepted without an export-root sandbox. The caller needs access to the output filesystem. Paths must be absent/empty and writes use exclusive creation. Failed/cancelled output is retained, including incomplete files; use a new or manually emptied destination unless only an empty root remains. No data export, automatic cleanup or additional sanitization is performed. See [export parameters and outcomes](tools.md#schema-export).
 - Numeric identifiers, dates, binary values and other non-string columns are not masked.
 - Schema/DDL text is raw. Comparison returns raw difference samples; benchmark results embed them. Plan warnings, SQL literals, errors, logs and metadata can contain sensitive information.
 - Deterministic masks and tokens reveal repeated values. Cleartext exposed elsewhere can be correlated with protected values. These mechanisms do not guarantee anonymity or PII removal.

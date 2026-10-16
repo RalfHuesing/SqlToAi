@@ -97,7 +97,7 @@ public sealed class McpModelsTests
     [Fact]
     public void McpConstants_ToolNames_ShouldMatchSpecification()
     {
-        // All 17 tools defined in architecture-spec.md must be present
+        // All current tools must be present
         var tools = new[]
         {
             McpConstants.ToolListDatabases,
@@ -105,6 +105,7 @@ public sealed class McpModelsTests
             McpConstants.ToolValidateQuery,
             McpConstants.ToolSearchObjects,
             McpConstants.ToolGetSchema,
+            McpConstants.ToolExportSchema,
             McpConstants.ToolGetSchemaForeignKeys,
             McpConstants.ToolGetSchemaIndexes,
             McpConstants.ToolGetSchemaConstraints,
@@ -119,7 +120,7 @@ public sealed class McpModelsTests
             McpConstants.ToolSuggestIndexes
         };
 
-        Assert.Equal(17, tools.Distinct().Count());
+        Assert.Equal(18, tools.Distinct().Count());
         Assert.All(tools, t => Assert.StartsWith("sql_", t));
     }
 }

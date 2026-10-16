@@ -16,6 +16,7 @@ namespace SqlToAi.Mcp;
 [JsonSerializable(typeof(ToolCallParams))]
 [JsonSerializable(typeof(ToolCallResult))]
 [JsonSerializable(typeof(ToolContent))]
+[JsonSerializable(typeof(SchemaExportToolResponse))]
 
 
 [JsonSerializable(typeof(Dictionary<string, object?>))]

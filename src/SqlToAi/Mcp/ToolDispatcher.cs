@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
+using SqlToAi.Cli;
 using SqlToAi.Database;
 using SqlToAi.Domain;
 
@@ -28,6 +29,7 @@ internal sealed class ToolDispatcher : IToolDispatcher
             "Unknown tool requested: {ToolName}.");
 
     private readonly ISchemaService _schemaService;
+    private readonly SchemaExportService _schemaExport;
     private readonly IQueryExecutionService _queryExecutionService;
     private readonly IScriptExecutionService _scriptExecutionService;
     private readonly IQueryValidationService _queryValidationService;
@@ -48,9 +50,11 @@ internal sealed class ToolDispatcher : IToolDispatcher
         IQueryValidationService queryValidationService,
         DatabaseAnalysisServices analysisServices,
         IOptions<SqlToAiOptions> options,
-        ILogger<ToolDispatcher> logger)
+        ILogger<ToolDispatcher> logger,
+        SchemaExportService schemaExport)
     {
         _schemaService = schemaService;
+        _schemaExport = schemaExport;
         _queryExecutionService = queryExecutionService;
         _scriptExecutionService = scriptExecutionService;
         _queryValidationService = queryValidationService;
@@ -87,6 +91,8 @@ internal sealed class ToolDispatcher : IToolDispatcher
 
             [McpConstants.ToolGetSchema] = (paramsObj, ct) =>
                 GetSchemaAsync(paramsObj, ct),
+
+            [McpConstants.ToolExportSchema] = ExportSchemaAsync,
 
             [McpConstants.ToolGetSchemaForeignKeys] = (paramsObj, ct) =>
                 CallAsync(() => _schemaService.GetSchemaForeignKeysAsync(
@@ -299,6 +305,30 @@ internal sealed class ToolDispatcher : IToolDispatcher
         {
             return ToolCallResult.Failure(SqlToAiError.InvalidParametersCode, ex.Message);
         }
+    }
+
+    private async Task<ToolCallResult> ExportSchemaAsync(ToolCallParams call, CancellationToken ct)
+    {
+        SchemaExportOutcome outcome;
+        string? resolvedOutput = null;
+        try
+        {
+            string output = Require(call, McpConstants.ArgOutputPath);
+            if (!SchemaExportToolResponse.IsQualifiedWindowsDirectory(output))
+                throw new ArgumentException("output_path must be a fully qualified Windows drive-rooted or UNC directory; relative, URL and device-namespace paths are not allowed.");
+            resolvedOutput = Path.GetFullPath(output);
+            string scope = Require(call, McpConstants.ArgScope);
+            if (scope is not ("selected" or "all"))
+                throw new ArgumentException("scope must be explicitly selected or all.");
+            outcome = await _schemaExport.ExportAsync(GetDb(call), output,
+                scope == "selected" ? SchemaExportScope.Selected : SchemaExportScope.All,
+                GetJsonArgument(call, McpConstants.ArgObjectName), GetJsonArgument(call, McpConstants.ArgObjectNames), ct);
+        }
+        catch (ArgumentException exception)
+        {
+            outcome = new(SchemaExportStatus.Failed, resolvedOutput, false, SqlToAiError.InvalidParameters(exception.Message));
+        }
+        return SchemaExportToolResponse.Render(outcome);
     }
 
     private static JsonElement GetJsonArgument(ToolCallParams call, string key)

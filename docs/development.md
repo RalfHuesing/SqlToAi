@@ -156,10 +156,24 @@ or cleanup options.
 
 This command continues to export the entire catalog and accepts relative output
 paths, resolved against the process working directory. The shared coordinator's
-internal selected scope resolves every requested identity before writing, exports
+selected scope resolves every requested identity before writing, exports
 each selected object once and keeps references to unselected objects as readable
 names. It does not recursively include dependencies or trigger parents. The
-internal scope is not a command option or an exposed MCP tool.
+selected scope is exposed through `sql_export_schema`; it is not an option on the
+original `export-schema` command. The registry-generated CLI accepts the same
+explicit scope and fully qualified server destination as MCP:
+
+```powershell
+.\SqlToAi.exe query sql_export_schema --database DemoDB --scope selected --output_path C:\Doku\Selected --object_names '["dbo.FakeProjects","dbo.FakeAddresses"]'
+.\SqlToAi.exe query sql_export_schema --database DemoDB --scope all --output_path C:\Doku\Full
+```
+
+This deliberate operation persists potentially large schema dumps and can take
+substantial time. The caller needs access to the server filesystem. Its compact
+JSON response identifies status, resolved path and retained partial output;
+failed/cancelled results exit with code 1. An empty root can be retried; retained
+files or child directories require a new or manually emptied destination. See
+[the MCP export contract](tools.md#schema-export) for path restrictions and errors.
 
 The root `README.md` groups relative links by kind. Object documents go into
 `tables/`, `views/`, `procedures/`, `functions/` and `triggers/`; unused directories
@@ -198,7 +212,7 @@ Otherwise, retry with a new directory or manually empty the failed output first.
 Export does not query business records or invoke metadata, anonymization-policy
 or rule providers. Metadata descriptions, `Anonymized` indicators and generated
 MCP invocation instructions are omitted. Comments in SQL definitions are retained.
-Existing `server`, `query` and MCP output remain unchanged.
+Existing inspection output remains unchanged; export returns only its compact outcome through MCP/query.
 
 ## Publish and redeploy
 
@@ -243,7 +257,7 @@ if ($checkedBundle.Sha256 -cne $package.McpbSha256) { throw 'Bundle checksum mis
 
 The mutually exclusive `-ZipPath` and `-McpbPath` routes extract the archive into an owned temporary path containing spaces and run its unchanged `SqlToAi.exe` from a different working directory. ZIP retains its original launch contract. MCPB first validates `manifest.json` against the same pinned official schema, requires binary type and `win32` compatibility on Windows x64, and checks the included executable's PE machine type. Its entry point must be `SqlToAi.exe` and its command `${__dirname}/SqlToAi.exe`; arguments may be omitted, empty, or the single literal `server` argument, passed through `ProcessStartInfo.ArgumentList`. Other arguments, `user_config`, environment mapping and platform overrides are unsupported and fail before startup. The check is deliberately limited to this package's stdio launch.
 
-Both routes first require exit `1`, empty stdout, actionable missing-settings stderr and no user-root/settings creation. The check then prepares settings from the shipped conservative template with empty grants/server/credentials, disabled optional providers and file sinks, and an unknown-key preservation probe. Application environment overrides are removed only from the child environment. It completes MCP `initialize` / `notifications/initialized` / `tools/list` using protocol `2025-06-18`, requires the exact 17 documented tool names, parses stdout as protocol, drains stderr separately and checks a clean exit after stdin closes. It makes no SQL tool calls.
+Both routes first require exit `1`, empty stdout, actionable missing-settings stderr and no user-root/settings creation. The check then prepares settings from the shipped conservative template with empty grants/server/credentials, disabled optional providers and file sinks, and an unknown-key preservation probe. Application environment overrides are removed only from the child environment. It completes MCP `initialize` / `notifications/initialized` / `tools/list` using protocol `2025-06-18`, requires the exact 18 documented tool names, parses stdout as protocol, drains stderr separately and checks a clean exit after stdin closes. It makes no SQL tool calls.
 
 Settings and archive SHA-256 values must remain unchanged. Each response, process-exit and stream-drain wait is bounded by `-TimeoutSeconds` (default 30, range 1–120). Failure stops the check; cleanup terminates only its owned running child process tree and removes its own temporary extraction and newly created user root. The successful result contains the checked absolute `ZipPath` or `McpbPath`, respectively, and lowercase `Sha256`; diagnostic stderr is available with `-Verbose`. A self-contained publish plus a successful packaged EXE startup on an SDK-equipped runner is not evidence of execution on an SDK-free machine. Hosted ZIP execution is recorded separately in the [release-validation roadmap](../tasks/release-validation/roadmap.md#t4--smoke-test-the-actual-windows-zip). Record local copied-script/stub checks separately from actual ZIP/MCPB launches in the [distribution roadmap](../tasks/mcp-server-dictionary/roadmap.md). If no disposable profile is available, actual launches remain unverified; structural inspection never substitutes for packaged EXE execution.
 

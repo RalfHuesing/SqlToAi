@@ -8,7 +8,7 @@ SqlToAi is a .NET 10 / C# 14 process hosting MCP over stdio, with a CLI that dis
 
 `ToolRegistry` defines SQL tool names, schemas and descriptions. `SqlMcpToolRegistrations` creates SDK registrations; `ToolDispatcher` invokes application services and formats MCP results. The CLI builds its commands from the registry.
 
-The selected user root follows configuration through direct options, DI post-configuration, logging and retention. Relative metadata and logging paths resolve there once per options instance; DI binds its own instance against the same root. Default application and error logs reside under `%LOCALAPPDATA%\SqlToAi\log\`. Explicit absolute paths remain supported; SQL input and schema-export output still use CWD. Root and logging failures have direct stderr diagnostics independent of file sinks. See [path and logging details](configuration.md#logs).
+The selected user root follows configuration through direct options, DI post-configuration, logging and retention. Relative metadata and logging paths resolve there once per options instance; DI binds its own instance against the same root. Default application and error logs reside under `%LOCALAPPDATA%\SqlToAi\log\`. Explicit absolute paths remain supported; relative SQL input and legacy CLI schema-export output still use CWD; MCP export requires a fully qualified Windows path. Root and logging failures have direct stderr diagnostics independent of file sinks. See [path and logging details](configuration.md#logs).
 
 [SqlToAi.Exploration](exploration.md) reuses the executable's configuration and service-provider factories to invoke `IToolDispatcher` directly. It retains all inputs, content blocks and failures for manual inspection without starting MCP transport; scenarios do not run as automated tests.
 
@@ -83,15 +83,18 @@ Structured offline names in headings, navigation, detail tables and unavailable/
 
 `export-schema` resolves the singleton [SchemaExportService](../src/SqlToAi/Cli/SchemaExportService.cs) directly from the existing service provider and exits after writing UTF-8 Markdown. It composes typed unrestricted discovery, the offline entries and typed trigger definitions. Tables/views collect all available detail sections in their document; routines include parameters, and triggers identify/link their table/view parent. A grouped root overview links every document.
 
-The same coordinator accepts an explicit selected scope internally.
+The same singleton coordinator serves `sql_export_schema` through the dispatcher,
+SDK registration and registry-generated query CLI, with explicit selected/all scope.
+The MCP boundary validates fully qualified Windows destinations, rejects device
+namespaces and returns compact JSON outcomes without file contents. The original
+`export-schema` CLI retains relative paths and full-catalog behavior.
 `ISchemaService.GetSelectedExportObjectsAsync` reuses the shared SQL identifier
 resolver with export object kinds and database access checks, resolves the whole
 selection, rejects any unknown, ambiguous or unsupported entry and deduplicates
 successful identities by object ID. Normalization and resolution finish before
 path mapping or output creation. Only selected objects enter the mapping; references
 and trigger parents outside it remain readable names. There is no recursive
-expansion, batch response limit or interactive enrichment. This internal scope
-does not add a CLI option or MCP registration.
+expansion, batch response limit or interactive enrichment.
 
 The coordinator returns a typed outcome with completed, failed or cancelled
 status, its resolved destination when path resolution succeeded, and a catalog

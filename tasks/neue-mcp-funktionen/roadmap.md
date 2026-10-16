@@ -437,7 +437,7 @@ No implementation or practical verification has been performed by creating this 
     Items 6–8 remain open; MCP registration, MCP-only path validation and practical
     export exploration were not implemented or claimed by this item.
 
-- [ ] **6. Expose the schema export tool and update its consumers.**
+- [x] **6. Expose the schema export tool and update its consumers.**
 
   **Intention:** Let agents deliberately trigger the existing dump through a
   discoverable, accurately described MCP call.
@@ -464,6 +464,53 @@ No implementation or practical verification has been performed by creating this 
   files and non-empty targets; tests use existing filesystem/connection support
   rather than assuming a reachable UNC share. Access, status and error flags match
   the concept. Inventory consumers and documented examples agree; build/tests pass.
+
+  **Completion evidence (2026-10-16):**
+
+  - Registered and dispatched `sql_export_schema` through the existing singleton
+    export coordinator, SDK collection and registry-generated query CLI. Required
+    database/scope/output_path and nullable scalar/list selections share the
+    canonical registry schema and description. The SDK binds raw nullable JSON
+    internally so missing/null/wrong-type arguments reach the same validation and
+    compact catalog JSON response as dispatcher calls. Neither missing scope nor
+    empty selected input can activate full export. The original `export-schema`
+    command remains unchanged, including its relative-path/full-export behavior.
+  - Added MCP-only Windows drive-rooted/UNC qualification, rejecting relative,
+    drive/root-relative, URL and device-namespace paths after slash normalization.
+    Resolved valid destinations survive later argument failures. Existing core
+    empty/absent-directory checks, exclusive writes and access checks are reused.
+    Responses contain exact snake_case status/path/partial_output/error/reason
+    fields, omit absent optional fields, return no documents and mark failures or
+    cancellation as MCP errors. Persistent server filesystem output, large dumps,
+    substantial time, filesystem access, scopes, partial output and retry behavior
+    are prominent in the tool description and canonical docs.
+  - Added 61 cases in `tests/SqlToAi.Tests/Mcp/ExportToolSurfaceTests.cs`, including
+    actual registered SDK invocation plus dispatcher and query CLI coverage for
+    scalar/list/combined selection, duplicate aliases, harmless empty full inputs,
+    invalid selections, missing/invalid scope and required-field JSON shapes,
+    valid/rejected Windows paths, existing files/child directories/empty roots,
+    schema-only selection, denied access, completed/failed/cancelled outcomes and
+    partial output. Tests reuse catalog/connection and export filesystem fakes;
+    UNC qualification does not require or claim a reachable share. Injected writes
+    verify retained child directories; item 5 already covers incomplete files.
+  - Review corrected two boundary findings: preserve a resolved destination on
+    later parameter failures, and use raw nullable SDK arguments while retaining
+    required canonical schema so SDK binding cannot replace the compact failure
+    contract. Matching SDK/registry schema and description are asserted.
+  - Updated tool/development/security/architecture/exploration docs and current
+    registry/model/package-smoke inventories to 18. The permanent exploration
+    baseline explicitly covers the original 17 tools; no scenario was changed,
+    no packaged smoke was forced, and practical export review remains item 7.
+    No user settings, permissions, credentials or temporary scenarios changed.
+  - Validation: focused export-surface tests passed; final
+    `dotnet build SqlToAi.slnx` passed with zero warnings/errors.
+    `dotnet test SqlToAi.slnx --logger 'console;verbosity=quiet'` passed: 1102
+    successful, 19 existing TLS endpoint skips, zero failures, 1121 total.
+    Certificate cases still require `SQLTOAI_TLS_TEST_PROFILE` and remain unverified
+    by this run. `git diff --check` passed. Actual delegated setting:
+    `gpt-6.1-sol`, reasoning effort `medium`. Atomic commit reference: direct child
+    of `183b7dd` with subject `feat: Stelle den Schemaexport über MCP bereit`
+    (this slice). Items 7–8 remain open and were not implemented.
 
 - [ ] **7. Review export calls through real exploration.**
 
