@@ -46,14 +46,14 @@ Write-Host "[3/5] Running all unit and integration tests..." -ForegroundColor Ye
 Push-Location $ProjectRoot
 try {
     dotnet test -c Debug
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet test failed with exit code $LASTEXITCODE."
+    }
     Write-Host "All tests passed successfully!" -ForegroundColor Green
 }
-catch {
-    Write-Error "Tests failed. Aborting deployment."
+finally {
     Pop-Location
-    exit 1
 }
-Pop-Location
 
 # 4. Publish Self-Contained Single-File Release
 Write-Host "[4/5] Publishing Self-Contained Single-File Release for win-x64..." -ForegroundColor Yellow
@@ -62,25 +62,22 @@ if (Test-Path $PublishDir) {
     Remove-Item -Path $PublishDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-try {
-    # Self-contained single-file publish for win-x64.
-    # Native AOT is not used: Microsoft.Data.SqlClient and Dapper are fundamentally
-    # AOT-incompatible (IL3053/IL2104 hard blockers), which would cause runtime crashes.
-    dotnet publish $ProjectFile `
-        -c Release `
-        -r win-x64 `
-        -p:PublishSingleFile=true `
-        -p:IncludeNativeLibrariesForSelfExtract=true `
-        -p:DebugType=none `
-        -o $PublishDir `
-        --self-contained
+# Self-contained single-file publish for win-x64.
+# Native AOT is not used: Microsoft.Data.SqlClient and Dapper are fundamentally
+# AOT-incompatible (IL3053/IL2104 hard blockers), which would cause runtime crashes.
+dotnet publish $ProjectFile `
+    -c Release `
+    -r win-x64 `
+    -p:PublishSingleFile=true `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:DebugType=none `
+    -o $PublishDir `
+    --self-contained
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish failed with exit code $LASTEXITCODE."
+}
 
-    Write-Host "Publish completed successfully!" -ForegroundColor Green
-}
-catch {
-    Write-Error "Publish failed."
-    exit 1
-}
+Write-Host "Publish completed successfully!" -ForegroundColor Green
 
 # 5. Verification and cleanup of build artifacts
 Write-Host "[5/5] Verifying build output..." -ForegroundColor Yellow

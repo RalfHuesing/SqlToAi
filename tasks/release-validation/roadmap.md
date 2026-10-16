@@ -32,7 +32,7 @@ dotnet test SqlToAi.slnx --filter 'Category=TlsIntegration'
 
 ## T2 — Stop scripts on failed native commands
 
-- [ ] T2: Correct native exit handling in touched deployment/release helpers.
+- [x] T2: Correct native exit handling in touched deployment/release helpers.
 
 **Intention:** Prevent success messages and subsequent release/deployment work after a failed prerequisite.
 
@@ -42,7 +42,7 @@ dotnet test SqlToAi.slnx --filter 'Category=TlsIntegration'
 
 **Acceptance:** Controlled test/build/publish failures return nonzero and stop dependent steps; failed tests prevent publish-output replacement; success messages only follow successful commands. Dry-run remains free of file/Git mutations and push/tag/release effects. Verification never stops unrelated processes or deletes real package output.
 
-**Completion evidence:** Pending.
+**Completion evidence:** Using gpt-6.1-sol / medium: `deploy.ps1` checks native test/publish exits before success or dependent work and restores the test location in `finally`. `release.ps1` checks Git root/status/tag queries and authenticated `gh` queries; its status query disables optional locks. `docs/development.md` describes failure handling and partial-output/no-rollback limits. `pwsh -NoProfile -File <temporary-root>/verify.ps1` passed 13 controlled child-process scenarios: deployment test/publish failures and success; release build/test/root/status/tag-query/add/workflow-query/release-query failures, success and dry-run. Stub native `pwsh` processes returned exit 23; script failures returned 1, suppressed subsequent steps/success messages and restored the caller directory. Failed deployment tests preserved a sentinel in copied publish output. All scripts, fake package writes and stubs were confined to temporary copies; process discovery was stubbed empty and termination forbidden. `pwsh -NoProfile -File <temporary-root>/verify-dry-run.ps1` ran the copied release helper against an actual clean temporary Git repository without a remote: exit 0; all 32 files including `.git`, index, refs and project were SHA-256 identical before/after. `dotnet build SqlToAi.slnx` passed with 0 warnings/errors; `dotnet test SqlToAi.slnx` passed 879, skipped 19 TLS cases, total 898 (TLS remains unverified). No real deployment, personal MCP termination, publish-directory replacement, push, tag or release was performed. Temporary verification root: `%TEMP%/SqlToAi-T2-b4f3c8b6610c4329a894d4528733cfc2`; verification scripts/logs are local disposable artifacts, not a committed test framework.
 
 ## T3 — Add the ordinary GitHub checks
 

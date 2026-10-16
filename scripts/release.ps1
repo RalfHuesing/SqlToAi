@@ -33,7 +33,7 @@ $VersionPattern = '(?<=<Version>)\d+\.\d+\.\d+(?=</Version>)'
 
 function Get-RepoRoot {
     $root = git rev-parse --show-toplevel 2>$null
-    if (-not $root) {
+    if ($LASTEXITCODE -ne 0 -or -not $root) {
         throw 'Kein Git-Repository gefunden. Bitte im SqlToAi-Repo ausfuehren.'
     }
 
@@ -41,7 +41,10 @@ function Get-RepoRoot {
 }
 
 function Assert-CleanWorkingTree {
-    $status = git status --porcelain
+    $status = git --no-optional-locks status --porcelain
+    if ($LASTEXITCODE -ne 0) {
+        throw "git status fehlgeschlagen (Exitcode $LASTEXITCODE)."
+    }
     if ($status) {
         throw "Working tree ist nicht sauber:`n$status"
     }
@@ -115,7 +118,7 @@ function Invoke-GitStep {
     }
 
     & $Action
-    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+    if ($LASTEXITCODE -ne 0) {
         throw "Git-Befehl fehlgeschlagen: $Description"
     }
 }
@@ -146,13 +149,20 @@ function Wait-ReleaseWorkflow {
 
     while ((Get-Date) -lt $deadline) {
         $runJson = gh run list --workflow release.yml --limit 5 --json databaseId,headBranch,status,conclusion,url
+        if ($LASTEXITCODE -ne 0) {
+            throw "gh run list fehlgeschlagen (Exitcode $LASTEXITCODE)."
+        }
         $run = $runJson | ConvertFrom-Json | Where-Object { $_.headBranch -eq $TagName } | Select-Object -First 1
 
         if ($run) {
             if ($run.status -eq 'completed') {
                 if ($run.conclusion -eq 'success') {
+                    $releaseUrl = gh release view $TagName --json url -q .url 2>$null
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "gh release view fehlgeschlagen (Exitcode $LASTEXITCODE)."
+                    }
                     Write-Host "[OK] Release-Workflow erfolgreich: $($run.url)" -ForegroundColor Green
-                    gh release view $TagName --json url -q .url 2>$null | ForEach-Object {
+                    $releaseUrl | ForEach-Object {
                         Write-Host "[OK] GitHub Release: $_" -ForegroundColor Green
                     }
                     return
@@ -193,7 +203,11 @@ try {
     Write-Host "  DryRun  : $DryRun"
     Write-Host ''
 
-    if (git tag --list $tagName) {
+    $existingTag = git tag --list $tagName
+    if ($LASTEXITCODE -ne 0) {
+        throw "git tag --list fehlgeschlagen (Exitcode $LASTEXITCODE)."
+    }
+    if ($existingTag) {
         throw "Tag $tagName existiert bereits lokal."
     }
 

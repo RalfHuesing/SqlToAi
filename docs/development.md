@@ -145,7 +145,7 @@ Existing `server`, `query` and MCP output remain unchanged.
 .\scripts\deploy.ps1
 ```
 
-The current script does not explicitly check native `dotnet` exit codes at each step; verify test and publish results instead of treating completion text as proof. After redeployment, reload the MCP server entry in the client or restart the client: its old stdio session was terminated.
+The script checks each native `dotnet` exit code and stops on failure. Failed tests leave the existing `publish/` directory intact; the test step restores the caller's working directory even on failure. A failed publish stops before package verification and completion messages, but may leave partial output after the previous package was removed. After redeployment, reload the MCP server entry in the client or restart the client: its old stdio session was terminated.
 
 ## Release
 
@@ -155,4 +155,4 @@ The current script does not explicitly check native `dotnet` exit codes at each 
 .\scripts\release.ps1 -DryRun
 ```
 
-Running without `-DryRun` publishes Git state; use it only when releasing is intended. `-SkipTests` bypasses tests. Local Git authentication must be configured; `gh` is optional for status monitoring.
+Running without `-DryRun` publishes Git state; use it only when releasing is intended. `-SkipTests` bypasses tests. Native build/test and Git failures stop dependent steps. Git inspection errors also fail the dry-run; its status query disables optional Git locks so it does not refresh the index. Local Git authentication must be configured; `gh` is optional for status monitoring. When authenticated, failed workflow or release queries stop monitoring with an error rather than reporting release success. Earlier completed Git operations are not rolled back.
