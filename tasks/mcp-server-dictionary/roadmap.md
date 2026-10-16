@@ -14,7 +14,7 @@ Implement the approved [concept](Konzept.md) in the order below. This roadmap do
 
 ## Ordered work
 
-- [ ] **1. Produce ZIP and minimal MCPB from one application build.**
+- [x] **1. Produce ZIP and minimal MCPB from one application build.**
 
   **Intention:** Add the bundle format without another executable, runtime or configuration system.
 
@@ -23,6 +23,12 @@ Implement the approved [concept](Konzept.md) in the order below. This roadmap do
   **Exclusions:** No SQL/runtime behavior changes, automatic settings creation, client setup UI, installer, signing, updater, release invocation or second application build. Build-time MCPB tooling may be pinned; it must not become an end-user runtime requirement.
 
   **Acceptance:** Both archives contain byte-identical application/settings/documentation/notice payloads, apart from bundle metadata. Manifest validation succeeds against the official specification checked during implementation. Versions agree with the project, the entry point exists, final checksums match, and the package object retains its prior ZIP contract. Missing required input, failed native packaging or invalid metadata fails before a success result. Existing-output refusal remains. Inspect actual locally generated archives and record their hashes; do not launch the EXE in the normal user profile.
+
+  **Completion evidence (2026-10-16; implementation: GPT-6.1-Sol, High):** One `dotnet publish` per package invocation produces both archives; MCPB copies the ZIP and adds only the generated manifest. The pinned official v0.3 schema/specification at MCPB revision `70fe3b34cd6dff1b3bba046638edc72a6467a4fb` was checked online; local `Test-Json` validation passes. The template uses binary/Windows x64, the existing EXE command, and no `user_config` or environment mapping. Canonical [package instructions and notice provenance](../../docs/development.md#create-and-check-a-windows-zip) describe the unchanged ZIP result properties plus named MCPB properties. The dependency review identified all 53 resolved Windows runtime package references; the root notice includes MIT/Apache attribution, the MCP licensing transition and native SNI terms. Both unchanged .NET third-party texts are project publish items, including ordinary build/deploy output.
+
+  `dotnet build SqlToAi.slnx`: passed, zero warnings/errors. `dotnet test SqlToAi.slnx`: 879 passed, zero failed, 19 skipped TLS cases without an endpoint profile; the accepted TLS gaps remain unverified. PowerShell parsing and documentation local-link checks passed. Actual archives in `%TEMP%\SqlToAi-item1-reviewed-20261016` contain eight byte-identical payload files; MCPB has exactly one extra `manifest.json`. Structural inspection verified manifest/project/file version `1.0.31`, x64 PE machine, included entry point, unchanged notice bytes, result properties and both final checksum files. SHA-256: ZIP `33b5464b0ee82f7b68e836c0bf0b9de013f182deddf5b44a97e3781ed292291d`; MCPB `a32db999a23d3b252cf344eea2e0e6f44cb469ca47fd2c0df723ecab8c7c687c`.
+
+  Eighteen disposable copied-script probes passed: one-publish/two-archive success and rejection of missing source/license/schema/notices, invalid JSON/schema/version/launch/platform/configuration metadata, existing output (sentinel preserved), native exit 41, absent published EXE/notice, unexpected published manifest and archive-write failure. All failures returned no success object; preflight failures invoked no publish. These are controlled stub/native-exit probes, not application execution. No packaged EXE, real release, upload or external mutation ran. The user confirmed no disposable profile is available; actual archive startup remains the open Item 2 acceptance and is not claimed here.
 
 - [ ] **2. Reuse the package smoke check for the bundle.**
 

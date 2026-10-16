@@ -1,0 +1,3 @@
+# Preserve the reviewed upstream schema and notice bytes on every checkout.
+packaging/mcpb-manifest-v0.3.schema.json -text
+packaging/notices/*.txt -text

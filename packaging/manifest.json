@@ -1,0 +1,18 @@
+{
+  "manifest_version": "0.3",
+  "name": "sql-to-ai",
+  "display_name": "SqlToAi",
+  "version": "__VERSION__",
+  "description": "Self-contained Windows x64 stdio MCP server for Microsoft SQL Server. Prepare %LOCALAPPDATA%/SqlToAi/appsettings.json manually before startup; see README.md.",
+  "author": { "name": "Ralf Hüsing" },
+  "license": "MIT",
+  "server": {
+    "type": "binary",
+    "entry_point": "SqlToAi.exe",
+    "mcp_config": {
+      "command": "${__dirname}/SqlToAi.exe",
+      "args": []
+    }
+  },
+  "compatibility": { "platforms": ["win32"] }
+}
