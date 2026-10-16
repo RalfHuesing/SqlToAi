@@ -31,10 +31,13 @@ for file layout and retry behavior.
 
 ## Getting started
 
-For a downloaded Windows package, follow [manual package setup](SETUP.md)
-(included as `README.md` beside the executable). The self-contained package needs no
-separate .NET runtime. Setup creates the required user file manually; package updates
-preserve user settings and logs.
+For a downloaded Windows x64 package, follow [manual package setup](SETUP.md)
+(included as `README.md` beside the executable). Choose the ZIP to extract and launch
+the executable yourself, or the MCPB to install the same executable as a client
+launch entry. Both are self-contained and need no separate .NET runtime. Before
+either route can start the server, create `%LOCALAPPDATA%\SqlToAi\appsettings.json`
+manually from the supplied template; bundle installation does not create it.
+Updates preserve the separate user settings and logs.
 
 You need the .NET 10 SDK, a reachable SQL Server, and a database login with the
 permissions required by the tools you use.
@@ -140,6 +143,8 @@ and logging settings before use.
 - [Tool reference](docs/tools.md)
 - [Architecture](docs/architecture.md)
 - [Build, tests, CLI, and deployment](docs/development.md)
+- [Support and contribution guidance](docs/development.md#support-and-contributions)
+- [Security reporting](SECURITY.md)
 
 Run the xUnit v3 test suite with `dotnet test SqlToAi.slnx`.
 

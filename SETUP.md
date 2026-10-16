@@ -1,10 +1,18 @@
 # SqlToAi — Windows package setup
 
-This self-contained Windows x64 package needs no separately installed .NET runtime.
-Extract all package files into an installation directory. The supplied
+SqlToAi ships as a self-contained Windows x64 ZIP and as an MCPB bundle. The ZIP is
+extracted into an installation directory and launched through your MCP client's
+stdio configuration. MCPB installs the same executable as a client launch entry;
+it does not install SQL Server or create SqlToAi settings. Both packages need no
+separately installed .NET runtime. Neither package is code-signed. The supplied
 `appsettings.json` is a conservative **template**: it grants no
 database access and contains no working credentials. Application/error
 diagnostics remain enabled.
+
+Before installing the MCPB or starting either package, create the user settings
+file manually as described below. Keep the package's `LICENSE` and
+`THIRD-PARTY-NOTICES.txt` with the extracted files; the additional runtime notices
+are under `notices/`.
 
 ## Create your settings manually
 
@@ -104,6 +112,9 @@ To update, stop/restart your own server session around replacement of package
 files in the installation directory. Settings and existing logs under the separate
 user root are preserved. Compare the new template and apply desired configuration
 changes manually; startup does not rewrite keys, copy files, or create backups.
+After replacing ZIP files, reload the MCP server entry or restart the client. For
+MCPB updates, use the client's bundle update/install flow and restart or reload its
+server entry so it launches the new files.
 
 Older executable-adjacent settings/logs are ignored and left untouched. For an
 upgrade from that layout, manually copy/adapt your old settings to the required
@@ -115,6 +126,23 @@ Treat settings and logs as sensitive. String masking does not cover every type o
 tokens are reversible within the running server. Application access checks do not
 replace SQL Server permissions.
 
-Full configuration, security limitations, and tool documentation are available in
-the [online repository](https://github.com/RalfHuesing/SqlToAi#documentation-and-development).
+To remove SqlToAi, stop its server session, remove the MCPB/client entry if installed
+that way, and delete the extracted package directory. This leaves
+`%LOCALAPPDATA%\SqlToAi\appsettings.json` and `%LOCALAPPDATA%\SqlToAi\log\` in
+place; remove those separately only if you intend to delete your configuration and
+logs. Existing executable-adjacent settings from older layouts are also left
+untouched.
+
+Further reading: [configuration](docs/configuration.md), [security and data
+handling](docs/security.md), [tool reference](docs/tools.md), and
+[support and contribution guidance](docs/development.md#support-and-contributions).
+See [LICENSE](LICENSE) and [third-party notices](THIRD-PARTY-NOTICES.txt) for the
+included terms.
+
+For setup questions or non-sensitive bugs, use [GitHub Issues](https://github.com/RalfHuesing/SqlToAi/issues)
+with a sanitized report. For suspected security vulnerabilities, follow
+[SECURITY.md](SECURITY.md); do not put exploit details or secrets in a public issue.
+The later publication handoff is to run the release helper deliberately, review and
+publish its checked draft, then verify namespace ownership and publish the matching
+Registry metadata; see [release instructions](docs/development.md#release).
 The package is [MIT licensed](LICENSE).

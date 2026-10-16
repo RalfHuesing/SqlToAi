@@ -105,6 +105,19 @@ if (Test-Path -LiteralPath (Join-Path $publish 'manifest.json')) {
     throw 'Published application payload must not contain bundle metadata.'
 }
 
+# The source setup guide keeps useful checkout-relative links. Resolve those links
+# in the extracted package README to the matching versioned repository sources.
+$packageReadme = Join-Path $publish 'README.md'
+$readmeText = Get-Content -LiteralPath $packageReadme -Raw
+$versionedDocs = "https://github.com/RalfHuesing/SqlToAi/blob/v$version/"
+foreach ($relativePath in @('docs/configuration.md', 'docs/security.md', 'docs/tools.md', 'docs/development.md#support-and-contributions', 'docs/development.md#release', 'SECURITY.md')) {
+    $readmeText = $readmeText.Replace("]($relativePath)", "]($versionedDocs$relativePath)")
+}
+if ($readmeText -match '\]\((?:docs/|SECURITY\.md)') {
+    throw 'Packaged README contains unresolved checkout-relative documentation links.'
+}
+[System.IO.File]::WriteAllText($packageReadme, $readmeText)
+
 $zip = Join-Path $output 'SqlToAi-win-x64.zip'
 [System.IO.Compression.ZipFile]::CreateFromDirectory($publish, $zip)
 

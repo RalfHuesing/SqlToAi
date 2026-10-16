@@ -2,6 +2,12 @@
 
 SqlToAi applies application-level access checks and query guards. SQL Server permissions remain the security boundary. Use a dedicated login with only the database and object permissions required for the intended work.
 
+## Reporting security issues
+
+See the root [security policy](../SECURITY.md) for the current reporting route and
+its availability. Do not include credentials, connection strings, customer data,
+database names, raw logs, or unredacted query/result content in public reports.
+
 ## Database access
 
 Access lists use exact, case-insensitive database names. Unlisted databases resolve to `None`. Global `SqlServer.ExcludedDatabases` glob patterns override allow lists. If a name occurs in several lists, the first configured level in this table wins:

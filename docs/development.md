@@ -11,6 +11,22 @@ dotnet test SqlToAi.slnx
 
 Tests use xUnit v3. [SqlServerFixture](../tests/SqlToAi.Tests/Integration/SqlServerFixture.cs) explicitly loads the separate fictional DemoDB profile copied as `appsettings.integration.json`, then a checked-in test-only overlay copied as `appsettings.integration.test.json`; it never reads the maintainer's user configuration root. The demo profile and application defaults keep certificate validation enabled. The overlay opts only general local integration tests into trusting the existing self-signed server certificate, while encryption remains required. This exception is limited to the test fixture and has no effect on appsettings, user configuration, or the dedicated TLS cases. General SQL integration tests require a local SQL Server matching the demo profile and fictional schema. [sql-scripts/README.md](../sql-scripts/README.md) describes setup. Contributor instructions start at [AGENTS.md](../AGENTS.md).
 
+## Support and contributions
+
+Use [GitHub Issues](https://github.com/RalfHuesing/SqlToAi/issues) for non-sensitive
+setup questions and reproducible bugs. Include the SqlToAi version, Windows/client
+versions, a short reproduction, and the relevant sanitized error category. Replace
+hostnames, database/object names, user names, paths, identifiers, SQL literals,
+parameters, result rows, and tokens with fictional values. Do not attach settings
+files, connection strings, raw logs, customer data, or full query/results. Check
+the [security policy](../SECURITY.md) before reporting a suspected vulnerability;
+the private report form is enabled for this repository.
+
+Contributions should be focused and include the applicable tests and documentation.
+Start with the repository [agent and development instructions](../AGENTS.md), run
+the relevant build/test commands below, and describe any environment-limited checks.
+Do not include real credentials or customer data in issues, examples, or changes.
+
 Use test categories to choose what infrastructure a run needs. The offline selection includes configuration checks and in-memory MCP tests even when their files are under `Integration`; ordinary SQL tests use the shared `SqlServerFixture`, while TLS tests use only their explicitly configured endpoint profile:
 
 ```powershell
@@ -181,7 +197,7 @@ $package = & .\scripts\package.ps1 -OutputDirectory $output
 $package | Format-List
 ```
 
-The script retains the result object's absolute `ZipPath`, lowercase `Sha256` and `ChecksumPath` properties and adds `McpbPath`, `McpbSha256`, `McpbChecksumPath` and `ServerJsonPath`. Each archive has a matching `.sha256` file with its lowercase SHA-256 and filename in standard checksum-file form. The output also contains the generated `manifest.json`, Registry `server.json` and `publish/` staging directory; these are not release assets. Keep the checked archive bytes for later handoff; changed bytes require fresh checks. The smoke check and prepared draft flow support both routes; actual execution evidence remains recorded separately in the [distribution roadmap](../tasks/mcp-server-dictionary/roadmap.md).
+The script retains the result object's absolute `ZipPath`, lowercase `Sha256` and `ChecksumPath` properties and adds `McpbPath`, `McpbSha256`, `McpbChecksumPath` and `ServerJsonPath`. Each archive has a matching `.sha256` file with its lowercase SHA-256 and filename in standard checksum-file form. The output also contains the generated `manifest.json`, Registry `server.json` and `publish/` staging directory; these are not release assets. The source `SETUP.md` keeps checkout-relative documentation links; the package builder resolves those in its copied `README.md` to `blob/vX.Y.Z` links while preserving local license and notice links. Keep the checked archive bytes for later handoff; changed bytes require fresh checks. The smoke check and prepared draft flow support both routes; actual execution evidence remains recorded separately in the [distribution roadmap](../tasks/mcp-server-dictionary/roadmap.md).
 
 [smoke-package.ps1](../scripts/smoke-package.ps1) requires Windows and explicit `-DisposableProfile`. Run it only on a fresh GitHub Windows runner or an already disposable Windows profile. It resolves Windows Local Application Data exactly as the application does and refuses any existing `SqlToAi` user root before launching. The switch asserts that the current profile is disposable; it does not create isolation. Do not run it against the maintainer's normal profile or redirect the production configuration root through environment variables. Local startup tests continue to use the existing temporary-root startup harness.
 
