@@ -181,7 +181,7 @@ $package = & .\scripts\package.ps1 -OutputDirectory $output
 $package | Format-List
 ```
 
-The script retains the result object's absolute `ZipPath`, lowercase `Sha256` and `ChecksumPath` properties and adds `McpbPath`, `McpbSha256` and `McpbChecksumPath`. Each archive has a matching `.sha256` file with its lowercase SHA-256 and filename in standard checksum-file form. The output also contains the generated `manifest.json` and `publish/` staging directory; these are not release assets. Keep the checked archive bytes for later handoff; changed bytes require fresh checks. The smoke check and prepared draft flow support both routes; actual execution evidence remains recorded separately in the [distribution roadmap](../tasks/mcp-server-dictionary/roadmap.md).
+The script retains the result object's absolute `ZipPath`, lowercase `Sha256` and `ChecksumPath` properties and adds `McpbPath`, `McpbSha256`, `McpbChecksumPath` and `ServerJsonPath`. Each archive has a matching `.sha256` file with its lowercase SHA-256 and filename in standard checksum-file form. The output also contains the generated `manifest.json`, Registry `server.json` and `publish/` staging directory; these are not release assets. Keep the checked archive bytes for later handoff; changed bytes require fresh checks. The smoke check and prepared draft flow support both routes; actual execution evidence remains recorded separately in the [distribution roadmap](../tasks/mcp-server-dictionary/roadmap.md).
 
 [smoke-package.ps1](../scripts/smoke-package.ps1) requires Windows and explicit `-DisposableProfile`. Run it only on a fresh GitHub Windows runner or an already disposable Windows profile. It resolves Windows Local Application Data exactly as the application does and refuses any existing `SqlToAi` user root before launching. The switch asserts that the current profile is disposable; it does not create isolation. Do not run it against the maintainer's normal profile or redirect the production configuration root through environment variables. Local startup tests continue to use the existing temporary-root startup harness.
 
@@ -201,6 +201,26 @@ Both routes first require exit `1`, empty stdout, actionable missing-settings st
 Settings and archive SHA-256 values must remain unchanged. Each response, process-exit and stream-drain wait is bounded by `-TimeoutSeconds` (default 30, range 1–120). Failure stops the check; cleanup terminates only its owned running child process tree and removes its own temporary extraction and newly created user root. The successful result contains the checked absolute `ZipPath` or `McpbPath`, respectively, and lowercase `Sha256`; diagnostic stderr is available with `-Verbose`. A self-contained publish plus a successful packaged EXE startup on an SDK-equipped runner is not evidence of execution on an SDK-free machine. Hosted ZIP execution is recorded separately in the [release-validation roadmap](../tasks/release-validation/roadmap.md#t4--smoke-test-the-actual-windows-zip). Record local copied-script/stub checks separately from actual ZIP/MCPB launches in the [distribution roadmap](../tasks/mcp-server-dictionary/roadmap.md). If no disposable profile is available, actual launches remain unverified; structural inspection never substitutes for packaged EXE execution.
 
 ## Release
+
+### Prepare Registry metadata locally
+
+The package command above also generates `server.json` beside the final archives from [server.template.json](../packaging/server.template.json). The template's `repository.url` configures `https://github.com/RalfHuesing/SqlToAi`; packaging derives the intended identity `io.github.ralfhuesing/SqlToAi` from that owner and repository, the project version, and `https://github.com/RalfHuesing/SqlToAi/releases/download/vX.Y.Z/SqlToAi-win-x64.mcpb`. Both server and package versions use the project version. The single `mcpb` package declares `stdio` and hashes the finished bundle, including its manifest. Missing inputs, malformed repository URLs, unresolved template placeholders and conflicting metadata fail packaging without a success result. No candidate hash is committed.
+
+Packaging validates the template before publishing and the final document after hashing with PowerShell `Test-Json` and the unchanged [official Registry schema 2025-12-11](../packaging/registry-server-2025-12-11.schema.json), downloaded from the [versioned official URL](https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json), SHA-256 `3fba09590c99f61735d234822279f4223fab9e300c0a81e81c91ab62a4114de0`. The [MCPB package requirements](https://github.com/modelcontextprotocol/registry/blob/11b7b0e274d518b6f449c5ee3518a6151d9848b9/docs/modelcontextprotocol-io/package-types.mdx) and [GitHub namespace rules](https://github.com/modelcontextprotocol/registry/blob/11b7b0e274d518b6f449c5ee3518a6151d9848b9/docs/modelcontextprotocol-io/authentication.mdx) were checked at Registry revision `11b7b0e274d518b6f449c5ee3518a6151d9848b9` on 2026-10-16. Local schema validation is supplemented by checks for the exact MCPB type, URL, version, hash and stdio transport because the schema alone does not require every MCPB publication constraint.
+
+After generation, independently validate the publication input and hash without starting the executable:
+
+```powershell
+Test-Json -LiteralPath $package.ServerJsonPath -SchemaFile .\packaging\registry-server-2025-12-11.schema.json -ErrorAction Stop
+$server = Get-Content -LiteralPath $package.ServerJsonPath -Raw | ConvertFrom-Json
+if ($server.packages[0].fileSha256 -cne (Get-FileHash -LiteralPath $package.McpbPath -Algorithm SHA256).Hash.ToLowerInvariant()) {
+    throw 'Registry bundle checksum mismatch.'
+}
+```
+
+This local procedure needs no account, authentication or public download. The namespace is intended and ownership remains unverified; the versioned URL is prepared and its availability is unverified. Metadata generation does not make the packages startup-checked: complete both archive checks in a disposable profile before a later release. Regenerate metadata and rerun affected checks whenever package bytes change.
+
+Later, under a separate publication request, deliberately create/review/publish the checked GitHub draft, confirm that its public MCPB bytes match `server.json`, then use the official publisher's GitHub authentication to verify the owner's namespace and manually publish that exact metadata. Recheck the current Registry instructions before doing so. No namespace verification or publication runs during packaging or the release workflow; retain credentials outside the repository.
 
 ### Tagged package draft and manual publication
 
