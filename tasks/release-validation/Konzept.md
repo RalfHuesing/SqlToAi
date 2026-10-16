@@ -2,84 +2,66 @@
 status: ready
 ---
 
-# Database-independent validation and reliable release gates
+# Practical build, package and release validation
 
 ## Intention
 
-Make SqlToAi changes and distributed binaries verifiable before publication through automatic database-independent checks and an explicit local SQL integration result. This is a prerequisite extracted from the [publication concept](../mcp-server-dictionary/Konzept.md), not authorization to publish a release.
+Catch broken changes and release packages before publication using GitHub's existing Windows runners, the maintainer's existing SQL test instance and a deliberate manual release decision. Extend the current ZIP release process without requiring new infrastructure or a custom release-management system.
 
 ## Current behavior and evidence
 
-- [Development documentation](../../docs/development.md) describes a single solution-wide build/test path, a fictional demo profile with an explicit test-only trust overlay, and separately configured TLS cases. There is no documented database-independent contributor/CI command.
-- The [release workflow](../../.github/workflows/release.yml) publishes a self-contained Windows x64 application and ZIP after a version tag, without running tests or inspecting the running packaged process.
-- [release.ps1](../../scripts/release.ps1) runs local validation but allows `-SkipTests`; manually pushing a tag does not depend on this script.
-- That script validates before changing the project version and creating the release commit. Its local result therefore does not identify the exact tagged candidate source.
-- [deploy.ps1](../../scripts/deploy.ps1) runs native `dotnet` commands without explicitly checking their exit codes at each step. PowerShell completion/success text is not reliable evidence of a successful test or publish.
-- Existing build analyzers, warnings-as-errors and xUnit tests are useful foundations. The existence of tests is not proof that the current checkout or a packaged binary passed them.
-- Existing SQL test classes use `Category=Integration`, but the [fixture configuration tests](../../tests/SqlToAi.Tests/Integration/SqlServerFixtureConfigurationTests.cs) also carry that category while testing configuration loading rather than SQL operations. Class names, folders and the current category alone are not a sufficient final classification contract.
-- [User configuration](../user-configuration/Konzept.md) now requires manual settings setup and fatal startup when the base file is missing. Its existing [startup tests](../../tests/SqlToAi.Tests/Configuration/UserConfigurationTests.cs) and [test harness](../../tests/SqlToAi.StartupHarness/StartupHarness.cs) provide reusable checks, but do not establish that a published ZIP works.
-- [SQL connection security](../sql-connection-security/Konzept.md#accepted-environment-limitation-2026-10-16) records an accepted lack of trusted/untrusted TCP endpoints. Available local integration and default-rejection evidence must remain distinct from the unverified TCP transport matrix.
+- The [release workflow](../../.github/workflows/release.yml) builds a self-contained Windows x64 ZIP and immediately creates a public release for a version tag. It does not run tests or start the packaged EXE.
+- [release.ps1](../../scripts/release.ps1) checks locally before changing the version and creating the tagged commit, and permits `-SkipTests`. [deploy.ps1](../../scripts/deploy.ps1) does not consistently check native process exit codes.
+- [Development documentation](../../docs/development.md) describes the full solution test command and the existing local fictional SQL setup, but no supported database-independent CI selection. Existing integration categories also include configuration-only tests.
+- [User configuration](../user-configuration/Konzept.md) requires manually prepared user settings; missing settings must fail before MCP startup. The existing [startup harness](../../tests/SqlToAi.StartupHarness/StartupHarness.cs) already supports temporary roots for configuration tests.
+- [SQL connection security](../sql-connection-security/Konzept.md#accepted-environment-limitation-2026-10-16) records the accepted lack of trusted/untrusted TCP TLS endpoints. Those cases remain unverified.
 
-These observations describe inspected files; no build, test or package execution was performed while extracting this concept.
+These are inspected behavior and documented constraints, not evidence that a release passed validation.
 
 ## Scope
 
 ### Must
 
-- Define explicit test selection for database-independent tests versus SQL-dependent integration tests. In-memory MCP protocol tests belong in the database-independent suite even if their names contain `Integration`; fixture configuration checks must not be excluded solely because of their current integration category.
-- Provide documented commands that a contributor and CI can run without a SQL instance, production configuration, private credentials or a network route to the maintainer's database.
-- Run build, database-independent tests and dependency-vulnerability checks automatically for relevant pull requests and default-branch changes using standard GitHub-hosted runners and free features.
-- Add reusable local checks for the actual self-contained Windows x64 output: extract the ZIP, launch the packaged process, complete MCP initialization and tool discovery, and verify that stdout contains protocol messages rather than diagnostic text.
-- Run startup/configuration checks in an isolated Windows user-data environment. Existing maintainer configuration, logs and processes must not be used or modified as a side effect of validation.
-- Automate candidate creation and validation for an exact source revision and package bytes. Prepare a public-release activation boundary that additionally requires local SQL evidence and the maintainer's release decision; a manually pushed tag must not activate the public release on CI results alone. The artifact later published must be the artifact that was checked.
-- Keep SQL integration local against the fictional schema and a dedicated test database. Record the source revision, commands, relevant environment and sanitized result for the release candidate; distinguish not run, passed and failed.
-- Establish an explicit maintainer release decision accounting for the local SQL result. Do not present a green database-independent workflow or a confirmation flag as proof that SQL tests ran.
-- Handle native command exit codes correctly in validation/deployment helpers touched by this work; fail before reporting success or continuing release operations after a failed prerequisite.
-- Give dependency findings a visible disposition. Fix release-blocking findings or document an explicit reviewed exception; a successful vulnerability command with findings is not equivalent to a clean report.
-- Update the canonical development/release documentation and affected contributor instructions to explain test selection, prerequisites, failures, local SQL evidence and publication gates.
+- Separate database-independent tests, ordinary SQL integration and dedicated TLS tests by their actual requirements. Configuration-only and any in-memory MCP tests belong in the database-independent selection.
+- Document local commands and automatically run build, database-independent tests and the existing .NET/NuGet dependency-vulnerability checks for relevant pull requests and `main` changes. Use standard GitHub-hosted Windows runners without SQL credentials.
+- Check native exit codes in touched build/deployment/release scripts and stop before dependent operations or success messages after failure.
+- Build the current self-contained Windows x64 ZIP once for a tagged revision. Extract it, start its actual EXE and verify MCP initialization/tool discovery, with stdout reserved for protocol messages. Keep package creation and the smoke check callable from scripts.
+- Run required packaged-process checks on the fresh GitHub Windows runner, using that runner's existing disposable profile. Test missing settings and prepared conservative settings, paths containing spaces, a different working directory and preservation of settings. Local configuration tests continue to use the existing temporary-root harness.
+- Keep the current release workflow operational by creating a GitHub **draft release** only after successful automated checks. Attach the checked ZIP, its SHA-256 and the source commit/version. Publication is the maintainer's explicit action on that draft; no tag automatically publishes it.
+- Require successful ordinary SQL integration against the existing dedicated fictional database for the exact release source before publication. Record a short sanitized result in the draft release notes: commit, command, result counts and relevant TLS limitations. A manual tag can create a draft but does not establish local SQL success.
+- Keep dependency findings visible. Fix them or record a specific maintainer-reviewed exception before publication; command exit zero alone does not establish absence of findings. Use normal SDK diagnostics and release notes rather than creating an exception-policy engine.
+- Update canonical development/release instructions in the same implementation slices.
 
 ### Out of scope
 
-- SQL Server provisioning in GitHub, paid runners, paid scanners or dependence on an accessible private SQL instance in public workflows.
-- A new Claude/Cursor/Codex client matrix, application benchmarks, coverage-percentage targets or rewriting existing functional tests merely to increase their count.
-- New runtime behavior, SQL permissions, configuration migration or certificate-policy implementation; those changes belong to their own concepts.
-- MCPB generation, registry manifests, package-manager manifests, external directory submissions or an actual release/push. These remain in the publication task.
-- Unrelated changes to process termination/deployment behavior or a general rewrite of the release tooling.
+- New CI servers, self-hosted runners, Windows test accounts, dedicated VMs, paid services, SQL provisioning or new certificate infrastructure.
+- A custom candidate manifest/report schema, evidence validator, signing/attestation system, approval service or automatic proof of local test execution.
+- Runtime-module inspection or a separate SDK-free Windows test installation. Retain self-contained publishing and real EXE startup; do not claim an SDK-free-machine test was performed on a runner with the SDK installed.
+- Production configuration hooks/portable modes, SQL/TLS behavior changes, client matrices, benchmarks or coverage-percentage targets.
+- MCPB, Registry/package-manager metadata, external listings or actual pushes/releases during this task's planning or implementation. The [publication task](../mcp-server-dictionary/Konzept.md) owns the additional distribution channels; the existing ZIP release path remains usable.
 
-## Validation contract
+## Release flow
 
-- Every test group has an unambiguous documented selection. Database-dependent tests are not silently skipped and reported as passed when their prerequisites are unavailable.
-- The automated required path is Windows x64, database-independent, repeatable from a clean checkout and unsuccessful when build/tests/package checks fail. Keep workflow permissions limited to each job's needs.
-- First-run tests must exercise the [user-directory contract](../user-configuration/Konzept.md): missing base settings cause exit code `1`, an actionable stderr diagnostic, no stdout protocol output and no automatic settings creation. Separately, provide a manually prepared isolated settings file for successful MCP initialization. Cover an install path containing spaces, a different working directory and byte-for-byte preservation of existing user settings. Test hooks may redirect to temporary storage without introducing a production portable/configuration mode; a harness-only check does not replace launching the packaged executable.
-- Packaged stdio checks must not require a SQL connection or a separately installed .NET runtime/SDK for the server process. The harness may use the build toolchain; run the server in a controlled environment that cannot silently use that SDK/runtime to hide missing bundled dependencies.
-- Keep checks and package creation reusable by the publication workflow. Validate the ZIP produced by this task's current build; when the publication task adds MCPB, it must extend this check to the final bundle's version, content, executable, configuration mapping and SHA-256. Do not add a permanently skipped MCPB check and call it coverage.
-- Local SQL integration evidence must refer to the exact candidate source, using the same functional configuration and dependencies as the candidate artifact. If automated artifact creation cannot be reproduced locally byte-for-byte, state that limit instead of claiming binary equivalence.
-- Require successful local SQL validation before the release owner activates a public release. The later publication design must keep the public-release step separate from creating/validating a candidate, so an automatic tag build cannot accidentally substitute for the local decision.
-- The documented lack of trusted/untrusted TCP TLS endpoints is an accepted release-evidence limitation. After the ordinary local SQL suite passes, release activation may proceed only with explicit disclosure and maintainer review of those unverified cases for the exact candidate. This exception neither treats missing cases as passed nor permits failed configured TLS cases or missing ordinary SQL validation to pass the gate. Provisioning the unavailable endpoints is outside this task.
-- Store evidence in the existing PR/release workflow or release description, without committing secrets, customer data or a new task execution-log inventory. Never publish unsanitized integration output.
+1. Prepare the release version and commit before running the local release validation. Ordinary local SQL must pass; dedicated TLS results retain their individual status. A failed local check stops the release helper before push/tag.
+2. When intentionally invoked for a release, the helper pushes that tested source and its version tag. The tag workflow runs the automatic checks, builds the ZIP once, checks the extracted EXE and creates a draft release containing those same bytes, checksum and commit/version.
+3. The maintainer checks the automated result and adds the short local SQL result and TLS limitation to the draft notes. GitHub trusts this maintainer-supplied result; neither a commit nor a checksum proves local test execution. No additional machine-readable report is required.
+4. The maintainer publishes the existing draft through GitHub. Do not rebuild or replace its ZIP between checking and publishing. Changed source/package bytes require the applicable checks and a fresh review. A workflow rerun must not silently overwrite a published release or reuse an earlier review for changed bytes.
 
-## Dependencies and boundaries
-
-- [User configuration and conservative defaults](../user-configuration/Konzept.md) owns the new user-directory behavior, demo separation and first-run/fixture adaptation. Validation infrastructure can be developed independently; its final smoke checks must run against that completed behavior.
-- [SQL connection security](../sql-connection-security/Konzept.md) owns encryption/trust behavior and its specific tests. This task makes their database-independent tests part of CI and their real SQL scenarios part of the local release result.
-- The [publication concept](../mcp-server-dictionary/Konzept.md) owns ZIP/MCPB distribution, metadata, public release execution and external acceptance. It consumes the verified validation gates rather than implementing them again.
-- Configuration and TLS work can proceed separately before this concept's final combined candidate verification. There is no requirement to complete public MCPB distribution before the basic validation infrastructure is finished.
+The manual decision is a documented maintainer responsibility, not a tamper-proof restriction on the repository owner. This task configures draft creation and the usable manual handoff; it does not perform a publication.
 
 ## Verification
 
-- A documented database-independent build/test command succeeds without SQL Server or personal configuration. A failing selected test produces a failing workflow/helper exit status.
-- SQL-dependent tests run through a distinct local command against the fictional setup. Missing SQL prerequisites are clearly reported as unavailable/failure, never as executed passes.
-- PR/default-branch validation includes the intended non-SQL tests and reports dependency-check results. No paid execution resource or private SQL credential is required.
-- The unpacked candidate executable initializes over stdio and exposes tools from an isolated user-data environment. It works without an installed runtime, with spaces in paths and from another working directory.
-- Without its required user settings file, that executable fails according to the first-run contract; with an isolated manually prepared file, it completes the protocol check without SQL access. Both scenarios preserve the maintainer's real user data.
-- A failed build, test, dependency gate or package check prevents public release activation. A tag creates/checks a candidate; CI success alone cannot activate a public release or establish completion of the local SQL requirement. The separate maintainer decision must account for that local result.
-- The release gate accepts the documented unavailable TCP TLS cases only with candidate-specific disclosure and review after successful ordinary local SQL validation. Failed configured TLS cases and unrelated missing SQL prerequisites still block activation; the evidence never describes the unavailable matrix as passed.
-- The exact source revision, checked artifact identity and local SQL result can be associated with a release decision. No artifact is rebuilt/replaced after validation without rerunning the applicable checks.
-- Existing helpers no longer report successful validation/publish after a relevant native process returns failure; preview/dry-run remains free of release side effects.
-- Development documentation accurately separates automated checks, local SQL checks, candidate creation and actual publication. No new client certification is claimed.
+- The documented database-independent selection runs nonempty tests without SQL Server or personal configuration. Ordinary SQL and TLS selections are distinct; absent prerequisites and skipped cases are never reported as executed passes.
+- A failed build, selected test, dependency check or package smoke check fails the relevant script/workflow and prevents creation of a release presented as ready for review. Reviewed dependency exceptions remain visible; unreviewed findings cannot be silently ignored.
+- The exact extracted ZIP executable completes MCP initialization and tool discovery on the fresh runner using prepared conservative settings and no SQL access. Missing settings produce exit `1`, actionable stderr, no stdout and no generated settings file.
+- Install paths with spaces, a different working directory and byte-identical preservation of settings are checked. Local tests never read or modify the maintainer's real user directory; no account/profile management is introduced.
+- The tagged version and recorded source agree. The ZIP attached to the draft has the same SHA-256 as the tested ZIP; publishing the draft requires no rebuild.
+- The local release helper validates the final release source, stops on failure and has a mutation-free dry-run. Skipping tests cannot be presented as a successful release validation.
+- A passing ordinary SQL result is required for manual publication. Missing trusted/untrusted TCP TLS cases remain explicitly unverified and are reviewed/disclosed for that release, as accepted by the user. Failed configured TLS cases and missing/failed ordinary SQL still block publication.
+- The documented process ends in a usable draft-to-public ZIP release path without depending on completion of the external-publication task. Actual hosted runs and publications not performed are never claimed as verified.
 
-## Settled release-evidence decision
+## Dependencies and approval
 
-- The user accepts release activation with successful ordinary local SQL tests and explicitly documented, candidate-specific review of the already accepted TCP TLS environment limitation. The missing transport evidence remains unverified; the secure production contract is unchanged.
+[User configuration](../user-configuration/Konzept.md) and [SQL connection security](../sql-connection-security/Konzept.md) own the runtime contracts consumed by these checks. This task owns their validation/release integration; it does not reimplement those changes.
 
-The user has approved this concept; no design decisions remain open. Implementation and publication require their separately authorized workflow stages.
+The user approved the concept and requested this pragmatic simplification. No design decisions remain open. Implementation requires its separately invoked workflow stage.
