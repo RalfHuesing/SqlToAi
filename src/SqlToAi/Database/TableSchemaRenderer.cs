@@ -23,7 +23,8 @@ internal sealed class TableSchemaRenderer
         _policyResolver = policyResolver;
     }
 
-    public async Task<string> GetTableSchemaMarkdownAsync(DbConnection connection, string databaseName, string tableName, CancellationToken cancellationToken, SchemaRenderingContext? context = null)
+    public async Task<string> GetTableSchemaMarkdownAsync(DbConnection connection, string databaseName, string tableName, CancellationToken cancellationToken,
+        SchemaRenderingContext? context = null, SchemaObjectIdentity? interactiveIdentity = null)
     {
         // Query columns list
         string columnsSql = """
@@ -56,9 +57,13 @@ internal sealed class TableSchemaRenderer
         IReadOnlyDictionary<string, ColumnAnonymizationState>? anonymizedFlags = null;
         if (context is null)
         {
-            tableDesc = await _metadataProvider.GetTableDescriptionAsync(databaseName, tableName, cancellationToken);
-            columnDescs = await _metadataProvider.GetColumnDescriptionsAsync(databaseName, tableName, cancellationToken);
-            anonymizedFlags = await ResolveAnonymizedFlagsAsync(databaseName, tableName, columns, cancellationToken);
+            tableDesc = interactiveIdentity is null
+                ? await _metadataProvider.GetTableDescriptionAsync(databaseName, tableName, cancellationToken)
+                : await _metadataProvider.GetTableDescriptionAsync(databaseName, interactiveIdentity, cancellationToken);
+            columnDescs = interactiveIdentity is null
+                ? await _metadataProvider.GetColumnDescriptionsAsync(databaseName, tableName, cancellationToken)
+                : await _metadataProvider.GetColumnDescriptionsAsync(databaseName, interactiveIdentity, cancellationToken);
+            anonymizedFlags = await ResolveAnonymizedFlagsAsync(databaseName, tableName, columns, cancellationToken, interactiveIdentity);
         }
 
         var triggers = (await QueryTriggersAsync(connection, tableName, cancellationToken)).ToList();
@@ -97,21 +102,23 @@ internal sealed class TableSchemaRenderer
     /// of configuration, so they are reported as "No" without even asking the policy resolver.
     /// </summary>
     private async Task<IReadOnlyDictionary<string, ColumnAnonymizationState>> ResolveAnonymizedFlagsAsync(
-        string databaseName, string tableName, IEnumerable<ColumnRow> columns, CancellationToken cancellationToken)
+        string databaseName, string tableName, IEnumerable<ColumnRow> columns, CancellationToken cancellationToken, SchemaObjectIdentity? identity)
     {
         var flags = new Dictionary<string, ColumnAnonymizationState>(StringComparer.OrdinalIgnoreCase);
         foreach (var col in columns)
         {
-            flags[col.ColumnName] = await ResolveColumnStateAsync(databaseName, tableName, col, cancellationToken);
+            flags[col.ColumnName] = await ResolveColumnStateAsync(databaseName, tableName, col, cancellationToken, identity);
         }
         return flags;
     }
 
     private async Task<ColumnAnonymizationState> ResolveColumnStateAsync(
-        string databaseName, string tableName, ColumnRow col, CancellationToken cancellationToken)
+        string databaseName, string tableName, ColumnRow col, CancellationToken cancellationToken, SchemaObjectIdentity? identity)
     {
         bool willAnonymize = AnonymizableSqlTypes.Contains(col.DataType)
-            && await _policyResolver.WillAnonymizeAsync(databaseName, tableName, col.ColumnName, cancellationToken);
+            && (identity is null
+                ? await _policyResolver.WillAnonymizeAsync(databaseName, tableName, col.ColumnName, cancellationToken)
+                : await _policyResolver.WillAnonymizeAsync(databaseName, identity, col.ColumnName, cancellationToken));
         if (!willAnonymize)
         {
             return ColumnAnonymizationState.None;

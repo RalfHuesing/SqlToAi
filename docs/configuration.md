@@ -27,9 +27,29 @@ The general local integration-test fixture has a separate, checked-in test-only 
 | `AnonymizationRules` | `Enabled` (false), `Server`, `Database`, `UserId`, `Password`, `IntegratedSecurity`, `TrustServerCertificate` (false), `TableName` (`dbo.AnonymizationRules`), `CommandTimeoutSeconds` (30), `CacheTtlSeconds` (300) |
 | `MetadataProvider` | `Enabled` (true), `Server`, `Database`, `UserId`, `Password`, `IntegratedSecurity`, `TrustServerCertificate` (false), `TableMetadataQuery`, `ColumnMetadataQuery`, `CommandTimeoutSeconds` (30 in options) |
 | `QueryExecution` | `DefaultRowLimit` (100), `MaxRowLimit` (1000), `CommandTimeoutSeconds` (30), `MaxScriptFileSizeBytes` (10485760 = 10 MiB) |
+| `SchemaBatch` | `MaxInputCount` (10), `MaxResponseBytes` (65536 UTF-8 bytes); both must be greater than zero |
 | `Logging` | `Directory` (`log`), `AppLog`, `ErrorLog`, legacy `McpTrail` settings; see below |
 
 Row limits constrain returned rows; they do not bound SQL Server's query cost or row scans. Command and connection timeouts are separate.
+
+### Schema batch limits
+
+The internal schema batch service counts normalized non-empty input entries before
+deduplication. `SchemaBatch.MaxInputCount` rejects excessive selections before
+database/schema work. `MaxResponseBytes` bounds the exact serialized JSON response
+text, including the envelope, all input names, status fields, complete catalog
+errors, omission reasons and JSON escaping. The service reserves omission metadata
+for every input before opening a connection; if that metadata cannot fit, it rejects
+the request. Non-positive limits fail configuration loading with a settings-path
+diagnostic.
+
+Schemas and errors remain whole. When the next complete entry would exceed the
+response budget, that input and all remaining inputs receive `not_returned` with
+`reason=response_limit`; earlier results remain available. Duplicate names retain
+their own entries and consume response space even when their schema fetch is reused.
+These options apply only to batch composition; scalar schema responses and
+filesystem exports retain their existing limits and behavior. The batch service is
+currently internal; MCP/CLI registration is a separate integration step.
 
 ## Manual setup and updates
 

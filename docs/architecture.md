@@ -39,6 +39,34 @@ Schema discovery returns primary metadata first, with foreign keys, indexes and 
 
 The internal [SchemaObjectSelection](../src/SqlToAi/Database/SchemaObjectSelection.cs) boundary normalizes JSON scalar/list selections in scalar-first input order, trimming surrounding whitespace and ignoring null or empty entries. It rejects incorrect types and requires a remaining name unless empty selection is explicitly allowed. `SchemaService.ResolveObjectsAsync` checks database access before querying the shared discovery catalog. Selection accepts one-part or SQL-schema-qualified identifiers, including SQL quoting; cross-database names are rejected. Name and schema equality are evaluated by SQL Server against its catalog, preserving database identifier comparison semantics. Unqualified names must match exactly one catalog object. Each input retains its own result or catalog error, while repeated identifiers reuse lookups and aliases share the resolved object by object ID. Primary-schema selection supports tables, views and SQL routines; export selection also supports table/view DML triggers. This boundary is internal and does not change the existing MCP/CLI scalar schema lookup or its resolution behavior.
 
+`SchemaService.GetSchemaBatchAsync` composes primary schemas internally without new
+MCP/CLI registration. It validates normalized input count and identifying omission
+metadata before opening a connection, then checks database access and resolves the
+whole selection. It uses the same interactive renderers as scalar inspection and
+reuses schema/error fetches by resolved object ID within the request. Each input,
+including aliases and duplicates, retains an ordered result. Object-specific errors
+allow subsequent siblings; validation, access and catalog/connection failures fail
+the request, and cancellation propagates.
+
+[SchemaBatchComposer](../src/SqlToAi/Database/SchemaBatchComposer.cs) writes one JSON
+envelope containing `complete` and `results`. Each result identifies `object_name`
+and `status`, plus `markdown`, a catalog `error` (`code`, `message`), or omission
+`reason`. `complete` is true only when every entry is `ok`. Its retained serialized
+text is the exact text measured against the [batch byte budget](configuration.md#schema-batch-limits),
+including JSON escaping and all pending omission metadata. When a complete schema
+or error no longer fits, it marks that input and every remaining input
+`not_returned`/`response_limit`, retaining earlier results. No schema/error text is
+truncated and no continuation state is created. Foreign-key, index, constraint and
+routine-parameter details remain separate requests.
+
+For batch table/view enrichment, typed identities keep SQL lookup names separate
+from metadata/rule names. Native descriptions use the safely quoted qualified name;
+custom metadata queries receive the raw base object name. Anonymization policies
+receive the resolved SQL schema and object names, so quoted names, literal dots and
+escaped brackets do not change explicit exemptions. The identity overloads retain
+the existing string-based provider contract as a fallback for custom implementations.
+Scalar inspection and offline export continue to use their existing paths.
+
 `GetExportTriggerDefinitionAsync` validates the trigger's object ID, SQL schema/name and table/view parent association together, then retrieves its definition by that same ID. It shares definition retrieval and rendering with the existing trigger operation. The MCP trigger operation retains its simple-name definition lookup and its limitation for triggers outside the default schema; the export entry does not change MCP tool contracts or results.
 
 The export schema, foreign-key, index, constraint, parameter and referencing-entity entries use an immutable [SchemaRenderingContext](../src/SqlToAi/Database/SchemaRenderingContext.cs) per call. It carries the typed source object and copies the coordinator's object-to-document path mapping. Schema services remain stateless singletons: their existing MCP entries use the default presentation without a context, preserving enrichment, discovery instructions, columns, notes and errors.

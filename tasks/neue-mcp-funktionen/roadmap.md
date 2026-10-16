@@ -91,7 +91,7 @@ No implementation or practical verification has been performed by creating this 
     `refactor: Teile Normalisierung und Auflösung der Objektauswahl` (this slice).
     Items 2–8 remain open and were not implemented.
 
-- [ ] **2. Implement bounded primary-schema batch composition.**
+- [x] **2. Implement bounded primary-schema batch composition.**
 
   **Intention:** Produce complete, attributable results within the agreed budgets.
 
@@ -110,6 +110,57 @@ No implementation or practical verification has been performed by creating this 
   serialized-byte accounting including metadata, whole-schema omission and the
   oversized-first-schema/metadata-only cases. Enrichment and access policy remain
   consistent with existing inspection. Options/docs/template agree; build/tests pass.
+
+  **Completion evidence (2026-10-16):**
+
+  - Added internal `SchemaService.GetSchemaBatchAsync` and
+    `src/SqlToAi/Database/SchemaBatchComposer.cs`. Scalar-first normalization is
+    reused from item 1, count limits apply before deduplication, and every normalized
+    input retains its own ordered result. Resolved object IDs share primary-schema
+    fetches, including fetch failures. Interactive enrichment and discovery hints
+    remain enabled; detail sections, export, MCP registration and legacy scalar
+    validation/rendering remain on their existing paths.
+  - The composer retains the exact JSON text measured in UTF-8, including envelope,
+    names, status, escaping, full catalog errors and omission reasons. It reserves
+    omission metadata for all pending inputs, rejecting an insufficient metadata
+    budget before opening a database connection. If a whole schema or object-error
+    entry cannot fit, that input and all subsequent inputs become
+    `not_returned`/`response_limit`; earlier results remain intact. An oversized first
+    entry therefore produces metadata only. `complete` is true only for all-`ok`
+    results. Validation, access and catalog/connection failures fail the request;
+    cancellation propagates, including cancellation during the final fetch.
+  - Review identified that passing always-quoted names to existing string-based
+    enrichment would change custom metadata parameters and rule matching. Focused
+    identity overloads now let the batch path use qualified SQL names for native
+    descriptions, raw object names for custom descriptions, and resolved schema/
+    object names for anonymization rules. Existing string-based scalar and offline
+    paths are preserved; default interface implementations retain compatibility
+    with existing custom providers. Tests cover explicit unmasked values alongside
+    masked/searchable strings, non-string values and quoted dot/bracket names.
+  - Added 45 unit/integration cases in `SchemaBatchComposerTests.cs`,
+    `SchemaServiceBatchTests.cs`, `UserConfigurationTests.cs` and
+    `SchemaServiceIntegrationTests.cs`, using `SchemaBatchTestSupport.cs` and existing
+    test support. Coverage includes duplicate/alias fetch reuse, mixed object and
+    query errors with successful siblings, count-before-deduplication, exact
+    serialized limits with Unicode/escaping and catalog errors, whole omission,
+    oversized first entries, metadata-only rejection, access denial, connection
+    timeout, invalid inputs and cancellation. The real SQL fixture batch executed
+    for a table, view, quoted alias and missing name; its table Markdown matched the
+    equivalent scalar call. This service test does not claim MCP/SDK binding or
+    practical exploration; those remain assigned to items 3 and 4.
+  - Added `SchemaBatch.MaxInputCount=10` and `MaxResponseBytes=65536` to bound
+    options and the main template, with positive-value startup validation and
+    binding/default/template tests. Updated `docs/configuration.md` and
+    `docs/architecture.md` for the internal boundary, exact budgets and enrichment.
+  - Validation: `dotnet build SqlToAi.slnx` passed with zero warnings/errors.
+    `dotnet test SqlToAi.slnx` passed; the final rerun with the quiet console logger
+    passed 975 cases, with 19 existing TLS endpoint skips, zero failures, 994 total.
+    These skips still require `SQLTOAI_TLS_TEST_PROFILE` and do not verify its
+    certificate scenarios. `git diff --check` passed. No user configuration or
+    database permissions were changed.
+  - Actual delegated implementation setting: `gpt-6.1-sol`, reasoning effort
+    `high`. Atomic commit reference: the direct child of `6dc3c5e` with subject
+    `feat: Begrenze und komponiere Schema-Stapel` (this slice). Items 3–8 remain open.
 
 - [ ] **3. Expose scalar and batch schema calls consistently.**
 

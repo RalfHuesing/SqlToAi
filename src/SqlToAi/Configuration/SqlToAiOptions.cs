@@ -12,7 +12,14 @@ public sealed class SqlToAiOptions
     public AnonymizationRulesOptions AnonymizationRules { get; set; } = new();
     public MetadataProviderOptions MetadataProvider { get; set; } = new();
     public QueryExecutionOptions QueryExecution { get; set; } = new();
+    public SchemaBatchOptions SchemaBatch { get; set; } = new();
     public LoggingOptions Logging { get; set; } = new();
+}
+
+public sealed class SchemaBatchOptions
+{
+    public int MaxInputCount { get; set; } = 10;
+    public int MaxResponseBytes { get; set; } = 65_536;
 }
 
 /// <summary>

@@ -57,6 +57,7 @@ internal sealed class UserConfiguration : IDisposable
             var options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
             ConfigurationResolver.Resolve(options, root);
             ValidateLoggingOptions(options.Logging, expectedPath);
+            ValidateSchemaBatchOptions(options.SchemaBatch, expectedPath);
             EnsureWritableDirectory(root);
             return new UserConfiguration(root, configuration, options);
         }
@@ -84,6 +85,16 @@ internal sealed class UserConfiguration : IDisposable
     {
         ValidateSinkRetention(logging.AppLog, "SqlToAi.Logging.AppLog.RetainedFileCount", settingsPath);
         ValidateSinkRetention(logging.ErrorLog, "SqlToAi.Logging.ErrorLog.RetainedFileCount", settingsPath);
+    }
+
+    private static void ValidateSchemaBatchOptions(SchemaBatchOptions options, string settingsPath)
+    {
+        if (options.MaxInputCount <= 0 || options.MaxResponseBytes <= 0)
+        {
+            throw new ConfigurationStartupException(
+                $"SqlToAi.SchemaBatch.MaxInputCount and SqlToAi.SchemaBatch.MaxResponseBytes must be greater than zero. " +
+                $"Settings file: '{settingsPath}'. Correct these values manually using the supplied appsettings.json template, then restart.");
+        }
     }
 
     private static void ValidateSinkRetention(FileLogSinkOptions sink, string settingName, string settingsPath)

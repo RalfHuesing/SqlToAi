@@ -1,3 +1,5 @@
+using SqlToAi.Database;
+
 namespace SqlToAi.Anonymization;
 
 /// <summary>
@@ -10,6 +12,9 @@ namespace SqlToAi.Anonymization;
 /// </summary>
 public interface IAnonymizationPolicyResolver
 {
+    Task<bool> WillAnonymizeAsync(string databaseName, SchemaObjectIdentity identity, string columnName, CancellationToken cancellationToken = default)
+        => WillAnonymizeAsync(databaseName, identity.DisplayName, columnName, cancellationToken);
+
     /// <summary>Returns <c>true</c> if string values in this column would currently be anonymized.</summary>
     Task<bool> WillAnonymizeAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default);
 

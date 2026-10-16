@@ -1,6 +1,8 @@
 using SqlToAi.Database;
 using SqlToAi.Domain;
 using Dapper;
+using System.Text;
+using System.Text.Json;
 
 namespace SqlToAi.Tests.Integration;
 
@@ -107,6 +109,29 @@ public sealed class SchemaServiceIntegrationTests
         // Markdown should mention the table itself and at least one column
         Assert.Contains("FakeProjects", result.Value, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("|", result.Value); // pipe = markdown table column separator
+    }
+
+    [Fact]
+    public async Task SchemaBatch_RetainsInteractiveScalarMarkdownAliasesAndSuccessfulSiblings()
+    {
+        string[] names = ["[dbo].[FakeProjects]", "dbo.FakeProjects", "DoesNotExist_Batch_ZZZZ", "[dbo].[vewFakeProjectList]"];
+        var batch = await _fx.SchemaService.GetSchemaBatchAsync(_db,
+            objectNames: JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(names)), cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(batch.IsSuccess, IntegrationAssertions.FormatFailure(batch));
+        Assert.False(batch.Value.Complete);
+        using var json = JsonDocument.Parse(batch.Value.Json);
+        var entries = json.RootElement.GetProperty("results").EnumerateArray().ToArray();
+        Assert.Equal(names, entries.Select(item => item.GetProperty("object_name").GetString()));
+        Assert.Equal(["ok", "ok", "error", "ok"], entries.Select(item => item.GetProperty("status").GetString()));
+        Assert.Equal(entries[0].GetProperty("markdown").GetString(), entries[1].GetProperty("markdown").GetString());
+        var scalar = await _fx.SchemaService.GetSchemaAsync(_db, names[0], TestContext.Current.CancellationToken);
+        Assert.True(scalar.IsSuccess, IntegrationAssertions.FormatFailure(scalar));
+        Assert.Equal(scalar.Value, entries[0].GetProperty("markdown").GetString());
+        Assert.Contains("Anonymized", scalar.Value);
+        Assert.Contains("Discovery Index", scalar.Value);
+        Assert.Contains("View Definition", entries[3].GetProperty("markdown").GetString());
+        Assert.Equal(SqlToAiError.ObjectNotFoundCode, entries[2].GetProperty("error").GetProperty("code").GetString());
+        Assert.True(Encoding.UTF8.GetByteCount(batch.Value.Json) <= _fx.Options.SchemaBatch.MaxResponseBytes);
     }
 
     [Fact]

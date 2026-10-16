@@ -63,6 +63,12 @@ public sealed class MetadataProvider : IMetadataProvider
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The table description, or null if not found.</returns>
     public async Task<string?> GetTableDescriptionAsync(string databaseName, string tableName, CancellationToken cancellationToken = default)
+        => await GetTableDescriptionCoreAsync(databaseName, tableName, null, cancellationToken);
+
+    public Task<string?> GetTableDescriptionAsync(string databaseName, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
+        => GetTableDescriptionCoreAsync(databaseName, identity.QualifiedName, identity.ObjectName, cancellationToken);
+
+    private async Task<string?> GetTableDescriptionCoreAsync(string databaseName, string tableName, string? resolvedName, CancellationToken cancellationToken)
     {
         if (!_options.MetadataProvider.Enabled || string.IsNullOrWhiteSpace(tableName))
         {
@@ -76,11 +82,7 @@ public sealed class MetadataProvider : IMetadataProvider
         {
             sql = _options.MetadataProvider.TableMetadataQuery;
             // Clean schema prefix from tableName for custom metadata queries (e.g. "dbo.KHKVKBelege" -> "KHKVKBelege")
-            int dotIndex = tableName.LastIndexOf('.');
-            if (dotIndex >= 0)
-            {
-                queryTableName = tableName[(dotIndex + 1)..];
-            }
+            queryTableName = resolvedName ?? tableName[(tableName.LastIndexOf('.') + 1)..];
         }
         else
         {
@@ -113,6 +115,12 @@ public sealed class MetadataProvider : IMetadataProvider
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A dictionary of column names to descriptions.</returns>
     public async Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(string databaseName, string tableName, CancellationToken cancellationToken = default)
+        => await GetColumnDescriptionsCoreAsync(databaseName, tableName, null, cancellationToken);
+
+    public Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(string databaseName, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
+        => GetColumnDescriptionsCoreAsync(databaseName, identity.QualifiedName, identity.ObjectName, cancellationToken);
+
+    private async Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsCoreAsync(string databaseName, string tableName, string? resolvedName, CancellationToken cancellationToken)
     {
         var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -128,11 +136,7 @@ public sealed class MetadataProvider : IMetadataProvider
         {
             sql = _options.MetadataProvider.ColumnMetadataQuery;
             // Clean schema prefix from tableName for custom metadata queries (e.g. "dbo.KHKVKBelege" -> "KHKVKBelege")
-            int dotIndex = tableName.LastIndexOf('.');
-            if (dotIndex >= 0)
-            {
-                queryTableName = tableName[(dotIndex + 1)..];
-            }
+            queryTableName = resolvedName ?? tableName[(tableName.LastIndexOf('.') + 1)..];
         }
         else
         {

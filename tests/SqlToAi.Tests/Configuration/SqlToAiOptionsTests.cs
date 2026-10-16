@@ -40,6 +40,8 @@ public sealed class SqlToAiOptionsTests
         Assert.True(options.MetadataProvider.Enabled);
         Assert.Equal("ScramblePattern", options.Anonymizer.DefaultMode);
         Assert.Equal(10_485_760L, options.QueryExecution.MaxScriptFileSizeBytes);
+        Assert.Equal(10, options.SchemaBatch.MaxInputCount);
+        Assert.Equal(65_536, options.SchemaBatch.MaxResponseBytes);
         Assert.True(options.Logging.AppLog.Enabled);
         Assert.True(options.Logging.ErrorLog.Enabled);
         Assert.False(options.Logging.McpTrail.Enabled);
@@ -70,6 +72,8 @@ public sealed class SqlToAiOptionsTests
         Assert.False(demoOptions.SqlServer.TrustServerCertificate);
         Assert.Equal(defaults.Logging.AppLog.Enabled, templateOptions.Logging.AppLog.Enabled);
         Assert.Equal(defaults.Logging.ErrorLog.Enabled, templateOptions.Logging.ErrorLog.Enabled);
+        Assert.Equal(defaults.SchemaBatch.MaxInputCount, templateOptions.SchemaBatch.MaxInputCount);
+        Assert.Equal(defaults.SchemaBatch.MaxResponseBytes, templateOptions.SchemaBatch.MaxResponseBytes);
 
         var safeAccess = new AccessLevelProvider(Options.Create(templateOptions));
         Assert.Equal(AccessLevel.None,
@@ -124,6 +128,10 @@ public sealed class SqlToAiOptionsTests
           },
           "QueryExecution": {
             "MaxScriptFileSizeBytes": 2048
+          },
+          "SchemaBatch": {
+            "MaxInputCount": 3,
+            "MaxResponseBytes": 4096
           }
         }
         """;
@@ -152,6 +160,8 @@ public sealed class SqlToAiOptionsTests
         Assert.True(options.Anonymizer.Enabled);
         Assert.Equal("Hash", options.Anonymizer.DefaultMode);
         Assert.Equal(2048L, options.QueryExecution.MaxScriptFileSizeBytes);
+        Assert.Equal(3, options.SchemaBatch.MaxInputCount);
+        Assert.Equal(4096, options.SchemaBatch.MaxResponseBytes);
     }
 
     private static SqlToAiOptions LoadOptions(string fileName)

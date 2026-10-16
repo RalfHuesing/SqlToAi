@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Text.Json;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -206,6 +207,48 @@ public sealed class SchemaService : ISchemaService
     public async Task<Result<string>> GetSchemaAsync(string databaseName, string objectName, CancellationToken cancellationToken = default)
         => await GetSchemaCoreAsync(databaseName, objectName, null, cancellationToken);
 
+    internal async Task<Result<SchemaBatchResponse>> GetSchemaBatchAsync(
+        string databaseName, JsonElement objectName = default, JsonElement objectNames = default, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(databaseName))
+            return SqlToAiError.InvalidParameters("database is required.");
+        var normalized = SchemaObjectSelection.Normalize(objectName, objectNames);
+        if (normalized.IsFailure) return normalized.Error;
+        var preflight = SchemaBatchComposer.ValidateRequest(normalized.Value, _options.SchemaBatch);
+        if (preflight.IsFailure) return preflight.Error;
+        var access = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
+        if (access.IsFailure) return access.Error;
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await using var connection = _connectionFactory.CreateConnection(databaseName);
+            await PrimaryConnection.OpenAsync(connection, cancellationToken);
+            var selected = await SchemaObjectSelection.ResolveAsync(connection, normalized.Value, false, cancellationToken);
+            return await SchemaBatchComposer.ComposeAsync(selected, _options.SchemaBatch.MaxResponseBytes,
+                async (item, ct) =>
+                {
+                    try
+                    {
+                        string type = item.Identity.Kind switch { SchemaObjectKind.Table => "U", SchemaObjectKind.View => "V", _ => "P" };
+                        return Result<string>.Success(await RenderPrimarySchemaAsync(connection, databaseName, item.Identity.QualifiedName, type, null, ct, item.Identity));
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex) when (ex is not PrimaryConnectionException)
+                    {
+                        _logger.LogError(ex, "Failed to retrieve batch schema for {ObjectName} in database {DatabaseName}.", item.Identity.DisplayName, databaseName);
+                        return SqlToAiError.QueryError(ex.Message);
+                    }
+                }, cancellationToken);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve schema batch in database {DatabaseName}.", databaseName);
+            return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
+        }
+    }
+
     public Task<Result<string>> GetExportSchemaAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
         => GetSchemaCoreAsync(databaseName, context.Source.QualifiedName, context, cancellationToken);
 
@@ -231,24 +274,26 @@ public sealed class SchemaService : ISchemaService
                 return SqlToAiError.ObjectNotFound(objectName);
             }
 
-            // 2. Query schema depending on type code
-            if (typeCode == "U")
-            {
-                return await _tableSchemaRenderer.GetTableSchemaMarkdownAsync(connection, databaseName, objectName, cancellationToken, context);
-            }
-            if (typeCode == "V")
-            {
-                string tableMarkdown = await _tableSchemaRenderer.GetTableSchemaMarkdownAsync(connection, databaseName, objectName, cancellationToken, context);
-                string definitionMarkdown = await TableSchemaRenderer.GetViewDefinitionMarkdownAsync(connection, objectName, cancellationToken);
-                return tableMarkdown + definitionMarkdown;
-            }
-            return await TableSchemaRenderer.GetRoutineSchemaMarkdownAsync(connection, objectName, cancellationToken, context);
+            return await RenderPrimarySchemaAsync(connection, databaseName, objectName, typeCode, context, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to retrieve schema for {ObjectName} in database {DatabaseName}.", objectName, databaseName);
             return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
         }
+    }
+
+    private async Task<string> RenderPrimarySchemaAsync(DbConnection connection, string databaseName, string objectName,
+        string typeCode, SchemaRenderingContext? context, CancellationToken cancellationToken, SchemaObjectIdentity? interactiveIdentity = null)
+    {
+        if (typeCode == "U")
+            return await _tableSchemaRenderer.GetTableSchemaMarkdownAsync(connection, databaseName, objectName, cancellationToken, context, interactiveIdentity);
+        if (typeCode == "V")
+        {
+            string table = await _tableSchemaRenderer.GetTableSchemaMarkdownAsync(connection, databaseName, objectName, cancellationToken, context, interactiveIdentity);
+            return table + await TableSchemaRenderer.GetViewDefinitionMarkdownAsync(connection, objectName, cancellationToken);
+        }
+        return await TableSchemaRenderer.GetRoutineSchemaMarkdownAsync(connection, objectName, cancellationToken, context);
     }
 
     public Task<Result<string>> GetSchemaForeignKeysAsync(string databaseName, string tableName, CancellationToken cancellationToken = default) =>

@@ -85,6 +85,38 @@ public sealed class UserConfigurationTests
     }
 
     [Theory]
+    [InlineData("MaxInputCount", 0)]
+    [InlineData("MaxInputCount", -1)]
+    [InlineData("MaxResponseBytes", 0)]
+    [InlineData("MaxResponseBytes", -1)]
+    public async Task InvalidSchemaBatchLimit_FailsAtStartupWithActionableDiagnostic(string field, int value)
+    {
+        using var temp = TestTempDirectory.Create();
+        temp.CreateFile("user-root/appsettings.json",
+            $"{{ \"SqlToAi\": {{ \"SchemaBatch\": {{ \"{field}\": {value} }} }} }}");
+        string root = temp.GetPath("user-root");
+        var result = await RunAsync(temp, root, "query-help");
+        AssertFailure(result, root);
+        Assert.Contains($"SqlToAi.SchemaBatch.{field}", result.Error, StringComparison.Ordinal);
+        Assert.Contains("greater than zero", result.Error, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(temp.GetPath("logs")));
+    }
+
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(10, 65536)]
+    public void PositiveSchemaBatchLimits_LoadWithoutRewritingSettings(int maxCount, int maxBytes)
+    {
+        using var temp = TestTempDirectory.Create();
+        string text = $"{{ \"SqlToAi\": {{ \"SchemaBatch\": {{ \"MaxInputCount\": {maxCount}, \"MaxResponseBytes\": {maxBytes} }} }} }}";
+        string path = temp.CreateFile("user-root/appsettings.json", text);
+        using var configuration = UserConfiguration.Load(temp.GetPath("user-root"));
+        Assert.Equal(maxCount, configuration.Options.SchemaBatch.MaxInputCount);
+        Assert.Equal(maxBytes, configuration.Options.SchemaBatch.MaxResponseBytes);
+        Assert.Equal(text, File.ReadAllText(path));
+    }
+
+    [Theory]
     [InlineData("AppLog", 1)]
     [InlineData("AppLog", int.MaxValue)]
     [InlineData("ErrorLog", 1)]
