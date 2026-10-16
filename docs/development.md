@@ -30,6 +30,20 @@ dotnet test SqlToAi.slnx
 
 The overlay accepts the presented certificate without authenticating server identity; encryption remains required. The exception is explicit, fixture-only, never inferred, and does not edit shipped profiles or user settings. Other fixture options use the same prefix, for example `SQLTOAI_INTEGRATION_SqlToAi__SqlServer__Server`. Dedicated metadata/rule endpoints require their own explicit trust settings. A successful general suite using this exception does not establish secure-default certificate authentication.
 
+### Shared local and CI validation
+
+Run the same command used by the [Windows validation workflow](../.github/workflows/validate.yml):
+
+```powershell
+pwsh -NoProfile -File .\scripts\validate.ps1
+```
+
+[validate.ps1](../scripts/validate.ps1) restores dependencies, audits direct and transitive packages at every severity, builds with warnings as errors and runs the offline selection above. An empty test selection is an error. Each failed native command stops the remaining steps and returns failure. Output, including advisory URLs, is retained in the normal terminal/workflow log. The workflow runs on relevant pull requests and `main` changes with read-only repository permissions, no SQL credentials and no private secrets.
+
+Restore uses `NuGetAudit=true`, `NuGetAuditMode=all`, `NuGetAuditLevel=low` and `TreatWarningsAsErrors=true`. It forces reevaluation and bypasses the HTTP cache. [NuGet.Config](../NuGet.Config) explicitly selects nuget.org as the audit source; unavailable vulnerability data (`NU1900`) and a source without vulnerability information (`NU1905`) fail alongside findings (`NU1901`–`NU1904`). A successful audit covers the resolved dependency graph against the source's available advisory data at that time; it is not proof that dependencies contain no vulnerabilities.
+
+Fix findings by upgrading the affected dependency or its parent; `dotnet nuget why SqlToAi.slnx <package-id>` helps trace a transitive dependency. If a fix cannot be applied, a maintainer must review the specific advisory and risk before adding a `NuGetAuditSuppress` item with its exact advisory URL to the affected project (or [Directory.Build.props](../Directory.Build.props) for a repository-wide exception). Add a nearby comment linking the review/issue, naming the affected package/version, explaining the accepted risk and stating when to revisit it. Include accepted exceptions in release notes. Suppression removes that advisory from SDK diagnostics, so review these source changes and the recorded exceptions explicitly; a green run with an exception does not mean no findings existed. There are no approved exceptions currently. Do not disable auditing, raise its severity threshold or suppress entire warning codes to accept a finding or source failure. See [NuGet's audit and per-advisory suppression reference](https://learn.microsoft.com/nuget/concepts/auditing-packages).
+
 ### Local TLS evidence
 
 [TlsConnectionIntegrationTests](../tests/SqlToAi.Tests/Integration/TlsConnectionIntegrationTests.cs) loads only the test input file explicitly selected by `SQLTOAI_TLS_TEST_PROFILE`. It ignores the general fixture profile, overlay, and environment overrides, and selects trust independently for every case. Its endpoint inputs must omit the trust property or set it to `false`; an absent file setting or endpoint section is reported as skipped/unverified, never passed. An invalid configured file or failed configured case fails the test.

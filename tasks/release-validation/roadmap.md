@@ -46,7 +46,7 @@ dotnet test SqlToAi.slnx --filter 'Category=TlsIntegration'
 
 ## T3 — Add the ordinary GitHub checks
 
-- [ ] T3: Run shared offline build/test and dependency checks locally and in CI.
+- [x] T3: Run shared offline build/test and dependency checks locally and in CI.
 
 **Intention:** Catch ordinary regressions on pull requests and `main` with existing free tooling.
 
@@ -56,7 +56,9 @@ dotnet test SqlToAi.slnx --filter 'Category=TlsIntegration'
 
 **Acceptance:** Local and CI paths use the same nonempty offline selection. Build/test/audit execution failures propagate; vulnerability findings are visible and cannot silently count as clean. Exercise a controlled failed prerequisite and a finding, including the chosen documented exception handling. PRs need no SQL credentials or write token. Validate workflow structure and report whether a real hosted run occurred.
 
-**Completion evidence:** Pending.
+**Completion evidence:** Using gpt-6.1-sol / high: `scripts/validate.ps1` is the common local/Windows CI command. It forces restore with HTTP-cache bypass and SDK audit settings `true` / `all` / `low`, treats restore warnings as errors, builds without restore and runs T1's offline filter with `RunConfiguration.TreatNoTestsAsError=true`. `NuGet.Config` explicitly selects nuget.org for audit data. The PR/`main` workflow covers source, tests, tools, scripts, workflows and dependency/build settings, uses only `contents: read`, disables persisted checkout credentials and references no private secrets. Results remain in normal logs. `docs/development.md` documents fixes and exact-URL, maintainer-reviewed `NuGetAuditSuppress` exceptions with source review and release-note disclosure; no product exceptions were added.
+
+`pwsh -NoProfile -File .\scripts\validate.ps1` passed on SDK 10.0.400: no audit diagnostics, build 0 warnings/errors, offline 834/834. An intentionally nonexistent test filter with the same standard empty-selection setting returned exit 1. Required `dotnet build SqlToAi.slnx` passed with 0 warnings/errors; full `dotnet test SqlToAi.slnx` passed 879, skipped 19 TLS cases, total 898 (TLS remains unverified). Four copied-script child-process scenarios verified native restore/build/test failures (stub exit 23, script exit 1), success (exit 0), dependent-step stopping, success-message suppression and location restoration. A temporary local package depended on Newtonsoft.Json 12.0.1, making the actual SDK finding transitive: restore failed with `NU1903` and `https://github.com/advisories/GHSA-5crp-9r3c-p9vr`; its exact test-only suppression allowed restore, while a nonmatching suppression still failed. A source without vulnerability data failed with `NU1905`; an unreachable localhost audit source failed with `NU1900` (and `NU1905`). Two additional copied-script runs used that actual SDK fixture restore: the finding stopped before build/test, and the exact test-only suppression reached the subsequent successful build/test stubs. These probes establish SDK/command handling, not approval of the fixture exception or real fixture build/test results. `actionlint` 1.7.12 (download checksum verified) accepted `validate.yml`; no real GitHub-hosted run occurred. Temporary fixtures/logs: `%TEMP%/SqlToAi-T3-5e5780dc052c42da989490dcf7f1e0f6`; nothing was deployed, terminated, pushed, tagged or released. T4 remains open.
 
 ## T4 — Smoke-test the actual Windows ZIP
 

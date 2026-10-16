@@ -1,0 +1,55 @@
+name: Validate
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'tools/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+      - '.editorconfig'
+      - '*.slnx'
+      - '*.props'
+      - '*.targets'
+      - '**/packages.lock.json'
+      - '**/NuGet.Config'
+      - '**/nuget.config'
+      - 'global.json'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'tools/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+      - '.editorconfig'
+      - '*.slnx'
+      - '*.props'
+      - '*.targets'
+      - '**/packages.lock.json'
+      - '**/NuGet.Config'
+      - '**/nuget.config'
+      - 'global.json'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Audit, build and run offline tests
+        shell: pwsh
+        run: ./scripts/validate.ps1
