@@ -104,6 +104,18 @@ Registry, SDK registration, dispatcher, registry-generated CLI and documentation
 must agree on the extended schema-call and new export contracts. Existing CLI
 commands retain their behavior; their schema command gains the optional array input.
 
+#### Documentation
+
+- Update canonical documentation with each behavior change:
+  [tool contracts](../../docs/tools.md) for parameters, responses and examples;
+  [configuration](../../docs/configuration.md) for batch options and defaults;
+  [development/CLI](../../docs/development.md) for array input and MCP versus CLI
+  export; [architecture](../../docs/architecture.md) and
+  [security](../../docs/security.md) for changed boundaries and output behavior;
+  [exploration](../../docs/exploration.md) for actual tool coverage and review usage.
+  Keep tool inventories, descriptions and configuration-template values consistent.
+  Update README only where its introduction, setup or examples are affected.
+
 #### Practical agent review
 
 - During implementation, the agent must run a temporary task-specific scenario
@@ -163,3 +175,5 @@ cleanup options, new rendering formats, background jobs and unrelated CLI change
 - The practical agent review above is completed with inspectable input/output
   artifacts and an explicit usability verdict, especially for parameter handling.
   All discovered usability or contract defects are fixed and checked again.
+- Canonical documentation reflects the implemented contracts, options, limits and
+  practical invocation examples; links and examples agree with the actual tools.
