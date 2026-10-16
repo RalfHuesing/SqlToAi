@@ -1,5 +1,5 @@
 ---
-status: draft
+status: ready
 ---
 
 # Schema batching and schema export
@@ -13,60 +13,119 @@ complete schema documentation through the existing export implementation.
 
 ### Must
 
-1. Extend `sql_get_schema` to accept `object_name` for a single object and
-   `object_names` for an array, with one explicit `database` per call. Normalize
-   both forms internally; if both are supplied, combine them without duplicate
-   object work. Require at least one non-empty object name. Preserve the existing
-   single-object call and response. Do not require a separate batch tool.
-2. Bound batches by configurable object-count and aggregate response-size limits.
-   Return primary schemas only, keeping details separately requested. Associate
-   every result/error with its object; retain successful results when another
-   object fails and identify any objects omitted because of a limit.
-3. Add `sql_export_schema` with explicit `database`, `scope` (`selected` or `all`)
-   and `output_path`. Selected export accepts the same single/list selection forms;
-   full export rejects object selections. An empty selection never means full export.
-4. Reuse the existing export service, rendering, filename mapping and supported
-   object kinds. Both scopes write the same directory layout with an overview and
-   individual object documents. Full export retains its current contents. Selected
-   export filters the discovered objects before composition; it does not recursively
-   export referenced objects and must not generate links to unexported files.
-5. Require a fully qualified server-side output path. The destination directory
-   must be absent or completely empty. Preserve exclusive file creation, existing
-   database access checks and `SchemaOnly` support. Add path validation at the MCP
-   boundary; retain the CLI's current relative-path behavior.
-6. Return completion status and the resolved output location without returning the
-   dump contents. Preserve the existing failure behavior: stop on the first error,
-   report failure, and leave any partial output in place. A retry requires a new or
-   manually emptied destination. Do not introduce automatic cleanup or staging.
-7. State prominently in the tool description that export creates persistent schema
-   documentation on the server filesystem, can produce a large dump with many
-   files and take substantial time, and should only be called deliberately. Explain
-   selected/full scope, the absolute-path requirement, empty/absent destination,
-   partial-output behavior and that the agent needs access to that filesystem.
+#### Schema requests
+
+- Extend `sql_get_schema` with optional `object_names` (string array), alongside
+  existing `object_name` (string) and required `database`. When `object_names` is
+  absent or null, preserve the existing single-object validation and Markdown
+  response. A supplied array selects batch mode, including a one-element array
+  or an empty array combined with a valid `object_name`. No separate batch tool.
+- In batch mode, combine the scalar first and then array entries in input order.
+  Ignore null, empty and whitespace-only names; trim surrounding whitespace from
+  other names. Reject incorrect argument types or no remaining names before work.
+  Use this same normalization for selected export.
+- Resolve new batch/export selections as SQL object identifiers within the specified
+  database, respecting its identifier comparison semantics and quoted names.
+  Unqualified names are accepted only if unambiguous; otherwise require the SQL
+  schema. Unknown or ambiguous names produce identifiable errors. Reuse work for
+  repeated names and names resolving to the same object ID; do not assume all
+  databases use case-insensitive names.
+- Bound batch mode through options: default maximum 10 normalized non-empty input
+  entries before deduplication and 65,536 UTF-8 bytes of aggregate response text,
+  including identifying metadata. Reject over-count requests before schema work.
+  Include these defaults in the configuration template. They apply only to batch
+  responses, not legacy scalar calls or filesystem exports.
+- Return primary schemas for the same object kinds as legacy scalar lookup, with
+  existing interactive enrichment; keep detail sections separately requested.
+  Batch output is one JSON envelope with `complete` and
+  ordered `results`: one entry per normalized input, including duplicates, with
+  `object_name`, `status` and either schema `markdown`, a catalog `error`, or an
+  omission `reason`. Status is `ok`, `error` or `not_returned`. Every requested
+  object remains identifiable even when its schema was not returned.
+- Continue after object-specific errors and retain successful siblings. Request-wide
+  validation/access failures fail the whole call. `complete=true` only when every
+  entry is `ok`; any error/omission sets MCP `isError=true`. Keep whole schema texts:
+  if the next schema would exceed the byte budget, mark it and all remaining
+  entries `not_returned` with reason `response_limit`. This also covers an oversized
+  first schema. Reserve space for identifying metadata; if that alone cannot fit,
+  reject the request before schema work. No silent truncation or cursor protocol.
+
+#### Schema export
+
+- Add `sql_export_schema` with required `database`, `scope` (`selected` or `all`)
+  and `output_path`. `selected` accepts `object_name` and/or `object_names` using
+  the normalization above and requires a non-empty selection. `all` rejects a
+  non-empty selection; omitted/null/empty selection fields are harmless. Neither
+  omitted scope nor an empty selection ever activates full export.
+- Reuse the existing export service, rendering, filename mapping and object kinds:
+  tables, views, SQL procedures/functions and table/view DML triggers. Both scopes
+  write its UTF-8 directory layout with `README.md` and individual object documents.
+  Full export retains current contents. Selected export resolves its entire
+  selection against the permitted discovery catalog before creating output: any
+  unknown, ambiguous or unsupported selection fails the call without writes.
+  A normalized empty `selected` selection is an invalid-parameters error.
+- Filter selected objects before path mapping and composition, exporting each
+  resolved object once. Do not recursively include referenced objects or trigger
+  parents. References to unexported objects remain readable names, with no broken
+  file links. An empty database in full mode still produces its root overview.
+- Require a fully qualified Windows filesystem directory path on the server;
+  drive-rooted and UNC paths qualify, while relative, drive-relative, root-relative,
+  URL and device-namespace paths do not. The destination must be absent or
+  completely empty, including no child directories; an existing file is invalid.
+  Preserve exclusive file creation, database access checks and `SchemaOnly` support.
+  Add path validation at the MCP boundary; retain current CLI path behavior.
+- Return a compact JSON result with `status` (`completed`, `failed` or `cancelled`),
+  resolved `output_path` when valid, `partial_output` and a catalog error/reason on
+  failure or cancellation; failed/cancelled results set MCP `isError=true`.
+  Return no dump contents. Stop on the first composition or write error, or
+  cancellation; retain output already created. For failed/cancelled exports,
+  `partial_output=true` means files or child directories remain, including an
+  incomplete file; an empty root alone is false. Completed exports set it false.
+  Partial output must never be reported as completed. Retry may reuse an
+  empty root; otherwise it needs a new or manually emptied destination. No
+  automatic cleanup or staging.
+- Preserve successful unavailable-definition notes as document content; they are
+  not export failures. Offline output omits interactive enrichment and is schema
+  documentation rather than a SQL backup. Do not impose the batch response limits
+  on the dump; it is a deliberate potentially large operation, with existing
+  database command timeouts and cancellation support.
+- State prominently in the tool description that export creates persistent schema
+  documentation on the server filesystem, can produce a large dump with many
+  files and take substantial time, and should only be called deliberately. Explain
+  selected/full scope, absolute-path and empty/absent-directory requirements,
+  partial-output behavior and that the agent needs access to that filesystem.
 
 The [existing CLI export](../../docs/development.md#schema-export) already checks
 for an absent/empty directory and writes Markdown documents through
 [SchemaExportService](../../src/SqlToAi/Cli/SchemaExportService.cs). It currently
 resolves relative paths and exports all objects. Reuse it directly where possible;
 MCP registration, absolute-path validation and selection require focused changes.
-Its offline output omits interactive enrichment and is schema documentation rather
-than a SQL backup.
+Registry, SDK registration, dispatcher, registry-generated CLI and documentation
+must agree on the extended schema-call and new export contracts. Existing CLI
+commands retain their behavior; their schema command gains the optional array input.
 
 ### Out of scope
 
 Data export, batching other tools, extra export-root configuration, overwrite or
-cleanup options, new rendering formats, background jobs and changes to CLI behavior.
+cleanup options, new rendering formats, background jobs and unrelated CLI changes.
 
 ## Verification
 
-- Single-name, one-element array, multi-name array and combined inputs work;
-  duplicate objects are not fetched twice. Existing single-object clients work.
-- Missing input, batch limits, object failures and response limits produce explicit
-  results without silently discarding successful siblings or requested objects.
-- Both export scopes use the existing directory layout. Full export matches CLI
-  coverage; selected export contains exactly the selected objects and valid links
-  or readable names for unexported references.
-- Relative paths, file destinations and non-empty directories are rejected. Absolute
-  paths to absent or empty directories work without overwriting existing files.
-- Denied databases stay denied; schema-only access works. Failures report partial
-  output honestly, and the tool description clearly announces a potentially large dump.
+- Legacy scalar calls retain validation and response; one-element and multi-element
+  arrays use the documented envelope. Combined/empty inputs, whitespace, wrong
+  types, duplicate inputs and aliases follow the normalization and reuse rules.
+- Batch tests cover unknown/ambiguous names, identifier casing/quoting, count limits,
+  exact UTF-8 response budgets, an oversized first schema and mixed successes/errors;
+  every normalized input is accounted for and MCP error/completeness flags agree.
+- Both exports retain the existing layout and offline presentation. Full export
+  matches CLI coverage, including an empty catalog. Selected export includes only
+  selected objects; bad selections write nothing and external references stay readable.
+- Fully qualified drive/UNC destinations that are absent or empty work. Relative,
+  drive/root-relative, URL/device paths, existing files and non-empty directories
+  fail without overwriting existing files. CLI relative paths still work.
+- Denied databases stay denied; schema-only access works. Injected service/write
+  failures and cancellation retain partial output with accurate status/path metadata.
+  Unavailable-definition notes allow success; the tool description announces the dump.
+- Registry, SDK registration, dispatcher and CLI tests verify matching argument and
+  result contracts. Implementation updates canonical tool documentation and passes
+  the repository build/test checks; this concept does not claim those tests ran.
