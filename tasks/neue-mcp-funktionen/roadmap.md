@@ -612,8 +612,8 @@ No implementation or practical verification has been performed by creating this 
     exercised, as deterministic path validation is covered by unit tests and the
     task excludes inventing inaccessible destinations.
   - Actual delegated setting: `gpt-6-luna`, reasoning effort `high`. This review
-    changed only this roadmap evidence. Atomic commit reference: recorded after
-    commit.
+    changed only this roadmap evidence. Atomic commit reference: `9600838`
+    (`docs: Prüfe Schemaexport über MCP`).
 
 - [ ] **8. Audit implementation, documentation and completion evidence.**
 
@@ -637,3 +637,112 @@ No implementation or practical verification has been performed by creating this 
   with any genuine environment limits reported accurately. All task changes are
   committed, unrelated changes are preserved and no temporary scenario source
   remains. Record the audit result here before closing this item.
+
+  **Independent audit evidence (2026-10-16; correction required):**
+
+  - Audited the ready concept's complete Verification section against the final
+    source/test/documentation changes from `11957de` through `9600838`, items 1–7
+    and their retained practical evidence. Actual delegated audit setting:
+    `gpt-6.1-sol`, reasoning effort `high`. Production code, tests and canonical
+    documentation remained read-only. The audit found one unresolved contract
+    defect below; item 8 remains open until the single permitted correction and
+    focused verification have completed.
+  - Confirmed scalar-versus-array routing, scalar-first tolerant normalization,
+    incorrect-type rejection, ordered duplicate associations, SQL-quoted and
+    database-catalog-aware resolution, ambiguity/unsupported-object errors and
+    fetch reuse by object ID. Reviewed the access checks before discovery and
+    writes, default-deny/SchemaOnly tests, native/custom metadata identity handling
+    and explicit masked/unmasked enrichment assertions. Real SQL fixture tests
+    executed, while separate identifier collations remain represented by focused
+    fakes rather than claims of additional configured databases.
+  - Inspected exact UTF-8 serialization, metadata reservation before database
+    work, count-before-deduplication, whole-schema/error omission, oversized first
+    schemas, mixed successful siblings and cancellation. Sampled the exact-byte
+    boundary and Unicode/error assertions, real registered-SDK `InvokeAsync`
+    binding, matching advertised schemas/descriptions, and actual CLI parser
+    invocations, including malformed/missing/multiple array tokens.
+  - Checked selected/all export resolution before writes, supported kinds,
+    deduplication before path mapping, no dependency expansion, empty full catalogs,
+    offline references and excluded enrichment. Reviewed drive/UNC qualification,
+    invalid destinations, exclusive creation, preserved relative CLI behavior,
+    service/write failures, incomplete files, cancellation after awaited operations
+    and final disposal, retained output and empty-root retry tests. UNC reachability
+    and new packaged smoke execution were not claimed; qualification and the
+    updated 18-tool package inventory were inspected and tested at their scope.
+  - Independently inspected all 15 recorded schema call shapes and the separate
+    response-limit call in the resumed runs named under item 4, plus all 14 calls
+    in the final export run named under item 7. Every request had one response
+    content block, matching `response.txt`, the expected `isError`, and no
+    `error.txt`. Sampled complete schema bodies, mixed errors and diagnostics;
+    scalar/batch bodies agree apart from their qualified heading, null-array
+    scalar output is identical, and the limit envelope is exactly 201 UTF-8 bytes
+    with both inputs identified as `not_returned`/`response_limit`.
+  - Sampled selected scalar/list/combined and full exported files, README indexes,
+    the offline foreign-key presentation and routine definition. File sets match
+    selections, aliases do not add files, unexported references remain readable,
+    and full export contains nine tables, one view and one procedure. All 43
+    relative document links across the retained output resolve. The existing
+    file still contains `preserve`; invalid absent destinations remain absent.
+    These observations support the practical usability verdicts in items 4 and 7,
+    subject to the additional early-failure metadata defect identified here.
+  - Canonical tool/configuration/development/architecture/security/exploration
+    documentation agrees with implemented boundaries, examples and options,
+    except for that defect. Defaults remain 10 inputs and 65,536 UTF-8 bytes in
+    options and the template. Current registry/SDK/model/package consumers agree
+    on 18 tools; the permanent exploration baseline accurately retains its
+    original 17-tool coverage. Checked all 94 repository-local links and heading
+    fragments in the six changed canonical pages and both task artifacts; none
+    is missing. The README's introduction/setup/examples need no change.
+  - **Open finding (P2): early export parameter failures report incorrect retained
+    output.** `src/SqlToAi/Mcp/ToolDispatcher.cs:327–329` constructs every caught
+    argument failure with `partial_output=false`, even after `output_path` was
+    resolved to a non-empty directory. Reproduced through the actual query CLI:
+    `dotnet src/SqlToAi/bin/Debug/net10.0/SqlToAi.dll query sql_export_schema
+    --database DemoDB --scope invalid --output_path
+    C:\Daten\Entwicklung\Ralf\SqlToAi\temp\exploration\ExploreSchemaExportReview\20261016-210055-2407085\outputs\selected-scalar`.
+    It exits 1 with `status=failed`, the resolved path and `partial_output=false`,
+    although that directory retains `README.md` and its `tables` child. Missing
+    scope/database has the same catch path. The concept defines remaining files
+    or child directories as partial output for failed outcomes, and the core
+    coordinator already reports a non-empty destination as true. Reuse consistent
+    retained-output inspection for these boundary failures and cover absent,
+    empty and non-empty destinations through SDK/dispatcher entry points. No
+    writes or database work occurred in this reproduction.
+  - Final `dotnet build SqlToAi.slnx` passed with zero warnings/errors;
+    `dotnet test SqlToAi.slnx --logger 'console;verbosity=quiet'` passed 1102 tests,
+    with 19 existing TLS endpoint skips, zero failures, 1121 total. Those
+    certificate scenarios still require `SQLTOAI_TLS_TEST_PROFILE` and remain
+    unverified. The earlier blocked schema run is historical only; successful
+    resumed artifacts supply practical evidence. No settings, permissions or
+    credentials were changed by the audit. Temporary scenario source and the
+    parent-owned credential wrapper are absent. The initial working tree was
+    clean; the focused tracked diff contains no new credential assignments and
+    only the four intended batch-option template lines. `git diff --check` passed.
+    This audit commit changes only this roadmap; no user changes were touched.
+
+- [ ] **9. Correct retained-output metadata for early export parameter failures.**
+
+  **Intention:** Make `partial_output` truthful when MCP argument validation fails
+  after resolving a valid destination, fulfilling the open finding from item 8.
+
+  **Scope:** This is the single permitted audit correction, delegated to the
+  implementation role. Reuse shared remaining-output inspection at the dispatcher's
+  early failure boundary. For a valid resolved directory, remaining files or child
+  directories mean true; absent/empty roots, file destinations and invalid paths
+  mean false. Preserve compact catalog JSON, resolved path metadata and error flags.
+  Resolve the existing audit finding without creating output or changing content
+  during validation. Record implementation and focused verification here.
+
+  **Exclusions:** No new export features, automatic cleanup, overwrite behavior,
+  broader audit loop, release/publish or changes to database/configuration policy.
+
+  **Acceptance:** Registered SDK, dispatcher and query CLI tests exercise invalid
+  or missing scope and missing database against non-empty, empty and absent
+  destinations. Cover files/child directories, preserve existing contents, and
+  retain correct catalog errors, MCP/CLI error state and valid resolved paths.
+  File and invalid-path failures remain false. Full repository build/tests pass
+  with genuine environment limits recorded. Focused post-correction verification
+  replays item 8's reproduced CLI failure against the retained selected output
+  and checks affected entry points and empty/absent cases. Close items 8 and 9
+  only after this finding and the already documented audit acceptance are
+  demonstrably satisfied; no repeated general audit/correction loop is required.
