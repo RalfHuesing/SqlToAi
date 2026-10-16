@@ -36,6 +36,9 @@ public interface ISchemaService
 
     Task<Result<IReadOnlyList<SchemaObject>>> GetExportObjectsAsync(string databaseName, CancellationToken cancellationToken = default);
 
+    Task<Result<IReadOnlyList<SchemaObject>>> GetSelectedExportObjectsAsync(
+        string databaseName, IReadOnlyList<string> objectNames, CancellationToken cancellationToken = default);
+
     Task<Result<string>> GetExportTriggerDefinitionAsync(string databaseName, SchemaObject trigger, CancellationToken cancellationToken = default);
 
     /// <summary>

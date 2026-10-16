@@ -83,6 +83,27 @@ Structured offline names in headings, navigation, detail tables and unavailable/
 
 `export-schema` resolves the singleton [SchemaExportService](../src/SqlToAi/Cli/SchemaExportService.cs) directly from the existing service provider and exits after writing UTF-8 Markdown. It composes typed unrestricted discovery, the offline entries and typed trigger definitions. Tables/views collect all available detail sections in their document; routines include parameters, and triggers identify/link their table/view parent. A grouped root overview links every document.
 
+The same coordinator accepts an explicit selected scope internally.
+`ISchemaService.GetSelectedExportObjectsAsync` reuses the shared SQL identifier
+resolver with export object kinds and database access checks, resolves the whole
+selection, rejects any unknown, ambiguous or unsupported entry and deduplicates
+successful identities by object ID. Normalization and resolution finish before
+path mapping or output creation. Only selected objects enter the mapping; references
+and trigger parents outside it remain readable names. There is no recursive
+expansion, batch response limit or interactive enrichment. This internal scope
+does not add a CLI option or MCP registration.
+
+The coordinator returns a typed outcome with completed, failed or cancelled
+status, its resolved destination when path resolution succeeded, and a catalog
+error or cancellation reason. It checks cancellation after awaited operations,
+including services that convert cancellation into a failed result, and before
+reporting completion. Failed/cancelled outcomes inspect retained files and child
+directories, including incomplete files, to determine partial output; an empty
+root alone is false. Completed outcomes set partial output to false. If an
+inspection fails, previously observed creation is retained as evidence. Output
+is never removed automatically. The legacy CLI adapter preserves its full-export
+result and cancellation behavior and accepts paths relative to CWD.
+
 [SchemaExportPaths](../src/SqlToAi/Cli/SchemaExportPaths.cs) supplies one deterministic Windows-safe path mapping for filenames and every relative link, retaining original SQL names in headings. It checks all planned object paths for case-insensitive collisions before writes. The output must be absent or empty. Files use exclusive creation; the first failed service result or filesystem write stops export with a nonzero CLI exit code. Partial output remains, so retries need a new or manually emptied directory. Successful unavailable-definition notes permit exit zero. Unused kind directories are omitted. See [CLI export details](development.md#schema-export) for invocation, included sections and provider exclusions.
 
 These pages describe the current implementation. Historical concepts and implementation plans in `tasks/` are context, not evidence that a behavior is implemented. Build, test and operational commands are in [development.md](development.md).

@@ -233,7 +233,7 @@ No implementation or practical verification has been performed by creating this 
     database permissions or temporary exploration scenarios were changed.
   - Actual delegated implementation setting: `gpt-6.1-sol`, reasoning effort
     `medium`. Atomic commit reference: the direct child of `21edecc` with subject
-    `feat: Integriere Schema-Stapel in MCP und CLI` (this slice). Items 4�8 remain
+    `feat: Integriere Schema-Stapel in MCP und CLI` (this slice). Items 4–8 remain
     open and were not implemented.
 
 - [x] **4. Review schema parameter usability through real exploration.**
@@ -365,7 +365,7 @@ No implementation or practical verification has been performed by creating this 
     choose batch mode with an array, associate schemas and errors with each original
     input, and recover from count/response omissions using the advertised limits.
     No review finding remains open.
-- [ ] **5. Extend existing export composition for selected objects and outcomes.**
+- [x] **5. Extend existing export composition for selected objects and outcomes.**
 
   **Intention:** Reuse the accepted CLI dump while enabling precise selection and
   truthful completion/failure reporting.
@@ -388,6 +388,54 @@ No implementation or practical verification has been performed by creating this 
   unavailable-definition notes. Inject failures/cancellation before and after
   writes: retained files/child directories and an empty root yield the specified
   outcome, and a still-empty root can be retried. Build/tests pass.
+
+  **Completion evidence (2026-10-16):**
+
+  - Added the selected scope and typed completed/failed/cancelled outcome to
+    `SchemaExportService`, retaining its existing full-export `Result` adapter
+    for the CLI. `ISchemaService.GetSelectedExportObjectsAsync` reuses
+    `ResolveObjectsAsync` and database-aware SQL identifier resolution. The whole
+    normalized selection resolves before mapping/output; any object error rejects
+    it, and aliases/duplicates export once by object ID in first-input order.
+    Selected mappings contain only selected objects, so unrelated path collisions
+    do not reject the request and unselected references/trigger parents stay
+    readable without links. No dependency expansion or batch limits were added.
+  - Outcomes retain a successfully resolved output path, catalog failures or a
+    cancellation reason, and truthful partial-output state. Failed/cancelled
+    output retains child directories and files, including incomplete files; an
+    empty root alone is false, while completed results always set it false.
+    Sequential composition/writing stops at its first failure or cancellation.
+    Token checks after awaited discovery/rendering catch downstream services that
+    turn cancellation into a failed `Result`; the final check prevents completion
+    after cancellation during the last file's disposal. Exclusive creation,
+    existing unavailable-definition notes, offline presentation and the CLI's
+    full-export/relative-path behavior remain covered by regression tests.
+  - Added 30 cases in `SchemaExportOutcomeTests`, reusing the existing export
+    proxy, database catalog fixture and temporary-directory helper. Coverage
+    includes all seven object kinds and both trigger-parent kinds, scalar/list
+    normalization, aliases, invalid/ambiguous/unsupported selections before writes,
+    denied/excluded access, empty full catalogs, unselected offline references,
+    16 selected entries without the batch count limit, and actual relative CLI
+    invocation/exit codes. Injected stream failures/cancellation retain a genuinely
+    incomplete README; child-directory-only and empty-root cases are distinct.
+    Tests cover failures/cancellation before/after writes, empty-root retry,
+    cancellation returned as a service failure and cancellation after the final
+    file closes. A narrow stream factory supports deterministic filesystem faults
+    without replacing production exclusive file creation. Architecture and
+    development documentation describe the shared behavior and current exposure.
+  - Validation: `dotnet test SqlToAi.slnx --filter
+    'FullyQualifiedName~SchemaExport' --logger 'console;verbosity=quiet'` passed
+    all 65 cases. `dotnet build SqlToAi.slnx` passed with zero warnings/errors.
+    `dotnet test SqlToAi.slnx --logger 'console;verbosity=quiet'` passed: 1041
+    successful, 19 existing TLS endpoint skips, zero failures, 1060 total.
+    The skipped certificate scenarios still require `SQLTOAI_TLS_TEST_PROFILE`;
+    they are not verified here. `git diff --check` passed. No user configuration,
+    database permissions, credentials or practical exploration artifacts changed.
+  - Actual delegated implementation setting: `gpt-6.1-sol`, reasoning effort
+    `high`. Atomic commit reference: the direct child of `b49fdb4` with subject
+    `feat: Erweitere den Schemaexport um Auswahl und Ergebnisse` (this slice).
+    Items 6–8 remain open; MCP registration, MCP-only path validation and practical
+    export exploration were not implemented or claimed by this item.
 
 - [ ] **6. Expose the schema export tool and update its consumers.**
 

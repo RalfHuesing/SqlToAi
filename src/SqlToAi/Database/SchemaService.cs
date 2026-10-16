@@ -178,6 +178,23 @@ public sealed class SchemaService : ISchemaService
         => ExecuteDetailQueryAsync(databaseName, trigger.Identity.DisplayName, "export trigger definition",
             (connection, ct) => DetailSchemaRenderer.GetExportTriggerDefinitionAsync(connection, trigger, ct), cancellationToken);
 
+    public async Task<Result<IReadOnlyList<SchemaObject>>> GetSelectedExportObjectsAsync(
+        string databaseName, IReadOnlyList<string> objectNames, CancellationToken cancellationToken = default)
+    {
+        if (objectNames.Count == 0)
+            return SqlToAiError.InvalidParameters("At least one non-empty object name is required.");
+        var selection = await ResolveObjectsAsync(databaseName, objectNames, forExport: true, cancellationToken);
+        if (selection.IsFailure) return selection.Error;
+        var objects = new List<SchemaObject>();
+        var ids = new HashSet<int>();
+        foreach (var entry in selection.Value)
+        {
+            if (entry.Object.IsFailure) return entry.Object.Error;
+            if (ids.Add(entry.Object.Value.Identity.ObjectId)) objects.Add(entry.Object.Value);
+        }
+        return Result<IReadOnlyList<SchemaObject>>.Success(objects);
+    }
+
     internal async Task<Result<IReadOnlyList<SchemaObjectSelectionEntry>>> ResolveObjectsAsync(
         string databaseName, IReadOnlyList<string> names, bool forExport, CancellationToken cancellationToken = default)
     {

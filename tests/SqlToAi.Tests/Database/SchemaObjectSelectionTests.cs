@@ -226,9 +226,9 @@ public sealed class SchemaObjectSelectionTests
 
     private static JsonElement Json(string value) => JsonSerializer.Deserialize<JsonElement>(value);
 
-    private sealed record CatalogObject(int Id, string Schema, string Name, string Type = "USER_TABLE", string? ParentType = null);
+    internal sealed record CatalogObject(int Id, string Schema, string Name, string Type = "USER_TABLE", string? ParentType = null);
 
-    private sealed class CatalogFactory(IReadOnlyList<CatalogObject> objects, bool caseSensitive = true) : IDatabaseConnectionFactory
+    internal sealed class CatalogFactory(IReadOnlyList<CatalogObject> objects, bool caseSensitive = true) : IDatabaseConnectionFactory
     {
         public List<string> Commands { get; } = [];
         public List<string> Names { get; } = [];

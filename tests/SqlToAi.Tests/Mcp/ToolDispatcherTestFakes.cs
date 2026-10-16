@@ -94,6 +94,9 @@ internal sealed class FakeSchemaService : ISchemaService
     public Task<Result<IReadOnlyList<SchemaObject>>> GetExportObjectsAsync(string databaseName, CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
 
+    public Task<Result<IReadOnlyList<SchemaObject>>> GetSelectedExportObjectsAsync(string databaseName, IReadOnlyList<string> objectNames, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
     public Task<Result<string>> GetExportTriggerDefinitionAsync(string databaseName, SchemaObject trigger, CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
 

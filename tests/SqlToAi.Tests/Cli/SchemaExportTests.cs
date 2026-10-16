@@ -317,11 +317,14 @@ public sealed class SchemaExportTests
         internal string? PrimaryText { get; set; }
         internal string? TriggerText { get; set; }
         internal int InteractiveCalls { get; private set; }
+        internal Func<IReadOnlyList<string>, CancellationToken, Task<Result<IReadOnlyList<SchemaObject>>>>? ResolveSelected { get; set; }
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
             string method = targetMethod!.Name;
             Calls.Add(method);
+            if (method == "GetSelectedExportObjectsAsync")
+                return ResolveSelected!((IReadOnlyList<string>)args![1]!, (CancellationToken)args[2]!);
             if (method == "GetExportObjectsAsync")
                 return Task.FromResult(FailOperation == method ? Result<IReadOnlyList<SchemaObject>>.Failure(Failure) : Result<IReadOnlyList<SchemaObject>>.Success(Objects));
             if (method == "GetExportSchemaAsync") BeforePrimary?.Invoke((SchemaRenderingContext)args![1]!);

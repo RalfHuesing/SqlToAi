@@ -154,6 +154,13 @@ startup as `server` and `query`; `SchemaOnly` access is sufficient. The target
 must be absent or empty, including no child directories. There are no overwrite
 or cleanup options.
 
+This command continues to export the entire catalog and accepts relative output
+paths, resolved against the process working directory. The shared coordinator's
+internal selected scope resolves every requested identity before writing, exports
+each selected object once and keeps references to unselected objects as readable
+names. It does not recursively include dependencies or trigger parents. The
+internal scope is not a command option or an exposed MCP tool.
+
 The root `README.md` groups relative links by kind. Object documents go into
 `tables/`, `views/`, `procedures/`, `functions/` and `triggers/`; unused directories
 are omitted. Tables and views include columns, incoming/outgoing foreign keys,
@@ -180,8 +187,13 @@ for case-insensitive collisions before any directory or file is created.
 Exit code zero means every operation and write succeeded. Existing successful
 unavailable-definition notes are included and permit success. The first failed
 service result or filesystem error returns a nonzero exit code and stops the
-export. Files already written remain; there is no rollback or cleanup. Retry
-with a new directory or manually empty the failed output first.
+export. Cancellation also stops the export, including when a downstream service
+converts cancellation into a failure. Files and child directories already created
+remain, including incomplete files; there is no rollback or cleanup. The shared
+outcome distinguishes completed, failed and cancelled exports and retains the
+resolved path. For failed/cancelled exports, partial output means retained files
+or child directories; an empty root alone is not partial output and can be retried.
+Otherwise, retry with a new directory or manually empty the failed output first.
 
 Export does not query business records or invoke metadata, anonymization-policy
 or rule providers. Metadata descriptions, `Anonymized` indicators and generated
