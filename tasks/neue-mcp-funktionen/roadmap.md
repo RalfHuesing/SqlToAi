@@ -51,6 +51,7 @@ No implementation or practical verification has been performed by creating this 
   schema ambiguity and database-sensitive name comparison. Access checks precede
   catalog exposure. The existing scalar path remains unchanged; build/tests pass.
 
+
   **Completion evidence (2026-10-16):**
 
   - Implemented the internal boundary in
@@ -110,6 +111,7 @@ No implementation or practical verification has been performed by creating this 
   serialized-byte accounting including metadata, whole-schema omission and the
   oversized-first-schema/metadata-only cases. Enrichment and access policy remain
   consistent with existing inspection. Options/docs/template agree; build/tests pass.
+
 
   **Completion evidence (2026-10-16):**
 
@@ -184,6 +186,7 @@ No implementation or practical verification has been performed by creating this 
   `isError` propagation. Existing command tests remain valid. Documented examples
   are exercised with the actual parsers/binders; build/tests pass.
 
+
   **Completion evidence (2026-10-16):**
 
   - Exposed `GetSchemaBatchAsync` through `ISchemaService` with its retained
@@ -233,7 +236,7 @@ No implementation or practical verification has been performed by creating this 
     `feat: Integriere Schema-Stapel in MCP und CLI` (this slice). Items 4–8 remain
     open and were not implemented.
 
-- [ ] **4. Review schema parameter usability through real exploration.**
+- [x] **4. Review schema parameter usability through real exploration.**
 
   **Intention:** Detect impractical calls and confusing responses before building
   export on the same selection contract.
@@ -256,14 +259,14 @@ No implementation or practical verification has been performed by creating this 
   cases. Runner exit zero alone is insufficient. Temporary source is removed;
   any code fixes pass build/tests. All required observations are actually available.
 
-  **Pre-run schema expectations (2026-10-16; recorded before execution):**
+  **Pre-run schema expectations (2026-10-16; recorded before the first execution):**
 
-  - `object_names` absent or null should preserve scalar Markdown; any supplied
-    array, including one element, `[]`, or null with a scalar, should select batch
-    mode. Combined values appear scalar-first, then array order, with duplicates
-    retained as separate ordered results. Empty/null/whitespace entries disappear;
-    a wholly empty selection, wrong scalar/list/item types and 11 normalized
-    entries should return identifiable `SQL-AI-0001` errors.
+  - `object_names` absent or null should preserve scalar Markdown. A supplied
+    array, including one element or `[]`, selects batch mode; a null list with a
+    scalar stays on the scalar path. Combined values appear scalar-first, then array
+    order, with duplicates retained as separate ordered results. Empty/null/
+    whitespace entries disappear; a wholly empty selection, wrong scalar/list/item
+    types and 11 normalized entries should return identifiable `SQL-AI-0001` errors.
   - `dbo.FakeProjects` should yield equivalent primary Markdown in scalar and
     one-entry batch mode. `dbo.FakeAddresses` and
     `dbo.FakeAddressCommunications` form a realistic related-table pair and should
@@ -275,47 +278,93 @@ No implementation or practical verification has been performed by creating this 
     should have request arguments plus either all response blocks, joined text and
     `isError`, or a recorded dispatcher exception; actual outputs must be judged
     for usable object association and actionable omission/error information.
-  - Registry input schema/description should advertise the observed accepted shapes,
-    while item 3 SDK invocation tests provide binding evidence for the same JSON
-    forms, since exploration dispatch bypasses SDK binding.
+  - Registry input schema/description should advertise the accepted shapes, while
+    item 3 SDK invocation tests provide binding evidence for the same JSON forms,
+    since exploration dispatch bypasses SDK binding.
 
+  **Initial blocked attempt (2026-10-16; superseded by resumed review below):**
 
-  **Partial execution evidence (2026-10-16; item remains open):**
-
-  - Ran `ExploreSchemaParameters` through the actual exploration runner with the
-    authorized task-specific process overrides and production registrations. Runner
-    exit was 0; artifact directory:
+  - The first real runner attempt is retained at
     `temp/exploration/ExploreSchemaParameters/20261016-203146-6723304/`.
-    The retained source is temporarily at
-    `tools/SqlToAi.Exploration/Scenarios/ExploreSchemaParameters.cs` and must be
-    removed when the review ends.
-  - Inspected `run.json`, all 14 `request.json`, all 14 complete `response.json`
-    files, every response content block, `isError`, and joined `response.txt`.
-    There were no `error.txt` exceptions. The legacy scalar, scalar+empty-array,
-    scalar+null-array, one/multi-array, duplicate aliases and mixed
-    existing/missing calls (cases 01–06 and 09–10) all failed before schema return
-    with one text block, `isError=true`, `SQL-AI-0105`. Independent SQL diagnosis
-    confirmed `DB_ID(N'DemoDB')=43` but `HAS_DBACCESS(N'DemoDB')=0`; no permission or
-    user configuration was changed. Thus no scalar/batch Markdown comparison,
-    relationship content or ordered success/error envelope can be judged.
-  - Empty selection cases 07–08 returned `SQL-AI-0001` before database work. The
-    invalid scalar type (11) preserved legacy validation with a required/missing
-    message; wrong list type (12), numeric list item (13) and 11 duplicate entries
-    (14) returned explicit `SQL-AI-0001` messages, with the count diagnostic
-    correctly saying the limit applies before deduplication. The dispatcher
-    continued after every tool error. These results support the advertised shape
-    rules and actionable local validation; they do not establish database-backed
-    usability or output association.
-  - Registry schema and description at `ToolRegistry.BuildGetSchema` advertise
-    nullable scalar/list/item shapes, batch mode selection, ordering, normalization,
-    limits and status flags. Item 3's `SchemaToolSurfaceTests` invoked the registered
-    SDK tools for the documented JSON shapes; its recorded run passed all 37 cases.
-    Exploration itself bypasses SDK binding as documented.
-  - Actual delegated review setting: `gpt-6-luna`, reasoning effort `high`.
-  - **Current usability verdict: incomplete.** Validation errors are identifiable
-    and the count-before-dedup rule is legible. The main agent workflow verdict
-    remains unverified because this login cannot open DemoDB. Evidence location:
-    `C:\Daten\Entwicklung\Ralf\SqlToAi\temp\exploration\ExploreSchemaParameters\20261016-203146-6723304\`.
+    The 14-call scenario could not open DemoDB; all database-backed calls returned
+    `SQL-AI-0105`, and the separate SQL diagnosis recorded `HAS_DBACCESS=0`. Its
+    validation observations were inspected, but it did not establish practical
+    schema usability. The temporary source from that attempt was removed; its
+    retained artifact is historical and the resumed run below supplies the review.
+
+  **Pre-run resumed review expectation (2026-10-16; before resumed execution):**
+
+  - Run the 15-case matrix again with the production default batch budget. In a
+    separate real-dispatcher run, temporarily set only the process option
+    `SqlToAi__SchemaBatch__MaxResponseBytes=512` and request the two known tables.
+    Their full schemas should exceed the budget while omission metadata should fit,
+    yielding a retained JSON envelope with `complete=false`, `isError=true`, and
+    identifiable `not_returned` entries whose reason is `response_limit`. If the
+    metadata itself cannot fit or the schemas unexpectedly fit, record that actual
+    behavior and do not claim an observed response-limit omission.
+  - Compare scalar Markdown to the one-entry batch schema; verify both related
+    tables and scalar-first combined ordering, including the `object_names:null`
+    scalar-path distinction. Inspect each call's full response and text, then
+    compare advertised schema/description and the recorded registered-SDK tests.
+
+  **Completion evidence (2026-10-16):**
+
+  - Before the resumed runs, recorded expectations for scalar/null preservation,
+    supplied-array batch selection, order, duplicate aliases, related tables, mixed
+    valid/missing siblings, invalid inputs, count limits and a separate response-byte
+    limit case. Ran the temporary `ExploreSchemaParameters` scenario through the
+    production dispatcher against DemoDB with the authorized task-specific process
+    credentials; runner exit was 0. Artifact directory:
+    `temp/exploration/ExploreSchemaParameters/20261016-204513-8535321/`.
+  - Inspected `run.json` and all 15 request/response/text triples. Every call had
+    exactly one text content block, matching `response.txt`, with the recorded
+    `isError`; no `error.txt` exceptions occurred. Scalar call 01 returned primary
+    Markdown. One-element batch call 02 returned `complete=true`, `isError=false`
+    and one `ok` entry. Its schema matched the scalar after normalizing the allowed
+    heading difference (`dbo.FakeProjects` versus `[dbo].[FakeProjects]`); columns,
+    anonymization labels and discovery index were identical. Null `object_names`
+    (call 06) preserved scalar Markdown, while `object_names:[]` with a valid scalar
+    (call 05) selected batch and retained that scalar as its sole result. A null
+    scalar plus a supplied valid array (call 07) selected batch.
+  - Related-table batch call 03 returned `dbo.FakeAddresses` and
+    `dbo.FakeAddressCommunications` as separately named `ok` entries with their
+    complete primary schemas and discovery index counts. Combined call 04 placed
+    the scalar before array entries and retained the repeated `dbo.FakeProjects`.
+    Alias call 10 retained `dbo.FakeProjects` and `[dbo].[FakeProjects]` as separate
+    entries with their original `object_name` values, plus the following address
+    entry. Each complete response was a single JSON text block with all input/schema
+    associations intact.
+  - Mixed call 11 preserved the valid schemas on both sides of the missing object;
+    that entry reported `SQL-AI-0103` and an actionable object-not-found message.
+    The envelope was `complete=false`, `isError=true`, with ordered statuses
+    `ok/error/ok`. Empty selections (08-09), legacy wrong scalar type (12), wrong
+    list type (13), wrong item type (14), and 11 duplicate inputs (15) all returned
+    `SQL-AI-0001` with one text block and `isError=true`. The 11-entry diagnostic
+    explicitly states the limit applies before deduplication. The legacy scalar
+    error retains its established required/non-empty wording.
+  - The separate byte-budget run used only the process-level option override
+    `SqlToAi__SchemaBatch__MaxResponseBytes=512`; no configuration file, credentials,
+    permissions or trust settings were changed. Artifact directory:
+    `temp/exploration/ExploreSchemaResponseLimit/20261016-204533-6165410/`.
+    Its real two-table request returned a 201-byte JSON text block, with both input
+    names identified as `not_returned`, reason `response_limit`, `complete=false`
+    and `isError=true`. Thus the whole-schema omission is visible and the response
+    remains within the configured budget.
+  - Reviewed the advertised registry schema/description in
+    `src/SqlToAi/Mcp/ToolRegistry.cs` against the calls and `docs/tools.md`: nullable
+    scalar/list/item shapes, null-list scalar behavior, supplied-array batch mode,
+    ordering, limits, statuses and separate detail calls match observed behavior.
+    Item 3's `SchemaToolSurfaceTests` invoke the registered SDK tools with the same
+    JSON shapes and compare SDK schema/description to the registry; its recorded
+    run passed all 37 cases. This complements the dispatcher exploration, which
+    does not perform SDK binding.
+  - Actual review setting: `gpt-6-luna`, reasoning effort `high`. Runner results and
+    artifact completeness were checked; `git diff --check` passed. The temporary
+    scenario source was removed. No contract defect required code or test changes.
+    **Usability verdict: usable.** Agents can retain scalar behavior, deliberately
+    choose batch mode with an array, associate schemas and errors with each original
+    input, and recover from count/response omissions using the advertised limits.
+    No review finding remains open.
 - [ ] **5. Extend existing export composition for selected objects and outcomes.**
 
   **Intention:** Reuse the accepted CLI dump while enabling precise selection and
