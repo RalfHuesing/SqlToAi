@@ -29,7 +29,7 @@ No implementation or practical verification has been performed by creating this 
 
 ## Ordered work
 
-- [ ] **1. Share input normalization and database object resolution.**
+- [x] **1. Share input normalization and database object resolution.**
 
   **Intention:** Give schema batches and selected export the same tolerant input
   handling and unambiguous object identities.
@@ -50,6 +50,46 @@ No implementation or practical verification has been performed by creating this 
   whitespace handling, invalid types, duplicate names and aliases, quoted names,
   schema ambiguity and database-sensitive name comparison. Access checks precede
   catalog exposure. The existing scalar path remains unchanged; build/tests pass.
+
+  **Completion evidence (2026-10-16):**
+
+  - Implemented the internal boundary in
+    `src/SqlToAi/Database/SchemaObjectSelection.cs` and
+    `SchemaService.ResolveObjectsAsync`. JSON normalization retains scalar-first
+    order and duplicate associations, ignores null/empty/whitespace entries,
+    rejects invalid types, and supports explicit empty-selection validation for
+    future callers. No MCP registration, CLI contract or scalar lookup changed.
+  - SQL identifiers are parsed with the existing ScriptDom parser. Shared
+    discovery compares schema/object parameters against SQL Server catalog names,
+    with no forced collation or case folding. Exact inputs and equivalent quoted
+    identifiers reuse lookups; aliases reuse the same resolved object by ID.
+    Unknown names return `SQL-AI-0103`; ambiguous, invalid and unsupported
+    identities return identifiable `SQL-AI-0001` errors. Database policy and
+    access-level checks precede connections/catalog queries; `SchemaOnly` works.
+  - Added 50 focused unit cases in
+    `tests/SqlToAi.Tests/Database/SchemaObjectSelectionTests.cs`, covering order,
+    empty/null values, wrong types, duplicates/aliases, escaping, literal wildcard
+    names, ambiguity, unsupported kinds, simulated case-sensitive/insensitive
+    catalog matches, denied access, query failure and cancellation. The added
+    integration case in `SchemaServiceIntegrationTests.cs` executed against the
+    existing SQL fixture and checked quoted aliases and actual database catalog
+    comparison. It does not claim execution against separate databases with every
+    collation. Existing scalar/search/export regression tests remain green.
+  - Review found that ScriptDom accepts trailing SQL comments in parsed names;
+    selection now rejects comment tokens, and the focused regression passes.
+    Updated `docs/architecture.md` for the internal responsibility. No temporary
+    scenario source or database/configuration changes were needed for this item;
+    practical MCP reviews remain assigned to items 4 and 7.
+  - Validation: the focused unit/integration command passed all 51 cases.
+    `dotnet build SqlToAi.slnx` passed with zero warnings/errors.
+    `dotnet test SqlToAi.slnx` passed: 930 successful, 19 skipped, zero failures,
+    949 total. The pre-existing TLS endpoint tests skip without an explicitly
+    configured `SQLTOAI_TLS_TEST_PROFILE`; their certificate scenarios remain
+    unverified by this run. `git diff --check` passed.
+  - Actual delegated implementation setting: `gpt-6.1-sol`, reasoning effort
+    `high`. Atomic commit reference: the direct child of `11957de` with subject
+    `refactor: Teile Normalisierung und Auflösung der Objektauswahl` (this slice).
+    Items 2–8 remain open and were not implemented.
 
 - [ ] **2. Implement bounded primary-schema batch composition.**
 

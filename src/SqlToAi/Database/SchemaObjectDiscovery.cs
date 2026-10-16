@@ -7,6 +7,15 @@ internal static class SchemaObjectDiscovery
 {
     internal static Task<IEnumerable<ObjectRow>> QueryAsync(
         DbConnection connection, string searchPattern, string? typeFilter, int? limit, bool exportOnly, CancellationToken cancellationToken)
+        => QueryCoreAsync(connection, searchPattern, typeFilter, limit, exportOnly, null, null, cancellationToken);
+
+    internal static Task<IEnumerable<ObjectRow>> FindAsync(
+        DbConnection connection, string? schemaName, string objectName, CancellationToken cancellationToken)
+        => QueryCoreAsync(connection, null, null, null, false, schemaName, objectName, cancellationToken);
+
+    private static Task<IEnumerable<ObjectRow>> QueryCoreAsync(
+        DbConnection connection, string? searchPattern, string? typeFilter, int? limit, bool exportOnly,
+        string? schemaName, string? objectName, CancellationToken cancellationToken)
     {
         // Interactive search also includes constraint objects, ranked after the primary kinds.
         // Export selects supported kinds in the same catalog query without a TOP clause.
@@ -23,7 +32,7 @@ internal static class SchemaObjectDiscovery
             FROM sys.objects o
             LEFT JOIN sys.objects parent ON parent.object_id = o.parent_object_id
             WHERE o.is_ms_shipped = 0
-              AND o.name LIKE @SearchPattern
+              AND {(objectName is null ? "o.name LIKE @SearchPattern" : "o.name = @ObjectName AND (@SchemaName IS NULL OR schema_name(o.schema_id) = @SchemaName)")}
               AND (@TypeFilter IS NULL OR o.type_desc LIKE @TypeFilter)
               AND (@ExportOnly = 0 OR (
                   o.type IN ('U', 'V', 'P', 'FN', 'IF', 'TF', 'TR')
@@ -43,7 +52,7 @@ internal static class SchemaObjectDiscovery
             """;
 
         return connection.QueryAsync<ObjectRow>(new CommandDefinition(sql,
-            new { Limit = limit, SearchPattern = searchPattern, TypeFilter = typeFilter, ExportOnly = exportOnly }, cancellationToken: cancellationToken));
+            new { Limit = limit, SearchPattern = searchPattern, TypeFilter = typeFilter, ExportOnly = exportOnly, SchemaName = schemaName, ObjectName = objectName }, cancellationToken: cancellationToken));
     }
 
     internal sealed class ObjectRow
@@ -56,6 +65,10 @@ internal static class SchemaObjectDiscovery
         public string? ParentSchemaName { get; init; }
         public string? ParentObjectName { get; init; }
         public string? ParentTypeDescription { get; init; }
+
+        public bool IsSupported(bool forExport) => TypeDescription is "USER_TABLE" or "VIEW" or "SQL_STORED_PROCEDURE"
+            or "SQL_SCALAR_FUNCTION" or "SQL_INLINE_TABLE_VALUED_FUNCTION" or "SQL_TABLE_VALUED_FUNCTION"
+            || (forExport && TypeDescription == "SQL_TRIGGER" && ParentTypeDescription is "USER_TABLE" or "VIEW");
 
         public SchemaObject ToSchemaObject()
         {

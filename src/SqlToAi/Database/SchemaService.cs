@@ -177,6 +177,32 @@ public sealed class SchemaService : ISchemaService
         => ExecuteDetailQueryAsync(databaseName, trigger.Identity.DisplayName, "export trigger definition",
             (connection, ct) => DetailSchemaRenderer.GetExportTriggerDefinitionAsync(connection, trigger, ct), cancellationToken);
 
+    internal async Task<Result<IReadOnlyList<SchemaObjectSelectionEntry>>> ResolveObjectsAsync(
+        string databaseName, IReadOnlyList<string> names, bool forExport, CancellationToken cancellationToken = default)
+    {
+        var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
+        if (accessCheck.IsFailure)
+        {
+            return accessCheck.Error;
+        }
+        try
+        {
+            await using var connection = _connectionFactory.CreateConnection(databaseName);
+            await PrimaryConnection.OpenAsync(connection, cancellationToken);
+            return Result<IReadOnlyList<SchemaObjectSelectionEntry>>.Success(
+                await SchemaObjectSelection.ResolveAsync(connection, names, forExport, cancellationToken));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to resolve selected objects in database {DatabaseName}.", databaseName);
+            return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
+        }
+    }
+
     public async Task<Result<string>> GetSchemaAsync(string databaseName, string objectName, CancellationToken cancellationToken = default)
         => await GetSchemaCoreAsync(databaseName, objectName, null, cancellationToken);
 

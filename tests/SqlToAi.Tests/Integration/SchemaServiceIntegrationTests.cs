@@ -1,5 +1,6 @@
 using SqlToAi.Database;
 using SqlToAi.Domain;
+using Dapper;
 
 namespace SqlToAi.Tests.Integration;
 
@@ -62,6 +63,38 @@ public sealed class SchemaServiceIntegrationTests
         var invalidTrigger = new SchemaObject(table.Identity with { Kind = SchemaObjectKind.Trigger }, table.Identity);
         var definition = await _fx.SchemaService.GetExportTriggerDefinitionAsync(_db, invalidTrigger, TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.ObjectNotFound(table.Identity.DisplayName), definition.Error);
+    }
+
+    [Fact]
+    public async Task SelectedObjects_ResolveQuotedAliasesAndFollowDatabaseCatalogComparison()
+    {
+        string[] names = ["dbo.FakeProjects", "[dbo].[FakeProjects]", "\"dbo\".\"FakeProjects\"", "DBO.FAKEPROJECTS"];
+        var result = await _fx.SchemaService.ResolveObjectsAsync(_db, names, false, TestContext.Current.CancellationToken);
+        Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
+        Assert.Equal(names, result.Value.Select(entry => entry.ObjectName));
+        var first = result.Value[0].Object.Value;
+        Assert.Same(first, result.Value[1].Object.Value);
+        Assert.Same(first, result.Value[2].Object.Value);
+
+        await using var connection = _fx.ConnectionFactory.CreateConnection(_db);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        var matchingIds = (await connection.QueryAsync<int>(new CommandDefinition(
+            "SELECT object_id FROM sys.objects WHERE is_ms_shipped = 0 AND schema_name(schema_id) = @SchemaName AND name = @ObjectName",
+            new { SchemaName = "DBO", ObjectName = "FAKEPROJECTS" }, cancellationToken: TestContext.Current.CancellationToken))).ToArray();
+        var cased = result.Value[3].Object;
+        if (matchingIds.Length == 0)
+        {
+            Assert.Equal(SqlToAiError.ObjectNotFound(names[3]), cased.Error);
+        }
+        else if (matchingIds.Length == 1)
+        {
+            Assert.Equal(matchingIds[0], cased.Value.Identity.ObjectId);
+            if (matchingIds[0] == first.Identity.ObjectId) Assert.Same(first, cased.Value);
+        }
+        else
+        {
+            Assert.Equal(SqlToAiError.InvalidParametersCode, cased.Error.Code);
+        }
     }
 
     [Fact]
