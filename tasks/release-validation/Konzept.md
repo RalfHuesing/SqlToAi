@@ -1,5 +1,5 @@
 ---
-status: draft
+status: ready
 ---
 
 # Database-independent validation and reliable release gates
@@ -82,4 +82,4 @@ These observations describe inspected files; no build, test or package execution
 
 - The user accepts release activation with successful ordinary local SQL tests and explicitly documented, candidate-specific review of the already accepted TCP TLS environment limitation. The missing transport evidence remains unverified; the secure production contract is unchanged.
 
-No design decisions remain open. This concept remains draft pending explicit overall concept approval. It creates no roadmap and executes no build, tests, configuration changes or publication.
+The user has approved this concept; no design decisions remain open. Implementation and publication require their separately authorized workflow stages.
