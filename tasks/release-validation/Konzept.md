@@ -10,11 +10,15 @@ Make SqlToAi changes and distributed binaries verifiable before publication thro
 
 ## Current behavior and evidence
 
-- [Development documentation](../../docs/development.md) describes a single solution-wide build/test path and SQL integration fixtures that load JSON directly. There is no documented database-independent contributor/CI command.
+- [Development documentation](../../docs/development.md) describes a single solution-wide build/test path, a fictional demo profile with an explicit test-only trust overlay, and separately configured TLS cases. There is no documented database-independent contributor/CI command.
 - The [release workflow](../../.github/workflows/release.yml) publishes a self-contained Windows x64 application and ZIP after a version tag, without running tests or inspecting the running packaged process.
 - [release.ps1](../../scripts/release.ps1) runs local validation but allows `-SkipTests`; manually pushing a tag does not depend on this script.
+- That script validates before changing the project version and creating the release commit. Its local result therefore does not identify the exact tagged candidate source.
 - [deploy.ps1](../../scripts/deploy.ps1) runs native `dotnet` commands without explicitly checking their exit codes at each step. PowerShell completion/success text is not reliable evidence of a successful test or publish.
 - Existing build analyzers, warnings-as-errors and xUnit tests are useful foundations. The existence of tests is not proof that the current checkout or a packaged binary passed them.
+- Existing SQL test classes use `Category=Integration`, but the [fixture configuration tests](../../tests/SqlToAi.Tests/Integration/SqlServerFixtureConfigurationTests.cs) also carry that category while testing configuration loading rather than SQL operations. Class names, folders and the current category alone are not a sufficient final classification contract.
+- [User configuration](../user-configuration/Konzept.md) now requires manual settings setup and fatal startup when the base file is missing. Its existing [startup tests](../../tests/SqlToAi.Tests/Configuration/UserConfigurationTests.cs) and [test harness](../../tests/SqlToAi.StartupHarness/StartupHarness.cs) provide reusable checks, but do not establish that a published ZIP works.
+- [SQL connection security](../sql-connection-security/Konzept.md#accepted-environment-limitation-2026-10-16) records an accepted lack of trusted/untrusted TCP endpoints. Available local integration and default-rejection evidence must remain distinct from the unverified TCP transport matrix.
 
 These observations describe inspected files; no build, test or package execution was performed while extracting this concept.
 
@@ -22,7 +26,7 @@ These observations describe inspected files; no build, test or package execution
 
 ### Must
 
-- Define explicit test selection for database-independent tests versus SQL-dependent integration tests. In-memory MCP protocol tests remain in the database-independent suite even if their names contain `Integration`.
+- Define explicit test selection for database-independent tests versus SQL-dependent integration tests. In-memory MCP protocol tests belong in the database-independent suite even if their names contain `Integration`; fixture configuration checks must not be excluded solely because of their current integration category.
 - Provide documented commands that a contributor and CI can run without a SQL instance, production configuration, private credentials or a network route to the maintainer's database.
 - Run build, database-independent tests and dependency-vulnerability checks automatically for relevant pull requests and default-branch changes using standard GitHub-hosted runners and free features.
 - Add reusable local checks for the actual self-contained Windows x64 output: extract the ZIP, launch the packaged process, complete MCP initialization and tool discovery, and verify that stdout contains protocol messages rather than diagnostic text.
@@ -46,7 +50,7 @@ These observations describe inspected files; no build, test or package execution
 
 - Every test group has an unambiguous documented selection. Database-dependent tests are not silently skipped and reported as passed when their prerequisites are unavailable.
 - The automated required path is Windows x64, database-independent, repeatable from a clean checkout and unsuccessful when build/tests/package checks fail. Keep workflow permissions limited to each job's needs.
-- First-run tests must exercise the [user-directory contract](../user-configuration/Konzept.md), including an install path containing spaces, a different working directory and preservation of an existing user settings file. Test hooks may redirect to temporary storage without introducing a production portable/configuration mode.
+- First-run tests must exercise the [user-directory contract](../user-configuration/Konzept.md): missing base settings cause exit code `1`, an actionable stderr diagnostic, no stdout protocol output and no automatic settings creation. Separately, provide a manually prepared isolated settings file for successful MCP initialization. Cover an install path containing spaces, a different working directory and byte-for-byte preservation of existing user settings. Test hooks may redirect to temporary storage without introducing a production portable/configuration mode; a harness-only check does not replace launching the packaged executable.
 - Packaged stdio checks must not require a SQL connection or a separately installed .NET runtime/SDK for the server process. The harness may use the build toolchain; run the server in a controlled environment that cannot silently use that SDK/runtime to hide missing bundled dependencies.
 - Keep checks and package creation reusable by the publication workflow. Validate the ZIP produced by this task's current build; when the publication task adds MCPB, it must extend this check to the final bundle's version, content, executable, configuration mapping and SHA-256. Do not add a permanently skipped MCPB check and call it coverage.
 - Local SQL integration evidence must refer to the exact candidate source, using the same functional configuration and dependencies as the candidate artifact. If automated artifact creation cannot be reproduced locally byte-for-byte, state that limit instead of claiming binary equivalence.
@@ -66,9 +70,14 @@ These observations describe inspected files; no build, test or package execution
 - SQL-dependent tests run through a distinct local command against the fictional setup. Missing SQL prerequisites are clearly reported as unavailable/failure, never as executed passes.
 - PR/default-branch validation includes the intended non-SQL tests and reports dependency-check results. No paid execution resource or private SQL credential is required.
 - The unpacked candidate executable initializes over stdio and exposes tools from an isolated user-data environment. It works without an installed runtime, with spaces in paths and from another working directory.
+- Without its required user settings file, that executable fails according to the first-run contract; with an isolated manually prepared file, it completes the protocol check without SQL access. Both scenarios preserve the maintainer's real user data.
 - A failed build, test, dependency gate or package check prevents public release activation. A tag creates/checks a candidate; CI success alone cannot activate a public release or establish completion of the local SQL requirement. The separate maintainer decision must account for that local result.
 - The exact source revision, checked artifact identity and local SQL result can be associated with a release decision. No artifact is rebuilt/replaced after validation without rerunning the applicable checks.
 - Existing helpers no longer report successful validation/publish after a relevant native process returns failure; preview/dry-run remains free of release side effects.
 - Development documentation accurately separates automated checks, local SQL checks, candidate creation and actual publication. No new client certification is claimed.
 
-This concept remains draft pending explicit concept approval. It creates no roadmap and executes no build, tests, configuration changes or publication.
+## Open decision
+
+- Decide whether the documented TCP TLS environment limitation may remain explicitly unverified at release activation after the ordinary local SQL suite passes, or whether those unavailable TLS cases must block release activation. Recommendation: preserve the accepted limitation and require its explicit disclosure and review for each candidate, without presenting it as passed transport evidence. Requiring a complete TCP matrix would make release activation depend on endpoints that the SQL-security task explicitly does not provision. This recommendation is not yet an approved exception to this task's release gate.
+
+This concept remains draft pending resolution of the open decision and explicit concept approval. It creates no roadmap and executes no build, tests, configuration changes or publication.
