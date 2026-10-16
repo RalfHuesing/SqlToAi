@@ -104,6 +104,37 @@ Registry, SDK registration, dispatcher, registry-generated CLI and documentation
 must agree on the extended schema-call and new export contracts. Existing CLI
 commands retain their behavior; their schema command gains the optional array input.
 
+#### Practical agent review
+
+- During implementation, the agent must run a temporary task-specific scenario
+  through the existing [exploration runner](../../docs/exploration.md), following
+  its [scenario conventions](../../tools/SqlToAi.Exploration/Scenarios/README.md).
+  Use the real dispatcher, configured database and production service registrations;
+  retain requests and complete responses under `temp/exploration/` for inspection.
+- Exercise scalar-only, one-element/multi-element array, combined scalar/array,
+  empty/null/whitespace, duplicate and invalid-type inputs. Include a realistic
+  related-table lookup, a missing object among valid names and a limit-exceeded
+  response. Compare legacy scalar results with the corresponding batch entries.
+- State expected behavior before running, then read `request.json`, every response
+  content block and `isError` in `response.json`, `response.txt` and any `error.txt`.
+  Judge whether the advertised parameters are easy to use, results are clearly
+  associated with objects, response volume is useful, and errors/omissions give
+  enough information for an agent to correct or narrow its next call.
+- Check the exposed input schema and tool description against those same argument
+  shapes. The runner bypasses SDK argument binding: supplement it with in-process
+  tests invoking the registered SDK tools, without requiring MCP infrastructure.
+  A dispatcher-only success does not prove that the advertised call is accepted.
+- For export, focus on the new MCP contract: selected/full scope, single/list
+  selection, destination validation, returned status/path and actual file creation.
+  Use fresh output directories and inspect representative output. The existing
+  CLI dump layout/content is accepted; no new comprehensive dump-content audit.
+- Record artifact paths, expected versus observed behavior, usability verdict and
+  findings in the implementation's existing completion evidence. Fix findings and
+  rerun affected cases before completion; green tests or runner exit code zero
+  alone are insufficient. Remove temporary scenario source after review, retaining
+  observation artifacts according to runner conventions. If execution is blocked,
+  report the missing practical verification instead of claiming acceptance.
+
 ### Out of scope
 
 Data export, batching other tools, extra export-root configuration, overwrite or
@@ -129,3 +160,6 @@ cleanup options, new rendering formats, background jobs and unrelated CLI change
 - Registry, SDK registration, dispatcher and CLI tests verify matching argument and
   result contracts. Implementation updates canonical tool documentation and passes
   the repository build/test checks; this concept does not claim those tests ran.
+- The practical agent review above is completed with inspectable input/output
+  artifacts and an explicit usability verdict, especially for parameter handling.
+  All discovered usability or contract defects are fixed and checked again.
