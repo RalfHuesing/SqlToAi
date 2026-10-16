@@ -3,8 +3,6 @@ using SqlToAi.Configuration;
 
 namespace SqlToAi.Tests.Integration;
 
-[Trait("Category", "Integration")]
-[Collection(SqlServerCollectionFixture.Name)]
 public sealed class SqlServerFixtureConfigurationTests
 {
     [Fact]

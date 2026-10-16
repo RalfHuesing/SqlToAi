@@ -12,7 +12,7 @@ Update [development documentation](../../docs/development.md) and any affected c
 
 ## T1 — Separate offline, SQL and TLS tests
 
-- [ ] T1: Establish and document reliable test selections.
+- [x] T1: Establish and document reliable test selections.
 
 **Intention:** Run all database-independent checks without excluding them merely because their name or folder contains `Integration`.
 
@@ -28,7 +28,7 @@ dotnet test SqlToAi.slnx --filter 'Category=TlsIntegration'
 
 **Acceptance:** The offline run is nonempty and succeeds without SQL or personal settings; ordinary SQL and TLS are selected separately; configuration-only/startup checks remain offline. Missing ordinary SQL fails or is explicitly unavailable, while dedicated TLS skips remain unverified. Commands match actual discovered cases.
 
-**Completion evidence:** Pending.
+**Completion evidence:** `SqlServerFixtureConfigurationTests` no longer carries the SQL category or collection fixture; `TlsConnectionIntegrationTests` uses `Category=TlsIntegration`. `docs/development.md` documents the three filters and their infrastructure requirements. MCP navigation confirmed the fixture's explicit checked-in profiles and TLS's explicit endpoint profile; test project discovery includes 106 C# test documents. Using gpt-6-luna / high: `dotnet build SqlToAi.slnx` succeeded with 0 warnings/errors; offline selection passed 834/834; `Category=Integration` passed 45/45; `Category=TlsIntegration` discovered 19 and skipped all 19 because `SQLTOAI_TLS_TEST_PROFILE` was unset (unverified); full `dotnet test SqlToAi.slnx` passed 879, skipped 19, total 898. Configuration/startup checks remain in the offline selection and use checked-in test assets or temporary roots. No personal settings or unrelated processes were changed.
 
 ## T2 — Stop scripts on failed native commands
 

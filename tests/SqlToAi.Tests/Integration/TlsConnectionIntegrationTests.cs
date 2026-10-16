@@ -13,8 +13,7 @@ using SqlToAi.Security;
 
 namespace SqlToAi.Tests.Integration;
 
-[Trait("Category", "Integration")]
-[Collection(SqlServerCollectionFixture.Name)]
+[Trait("Category", "TlsIntegration")]
 public sealed class TlsConnectionIntegrationTests(ITestOutputHelper output)
 {
     private const string ObservationQuery = """

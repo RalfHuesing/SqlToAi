@@ -11,6 +11,16 @@ dotnet test SqlToAi.slnx
 
 Tests use xUnit v3. [SqlServerFixture](../tests/SqlToAi.Tests/Integration/SqlServerFixture.cs) explicitly loads the separate fictional DemoDB profile copied as `appsettings.integration.json`, then a checked-in test-only overlay copied as `appsettings.integration.test.json`; it never reads the maintainer's user configuration root. The demo profile and application defaults keep certificate validation enabled. The overlay opts only general local integration tests into trusting the existing self-signed server certificate, while encryption remains required. This exception is limited to the test fixture and has no effect on appsettings, user configuration, or the dedicated TLS cases. General SQL integration tests require a local SQL Server matching the demo profile and fictional schema. [sql-scripts/README.md](../sql-scripts/README.md) describes setup. Contributor instructions start at [AGENTS.md](../AGENTS.md).
 
+Use test categories to choose what infrastructure a run needs. The offline selection includes configuration checks and in-memory MCP tests even when their files are under `Integration`; ordinary SQL tests use the shared `SqlServerFixture`, while TLS tests use only their explicitly configured endpoint profile:
+
+```powershell
+dotnet test SqlToAi.slnx --filter 'Category!=Integration&Category!=TlsIntegration'
+dotnet test SqlToAi.slnx --filter 'Category=Integration'
+dotnet test SqlToAi.slnx --filter 'Category=TlsIntegration'
+```
+
+The first command must discover and run tests without SQL Server or personal settings. Ordinary SQL tests fail when their configured local database is unavailable. TLS cases with no `SQLTOAI_TLS_TEST_PROFILE` or with a missing endpoint section are reported as skipped and remain unverified; configured endpoint failures fail the selection.
+
 The general integration fixture accepts explicit test-process environment overrides after loading the demo profile and test-only overlay, using the `SQLTOAI_INTEGRATION_` prefix followed by the configuration path with double underscores. An explicit environment value such as `SQLTOAI_INTEGRATION_SqlToAi__SqlServer__TrustServerCertificate=false` overrides the overlay. The checked-in overlay makes the ordinary local suite work with the existing self-signed instance without a manual environment override:
 
 ```powershell
