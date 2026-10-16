@@ -1,4 +1,6 @@
 #Requires -Version 7.0
+param([string]$ResultsDirectory)
+
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -19,8 +21,13 @@ try {
     }
 
     Write-Host 'Running database-independent tests...'
+    $testArguments = @()
+    if ($ResultsDirectory) {
+        $testArguments = @('--results-directory', $ResultsDirectory, '--logger', 'trx;LogFileName=offline.trx')
+    }
     dotnet test SqlToAi.slnx --no-build --no-restore `
         --filter 'Category!=Integration&Category!=TlsIntegration' `
+        @testArguments `
         -- RunConfiguration.TreatNoTestsAsError=true
     if ($LASTEXITCODE -ne 0) {
         throw "Offline tests failed with exit code $LASTEXITCODE."
