@@ -15,6 +15,8 @@ Selected connection fields, database access lists, metadata queries, token delim
 
 Database names are selected by tool arguments. SQL connections require encryption and validate the server certificate by default. Existing settings that omit the new trust options now validate the certificate; startup does not rewrite or migrate settings. For a deliberate local/self-signed development exception, set the endpoint's `TrustServerCertificate` to `true`. This skips validation of the presented server certificate while encryption remains required. Set it only for the intended endpoint, then restart the server. For example, the primary option can be set with `$env:SqlToAi__SqlServer__TrustServerCertificate = 'true'`; dedicated endpoints use `SqlToAi__MetadataProvider__TrustServerCertificate` or `SqlToAi__AnonymizationRules__TrustServerCertificate`. See [security limits](security.md#boundaries-and-data-exposure).
 
+The general local integration-test fixture has a separate, checked-in test-only trust overlay for the existing self-signed test server. It does not change the demo profile, application defaults, user configuration, or the isolated TLS-default cases. See [development test setup](development.md#build-and-test).
+
 ## Settings reference
 
 | Section | Fields and behavior |

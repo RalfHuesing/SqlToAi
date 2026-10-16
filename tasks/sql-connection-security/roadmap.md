@@ -4,7 +4,7 @@
 
 Implement the approved [concept](Konzept.md), in the order below. Its [target contract](Konzept.md#target-contract), [acceptance criteria](Konzept.md#acceptance-criteria) and [exclusions](Konzept.md#out-of-scope) govern every item. No concept decisions remain open. This roadmap does not start implementation or authorize publication.
 
-Each T1–T5 item is one bounded agent session, including inspection, changes, validation and its atomic commit. Dependencies are sequential: T2 requires T1, T3 requires T2, T4 requires T3, and T5 requires T4. Keep execution evidence under the corresponding item in this file; do not create separate tracking artifacts. Mark an item complete only when every acceptance criterion is verified. If an item proves too large, split it before execution without expanding the approved scope.
+Each T1–T5 item is one bounded agent session, including inspection, changes, validation and its atomic commit. Dependencies are sequential: T2 requires T1, T3 requires T2, T4 requires T3, and T5 follows T4. Keep execution evidence under the corresponding item in this file; do not create separate tracking artifacts. Mark an item complete only when every acceptance criterion is verified or an explicit user-accepted limitation is recorded without turning missing evidence into a pass. If an item proves too large, split it before execution without expanding the approved scope.
 
 For every code-changing item, add or update meaningful xUnit v3 tests for its success and failure behavior, then run from the repository root:
 
@@ -13,7 +13,7 @@ dotnet build SqlToAi.slnx
 dotnet test SqlToAi.slnx
 ```
 
-Compiler/analyzer warnings are errors. Record commands, exit codes and relevant results, distinguishing database-independent failures from unavailable local SQL infrastructure. An unavailable SQL scenario is unverified, never passed. A verified code slice may be committed with that limitation recorded, but T4 and the final audit remain open until required transport evidence exists. Do not repeat successful checks on an unchanged revision without a new reason.
+Compiler/analyzer warnings are errors. Record commands, exit codes and relevant results, distinguishing database-independent failures from unavailable local SQL infrastructure. An unavailable SQL scenario is unverified, never passed. On 2026-10-16 the user explicitly accepted T4 closure with the trusted/untrusted TCP evidence gap recorded; this does not constitute transport proof. T5 remains a separate independent audit. Do not repeat successful checks on an unchanged revision without a new reason.
 
 Update canonical documentation in the same slice as the behavior it describes. Verify Markdown links and examples. Stage only related changes, include the roadmap update, use a German imperative Conventional Commit message, and do not push. Record commit references after they exist; do not amend a completed commit solely to record its own hash.
 
@@ -92,7 +92,7 @@ Validation on this revision: `dotnet build SqlToAi.slnx` exit 0 (0 warnings, 0 e
 
 ## T4 — Verify actual local TLS behavior
 
-- [ ] T4: Establish the approved transport evidence for primary and dedicated secondary connections.
+- [x] T4: Record transport evidence and close with the user-accepted local infrastructure limitation.
 
 **Intention:** Demonstrate the difference between a correctly constructed connection string and an encrypted, authenticated SQL session.
 
@@ -102,13 +102,14 @@ Validation on this revision: `dotnet build SqlToAi.slnx` exit 0 (0 warnings, 0 e
 
 **Acceptance:**
 
-- For the primary factory and each dedicated provider path: defaults connect successfully to the trusted endpoint; defaults reject the untrusted certificate; an explicit exception for that endpoint connects to the untrusted endpoint with observed session encryption still enabled.
-- With only the primary exception enabled, dedicated untrusted secondary connections still fail certificate validation. No dedicated failure reconnects through the primary endpoint. Secondary-to-primary fallback follows the primary policy established in T1.
-- Real primary certificate failure reaches `SQL-AI-0105`; optional secondary failures retain the T3 results and safe diagnostics. The successful exception case does not overwrite or hide the preceding default-rejection evidence.
-- Record each case's path, certificate condition, explicit trust setting, execution/result and encryption observation, using non-secret endpoint labels. Record missing infrastructure as unverified and leave this item open until all required cases are verified.
-- Local setup instructions explain how to supply deliberate test inputs without changing secure shipped defaults or rewriting the user's configuration. Required build/test results are recorded and completed changes are committed.
+- The available local self-signed instance and the unavailable trusted/untrusted TCP cases are recorded distinctly; unavailable transport cases remain explicitly unverified.
+- The user-accepted limitation is documented in the concept and here. No missing trusted/untrusted TCP case is represented as passed, and no full transport-proof claim is made.
+- General integration tests use an explicit checked-in test-only trust overlay to support the existing local instance. Application defaults, shipped profiles, and independent TLS default-policy cases remain strict; environment overrides retain their precedence, including explicit `false`.
+- Local setup instructions identify the test-only exception and explain that a green general suite using it does not establish secure-default certificate authentication. Required build/test results are recorded and the related changes are committed.
 
-**Completion evidence (partial; T4 remains open):** Implementation agent: `gpt-6.1-sol`, reasoning effort `medium`; based on T3 commit `2d77cf2`. Added 19 narrowly scoped TLS integration cases in `TlsConnectionIntegrationTests`, without production changes. The general integration fixture now accepts only explicitly supplied `SQLTOAI_INTEGRATION_` environment overrides after its copied demo profile. The TLS cases instead read the independently supplied `SQLTOAI_TLS_TEST_PROFILE` file, require secure-default inputs, and choose trust afresh per case; the general fixture exception cannot hide a TLS default regression. Missing endpoints produce explicit skipped/unverified results. Updated the canonical development instructions with exact inputs, commands and observation limits.
+**Historical partial evidence (2026-10-15):** Implementation agent: `gpt-6.1-sol`, reasoning effort `medium`; based on T3 commit `2d77cf2`. Added 19 narrowly scoped TLS integration cases in `TlsConnectionIntegrationTests`, without production changes. The general integration fixture accepted explicitly supplied `SQLTOAI_INTEGRATION_` environment overrides after its copied demo profile. The TLS cases read the independently supplied `SQLTOAI_TLS_TEST_PROFILE` file, require secure-default inputs, and choose trust afresh per case; the general fixture exception cannot hide a TLS default regression. Missing endpoints produce explicit skipped/unverified results. Updated the canonical development instructions with exact inputs, commands and observation limits.
+
+**User-accepted closure decision (2026-10-16):** The user accepts that this environment cannot complete the trusted/untrusted TCP matrix and authorizes closing T4 with that limitation recorded. This accepts an evidence gap, not a pass. The self-signed local SQL instance remains available; a checked-in test-only overlay now explicitly trusts its certificate for general integration cases. T1 application defaults, shipped profiles, and TLS default cases remain independent and certificate-validating. T5 is still open for its own audit.
 
 Available infrastructure: only the existing local named instance, labelled `LocalUntrusted` below. Read-only host inspection reported no configured certificate, `ForceEncryption=0` and TCP disabled. No additional instance, certificate, SQL configuration, machine trust or user settings was provisioned or changed. The test input used a temporary file outside the checkout with the existing fictional DemoDB profile's endpoint/authentication and a five-second connection timeout; it was removed after each command. No credentials or raw connection strings are recorded here.
 
@@ -128,7 +129,11 @@ Available infrastructure: only the existing local named instance, labelled `Loca
 
 Provider-created sessions above use each actual provider's existing private `CreateConnection` method through narrowly scoped test reflection, then open/query that returned real connection. This verifies current provider option wiring and session behavior without a production test hook. It does not observe the later rule lookup's separate session. Shared-memory observations are limited local evidence and make no TCP or trusted-certificate authentication claim. Independent rejection results remain recorded separately from exception successes.
 
-Validation: `dotnet build SqlToAi.slnx` exit 0 (0 warnings, 0 errors). Focused `dotnet test SqlToAi.slnx --filter 'FullyQualifiedName~TlsConnectionIntegrationTests' --logger 'console;verbosity=detailed'`, with only the explicit local TLS profile, exit 0 (9 passed, 10 skipped/unverified). Required full `dotnet test SqlToAi.slnx --logger 'console;verbosity=minimal'`, without any override/profile, exit 1 (839 passed, 38 failed, 19 skipped, 896 total); the general local SQL tests retain their secure-default certificate failures. Full suite with `SQLTOAI_INTEGRATION_SqlToAi__SqlServer__TrustServerCertificate=true` and the independent local `SQLTOAI_TLS_TEST_PROFILE` exit 0 (886 passed, 0 failed, 10 skipped, 896 total). Both variables were supplied only to the test process and removed afterward; the TLS default-rejection cases still passed in this same run. The green exception run does not replace the default-failure evidence or satisfy missing TCP/trusted criteria. `git diff --check` and affected relative Markdown-link checks passed. No temporary input, credential or settings file is staged. Verified harness/documentation changes are committed as a bounded slice; T4 remains incomplete and T5 is not started because required trusted/untrusted TCP transport evidence is unavailable.
+Historical validation before the accepted overlay: `dotnet build SqlToAi.slnx` exit 0 (0 warnings, 0 errors). Focused TLS tests with only the explicit local TLS profile exited 0 (9 passed, 10 skipped/unverified). The full suite without overrides exited 1 (839 passed, 38 failed, 19 skipped, 896 total); the general local SQL tests failed secure-default certificate validation. The full suite with `SQLTOAI_INTEGRATION_SqlToAi__SqlServer__TrustServerCertificate=true` and the independent `SQLTOAI_TLS_TEST_PROFILE` exited 0 (886 passed, 0 failed, 10 skipped, 896 total). These results are historical; the exception run did not satisfy missing TCP/trusted criteria.
+
+**Test-fixture correction evidence:** Implementation agent `gpt-6-luna`, reasoning effort `high`. Added a checked-in overlay used only by `SqlServerFixture`, a regression for overlay defaults and explicit environment `false`, and verified that the demo profile remains `false`. The TLS cases continue to load their separate `SQLTOAI_TLS_TEST_PROFILE`, require omitted/false trust input, and choose trust per case. Canonical development, configuration and security docs identify the test-only exception and preserve the unverified transport limitation.
+
+Validation on the final code revision: `dotnet build SqlToAi.slnx` exit 0 (0 warnings, 0 errors); `dotnet test SqlToAi.slnx` exit 0 (879 passed, 19 skipped/unverified, 898 total). The skips are TLS cases with no `SQLTOAI_TLS_TEST_PROFILE`. Release-script build command `dotnet build --nologo -v q` exit 0 (0 warnings, 0 errors), then release-script test command `dotnet test --nologo -v q --no-build` exit 0 (879 passed, 19 skipped/unverified, 898 total), with no manual environment overrides. Focused TLS run with a temporary external profile for the existing `LocalUntrusted` instance exit 0 (9 passed, 10 skipped/unverified, 19 total); the temporary profile was removed, and the ten unavailable trusted/untrusted TCP cases remain unverified. Existing default/encryption builder checks remained in the passing suite. `git diff --check` and changed-document relative-link checks passed. No production settings, SQL Server, machine trust, certificate, or user configuration changed.
 
 ## T5 — Audit the completed concept
 
@@ -142,7 +147,7 @@ Validation: `dotnet build SqlToAi.slnx` exit 0 (0 warnings, 0 errors). Focused `
 
 **Acceptance:**
 
-- T1–T4 are complete with verifiable evidence, all concept criteria are covered, and no required trusted/untrusted transport case remains unverified.
+- T1–T4 are complete with evidence or an explicit user-accepted limitation; the auditor must preserve any unverified transport case as unverified and confirm that the limitation is not presented as a passed criterion.
 - The final build succeeds without compiler/analyzer warnings and the required tests pass; reuse successful results only when they cover the final code revision. Security/access/transaction and masking regressions are resolved.
 - Canonical docs describe the implemented default, compatibility change, development exception, primary errors and optional-provider results accurately. No secrets or temporary local settings are staged.
 - Audit findings are resolved, this roadmap reflects verified completion, and the final related changes are committed with unrelated user changes left intact.

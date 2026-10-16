@@ -12,7 +12,7 @@ namespace SqlToAi.Tests.Integration;
 
 /// <summary>
 /// Shared fixture for live SQL integration tests.
-/// Explicitly loads the copied DemoDB example profile instead of user settings.
+/// Explicitly loads the copied DemoDB example and its test-only trust overlay instead of user settings.
 /// </summary>
 public sealed class SqlServerFixture
 {
@@ -38,11 +38,7 @@ public sealed class SqlServerFixture
         string appsettingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.integration.json");
         if (!File.Exists(appsettingsPath))
             throw new FileNotFoundException("The explicit SQL integration demo profile was not copied to the test output.", appsettingsPath);
-        var configuration = new ConfigurationBuilder()
-            .SetBasePath(Path.GetDirectoryName(appsettingsPath)!)
-            .AddJsonFile(Path.GetFileName(appsettingsPath), optional: false, reloadOnChange: false)
-            .AddEnvironmentVariables("SQLTOAI_INTEGRATION_")
-            .Build();
+        var configuration = BuildConfiguration(Path.GetDirectoryName(appsettingsPath)!);
 
         Options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
         ConfigurationResolver.Resolve(Options);
@@ -63,6 +59,16 @@ public sealed class SqlServerFixture
         QueryExecutionService = new QueryExecutionService(ConnectionFactory, QuerySafetyValidator, new AnonymizationDependencies(Anonymizer, AnonymizationRuleProvider, QueryTokenResolver), optionsWrapper, NullLogger<QueryExecutionService>.Instance);
         QueryValidationService = new QueryValidationService(ConnectionFactory, QuerySafetyValidator, optionsWrapper, NullLogger<QueryValidationService>.Instance);
         IndexSuggestionService = new IndexSuggestionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, optionsWrapper, NullLogger<IndexSuggestionService>.Instance);
+    }
+
+    internal static IConfigurationRoot BuildConfiguration(string basePath)
+    {
+        return new ConfigurationBuilder()
+            .SetBasePath(basePath)
+            .AddJsonFile("appsettings.integration.json", optional: false, reloadOnChange: false)
+            .AddJsonFile("appsettings.integration.test.json", optional: false, reloadOnChange: false)
+            .AddEnvironmentVariables("SQLTOAI_INTEGRATION_")
+            .Build();
     }
 
 }

@@ -9,24 +9,20 @@ dotnet build SqlToAi.slnx
 dotnet test SqlToAi.slnx
 ```
 
-Tests use xUnit v3. [SqlServerFixture](../tests/SqlToAi.Tests/Integration/SqlServerFixture.cs) explicitly loads the separate fictional DemoDB profile copied as `appsettings.integration.json`; it never reads the maintainer's user configuration root. The profile keeps certificate validation enabled. Integration tests require a local SQL Server matching that profile and the fictional schema. [sql-scripts/README.md](../sql-scripts/README.md) describes setup. Contributor instructions start at [AGENTS.md](../AGENTS.md).
+Tests use xUnit v3. [SqlServerFixture](../tests/SqlToAi.Tests/Integration/SqlServerFixture.cs) explicitly loads the separate fictional DemoDB profile copied as `appsettings.integration.json`, then a checked-in test-only overlay copied as `appsettings.integration.test.json`; it never reads the maintainer's user configuration root. The demo profile and application defaults keep certificate validation enabled. The overlay opts only general local integration tests into trusting the existing self-signed server certificate, while encryption remains required. This exception is limited to the test fixture and has no effect on appsettings, user configuration, or the dedicated TLS cases. General SQL integration tests require a local SQL Server matching the demo profile and fictional schema. [sql-scripts/README.md](../sql-scripts/README.md) describes setup. Contributor instructions start at [AGENTS.md](../AGENTS.md).
 
-The general integration fixture accepts explicit test-process environment overrides after loading that profile, using the `SQLTOAI_INTEGRATION_` prefix followed by the configuration path with double underscores. For a deliberate exception on the existing local self-signed server:
+The general integration fixture accepts explicit test-process environment overrides after loading the demo profile and test-only overlay, using the `SQLTOAI_INTEGRATION_` prefix followed by the configuration path with double underscores. An explicit environment value such as `SQLTOAI_INTEGRATION_SqlToAi__SqlServer__TrustServerCertificate=false` overrides the overlay. The checked-in overlay makes the ordinary local suite work with the existing self-signed instance without a manual environment override:
 
 ```powershell
-$env:SQLTOAI_INTEGRATION_SqlToAi__SqlServer__TrustServerCertificate = 'true'
-try {
-    dotnet test SqlToAi.slnx
-} finally {
-    Remove-Item Env:SQLTOAI_INTEGRATION_SqlToAi__SqlServer__TrustServerCertificate
-}
+dotnet build SqlToAi.slnx
+dotnet test SqlToAi.slnx
 ```
 
-This accepts the presented certificate without authenticating server identity; encryption remains required. The override affects this fixture only, is never inferred, and does not edit shipped profiles or user settings. Other fixture options use the same prefix, for example `SQLTOAI_INTEGRATION_SqlToAi__SqlServer__Server`. Dedicated metadata/rule endpoints require their own explicit trust settings. A successful suite using this exception does not establish secure-default certificate authentication.
+The overlay accepts the presented certificate without authenticating server identity; encryption remains required. The exception is explicit, fixture-only, never inferred, and does not edit shipped profiles or user settings. Other fixture options use the same prefix, for example `SQLTOAI_INTEGRATION_SqlToAi__SqlServer__Server`. Dedicated metadata/rule endpoints require their own explicit trust settings. A successful general suite using this exception does not establish secure-default certificate authentication.
 
 ### Local TLS evidence
 
-[TlsConnectionIntegrationTests](../tests/SqlToAi.Tests/Integration/TlsConnectionIntegrationTests.cs) loads only the test input file explicitly selected by `SQLTOAI_TLS_TEST_PROFILE`. It ignores the general fixture overrides above and selects trust independently for every case. An absent file setting or endpoint section is reported as skipped/unverified, never passed. An invalid configured file or failed configured case fails the test.
+[TlsConnectionIntegrationTests](../tests/SqlToAi.Tests/Integration/TlsConnectionIntegrationTests.cs) loads only the test input file explicitly selected by `SQLTOAI_TLS_TEST_PROFILE`. It ignores the general fixture profile, overlay, and environment overrides, and selects trust independently for every case. Its endpoint inputs must omit the trust property or set it to `false`; an absent file setting or endpoint section is reported as skipped/unverified, never passed. An invalid configured file or failed configured case fails the test.
 
 Store this file outside the checkout. Each optional section has this shape, using an existing fictional test database and an account allowed to read its own connection row in `sys.dm_exec_connections`:
 
