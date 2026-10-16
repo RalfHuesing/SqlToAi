@@ -1,16 +1,19 @@
 #Requires -Version 7.0
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'Zip')]
 param(
-    [Parameter(Mandatory)]
+    [Parameter(Mandatory, ParameterSetName = 'Zip')]
     [string]$ZipPath,
+    [Parameter(Mandatory, ParameterSetName = 'Mcpb')]
+    [string]$McpbPath,
     [switch]$DisposableProfile,
     [ValidateRange(1, 120)]
     [int]$TimeoutSeconds = 30
 )
 $ErrorActionPreference = 'Stop'
 
-function Start-PackageProcess([string]$Executable, [string]$WorkingDirectory) {
+function Start-PackageProcess([string]$Executable, [string]$WorkingDirectory, [string[]]$Arguments) {
     $info = [System.Diagnostics.ProcessStartInfo]::new($Executable)
+    foreach ($argument in $Arguments) { $info.ArgumentList.Add($argument) }
     $info.WorkingDirectory = $WorkingDirectory
     $info.UseShellExecute = $false
     $info.RedirectStandardInput = $true
@@ -26,6 +29,49 @@ function Start-PackageProcess([string]$Executable, [string]$WorkingDirectory) {
     $process.StartInfo = $info
     [void]$process.Start()
     return $process
+}
+
+function Resolve-BundleLaunch([string]$Installation) {
+    $manifestPath = Join-Path $Installation 'manifest.json'
+    $schema = Join-Path (Split-Path -Parent $PSScriptRoot) 'packaging/mcpb-manifest-v0.3.schema.json'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw 'MCPB is missing manifest.json.' }
+    $json = Get-Content -LiteralPath $manifestPath -Raw
+    if (-not (Test-Json -Json $json -SchemaFile $schema -ErrorAction Stop)) {
+        throw 'MCPB manifest does not conform to the pinned official schema.'
+    }
+    $manifest = $json | ConvertFrom-Json -AsHashtable
+    $config = $manifest.server.mcp_config
+    if ($manifest.manifest_version -cne '0.3' -or $manifest.server.type -cne 'binary' -or
+        $manifest.compatibility.platforms -cnotcontains 'win32' -or
+        [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne [System.Runtime.InteropServices.Architecture]::X64 -or
+        $manifest.ContainsKey('user_config') -or @($config.Keys | Where-Object { $_ -cnotin @('command', 'args') }).Count -ne 0) {
+        throw 'MCPB smoke supports Windows x64 binary bundles without user_config, environment or platform overrides.'
+    }
+    # This is the SqlToAi stdio check, not a general bundle interpreter or CLI runner.
+    [string[]]$arguments = @()
+    if ($config.ContainsKey('args')) { $arguments = [string[]]$config.args }
+    if ($arguments.Count -gt 1 -or ($arguments.Count -eq 1 -and $arguments[0] -cne 'server')) {
+        throw 'MCPB smoke supports only empty arguments or the server argument.'
+    }
+    $executable = Join-Path $Installation 'SqlToAi.exe'
+    if ($manifest.server.entry_point -cne 'SqlToAi.exe' -or $config.command -cne '${__dirname}/SqlToAi.exe' -or
+        -not (Test-Path -LiteralPath $executable -PathType Leaf)) {
+        throw 'MCPB entry point and command must resolve to the included SqlToAi.exe.'
+    }
+    $stream = [System.IO.File]::OpenRead($executable)
+    $reader = [System.IO.BinaryReader]::new($stream)
+    try {
+        if ($stream.Length -lt 64 -or $reader.ReadUInt16() -ne 0x5a4d) { throw 'MCPB entry point is not a Windows x64 PE binary.' }
+        $stream.Position = 0x3c
+        $peOffset = $reader.ReadUInt32()
+        if ($peOffset -gt $stream.Length - 6) { throw 'MCPB entry point has an invalid PE header.' }
+        $stream.Position = $peOffset
+        if ($reader.ReadUInt32() -ne 0x00004550 -or $reader.ReadUInt16() -ne 0x8664) {
+            throw 'MCPB entry point is not a Windows x64 PE binary.'
+        }
+    }
+    finally { $reader.Dispose() }
+    return [pscustomobject]@{ Executable = $executable; Arguments = [string[]]$arguments }
 }
 
 function Stop-OwnedProcess([System.Diagnostics.Process]$Process) {
@@ -91,23 +137,26 @@ $userRoot = [System.IO.Path]::GetFullPath((Join-Path $localData 'SqlToAi'))
 if (Test-Path -LiteralPath $userRoot) {
     throw "Refusing to use an existing user configuration root: $userRoot"
 }
-$zip = (Resolve-Path -LiteralPath $ZipPath).ProviderPath
-$hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$isBundle = $PSCmdlet.ParameterSetName -eq 'Mcpb'
+$archive = (Resolve-Path -LiteralPath $(if ($isBundle) { $McpbPath } else { $ZipPath })).ProviderPath
+$hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
 $temporary = Join-Path ([System.IO.Path]::GetTempPath()) "SqlToAi-smoke-$([guid]::NewGuid().ToString('N'))"
 $installation = Join-Path $temporary 'install path with spaces'
 $working = Join-Path $temporary 'different working directory'
 $ownsUserRoot = $false
 try {
     [void][System.IO.Directory]::CreateDirectory($working)
-    [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $installation)
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($archive, $installation)
     foreach ($name in 'SqlToAi.exe', 'appsettings.json', 'demo-profile.json', 'README.md', 'LICENSE') {
         if (-not (Test-Path -LiteralPath (Join-Path $installation $name) -PathType Leaf)) {
-            throw "ZIP is missing $name."
+            throw "Package is missing $name."
         }
     }
-    $executable = Join-Path $installation 'SqlToAi.exe'
+    $launch = if ($isBundle) { Resolve-BundleLaunch $installation } else {
+        [pscustomobject]@{ Executable = (Join-Path $installation 'SqlToAi.exe'); Arguments = [string[]]@() }
+    }
     $settings = Join-Path $userRoot 'appsettings.json'
-    $process = Start-PackageProcess $executable $working
+    $process = Start-PackageProcess $launch.Executable $working $launch.Arguments
     try {
         $stdout = $process.StandardOutput.ReadToEndAsync()
         $stderr = $process.StandardError.ReadToEndAsync()
@@ -147,7 +196,7 @@ try {
     [System.IO.File]::WriteAllText($settings, ($prepared | ConvertTo-Json -Depth 20))
     $settingsHash = (Get-FileHash -LiteralPath $settings -Algorithm SHA256).Hash
 
-    $process = Start-PackageProcess $executable $working
+    $process = Start-PackageProcess $launch.Executable $working $launch.Arguments
     try {
         $stderr = $process.StandardError.ReadToEndAsync()
         Send-McpMessage $process @{ jsonrpc = '2.0'; id = 1; method = 'initialize'; params = @{
@@ -189,11 +238,12 @@ try {
     if ((Get-FileHash -LiteralPath $settings -Algorithm SHA256).Hash -ne $settingsHash) {
         throw 'Packaged startup changed existing settings bytes.'
     }
-    if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) {
-        throw 'ZIP bytes changed during the smoke check.'
+    if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) {
+        throw 'Archive bytes changed during the smoke check.'
     }
     Write-Host "Package smoke passed: initialization, 17 tools, protocol-only stdout, separate stderr, spaces/different CWD, unchanged settings. SHA-256 $hash"
-    [pscustomobject]@{ ZipPath = $zip; Sha256 = $hash }
+    if ($isBundle) { [pscustomobject]@{ McpbPath = $archive; Sha256 = $hash } }
+    else { [pscustomobject]@{ ZipPath = $archive; Sha256 = $hash } }
 }
 finally {
     if ($ownsUserRoot) {
