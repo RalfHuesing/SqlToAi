@@ -256,6 +256,66 @@ No implementation or practical verification has been performed by creating this 
   cases. Runner exit zero alone is insufficient. Temporary source is removed;
   any code fixes pass build/tests. All required observations are actually available.
 
+  **Pre-run schema expectations (2026-10-16; recorded before execution):**
+
+  - `object_names` absent or null should preserve scalar Markdown; any supplied
+    array, including one element, `[]`, or null with a scalar, should select batch
+    mode. Combined values appear scalar-first, then array order, with duplicates
+    retained as separate ordered results. Empty/null/whitespace entries disappear;
+    a wholly empty selection, wrong scalar/list/item types and 11 normalized
+    entries should return identifiable `SQL-AI-0001` errors.
+  - `dbo.FakeProjects` should yield equivalent primary Markdown in scalar and
+    one-entry batch mode. `dbo.FakeAddresses` and
+    `dbo.FakeAddressCommunications` form a realistic related-table pair and should
+    each be identifiable in the ordered envelope. Duplicate aliases should keep
+    separate entries. A mixed existing/missing/existing request should keep both
+    successful schemas, label the missing object with a catalog error, and set
+    `complete=false`/`isError=true`.
+  - The 11-entry request should fail before schema retrieval. Every recorded call
+    should have request arguments plus either all response blocks, joined text and
+    `isError`, or a recorded dispatcher exception; actual outputs must be judged
+    for usable object association and actionable omission/error information.
+  - Registry input schema/description should advertise the observed accepted shapes,
+    while item 3 SDK invocation tests provide binding evidence for the same JSON
+    forms, since exploration dispatch bypasses SDK binding.
+
+
+  **Partial execution evidence (2026-10-16; item remains open):**
+
+  - Ran `ExploreSchemaParameters` through the actual exploration runner with the
+    authorized task-specific process overrides and production registrations. Runner
+    exit was 0; artifact directory:
+    `temp/exploration/ExploreSchemaParameters/20261016-203146-6723304/`.
+    The retained source is temporarily at
+    `tools/SqlToAi.Exploration/Scenarios/ExploreSchemaParameters.cs` and must be
+    removed when the review ends.
+  - Inspected `run.json`, all 14 `request.json`, all 14 complete `response.json`
+    files, every response content block, `isError`, and joined `response.txt`.
+    There were no `error.txt` exceptions. The legacy scalar, scalar+empty-array,
+    scalar+null-array, one/multi-array, duplicate aliases and mixed
+    existing/missing calls (cases 01–06 and 09–10) all failed before schema return
+    with one text block, `isError=true`, `SQL-AI-0105`. Independent SQL diagnosis
+    confirmed `DB_ID(N'DemoDB')=43` but `HAS_DBACCESS(N'DemoDB')=0`; no permission or
+    user configuration was changed. Thus no scalar/batch Markdown comparison,
+    relationship content or ordered success/error envelope can be judged.
+  - Empty selection cases 07–08 returned `SQL-AI-0001` before database work. The
+    invalid scalar type (11) preserved legacy validation with a required/missing
+    message; wrong list type (12), numeric list item (13) and 11 duplicate entries
+    (14) returned explicit `SQL-AI-0001` messages, with the count diagnostic
+    correctly saying the limit applies before deduplication. The dispatcher
+    continued after every tool error. These results support the advertised shape
+    rules and actionable local validation; they do not establish database-backed
+    usability or output association.
+  - Registry schema and description at `ToolRegistry.BuildGetSchema` advertise
+    nullable scalar/list/item shapes, batch mode selection, ordering, normalization,
+    limits and status flags. Item 3's `SchemaToolSurfaceTests` invoked the registered
+    SDK tools for the documented JSON shapes; its recorded run passed all 37 cases.
+    Exploration itself bypasses SDK binding as documented.
+  - Actual delegated review setting: `gpt-6-luna`, reasoning effort `high`.
+  - **Current usability verdict: incomplete.** Validation errors are identifiable
+    and the count-before-dedup rule is legible. The main agent workflow verdict
+    remains unverified because this login cannot open DemoDB. Evidence location:
+    `C:\Daten\Entwicklung\Ralf\SqlToAi\temp\exploration\ExploreSchemaParameters\20261016-203146-6723304\`.
 - [ ] **5. Extend existing export composition for selected objects and outcomes.**
 
   **Intention:** Reuse the accepted CLI dump while enabling precise selection and
