@@ -7,8 +7,9 @@
     Commits the patch version before the shared audit/build/offline checks and
     ordinary SQL and dedicated TLS tests. Missing TLS cases remain unverified.
     Pushes only the unchanged, clean source. The tag workflow creates a draft;
-    the maintainer records the local results and reviews it before publication.
-    Git uses local authentication. Authenticated gh optionally monitors the draft.
+    verifies the downloaded assets and records sanitized local results in its notes.
+    The maintainer reviews TLS/dependency limitations and publishes manually.
+    Git authentication and authenticated gh are required before any mutation.
 
 .PARAMETER DryRun
     Show the plan without validation, file changes, commit, push or tag.
@@ -160,39 +161,30 @@ function Test-GhAuthenticated {
 function Wait-ReleaseWorkflow {
     param(
         [string]$TagName,
+        [string]$Commit,
         [int]$TimeoutMinutes = 20
     )
-
-    if (-not (Test-GhAuthenticated)) {
-        Write-Host '[INFO] gh nicht angemeldet – Workflow-Status manuell pruefen:' -ForegroundColor Yellow
-        Write-Host '       https://github.com/RalfHuesing/SqlToAi/actions/workflows/release.yml'
-        return
-    }
 
     Write-Host "[INFO] Warte auf Release-Workflow fuer $TagName..." -ForegroundColor Cyan
     $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
 
     while ((Get-Date) -lt $deadline) {
-        $runJson = gh run list --workflow release.yml --limit 5 --json databaseId,headBranch,status,conclusion,url
+        $runJson = gh run list --workflow release.yml --branch $TagName --commit $Commit --event push --limit 5 --json databaseId,headBranch,headSha,status,conclusion,url
         if ($LASTEXITCODE -ne 0) {
             throw "gh run list fehlgeschlagen (Exitcode $LASTEXITCODE)."
         }
-        $run = $runJson | ConvertFrom-Json | Where-Object { $_.headBranch -eq $TagName } | Select-Object -First 1
+        $runs = @($runJson | ConvertFrom-Json)
+        foreach ($candidate in $runs) {
+            if ($candidate.headBranch -cne $TagName -or $candidate.headSha -cne $Commit) {
+                throw 'Release workflow query returned an unexpected tag/source.'
+            }
+        }
+        $run = $runs | Select-Object -First 1
 
         if ($run) {
             if ($run.status -eq 'completed') {
                 if ($run.conclusion -eq 'success') {
-                    $releaseJson = gh release view $TagName --json url,isDraft,tagName 2>$null
-                    if ($LASTEXITCODE -ne 0) {
-                        throw "gh release view fehlgeschlagen (Exitcode $LASTEXITCODE)."
-                    }
-                    $release = $releaseJson | ConvertFrom-Json
-                    if ($release.isDraft -ne $true -or $release.tagName -cne $TagName -or -not $release.url) {
-                        throw 'Expected draft release is not ready for review.'
-                    }
-                    Write-Host "[OK] Draft ready for maintainer review: $($release.url)" -ForegroundColor Green
-                    Write-Host "     Workflow: $($run.url)"
-                    return
+                    return $run
                 }
 
                 throw "Release-Workflow fehlgeschlagen: $($run.url)"
@@ -207,11 +199,116 @@ function Wait-ReleaseWorkflow {
     throw "Timeout beim Warten auf den Release-Workflow fuer $TagName."
 }
 
+function Get-CheckedDraft {
+    param([string]$TagName, [string]$Commit, [string]$Version, [string]$RunUrl)
+
+    $json = gh release view $TagName --json url,isDraft,tagName,targetCommitish,body,assets
+    if ($LASTEXITCODE -ne 0) { throw "gh release view failed (exit $LASTEXITCODE)." }
+    $draft = $json | ConvertFrom-Json
+    if ($draft.isDraft -ne $true -or $draft.tagName -cne $TagName -or
+        $draft.targetCommitish -cne $Commit -or -not $draft.url) {
+        throw 'Expected draft tag/source/target does not match; refusing notes changes.'
+    }
+    foreach ($line in @("Source commit: $Commit", "Version: $Version (tag $TagName)")) {
+        if ($draft.body -cnotmatch "(?m)^$([regex]::Escape($line))\r?$") {
+            throw 'Draft notes do not identify the expected source/version.'
+        }
+    }
+    if ($draft.body -cnotmatch "(?m)^Automated run: $([regex]::Escape($RunUrl)) \(attempt \d+\)\r?$") {
+        throw 'Draft does not belong to the successful release workflow.'
+    }
+    if ([regex]::Matches($draft.body, '(?m)^ZIP SHA-256: ([0-9a-f]{64})\r?$').Count -ne 1) {
+        throw 'Draft is missing its unique workflow-generated ZIP hash.'
+    }
+    foreach ($name in @('SqlToAi-win-x64.zip', 'SqlToAi-win-x64.zip.sha256')) {
+        if (@($draft.assets | Where-Object name -CEQ $name).Count -ne 1) {
+            throw "Draft is missing its unique expected asset: $name"
+        }
+    }
+    return $draft
+}
+
+function Complete-DraftHandoff {
+    param([string]$TagName, [string]$Commit, [string]$Version, [string]$RunUrl,
+        [xml]$Offline, [xml]$Sql, [xml]$Tls)
+
+    $draft = Get-CheckedDraft -TagName $TagName -Commit $Commit -Version $Version -RunUrl $RunUrl
+    $directory = Join-Path ([System.IO.Path]::GetTempPath()) ('SqlToAi-draft-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $directory | Out-Null
+    try {
+        gh release download $TagName --pattern SqlToAi-win-x64.zip --pattern SqlToAi-win-x64.zip.sha256 --dir $directory | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "gh release download failed (exit $LASTEXITCODE)." }
+        $hash = (Get-FileHash -LiteralPath (Join-Path $directory 'SqlToAi-win-x64.zip') -Algorithm SHA256).Hash.ToLowerInvariant()
+        $expected = [regex]::Match($draft.body, '(?m)^ZIP SHA-256: ([0-9a-f]{64})\r?$').Groups[1].Value
+        if ($hash -cne $expected -or [System.IO.File]::ReadAllText((Join-Path $directory 'SqlToAi-win-x64.zip.sha256')) -cne "$hash  SqlToAi-win-x64.zip`n") {
+            throw 'Downloaded ZIP/checksum differs from the workflow-checked hash.'
+        }
+        # Re-read before editing so a concurrent publication or notes change is refused.
+        $current = Get-CheckedDraft -TagName $TagName -Commit $Commit -Version $Version -RunUrl $RunUrl
+        if ($current.body -cne $draft.body -or (Get-AssetIdentity $current.assets) -cne (Get-AssetIdentity $draft.assets)) {
+            throw 'Draft notes/assets changed during verification; inspect before continuing.'
+        }
+        $lines = [System.Collections.Generic.List[string]]::new()
+        $lines.Add('## Local validation recorded by release.ps1')
+        $lines.Add('')
+        $lines.Add("Tested source: $Commit; version: $Version; tag: $TagName")
+        $lines.Add('Maintainer-supplied local execution facts; local test binaries do not prove CI ZIP byte identity.')
+        foreach ($selection in @(
+            @{ Name = 'Offline'; Trx = $Offline; Command = 'scripts/validate.ps1 -ResultsDirectory <temporary-directory> (dependency audit, build, offline tests)' },
+            @{ Name = 'Ordinary SQL'; Trx = $Sql; Command = "dotnet test SqlToAi.slnx --no-build --no-restore --filter 'Category=Integration' --results-directory <temporary-directory> --logger 'trx;LogFileName=Integration.trx' -- RunConfiguration.TreatNoTestsAsError=true" },
+            @{ Name = 'Dedicated TLS'; Trx = $Tls; Command = "dotnet test SqlToAi.slnx --no-build --no-restore --filter 'Category=TlsIntegration' --results-directory <temporary-directory> --logger 'trx;LogFileName=TlsIntegration.trx' -- RunConfiguration.TreatNoTestsAsError=true" }
+        )) {
+            $counts = $selection.Trx.TestRun.ResultSummary.Counters
+            $skipped = @($selection.Trx.TestRun.Results.UnitTestResult | Where-Object outcome -eq 'NotExecuted').Count
+            $lines.Add('')
+            $lines.Add("Command: ``$($selection.Command)``")
+            $lines.Add("$($selection.Name): total=$($counts.total), executed=$($counts.executed), passed=$($counts.passed), failed=$($counts.failed), skipped/unverified=$skipped")
+        }
+        foreach ($test in @($Tls.TestRun.Results.UnitTestResult | Where-Object outcome -eq 'NotExecuted')) {
+            # These TLS cases use endpoint labels/booleans, never profile contents. Keep
+            # their case names distinct while excluding controls and Markdown delimiters.
+            $name = [regex]::Replace($test.testName, '[^A-Za-z0-9_.+():, "-]', '_')
+            $lines.Add("- Unverified TLS: ``$name``")
+        }
+        $lines.Add('')
+        $lines.Add('TLS limitations and dependency exceptions still require explicit maintainer review before manual publication. These facts do not approve limitations or exceptions.')
+        $body = [regex]::Replace($draft.body, '(?m)^- Local ordinary SQL: PENDING\.[^\r\n]*', '- Local ordinary SQL: recorded below for this exact source; inspect the local validation facts before publication.')
+        $body = [regex]::Replace($body, '(?m)^- Dedicated TLS: PENDING review\.[^\r\n]*', '- Dedicated TLS: execution facts and unverified cases recorded below; limitation review remains PENDING. Trusted/untrusted TCP endpoint evidence remains required or explicitly disclosed under the accepted limitation. Failed configured TLS blocks publication.')
+        $body = $body.TrimEnd() + "`n`n" + ($lines -join "`n") + "`n"
+        $notes = Join-Path $directory 'release-notes.md'
+        [System.IO.File]::WriteAllText($notes, $body)
+        gh release edit $TagName --notes-file $notes | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "gh release edit failed (exit $LASTEXITCODE)." }
+        $updated = Get-CheckedDraft -TagName $TagName -Commit $Commit -Version $Version -RunUrl $RunUrl
+        if ($updated.body -cne $body -or (Get-AssetIdentity $updated.assets) -cne (Get-AssetIdentity $draft.assets)) {
+            throw 'Draft notes/assets differ after the handoff; inspect the release manually.'
+        }
+        return $updated.url
+    }
+    finally {
+        $resolved = (Resolve-Path -LiteralPath $directory).Path
+        if ([System.IO.Path]::GetDirectoryName($resolved) -ine [System.IO.Path]::GetTempPath().TrimEnd('\', '/')) {
+            throw 'Refusing cleanup outside the owned temporary draft directory.'
+        }
+        Remove-Item -LiteralPath $resolved -Recurse -Force
+    }
+}
+
+function Get-AssetIdentity {
+    param([object[]]$Assets)
+
+    # Downloads increment downloadCount; compare only stable asset identity/content fields.
+    return ConvertTo-Json -InputObject @($Assets | Sort-Object name | Select-Object id,name,size,state,digest) -Compress
+}
+
 $repoRoot = Get-RepoRoot
 Push-Location $repoRoot
 try {
     Assert-MainBranch
     Assert-CleanWorkingTree
+    if (-not $DryRun -and -not (Test-GhAuthenticated)) {
+        throw 'Authenticated GitHub CLI (gh auth login) is required before preparing a release. No version/Git changes were made.'
+    }
 
     $projectPath = Join-Path $repoRoot $ProjectFile
     if (-not (Test-Path $projectPath)) {
@@ -247,7 +344,7 @@ try {
     Invoke-GitStep "git commit" { git --no-pager commit -m $commitMessage }
     if ($DryRun) {
         Write-Host '[PLAN] Validate the release commit: scripts/validate.ps1 (audit/build/offline), then Category=Integration (no skips), then Category=TlsIntegration (missing cases unverified).'
-        Write-Host '[PLAN] Print local results; require unchanged HEAD, clean working tree and main before push/tag.'
+        Write-Host '[PLAN] Require authenticated gh before mutations; require unchanged HEAD, clean working tree and main before push/tag. Wait for the exact tag/source workflow, verify downloaded draft ZIP/checksum and record sanitized local results. Publication remains manual.'
     }
     else {
         $releaseCommit = Get-HeadCommit
@@ -306,8 +403,13 @@ try {
         return
     }
 
-    Wait-ReleaseWorkflow -TagName $tagName
-    Write-Host "[OK] Draft workflow triggered for $tagName. Complete the documented local-result, TLS and dependency review before publishing the existing checked ZIP." -ForegroundColor Green
+    $run = Wait-ReleaseWorkflow -TagName $tagName -Commit $releaseCommit
+    $url = Complete-DraftHandoff -TagName $tagName -Commit $releaseCommit -Version $newVersion.ToString() -RunUrl $run.url -Offline $offline -Sql $sql -Tls $tls
+    Write-Host "[OK] Verified draft with local results ready for maintainer review: $url. Review TLS limitations and dependency exceptions, then publish the existing checked assets manually." -ForegroundColor Green
+}
+catch {
+    Write-Warning 'Release stopped. Earlier operations are not rolled back; inspect the version commit, pushed state, tag and draft before recovery. Do not blindly rerun: that increments the version again.'
+    throw
 }
 finally {
     Pop-Location
