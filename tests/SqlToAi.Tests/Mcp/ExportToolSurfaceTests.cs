@@ -177,6 +177,77 @@ public sealed class ExportToolSurfaceTests
         Assert.False(Directory.Exists(temp.GetPath("dump")));
     }
 
+    public static TheoryData<string, string> EarlyFailureDestinations
+    {
+        get
+        {
+            var cases = new TheoryData<string, string>();
+            foreach (string failure in new[] { "missing_scope", "invalid_scope", "missing_database" })
+                foreach (string destination in new[] { "absent", "empty", "file", "files", "children" })
+                    cases.Add(failure, destination);
+            return cases;
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(EarlyFailureDestinations))]
+    public async Task EarlyFailures_InspectRetainedOutputAcrossEntryPoints(string failure, string destination)
+    {
+        using var temp = TestTempDirectory.Create();
+        foreach (string route in new[] { "sdk", "dispatcher", "cli" })
+        {
+            string output = temp.GetPath(route);
+            if (destination == "file") await File.WriteAllTextAsync(output, "preserve", Token);
+            else if (destination != "absent")
+            {
+                Directory.CreateDirectory(output);
+                if (destination == "files") await File.WriteAllTextAsync(Path.Combine(output, "README.md"), "preserve", Token);
+                if (destination == "children") Directory.CreateDirectory(Path.Combine(output, "tables"));
+            }
+            string[] before = Directory.Exists(output) ? Directory.GetFileSystemEntries(output) : [];
+            var (dispatcher, proxy) = Create();
+            var args = new Dictionary<string, string> { ["output_path"] = output };
+            if (failure != "missing_database") args["database"] = "DemoDB";
+            if (failure != "missing_scope") args["scope"] = failure == "invalid_scope" ? "invalid" : "all";
+            ToolCallResult result;
+            if (route == "cli")
+            {
+                ToolCallResult? response = null;
+                var root = new RootCommand();
+                root.Add(ToolCommandFactory.BuildQueryCommand(new ToolRegistry().GetAll(), async (name, arguments, ct) =>
+                {
+                    response = await dispatcher.DispatchAsync(new ToolCallParams { Name = name, Arguments = arguments }, ct);
+                    return response.IsError ? 1 : 0;
+                }));
+                var tokens = new List<string> { "query", "sql_export_schema" };
+                foreach (var argument in args) tokens.AddRange(["--" + argument.Key, argument.Value]);
+                if (failure != "invalid_scope")
+                {
+                    // Omitted required CLI options fail parsing before dispatch.
+                    Assert.NotEmpty(root.Parse(tokens.ToArray()).Errors);
+                    // An explicitly empty required value exercises the shared missing-value boundary.
+                    tokens.AddRange([failure == "missing_scope" ? "--scope" : "--database", ""]);
+                }
+                var parsed = root.Parse(tokens.ToArray());
+                Assert.Empty(parsed.Errors);
+                Assert.Equal(1, await parsed.InvokeAsync(cancellationToken: Token));
+                result = Assert.IsType<ToolCallResult>(response);
+            }
+            else result = await Invoke(dispatcher, JsonSerializer.Serialize(args), output, route, Token, addRequired: false);
+            Assert.True(result.IsError);
+            using var json = JsonDocument.Parse(Assert.Single(result.Content).Text!);
+            Assert.Equal("failed", json.RootElement.GetProperty("status").GetString());
+            Assert.Equal(output, json.RootElement.GetProperty("output_path").GetString());
+            Assert.Equal(destination is "files" or "children", json.RootElement.GetProperty("partial_output").GetBoolean());
+            Assert.Equal("SQL-AI-0001", json.RootElement.GetProperty("error").GetProperty("code").GetString());
+            Assert.Empty(proxy.Calls);
+            Assert.Equal(before, Directory.Exists(output) ? Directory.GetFileSystemEntries(output) : []);
+            Assert.Equal(destination is not ("absent" or "file"), Directory.Exists(output));
+            if (destination is "file" or "files")
+                Assert.Equal("preserve", await File.ReadAllTextAsync(destination == "file" ? output : Path.Combine(output, "README.md"), Token));
+        }
+    }
+
     [Theory]
     [InlineData(@"C:\dump", true)]
     [InlineData("C:/dump", true)]
@@ -212,6 +283,7 @@ public sealed class ExportToolSurfaceTests
             using var json = JsonDocument.Parse(Assert.Single(result.Content).Text!);
             Assert.Equal("failed", json.RootElement.GetProperty("status").GetString());
             Assert.False(json.RootElement.TryGetProperty("output_path", out _));
+            Assert.False(json.RootElement.GetProperty("partial_output").GetBoolean());
             Assert.Empty(proxy.Calls);
         }
     }

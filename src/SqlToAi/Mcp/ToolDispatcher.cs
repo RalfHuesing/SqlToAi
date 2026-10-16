@@ -326,7 +326,8 @@ internal sealed class ToolDispatcher : IToolDispatcher
         }
         catch (ArgumentException exception)
         {
-            outcome = new(SchemaExportStatus.Failed, resolvedOutput, false, SqlToAiError.InvalidParameters(exception.Message));
+            outcome = new(SchemaExportStatus.Failed, resolvedOutput,
+                SchemaExportService.HasPartialOutput(resolvedOutput), SqlToAiError.InvalidParameters(exception.Message));
         }
         return SchemaExportToolResponse.Render(outcome);
     }

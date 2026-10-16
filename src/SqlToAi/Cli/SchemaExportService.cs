@@ -89,7 +89,7 @@ internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaE
         }
     }
 
-    private static bool HasPartialOutput(string? root, bool createdOutput)
+    internal static bool HasPartialOutput(string? root, bool createdOutput = false)
     {
         try
         {

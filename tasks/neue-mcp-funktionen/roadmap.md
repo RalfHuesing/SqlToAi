@@ -638,15 +638,15 @@ No implementation or practical verification has been performed by creating this 
   committed, unrelated changes are preserved and no temporary scenario source
   remains. Record the audit result here before closing this item.
 
-  **Independent audit evidence (2026-10-16; correction required):**
+  **Independent audit evidence (2026-10-16; correction resolved by item 9):**
 
   - Audited the ready concept's complete Verification section against the final
     source/test/documentation changes from `11957de` through `9600838`, items 1–7
     and their retained practical evidence. Actual delegated audit setting:
     `gpt-6.1-sol`, reasoning effort `high`. Production code, tests and canonical
-    documentation remained read-only. The audit found one unresolved contract
-    defect below; item 8 remains open until the single permitted correction and
-    focused verification have completed.
+    documentation remained read-only. The audit found one contract defect below;
+    the single permitted correction and focused verification under item 9 have
+    now resolved it. All other independent audit acceptance remains satisfied.
   - Confirmed scalar-versus-array routing, scalar-first tolerant normalization,
     incorrect-type rejection, ordered duplicate associations, SQL-quoted and
     database-catalog-aware resolution, ambiguity/unsupported-object errors and
@@ -693,8 +693,9 @@ No implementation or practical verification has been performed by creating this 
     original 17-tool coverage. Checked all 94 repository-local links and heading
     fragments in the six changed canonical pages and both task artifacts; none
     is missing. The README's introduction/setup/examples need no change.
-  - **Open finding (P2): early export parameter failures report incorrect retained
-    output.** `src/SqlToAi/Mcp/ToolDispatcher.cs:327–329` constructs every caught
+  - **Finding (P2), correction implemented in item 9; final closure pending: early export parameter failures report
+    incorrect retained output.** At audit time,
+    `src/SqlToAi/Mcp/ToolDispatcher.cs:327–329` constructed every caught
     argument failure with `partial_output=false`, even after `output_path` was
     resolved to a non-empty directory. Reproduced through the actual query CLI:
     `dotnet src/SqlToAi/bin/Debug/net10.0/SqlToAi.dll query sql_export_schema
@@ -707,7 +708,11 @@ No implementation or practical verification has been performed by creating this 
     coordinator already reports a non-empty destination as true. Reuse consistent
     retained-output inspection for these boundary failures and cover absent,
     empty and non-empty destinations through SDK/dispatcher entry points. No
-    writes or database work occurred in this reproduction.
+    writes or database work occurred in this reproduction. Item 9 now reuses the
+    core inspector, and the exact CLI reproduction returns `partial_output=true`
+    with unchanged retained file hashes. Its 15-case entry-point matrix and final
+    build/test evidence below address this finding; final orchestration closure
+    was deferred by the user's explicit stop request.
   - Final `dotnet build SqlToAi.slnx` passed with zero warnings/errors;
     `dotnet test SqlToAi.slnx --logger 'console;verbosity=quiet'` passed 1102 tests,
     with 19 existing TLS endpoint skips, zero failures, 1121 total. Those
@@ -746,3 +751,60 @@ No implementation or practical verification has been performed by creating this 
   and checks affected entry points and empty/absent cases. Close items 8 and 9
   only after this finding and the already documented audit acceptance are
   demonstrably satisfied; no repeated general audit/correction loop is required.
+
+  **Implementation and recorded focused verification evidence (2026-10-16):**
+
+  - Made the existing `SchemaExportService.HasPartialOutput` inspector internal
+    and reused it from the dispatcher's caught argument failures after destination
+    validation/resolution. No inspection logic was duplicated. Existing files or
+    child directories in a resolved root now produce true consistently with core
+    outcomes; absent/empty roots, file destinations and invalid paths remain false.
+    The correction performs no writes, cleanup, permission or configuration changes.
+  - Added 15 matrix cases in `ExportToolSurfaceTests`, each invoking registered
+    SDK `InvokeAsync`, the dispatcher and registry-generated query CLI: missing
+    scope, invalid scope and missing database against roots containing files,
+    child directories, an empty root, an absent root and an existing file.
+    All 45 executions assert failed status, catalog error, resolved path, error
+    state, accurate partial output, no service calls and unchanged entries/content.
+    Missing required CLI options are rejected before dispatch; explicit empty
+    values additionally exercise the common missing-value boundary with exit 1.
+    Existing invalid-path SDK/dispatcher tests now explicitly assert false too.
+  - Focused post-correction verification replayed the exact item 8 CLI command
+    against retained `outputs/selected-scalar` under
+    `temp/exploration/ExploreSchemaExportReview/20261016-210055-2407085/`.
+    The actual executable exited 1 and returned compact JSON on stderr with
+    `status=failed`, the matching resolved destination, `partial_output=true` and
+    `error.code=SQL-AI-0001`. Before/after SHA-256 hashes and paths of every retained
+    file matched. No database access was needed. The 76 export-surface tests passed,
+    including the new empty/absent/non-empty cases and existing failure/cancellation
+    and invalid-path coverage. This was focused re-verification, not a repeated audit.
+  - Final `dotnet build SqlToAi.slnx` passed with zero warnings/errors.
+    `dotnet test SqlToAi.slnx --logger 'console;verbosity=quiet'` passed: 1117
+    successful, 19 existing TLS endpoint skips, zero failures, 1136 total.
+    Certificate scenarios still require `SQLTOAI_TLS_TEST_PROFILE`; no new TLS
+    verification is claimed. `git diff --check` passed. No temporary scenario or
+    credential wrapper was recreated. The independent audit's sole finding is
+    resolved and its remaining criteria were already documented as satisfied;
+    final parent review and closure of items 8 and 9 remain pending after the
+    user's explicit stop request. No repeated general audit is needed.
+  - Actual delegated implementation/correction setting: `gpt-6.1-sol`, reasoning
+    effort `medium`. Atomic commit reference: direct child of `a222824` with subject
+    `fix: Melde verbliebene Exportausgabe bei Parameterfehlern` (this correction).
+
+  **Resume after user-requested stop (2026-10-16):**
+
+  - The user requested a stop because of usage limits. The active correction
+    agent was interrupted; no further implementation or test run was started.
+    All current task changes are saved in the correction commit identified above.
+  - Items 1–7 are complete. Item 8's independent audit found only the retained-output
+    defect. Its correction and 15 regression cases are implemented; the correction
+    agent recorded successful focused verification and final build/tests (1117
+    passed, 19 existing TLS skips) before interruption. These results have not yet
+    received the final parent evidence review.
+  - Resume by inspecting this correction commit and its recorded focused
+    verification evidence, then close items 8 and 9 if supported. Do not restart
+    the implementation, repeat the general audit or add another correction loop.
+    No additional functional work is currently identified. If evidence is missing,
+    verify only that specific gap. The credential wrapper and temporary scenario
+    sources are removed; retained review inputs/outputs remain under
+    `temp/exploration/`. No credentials were added to tracked files; no push occurred.
