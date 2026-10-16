@@ -188,10 +188,29 @@ Settings and ZIP SHA-256 values must remain unchanged. Each response, process-ex
 
 ## Release
 
-[scripts/release.ps1](../scripts/release.ps1) requires PowerShell 7 and a clean checkout on `main`. It increments the patch version, builds/tests, commits the version change, pushes `main` and a `vX.Y.Z` tag. The [release workflow](../.github/workflows/release.yml) builds the GitHub release. Preview the planned steps without making changes:
+### Tagged ZIP draft and manual publication
+
+The [tag workflow](../.github/workflows/release.yml) creates a **draft**, never an automatically public release. Both jobs check out the triggering source commit. [release-source.ps1](../scripts/release-source.ps1) requires the existing `vX.Y.Z` tag, checked-out commit, workflow source commit and the project's explicit `Version` to agree. The Windows build job has read-only repository permissions and runs the shared dependency audit/build/offline checks before creating one ZIP and running the actual packaged EXE with the fresh runner's disposable profile. No SQL credentials or SQL tests run on GitHub. This remains an SDK-equipped runner check.
+
+The workflow transfers the checked ZIP, its `.sha256` file and release notes through one run's artifact. Only the dependent draft job has `contents: write`. [create-release-draft.ps1](../scripts/create-release-draft.ps1) rechecks source agreement and verifies the downloaded ZIP and checksum against the SHA-256 produced after smoke verification, then uses `gh release create --draft --verify-tag`. It attaches those unchanged ZIP/checksum files and puts source commit, version, hash, automated results and the run URL in the draft notes. Package creation is not repeated in the draft job.
+
+Before publishing in GitHub's normal release editor:
+
+1. Inspect the automated run and the draft's source/version/hash. Record successful ordinary SQL execution against that **exact source** in its pending local SQL section: `dotnet test SqlToAi.slnx --filter 'Category=Integration'`, commit, executed/failed/skipped counts and a short sanitized result. A tag or green workflow does not prove local SQL execution; missing/failed ordinary SQL blocks publication.
+2. Add dedicated TLS command/results and unverified cases. The accepted lack of trusted/untrusted TCP endpoints remains a disclosed limitation to review for this release. Failed configured TLS cases block publication. Local success with a trusted self-signed certificate exception does not establish trusted TCP certificate validation.
+3. Review this source's `NuGetAuditSuppress` items and record each specific approved advisory/package/version/risk exception, or explicitly record none after review. A successful audit can include suppressions; unresolved findings cannot be treated as reviewed exceptions.
+4. Publish the **existing draft and checked assets** through GitHub. Do not rebuild or replace the ZIP after review. Changed source or package bytes require the applicable checks and fresh review.
+
+Every existing release for the tag is refused, including drafts; public assets and prior review notes are never silently overwritten. A failed upload can leave a partial draft. Inspect it before deliberately deleting that draft and rerunning; the new notes start all manual review fields as pending again. A public release is not a retry target. Same-tag workflow executions are serialized, and a concurrent release creation fails rather than updating assets. No automatic promotion service or external-publication task is needed to publish the completed draft.
+
+The workflow wiring and controlled local verification are recorded in the [release-validation roadmap](../tasks/release-validation/roadmap.md#t5--keep-releases-usable-through-github-drafts). They do not establish a successful hosted run; fresh-runner EXE execution and real draft creation remain separate execution gates until authorized and performed.
+
+### Local release helper
+
+[scripts/release.ps1](../scripts/release.ps1) currently requires PowerShell 7 and a clean checkout on `main`. It increments the patch version, builds/tests, commits the version change, pushes `main` and a `vX.Y.Z` tag. The tag workflow above creates a draft for manual review. Preview the planned steps without making changes:
 
 ```powershell
 .\scripts\release.ps1 -DryRun
 ```
 
-Running without `-DryRun` publishes Git state; use it only when releasing is intended. `-SkipTests` bypasses tests. Native build/test and Git failures stop dependent steps. Git inspection errors also fail the dry-run; its status query disables optional Git locks so it does not refresh the index. Local Git authentication must be configured; `gh` is optional for status monitoring. When authenticated, failed workflow or release queries stop monitoring with an error rather than reporting release success. Earlier completed Git operations are not rolled back.
+Running without `-DryRun` publishes Git state; use it only when releasing is intended. `-SkipTests` currently bypasses tests and does not establish release validation. The helper does not yet produce the exact-source SQL/TLS summary required for publication; follow the manual review steps above. Its final release URL/status is not proof of a public release. Native build/test and Git failures stop dependent steps. Git inspection errors also fail the dry-run; its status query disables optional Git locks so it does not refresh the index. Local Git authentication must be configured; `gh` is optional for status monitoring. When authenticated, failed workflow or release queries stop monitoring with an error rather than reporting release success. Earlier completed Git operations are not rolled back.

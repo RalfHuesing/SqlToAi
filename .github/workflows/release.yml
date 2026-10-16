@@ -1,4 +1,4 @@
-name: Build and Release
+name: Build release draft
 
 on:
   push:
@@ -6,65 +6,114 @@ on:
       - 'v*'
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  # 1. JOB: Baue das Windows-Binary und erstelle das Release-Archiv
   build:
     runs-on: windows-latest
-
+    outputs:
+      sha256: ${{ steps.package.outputs.sha256 }}
     steps:
-      - name: Checkout Code
+      - name: Check out tagged source
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Setup .NET
+      - name: Check tag, version and source agreement
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: ./scripts/release-source.ps1 -Tag $env:RELEASE_TAG -SourceCommit $env:RELEASE_COMMIT
+
+      - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
-      - name: Publish
-        run: >
-          dotnet publish src/SqlToAi/SqlToAi.csproj
-          -c Release
-          -r win-x64
-          --self-contained true
-          -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:DebugType=none
-          -o ./publish
-
-      - name: Prepare Release Archive
+      - name: Audit, build and run offline tests
         shell: pwsh
-        run: |
-          # Templates, package README and license are supplied by the project publish rules.
-          # Archiv aus dem Publish-Verzeichnis erstellen (kein "publish/"-Prefix im Archiv)
-          Push-Location "./publish"
-          7z a "../SqlToAi-win-x64.zip" . -r | Out-Null
-          Pop-Location
+        run: ./scripts/validate.ps1
 
-      - name: Upload Archive as Artifact
+      - name: Package once and check the actual ZIP executable
+        id: package
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          $source = & ./scripts/release-source.ps1 -Tag $env:RELEASE_TAG -SourceCommit $env:RELEASE_COMMIT
+          $directory = Join-Path $env:RUNNER_TEMP 'release-package'
+          $package = & ./scripts/package.ps1 -OutputDirectory $directory
+          $checked = & ./scripts/smoke-package.ps1 -ZipPath $package.ZipPath -DisposableProfile
+          $hash = (Get-FileHash -LiteralPath $package.ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($checked.ZipPath -cne $package.ZipPath -or $checked.Sha256 -cne $package.Sha256 -or $hash -cne $package.Sha256) {
+              throw 'The ZIP changed between packaging and smoke verification.'
+          }
+          $notes = @"
+          Source commit: $($source.Commit)
+          Version: $($source.Version) (tag $($source.Tag))
+          ZIP SHA-256: $hash
+          Automated run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID (attempt $env:GITHUB_RUN_ATTEMPT)
+
+          Automated checks passed: dependency restore/audit (direct and transitive, all severities), build, offline tests, and the extracted Windows ZIP executable's missing-settings/MCP startup checks on a fresh GitHub Windows runner. The runner has the .NET SDK installed; this is not an SDK-free-machine test. See the run logs for counts and diagnostics.
+
+          ## Maintainer review required before publication
+
+          - Local ordinary SQL: PENDING. Record this exact source commit, command ``dotnet test SqlToAi.slnx --filter 'Category=Integration'``, successful executed/failed/skipped counts and a short sanitized result. A manually created tag or green automation does not establish SQL success.
+          - Dedicated TLS: PENDING review. Record the command/results and unverified cases. Trusted/untrusted TCP endpoints remain unavailable under the accepted environment limitation; disclose and review that limitation for this release. Missing/failed ordinary SQL or failed configured TLS blocks publication.
+          - Dependency exceptions: PENDING review. Inspect ``NuGetAuditSuppress`` items and associated advisory/package/version/risk reviews in this source. Record each maintainer-approved exception here, or explicitly record none after review. A green audit with suppressions is not absence of findings.
+
+          Publish this existing draft and these checked assets through GitHub only after completing review. Do not rebuild or replace the ZIP. Changed source or bytes require applicable checks and fresh review. Reruns refuse every existing draft/public release; investigate partial drafts before deleting one and rerunning with all review fields pending again.
+          "@
+          [System.IO.File]::WriteAllText((Join-Path $directory 'release-notes.md'), $notes)
+          "sha256=$hash" >> $env:GITHUB_OUTPUT
+          "Checked ZIP SHA-256: $hash. Draft creation follows only after artifact transfer and checksum verification; local SQL/TLS/exception review remains pending." >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Transfer the checked bytes and review notes
         uses: actions/upload-artifact@v4
         with:
-          name: archive-win-x64
-          path: ./SqlToAi-win-x64.zip
+          name: checked-release
+          path: |
+            ${{ runner.temp }}/release-package/SqlToAi-win-x64.zip
+            ${{ runner.temp }}/release-package/SqlToAi-win-x64.zip.sha256
+            ${{ runner.temp }}/release-package/release-notes.md
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
 
-  # 2. JOB: Erstelle das GitHub Release
-  release:
+  draft:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
-      - name: Download Archive
+      - name: Check out the same source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download checked bytes
         uses: actions/download-artifact@v4
         with:
-          name: archive-win-x64
-          path: ./release-files
+          name: checked-release
+          path: ${{ runner.temp }}/checked-release
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: ./release-files/*
+      - name: Create a new draft without replacing an existing release
+        shell: pwsh
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
+          RELEASE_SHA256: ${{ needs.build.outputs.sha256 }}
+        run: |
+          ./scripts/create-release-draft.ps1 -Tag $env:RELEASE_TAG -SourceCommit $env:RELEASE_COMMIT `
+            -Repository $env:GITHUB_REPOSITORY -PackageDirectory (Join-Path $env:RUNNER_TEMP 'checked-release') `
+            -ExpectedSha256 $env:RELEASE_SHA256
