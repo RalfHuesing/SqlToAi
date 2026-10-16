@@ -55,6 +55,7 @@ These observations describe inspected files; no build, test or package execution
 - Keep checks and package creation reusable by the publication workflow. Validate the ZIP produced by this task's current build; when the publication task adds MCPB, it must extend this check to the final bundle's version, content, executable, configuration mapping and SHA-256. Do not add a permanently skipped MCPB check and call it coverage.
 - Local SQL integration evidence must refer to the exact candidate source, using the same functional configuration and dependencies as the candidate artifact. If automated artifact creation cannot be reproduced locally byte-for-byte, state that limit instead of claiming binary equivalence.
 - Require successful local SQL validation before the release owner activates a public release. The later publication design must keep the public-release step separate from creating/validating a candidate, so an automatic tag build cannot accidentally substitute for the local decision.
+- The documented lack of trusted/untrusted TCP TLS endpoints is an accepted release-evidence limitation. After the ordinary local SQL suite passes, release activation may proceed only with explicit disclosure and maintainer review of those unverified cases for the exact candidate. This exception neither treats missing cases as passed nor permits failed configured TLS cases or missing ordinary SQL validation to pass the gate. Provisioning the unavailable endpoints is outside this task.
 - Store evidence in the existing PR/release workflow or release description, without committing secrets, customer data or a new task execution-log inventory. Never publish unsanitized integration output.
 
 ## Dependencies and boundaries
@@ -72,12 +73,13 @@ These observations describe inspected files; no build, test or package execution
 - The unpacked candidate executable initializes over stdio and exposes tools from an isolated user-data environment. It works without an installed runtime, with spaces in paths and from another working directory.
 - Without its required user settings file, that executable fails according to the first-run contract; with an isolated manually prepared file, it completes the protocol check without SQL access. Both scenarios preserve the maintainer's real user data.
 - A failed build, test, dependency gate or package check prevents public release activation. A tag creates/checks a candidate; CI success alone cannot activate a public release or establish completion of the local SQL requirement. The separate maintainer decision must account for that local result.
+- The release gate accepts the documented unavailable TCP TLS cases only with candidate-specific disclosure and review after successful ordinary local SQL validation. Failed configured TLS cases and unrelated missing SQL prerequisites still block activation; the evidence never describes the unavailable matrix as passed.
 - The exact source revision, checked artifact identity and local SQL result can be associated with a release decision. No artifact is rebuilt/replaced after validation without rerunning the applicable checks.
 - Existing helpers no longer report successful validation/publish after a relevant native process returns failure; preview/dry-run remains free of release side effects.
 - Development documentation accurately separates automated checks, local SQL checks, candidate creation and actual publication. No new client certification is claimed.
 
-## Open decision
+## Settled release-evidence decision
 
-- Decide whether the documented TCP TLS environment limitation may remain explicitly unverified at release activation after the ordinary local SQL suite passes, or whether those unavailable TLS cases must block release activation. Recommendation: preserve the accepted limitation and require its explicit disclosure and review for each candidate, without presenting it as passed transport evidence. Requiring a complete TCP matrix would make release activation depend on endpoints that the SQL-security task explicitly does not provision. This recommendation is not yet an approved exception to this task's release gate.
+- The user accepts release activation with successful ordinary local SQL tests and explicitly documented, candidate-specific review of the already accepted TCP TLS environment limitation. The missing transport evidence remains unverified; the secure production contract is unchanged.
 
-This concept remains draft pending resolution of the open decision and explicit concept approval. It creates no roadmap and executes no build, tests, configuration changes or publication.
+No design decisions remain open. This concept remains draft pending explicit overall concept approval. It creates no roadmap and executes no build, tests, configuration changes or publication.
