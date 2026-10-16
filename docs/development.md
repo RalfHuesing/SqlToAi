@@ -161,6 +161,31 @@ Existing `server`, `query` and MCP output remain unchanged.
 
 The script checks each native `dotnet` exit code and stops on failure. Failed tests leave the existing `publish/` directory intact; the test step restores the caller's working directory even on failure. A failed publish stops before package verification and completion messages, but may leave partial output after the previous package was removed. After redeployment, reload the MCP server entry in the client or restart the client: its old stdio session was terminated.
 
+### Create and check a Windows ZIP
+
+[package.ps1](../scripts/package.ps1) creates a new output directory, publishes the current project as a self-contained, single-file `win-x64` executable with native-library extraction, and archives the complete publish directory without a directory prefix. Project publish rules supply `appsettings.json`, `demo-profile.json`, the package `README.md` and `LICENSE`. Native publish failure stops packaging. An existing output directory is refused; partial output from a failed publish remains for inspection.
+
+```powershell
+$output = Join-Path $env:TEMP ('SqlToAi-package-' + [guid]::NewGuid().ToString('N'))
+$package = & .\scripts\package.ps1 -OutputDirectory $output
+$package | Format-List
+```
+
+The script returns one object with absolute `ZipPath`, lowercase `Sha256` and `ChecksumPath` properties. `SqlToAi-win-x64.zip.sha256` contains the SHA-256 and ZIP filename in standard checksum-file form. Keep the checked ZIP bytes when handing the package to the release workflow; do not rebuild between checking and upload.
+
+[smoke-package.ps1](../scripts/smoke-package.ps1) requires Windows and explicit `-DisposableProfile`. Run it only on a fresh GitHub Windows runner or an already disposable Windows profile. It resolves Windows Local Application Data exactly as the application does and refuses any existing `SqlToAi` user root before launching. The switch asserts that the current profile is disposable; it does not create isolation. Do not run it against the maintainer's normal profile or redirect the production configuration root through environment variables. Local startup tests continue to use the existing temporary-root startup harness.
+
+Only in that disposable environment, with the package object above:
+
+```powershell
+$checked = & .\scripts\smoke-package.ps1 -ZipPath $package.ZipPath -DisposableProfile
+if ($checked.Sha256 -cne $package.Sha256) { throw 'Package checksum mismatch.' }
+```
+
+The check extracts the ZIP into an owned temporary path containing spaces and runs its unchanged `SqlToAi.exe` from a different working directory. First it requires exit `1`, empty stdout, actionable missing-settings stderr and no user-root/settings creation. It then prepares settings from the shipped conservative template with empty grants/server/credentials, disabled optional providers and file sinks, and an unknown-key preservation probe. Application environment overrides are removed only from the child environment. It completes MCP `initialize` / `notifications/initialized` / `tools/list` using protocol `2025-06-18`, requires the exact 17 documented tool names, parses stdout as protocol, drains stderr separately and checks a clean exit after stdin closes. It makes no SQL tool calls.
+
+Settings and ZIP SHA-256 values must remain unchanged. Each response, process-exit and stream-drain wait is bounded by `-TimeoutSeconds` (default 30, range 1–120). Failure stops the check; cleanup terminates only its owned running child process tree and removes its own temporary extraction and newly created user root. The successful result contains `ZipPath` and `Sha256`; diagnostic stderr is available with `-Verbose`. A self-contained publish plus a successful packaged EXE startup on an SDK-equipped runner is not evidence of execution on an SDK-free machine. Hosted package execution is recorded separately from local harness/stub verification in the [release-validation roadmap](../tasks/release-validation/roadmap.md#t4--smoke-test-the-actual-windows-zip).
+
 ## Release
 
 [scripts/release.ps1](../scripts/release.ps1) requires PowerShell 7 and a clean checkout on `main`. It increments the patch version, builds/tests, commits the version change, pushes `main` and a `vX.Y.Z` tag. The [release workflow](../.github/workflows/release.yml) builds the GitHub release. Preview the planned steps without making changes:
