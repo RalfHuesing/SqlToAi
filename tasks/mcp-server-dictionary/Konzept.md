@@ -1,5 +1,5 @@
 ---
-status: draft
+status: ready
 ---
 
 # SqlToAi distribution and discovery preparation
@@ -8,7 +8,7 @@ status: draft
 
 Prepare the repository, packages and documentation for later free distribution and discovery, with a release process that a single maintainer can sustain. Reuse the completed configuration, security and release work. Actual publication and external submissions are outside this task.
 
-This revised draft recommends a smaller initial scope. The channel reduction and minimal MCPB configuration below are proposals, not newly approved decisions. This stage authorizes no implementation, roadmap, accounts, submissions or publication.
+The user approved this preparation-only scope. Implementation requires its separately invoked workflow stage; approval and roadmap creation authorize no release, external registration or submission.
 
 ## Settled decisions
 
@@ -34,11 +34,11 @@ The [release workflow](../../.github/workflows/release.yml), [package builder](.
 
 The checkout has no MCPB manifest or Registry `server.json`. These and concise public support/security guidance are the remaining repository work. Repository settings such as private vulnerability reporting have not been checked in this review; any necessary activation remains a later maintainer action.
 
-## Proposed simplification
+## Agreed preparation
 
 ### Preparation targets
 
-| Channel | Recommended commitment |
+| Channel | Preparation commitment |
 | --- | --- |
 | GitHub repository and Releases | Prepare existing ZIP, additional MCPB, checksums and short setup/release instructions. Do not execute a release or upload artifacts in this task. |
 | Official MCP Registry | Prepare and validate `server.json` and document later namespace verification/publication. Do not authenticate, register or publish. |
@@ -82,7 +82,7 @@ Keep support and contribution instructions short, using existing documentation w
 - MCPB configuration UI, credential storage, automatic settings creation/migration or client registration outside normal bundle installation.
 - Additional channel commitments, exhaustive platform research, client matrices, custom evidence schemas, approval engines or multi-directory publishing frameworks.
 - Customer data in examples, secrets in metadata, guaranteed directory acceptance, download targets, paid services or SEO promises.
-- Unrelated features or personal-website changes; implementation, executable roadmap creation or external actions during this review.
+- Unrelated features or personal-website changes; implementation during concept/roadmap planning and external publication actions during this task.
 
 ## Handoff for a later publication
 
@@ -100,6 +100,6 @@ Integrate MCPB into a subsequent deliberate release rather than retrofitting the
 - Support/security instructions and required notices are available. Any pending external activation is explicit. No new paid service or hosted endpoint is required.
 - Registry metadata validates locally and agrees with package version, transport and hash; later publication URL and namespace steps are documented. No public URL resolution, account ownership verification or live listing is required for this task's acceptance.
 
-## Open decision
+## Approval
 
-Approve or adjust the proposed repository preparation: ZIP + minimal MCPB + Registry metadata and concise handoff documentation. The preparation-only boundary is confirmed; the detailed simplified scope remains a proposal. All publication and directory submissions require a separate explicit request. This concept remains `draft`.
+The user approved repository preparation: ZIP + minimal MCPB + Registry metadata and concise handoff documentation. No design decisions remain open. All publication and directory submissions require a separate explicit request. Roadmap creation does not start implementation.
