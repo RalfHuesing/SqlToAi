@@ -512,7 +512,7 @@ No implementation or practical verification has been performed by creating this 
     of `183b7dd` with subject `feat: Stelle den Schemaexport über MCP bereit`
     (this slice). Items 7–8 remain open and were not implemented.
 
-- [ ] **7. Review export calls through real exploration.**
+- [x] **7. Review export calls through real exploration.**
 
   **Intention:** Verify the new agent-facing export workflow without reopening the
   already accepted CLI dump design.
@@ -535,6 +535,85 @@ No implementation or practical verification has been performed by creating this 
   Fix findings and rerun affected cases, updating docs/tests as needed. Remove
   temporary source and retain observations per runner conventions. No required
   practical verification remains blocked; code fixes pass build/tests.
+
+  **Pre-run expectations (2026-10-16):** Selected scalar, list and combined
+  scalar/list requests should return `completed`, `partial_output=false` and the
+  exact fully qualified destination; generated files should cover only resolved
+  objects, deduplicating aliases. Full scope should work at an existing empty
+  directory and report its actual path. Empty or invalid selections, unknown
+  objects, wrong selection types, relative paths, an existing file, a non-empty
+  directory, omitted scope and a selection supplied with `all` should return
+  `isError=true` with a failed compact JSON outcome and no unwanted writes.
+  Failure metadata should identify the invalid input through an actionable catalog
+  error and preserve `partial_output=false` when the destination remains absent or
+  empty. The registered description should prominently warn about persistent
+  server-filesystem output, potentially large/many-file/slow dumps, deliberate
+  use, required server filesystem access, destination constraints and retained
+  partial output/retry behavior. These are expectations only until the recorded
+  dispatcher run is inspected.
+
+  **Completion evidence (2026-10-16):**
+
+  - Invoked the temporary `ExploreSchemaExportReview` scenario with the documented
+    PowerShell runner override and configured `DemoDB` (`ReadWrite`) using the real
+    dispatcher and production service registrations. The retained runs are
+    `temp/exploration/ExploreSchemaExportReview/20261016-210037-8028868/` and the
+    final complete run `temp/exploration/ExploreSchemaExportReview/20261016-210055-2407085/`.
+    The second run completed technically with exit 0 and no `error.txt`; all 14
+    calls have a `request.json`, a `response.json` with every content block and
+    `isError`, and a matching `response.txt`. The run manifest records the
+    configuration directory, DemoDB access and timeout without credentials.
+  - Expected selected scalar, list and combined requests to create UTF-8 Markdown
+    under the supplied path, with exact returned path and duplicate resolution;
+    expected full scope to populate absent/empty roots; expected invalid requests
+    to fail with no unrequested output and actionable catalog errors. Observed
+    selected scalar at `outputs/selected-scalar/` with `README.md` and only
+    `tables/dbo.FakeProjects.md`; list scope at `outputs/selected-list/` with
+    `FakeProjects` and `FakeAddresses`; and combined scalar/list at
+    `outputs/selected-combined/` with those same two files despite the
+    repeated `FakeProjects`, null and whitespace inputs. All returned `completed`,
+    `partial_output=false`, `isError=false`, and the exact destination path.
+  - Full scope at the pre-created empty `outputs/all-empty/` root returned
+    the exact path and created `README.md`, nine table documents, one view and one
+    procedure. Full scope with scalar whitespace and null/empty/whitespace array
+    entries also completed at `outputs/all-empty-selection/`, confirming those
+    normalized empty selections are harmless. Representative `README.md` files
+    link to the actual selected/full documents; selected export excludes unrelated
+    objects and deduplicates the repeated selection.
+  - The eight invalid cases returned one compact JSON text block each with
+    `isError=true`, `status=failed` and specific errors: empty selected list
+    (`SQL-AI-0001`, at least one name required), valid-plus-missing object
+    (`SQL-AI-0103`, missing name identified), numeric list entry (`SQL-AI-0001`,
+    string-or-null required), relative path (`SQL-AI-0001`, fully qualified
+    Windows path required, no resolved output path), existing file and non-empty
+    directory (`SQL-AI-0001`, absent-or-empty requirement), missing scope
+    (`SQL-AI-0001`, required argument), and selection with `all` (`SQL-AI-0001`,
+    selection rejected). The existing file content stayed `preserve`; invalid
+    absent roots stayed absent. The non-empty root stayed intact and reported
+    `partial_output=true` because its child directory remained, consistent with
+    the documented remaining-content definition. The second run also confirmed an
+    invalid scope value returns `SQL-AI-0001`, while `all` with empty normalized
+    selection succeeds. No call threw; each observed error was in the JSON result.
+  - Inspected the registered description in `src/SqlToAi/Mcp/ToolRegistry.cs`:
+    its opening sentences explicitly say the export persistently writes to the
+    server filesystem, may create a large dump with many files and take substantial
+    time, requires agent filesystem access, and should be called deliberately. It
+    also explains scope, selection, absolute-path and empty-root rules, status,
+    partial output, retained files and retry. Tool docs agree with these observed
+    cases. No usability or contract defect was found; failures identify the
+    correction required, and returned paths match the files actually written.
+  - **Usability verdict: usable for deliberate agent-directed schema export.**
+    The selection forms are straightforward, normalization/deduplication is
+    visible in the resulting files, full scope is explicit, and each outcome is
+    easy to associate with its destination. Invalid input errors provide a
+    corrective next step. No product finding required a fix or rerun. Removed the
+    temporary scenario source; retained only runner observations and generated
+    output under the git-ignored `temp/exploration/` tree. No UNC destination was
+    exercised, as deterministic path validation is covered by unit tests and the
+    task excludes inventing inaccessible destinations.
+  - Actual delegated setting: `gpt-6-luna`, reasoning effort `high`. This review
+    changed only this roadmap evidence. Atomic commit reference: recorded after
+    commit.
 
 - [ ] **8. Audit implementation, documentation and completion evidence.**
 
