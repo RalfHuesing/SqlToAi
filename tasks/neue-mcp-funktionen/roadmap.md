@@ -615,7 +615,7 @@ No implementation or practical verification has been performed by creating this 
     changed only this roadmap evidence. Atomic commit reference: `9600838`
     (`docs: Prüfe Schemaexport über MCP`).
 
-- [ ] **8. Audit implementation, documentation and completion evidence.**
+- [x] **8. Audit implementation, documentation and completion evidence.**
 
   **Intention:** Establish that the delivered behavior satisfies the ready concept
   and works for an agent in practice.
@@ -638,7 +638,7 @@ No implementation or practical verification has been performed by creating this 
   committed, unrelated changes are preserved and no temporary scenario source
   remains. Record the audit result here before closing this item.
 
-  **Independent audit evidence (2026-10-16; correction resolved by item 9):**
+  **Independent audit evidence (2026-10-16; finding resolved by item 9):**
 
   - Audited the ready concept's complete Verification section against the final
     source/test/documentation changes from `11957de` through `9600838`, items 1–7
@@ -693,7 +693,7 @@ No implementation or practical verification has been performed by creating this 
     original 17-tool coverage. Checked all 94 repository-local links and heading
     fragments in the six changed canonical pages and both task artifacts; none
     is missing. The README's introduction/setup/examples need no change.
-  - **Finding (P2), correction implemented in item 9; final closure pending: early export parameter failures report
+  - **Finding (P2), resolved in item 9: early export parameter failures report
     incorrect retained output.** At audit time,
     `src/SqlToAi/Mcp/ToolDispatcher.cs:327–329` constructed every caught
     argument failure with `partial_output=false`, even after `output_path` was
@@ -712,7 +712,8 @@ No implementation or practical verification has been performed by creating this 
     core inspector, and the exact CLI reproduction returns `partial_output=true`
     with unchanged retained file hashes. Its 15-case entry-point matrix and final
     build/test evidence below address this finding; final orchestration closure
-    was deferred by the user's explicit stop request.
+    was paused at the user's request to stay within usage limits; the focused
+    evidence closure is recorded below after resumption.
   - Final `dotnet build SqlToAi.slnx` passed with zero warnings/errors;
     `dotnet test SqlToAi.slnx --logger 'console;verbosity=quiet'` passed 1102 tests,
     with 19 existing TLS endpoint skips, zero failures, 1121 total. Those
@@ -725,7 +726,7 @@ No implementation or practical verification has been performed by creating this 
     only the four intended batch-option template lines. `git diff --check` passed.
     This audit commit changes only this roadmap; no user changes were touched.
 
-- [ ] **9. Correct retained-output metadata for early export parameter failures.**
+- [x] **9. Correct retained-output metadata for early export parameter failures.**
 
   **Intention:** Make `partial_output` truthful when MCP argument validation fails
   after resolving a valid destination, fulfilling the open finding from item 8.
@@ -785,26 +786,34 @@ No implementation or practical verification has been performed by creating this 
     verification is claimed. `git diff --check` passed. No temporary scenario or
     credential wrapper was recreated. The independent audit's sole finding is
     resolved and its remaining criteria were already documented as satisfied;
-    final parent review and closure of items 8 and 9 remain pending after the
-    user's explicit stop request. No repeated general audit is needed.
+    the final evidence review is recorded below after resumption. No repeated
+    general audit is needed.
   - Actual delegated implementation/correction setting: `gpt-6.1-sol`, reasoning
     effort `medium`. Atomic commit reference: direct child of `a222824` with subject
     `fix: Melde verbliebene Exportausgabe bei Parameterfehlern` (this correction).
 
-  **Resume after user-requested stop (2026-10-16):**
+  **Final evidence closure (2026-10-17):**
 
-  - The user requested a stop because of usage limits. The active correction
-    agent was interrupted; no further implementation or test run was started.
-    All current task changes are saved in the correction commit identified above.
-  - Items 1–7 are complete. Item 8's independent audit found only the retained-output
-    defect. Its correction and 15 regression cases are implemented; the correction
-    agent recorded successful focused verification and final build/tests (1117
-    passed, 19 existing TLS skips) before interruption. These results have not yet
-    received the final parent evidence review.
-  - Resume by inspecting this correction commit and its recorded focused
-    verification evidence, then close items 8 and 9 if supported. Do not restart
-    the implementation, repeat the general audit or add another correction loop.
-    No additional functional work is currently identified. If evidence is missing,
-    verify only that specific gap. The credential wrapper and temporary scenario
-    sources are removed; retained review inputs/outputs remain under
-    `temp/exploration/`. No credentials were added to tracked files; no push occurred.
+  - Resumed the user's authorized work after the usage-limit stop. Inspected the
+    correction commit `c02abbc` and confirmed its only production change calls the
+    shared `SchemaExportService.HasPartialOutput` inspector from the dispatcher's
+    argument-failure boundary; its 15-case SDK/dispatcher/CLI matrix asserts errors,
+    paths, output state and preserved contents. No production or test files changed
+    during this closure.
+  - Re-ran the focused command
+    `dotnet test tests/SqlToAi.Tests/SqlToAi.Tests.csproj --no-build --filter FullyQualifiedName~ExportToolSurfaceTests --logger 'console;verbosity=quiet'`:
+    76 passed, zero skipped or failed. Replayed the exact invalid-scope query CLI
+    call against retained `outputs/selected-scalar`: exit code 1, compact
+    `status=failed` response, `SQL-AI-0001`, the resolved destination and
+    `partial_output=true`. SHA-256 hashes and paths of both retained files matched
+    before and after; no database access or writes occurred.
+  - The earlier full validation remains the recorded final repository validation:
+    `dotnet build SqlToAi.slnx` passed with zero warnings/errors, and
+    `dotnet test SqlToAi.slnx --logger 'console;verbosity=quiet'` passed 1117 tests,
+    with 19 existing TLS endpoint skips and zero failures (1136 total). The TLS
+    certificate scenarios still require `SQLTOAI_TLS_TEST_PROFILE`. The focused
+    rerun above is the only validation repeated after resumption.
+  - The sole P2 finding is resolved, the documented audit acceptance and practical
+    evidence remain satisfied, and items 1–9 are complete. Final evidence review
+    setting: `gpt-6-luna`, reasoning effort `high`; correction setting and commit
+    remain as recorded above (`gpt-6.1-sol`, `medium`, `c02abbc`). No push occurred.
