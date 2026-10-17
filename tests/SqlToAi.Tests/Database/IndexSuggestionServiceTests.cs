@@ -32,7 +32,7 @@ public sealed class IndexSuggestionServiceTests
         IReadOnlyList<DmvRow>? rows = null)
     {
         var factory = new DmvMockConnectionFactory(rows ?? [], throwOnExecuteReader);
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         return new IndexSuggestionService(
             factory,
             new FakeSecurityGuard(isAllowed),
@@ -43,7 +43,7 @@ public sealed class IndexSuggestionServiceTests
 
     private static IndexSuggestionService BuildService(DmvMockConnectionFactory factory)
     {
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         return new IndexSuggestionService(
             factory,
             new FakeSecurityGuard(true),
@@ -95,7 +95,7 @@ public sealed class IndexSuggestionServiceTests
     public async Task SuggestIndexesAsync_DatabaseNotInWhitelist_ReturnsSafetyCheckFailedError()
     {
         var service = BuildService(isAllowed: false);
-        var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs("BlockedDb"), TestContext.Current.CancellationToken);
+        var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs(TestConstants.QualifiedDatabaseName), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
@@ -105,7 +105,7 @@ public sealed class IndexSuggestionServiceTests
     public async Task SuggestIndexesAsync_DatabaseAccessLevelNone_ReturnsSafetyCheckFailedError()
     {
         var service = BuildService(accessLevel: AccessLevel.None);
-        var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs("DemoDB"), TestContext.Current.CancellationToken);
+        var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs(TestConstants.QualifiedDatabaseName), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
@@ -139,11 +139,11 @@ public sealed class IndexSuggestionServiceTests
         };
 
         var service = BuildService(rows: rows);
-        var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs("DemoDB"), TestContext.Current.CancellationToken);
+        var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs(TestConstants.QualifiedDatabaseName), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         string md = result.Value;
-        Assert.Contains("# Missing Index Recommendations — DemoDB", md);
+        Assert.Contains($"# Missing Index Recommendations — {TestConstants.QualifiedDatabaseName}", md);
         Assert.Contains("since the last SQL Server restart", md);
         Assert.Contains("| Score |", md);
         Assert.Contains("| Table |", md);
@@ -183,7 +183,7 @@ public sealed class IndexSuggestionServiceTests
             new("[dbo].[Customers]", 3, 20000, 0, null, 5.0, 20.0, [new DmvColumn(20, "EQUALITY"), new DmvColumn(21, "INEQUALITY"), new DmvColumn(22, "INCLUDE")]),
         };
         var service = BuildService(rows: rows);
-        var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs("DemoDB", Top: 10), TestContext.Current.CancellationToken);
+        var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs(TestConstants.QualifiedDatabaseName, Top: 10), TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         string md = result.Value;
         // All three handles appear.
@@ -222,7 +222,7 @@ public sealed class IndexSuggestionServiceTests
         var service = BuildService(factory: factory);
 
         await service.SuggestIndexesAsync(
-            new IndexSuggestionArgs("DemoDB", TableName: "Orders"), TestContext.Current.CancellationToken);
+            new IndexSuggestionArgs(TestConstants.QualifiedDatabaseName, TableName: "Orders"), TestContext.Current.CancellationToken);
 
         var paramsCmd = factory.LastReaderCommand;
         Assert.NotNull(paramsCmd);
@@ -252,7 +252,7 @@ public sealed class IndexSuggestionServiceTests
         var factory = new DmvMockConnectionFactory([], throwOnExecuteReader: null);
         var service = BuildService(factory: factory);
 
-        await service.SuggestIndexesAsync(new IndexSuggestionArgs("DemoDB", Top: 25), TestContext.Current.CancellationToken);
+        await service.SuggestIndexesAsync(new IndexSuggestionArgs(TestConstants.QualifiedDatabaseName, Top: 25), TestContext.Current.CancellationToken);
 
         var paramsCmd = factory.LastReaderCommand;
         Assert.NotNull(paramsCmd);
@@ -281,11 +281,11 @@ public sealed class IndexSuggestionServiceTests
         var sqlEx = SqlExceptionFactory.Create(number: 300, message: "The user does not have permission to perform this action. VIEW SERVER STATE permission is required.");
         var service = BuildService(throwOnExecuteReader: sqlEx);
 
-        var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs("DemoDB"), TestContext.Current.CancellationToken);
+        var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs(TestConstants.QualifiedDatabaseName), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         string md = result.Value;
-        Assert.Contains("# Missing Index Recommendations — DemoDB", md);
+        Assert.Contains($"# Missing Index Recommendations — {TestConstants.QualifiedDatabaseName}", md);
         Assert.Contains("since the last SQL Server restart", md);
         Assert.Contains("VIEW SERVER STATE", md);
     }
@@ -300,7 +300,7 @@ public sealed class IndexSuggestionServiceTests
         var sqlEx = SqlExceptionFactory.Create(number: 102, message: "Incorrect syntax near 'SELECTX'.");
         var service = BuildService(throwOnExecuteReader: sqlEx);
 
-        var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs("DemoDB"), TestContext.Current.CancellationToken);
+        var result = await service.SuggestIndexesAsync(new IndexSuggestionArgs(TestConstants.QualifiedDatabaseName), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
@@ -366,7 +366,7 @@ public sealed class IndexSuggestionServiceTests
         IReadOnlyList<DmvRow> rows,
         Exception? throwOnExecuteReader) : IDatabaseConnectionFactory
     {
-        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
         public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
         public FakeDbConnection? LastConnection { get; private set; }

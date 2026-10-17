@@ -47,6 +47,10 @@ public sealed class PrimaryConnectionFailureTests
             or McpConstants.ToolSearchObjects
             or McpConstants.ToolGetSchema
             or McpConstants.ToolGetSchemaForeignKeys
+            or McpConstants.ToolCompareQueries
+            or McpConstants.ToolMeasurePerformance
+            or McpConstants.ToolBenchmarkOptimization
+            or McpConstants.ToolSuggestIndexes
             ? "SqlToAi:Servers"
             : "SqlServer";
         Assert.Contains(expectedSettingsPath, text);

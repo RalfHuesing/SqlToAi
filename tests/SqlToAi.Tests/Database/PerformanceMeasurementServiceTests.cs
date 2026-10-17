@@ -26,7 +26,7 @@ public sealed class PerformanceMeasurementServiceTests
         AccessLevel accessLevel = AccessLevel.ReadOnly,
         SqlToAiError? error = null, IDatabaseConnectionFactory? factory = null, int? commandTimeout = null)
     {
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         if (commandTimeout.HasValue) options.QueryExecution.CommandTimeoutSeconds = commandTimeout.Value;
         var dependencies = new QueryExecutionDependencies(
             factory ?? new ValidationMockConnectionFactory(),
@@ -236,7 +236,7 @@ public sealed class PerformanceMeasurementServiceTests
     {
         var factory = new MockQueryConnectionFactory();
         var result = await BuildService(factory: factory, commandTimeout: commandTimeout).MeasurePerformanceAsync(
-            new QueryPerformanceArgs(TestConstants.DatabaseName, "SELECT 1", WarmupRuns: 1, ExecutionRuns: 2),
+            new QueryPerformanceArgs(TestConstants.QualifiedDatabaseName, "SELECT 1", WarmupRuns: 1, ExecutionRuns: 2),
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
@@ -258,7 +258,7 @@ public sealed class PerformanceMeasurementServiceTests
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(
             ThrowOnExecute: SqlExceptionFactory.Create(SqlServerErrorCode.ShowplanPermissionMissing, "SHOWPLAN permission missing.")));
         var result = await BuildService(factory: factory, commandTimeout: commandTimeout).MeasurePerformanceAsync(
-            new QueryPerformanceArgs(TestConstants.DatabaseName, "SELECT 1", WarmupRuns: warmupRuns),
+            new QueryPerformanceArgs(TestConstants.QualifiedDatabaseName, "SELECT 1", WarmupRuns: warmupRuns),
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);

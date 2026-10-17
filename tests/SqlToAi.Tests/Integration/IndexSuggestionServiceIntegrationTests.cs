@@ -13,23 +13,23 @@ namespace SqlToAi.Tests.Integration;
 public sealed class IndexSuggestionServiceIntegrationTests
 {
     private readonly SqlServerFixture _fx;
-    private readonly string _db;
+    private readonly string _target;
 
     public IndexSuggestionServiceIntegrationTests(SqlServerFixture fx)
     {
         _fx = fx;
-        _db = TestConstants.DatabaseName;
+        _target = TestConstants.QualifiedDatabaseName;
     }
 
     [Fact]
     public async Task SuggestIndexesAsync_ShouldReturnMarkdownWithRestartHint_AgainstRealDatabase()
     {
         var result = await _fx.IndexSuggestionService.SuggestIndexesAsync(
-            _db, cancellationToken: TestContext.Current.CancellationToken);
+            _target, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value);
-        Assert.Contains("# Missing Index Recommendations — " + _db, result.Value);
+        Assert.Contains("# Missing Index Recommendations — " + _target, result.Value);
         Assert.Contains("cumulative since the last SQL Server restart", result.Value);
         // Either the permission note, "No missing-index recommendations found",
         // OR Markdown table with "| Score |" header — all three are valid tool outputs.
@@ -44,7 +44,7 @@ public sealed class IndexSuggestionServiceIntegrationTests
     public async Task SuggestIndexesAsync_ShouldRespectTopParameter_AgainstRealDatabase()
     {
         var result = await _fx.IndexSuggestionService.SuggestIndexesAsync(
-            _db, tableName: null, minScore: null, top: 3,
+            _target, tableName: null, minScore: null, top: 3,
             cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
@@ -55,7 +55,7 @@ public sealed class IndexSuggestionServiceIntegrationTests
     public async Task SuggestIndexesAsync_ShouldRespectTableNameFilter_AgainstRealDatabase()
     {
         var result = await _fx.IndexSuggestionService.SuggestIndexesAsync(
-            _db, tableName: "FakeProjects", cancellationToken: TestContext.Current.CancellationToken);
+            _target, tableName: "FakeProjects", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value);
@@ -68,10 +68,10 @@ public sealed class IndexSuggestionServiceIntegrationTests
         // (per architecture-spec.md §G). If it doesn't, the service must still return
         // a structured permission note (graceful degradation). Both outcomes are IsSuccess=true.
         var result = await _fx.IndexSuggestionService.SuggestIndexesAsync(
-            _db, cancellationToken: TestContext.Current.CancellationToken);
+            _target, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
-        Assert.Contains("# Missing Index Recommendations — " + _db, result.Value);
+        Assert.Contains("# Missing Index Recommendations — " + _target, result.Value);
         Assert.Contains("cumulative since the last SQL Server restart", result.Value);
         // Either real recommendations / no-recommendations message, or the permission note.
         Assert.True(

@@ -52,9 +52,16 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             return validationError;
         }
 
+        var targetResult = _dependencies.TargetResolver.Resolve(args.DatabaseName);
+        if (targetResult.IsFailure)
+        {
+            return targetResult.Error;
+        }
+        DatabaseTargetContext target = targetResult.Value;
+
         // 1-5. Run the shared 6-stage guardrail pipeline (single source of truth).
         var safetyResult = await _dependencies.QuerySafetyValidator
-            .ValidateQuerySafetyAsync(args.DatabaseName, args.Query, allowSchemaOnly: false, cancellationToken)
+            .ValidateTargetQuerySafetyAsync(target, args.Query, allowSchemaOnly: false, cancellationToken)
             .ConfigureAwait(false);
         if (safetyResult.IsFailure)
         {
@@ -63,14 +70,14 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
 
         try
         {
-            await using var connection = _dependencies.ConnectionFactory.CreateConnection(args.DatabaseName);
-            await PrimaryConnection.OpenAsync(connection, cancellationToken);
+            await using var connection = _dependencies.ConnectionFactory.CreateTargetConnection(target);
+            await PrimaryConnection.OpenTargetAsync(connection, target, cancellationToken);
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 
             PerformanceMeasurementResult result;
             try
             {
-                result = await ExecuteMeasurementAsync(connection, transaction, args, cancellationToken);
+                result = await ExecuteMeasurementAsync(connection, transaction, target, args, cancellationToken);
             }
             catch
             {
@@ -88,7 +95,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
         }
         catch (Exception ex)
         {
-            LogMeasurementFailed(_logger, args.DatabaseName, ex);
+            LogMeasurementFailed(_logger, target.QualifiedName, ex);
             return SqlToAiErrorMapper.MapException(ex);
         }
     }
@@ -109,6 +116,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
     private async Task<PerformanceMeasurementResult> ExecuteMeasurementAsync(
         DbConnection connection,
         DbTransaction transaction,
+        DatabaseTargetContext target,
         QueryPerformanceArgs args,
         CancellationToken ct)
     {
@@ -159,7 +167,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
         var (metrics, warnings) = ProcessCapturedOutput(perRunMessages, xmlPlanText, execRuns, hasShowplanPermission);
 
         return new PerformanceMeasurementResult(
-            Database: args.DatabaseName,
+            Database: target.QualifiedName,
             RunsEvaluated: execRuns,
             WarmupRuns: warmupRuns,
             Metrics: metrics,

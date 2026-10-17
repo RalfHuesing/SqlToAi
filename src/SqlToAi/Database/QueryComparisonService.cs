@@ -53,6 +53,13 @@ public sealed class QueryComparisonService : IQueryComparisonService
             return validationError;
         }
 
+        var targetResult = _dependencies.TargetResolver.Resolve(args.DatabaseName);
+        if (targetResult.IsFailure)
+        {
+            return targetResult.Error;
+        }
+        DatabaseTargetContext target = targetResult.Value;
+
         object? effectiveParamsA = args.ParametersA ?? args.SharedParameters;
         object? effectiveParamsB = args.ParametersB ?? args.SharedParameters;
         try
@@ -83,7 +90,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         // single-query, so QueryComparisonService is the only consumer that calls it twice
         // (once for QueryA, once for QueryB) and short-circuits on the first failure.
         var safetyResultA = await _dependencies.QuerySafetyValidator
-            .ValidateQuerySafetyAsync(args.DatabaseName, args.QueryA, allowSchemaOnly: false, cancellationToken)
+            .ValidateTargetQuerySafetyAsync(target, args.QueryA, allowSchemaOnly: false, cancellationToken)
             .ConfigureAwait(false);
         if (safetyResultA.IsFailure)
         {
@@ -91,7 +98,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         }
 
         var safetyResultB = await _dependencies.QuerySafetyValidator
-            .ValidateQuerySafetyAsync(args.DatabaseName, args.QueryB, allowSchemaOnly: false, cancellationToken)
+            .ValidateTargetQuerySafetyAsync(target, args.QueryB, allowSchemaOnly: false, cancellationToken)
             .ConfigureAwait(false);
         if (safetyResultB.IsFailure)
         {
@@ -102,8 +109,8 @@ public sealed class QueryComparisonService : IQueryComparisonService
 
         try
         {
-            await using var connection = _dependencies.ConnectionFactory.CreateConnection(args.DatabaseName);
-            await PrimaryConnection.OpenAsync(connection, cancellationToken);
+            await using var connection = _dependencies.ConnectionFactory.CreateTargetConnection(target);
+            await PrimaryConnection.OpenTargetAsync(connection, target, cancellationToken);
 
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 
@@ -129,7 +136,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         }
         catch (Exception ex)
         {
-            LogComparisonFailed(_logger, args.DatabaseName, ex);
+            LogComparisonFailed(_logger, target.QualifiedName, ex);
             return SqlToAiErrorMapper.MapException(ex);
         }
     }

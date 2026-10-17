@@ -35,6 +35,7 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
     private readonly IAccessLevelProvider _accessLevelProvider;
     private readonly IOptions<SqlToAiOptions> _options;
     private readonly ILogger<IndexSuggestionService> _logger;
+    private DatabaseTargetResolver? _targets;
 
     /// <summary>Initializes a new instance of <see cref="IndexSuggestionService"/>.</summary>
     public IndexSuggestionService(
@@ -83,35 +84,44 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
             return SqlToAiError.InvalidParameters("min_score must be greater than or equal to zero.");
         }
 
-        if (!_securityGuard.IsDatabaseAllowed(args.DatabaseName))
+        var targetResult = Targets().Resolve(args.DatabaseName);
+        if (targetResult.IsFailure)
         {
-            return SqlToAiError.SafetyCheckFailed($"Database '{args.DatabaseName}' is blocked by security policies (static whitelist).");
+            return targetResult.Error;
+        }
+        DatabaseTargetContext target = targetResult.Value;
+
+        if (!_securityGuard.IsTargetAllowed(target))
+        {
+            return SqlToAiError.SafetyCheckFailed($"Database '{target.QualifiedName}' is blocked by security policies (static whitelist).");
         }
 
-        var accessLevel = await _accessLevelProvider.GetAccessLevelAsync(args.DatabaseName, cancellationToken);
+        var accessLevel = await _accessLevelProvider.GetTargetAccessLevelAsync(target, cancellationToken);
         if (accessLevel == AccessLevel.None)
         {
-            return SqlToAiError.SafetyCheckFailed($"Database '{args.DatabaseName}' access was denied (AccessLevel: None).");
+            return SqlToAiError.SafetyCheckFailed($"Database '{target.QualifiedName}' access was denied (AccessLevel: None).");
         }
 
         try
         {
-            await using var connection = _connectionFactory.CreateConnection(args.DatabaseName);
-            await PrimaryConnection.OpenAsync(connection, cancellationToken);
+            await using var connection = _connectionFactory.CreateTargetConnection(target);
+            await PrimaryConnection.OpenTargetAsync(connection, target, cancellationToken);
 
             IReadOnlyList<MissingIndexRow> rows = await LoadSuggestionsAsync(connection, args, cancellationToken);
-            return RenderMarkdown(rows, args.DatabaseName);
+            return RenderMarkdown(rows, target.QualifiedName);
         }
         catch (SqlException ex) when (IsViewServerStatePermissionError(ex))
         {
-            return RenderPermissionNote(args.DatabaseName);
+            return RenderPermissionNote(target.QualifiedName);
         }
         catch (Exception ex)
         {
-            LogSuggestFailed(_logger, args.DatabaseName, ex);
+            LogSuggestFailed(_logger, target.QualifiedName, ex);
             return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
         }
     }
+
+    private DatabaseTargetResolver Targets() => _targets ??= new DatabaseTargetResolver(_options.Value);
 
     private static async Task<IReadOnlyList<MissingIndexRow>> LoadSuggestionsAsync(
         DbConnection connection,

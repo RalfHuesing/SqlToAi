@@ -28,7 +28,8 @@ public sealed class QueryComparisonServiceTests
         AccessLevel accessLevel = AccessLevel.ReadOnly,
         SqlToAiError? error = null, IDatabaseConnectionFactory? factory = null, int? commandTimeout = null)
     {
-        var options = new SqlToAiOptions { QueryExecution = new QueryExecutionOptions { MaxRowLimit = 3 } };
+        var options = new SqlToAiOptions { QueryExecution = new QueryExecutionOptions { MaxRowLimit = 3 } }
+            .WithNamedServers(TestTargets.ServerAlias);
         if (commandTimeout.HasValue) options.QueryExecution.CommandTimeoutSeconds = commandTimeout.Value;
         var dependencies = new QueryExecutionDependencies(
             factory ?? new ValidationMockConnectionFactory(),
@@ -60,7 +61,7 @@ public sealed class QueryComparisonServiceTests
     {
         var service = BuildService();
         var result = await service.CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "", "SELECT 1"),
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "", "SELECT 1"),
             TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
@@ -71,7 +72,7 @@ public sealed class QueryComparisonServiceTests
     {
         var service = BuildService();
         var result = await service.CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1", ""),
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT 1", ""),
             TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
@@ -95,7 +96,7 @@ public sealed class QueryComparisonServiceTests
     {
         var factory = new ComparisonConnectionFactory();
         var result = await BuildService(factory: factory).CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT @p AS Value", "SELECT @P AS Value",
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT @p AS Value", "SELECT @P AS Value",
                 ParametersA: parametersA, ParametersB: parametersB), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
@@ -109,7 +110,7 @@ public sealed class QueryComparisonServiceTests
     {
         var disjointFactory = new ComparisonConnectionFactory();
         var disjointResult = await BuildService(factory: disjointFactory).CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT @left AS Value", "SELECT @right AS Value",
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT @left AS Value", "SELECT @right AS Value",
                 ParametersA: new Dictionary<string, object?> { ["left"] = 1 },
                 ParametersB: new Dictionary<string, object?> { ["right"] = 2 }),
             TestContext.Current.CancellationToken);
@@ -120,7 +121,7 @@ public sealed class QueryComparisonServiceTests
         var sharedFactory = new ComparisonConnectionFactory();
         var shared = new Dictionary<string, object?> { ["value"] = 1 };
         var sharedResult = await BuildService(factory: sharedFactory).CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT @value AS Value", "SELECT @value AS Value",
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT @value AS Value", "SELECT @value AS Value",
                 SharedParameters: shared), TestContext.Current.CancellationToken);
 
         Assert.True(sharedResult.IsSuccess);
@@ -132,7 +133,7 @@ public sealed class QueryComparisonServiceTests
     {
         var factory = new ComparisonConnectionFactory();
         var result = await BuildService(factory: factory).CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT @value AS Value", "SELECT @value AS Value",
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT @value AS Value", "SELECT @value AS Value",
                 ParametersA: new Dictionary<string, object?> { ["@VALUE"] = 1 },
                 SharedParameters: new Dictionary<string, object?> { ["value"] = 1 }),
             TestContext.Current.CancellationToken);
@@ -147,7 +148,7 @@ public sealed class QueryComparisonServiceTests
     {
         var factory = new ComparisonConnectionFactory();
         var result = await BuildService(factory: factory).CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1", "SELECT 1", ParametersA: "{invalid"),
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT 1", "SELECT 1", ParametersA: "{invalid"),
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
@@ -166,7 +167,7 @@ public sealed class QueryComparisonServiceTests
 
         var factory = new ComparisonConnectionFactory();
         var result = await BuildService(factory: factory).CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1", "SELECT 1", ParametersA: disposedElement),
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT 1", "SELECT 1", ParametersA: disposedElement),
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
@@ -181,7 +182,7 @@ public sealed class QueryComparisonServiceTests
     {
         var service = BuildService(isAllowed: false);
         var result = await service.CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1", "SELECT 2"),
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT 1", "SELECT 2"),
             TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
@@ -192,7 +193,7 @@ public sealed class QueryComparisonServiceTests
     {
         var service = BuildService(accessLevel: AccessLevel.None);
         var result = await service.CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1", "SELECT 2"),
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT 1", "SELECT 2"),
             TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
@@ -207,7 +208,7 @@ public sealed class QueryComparisonServiceTests
         // QueryA and never call the validator for QueryB (short-circuit proof).
         var service = BuildService(accessLevel: AccessLevel.ReadOnly);
         var result = await service.CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "DROP TABLE Users", "SELECT 1"),
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "DROP TABLE Users", "SELECT 1"),
             TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
@@ -221,7 +222,7 @@ public sealed class QueryComparisonServiceTests
         // called for both queries in the expected order.
         var service = BuildService(accessLevel: AccessLevel.ReadOnly);
         var result = await service.CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1", "DROP TABLE Users"),
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT 1", "DROP TABLE Users"),
             TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
@@ -233,7 +234,7 @@ public sealed class QueryComparisonServiceTests
         // ReadWrite pipeline (multi-statement is enforced at every access level).
         var service = BuildService(accessLevel: AccessLevel.ReadWrite);
         var result = await service.CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1; SELECT 2", "SELECT 3"),
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT 1; SELECT 2", "SELECT 3"),
             TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, result.Error.Code);
@@ -244,7 +245,7 @@ public sealed class QueryComparisonServiceTests
     {
         var service = BuildService(accessLevel: AccessLevel.ReadWrite);
         var result = await service.CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1", "SELECT 2; SELECT 3"),
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT 1", "SELECT 2; SELECT 3"),
             TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, result.Error.Code);
@@ -261,7 +262,7 @@ public sealed class QueryComparisonServiceTests
         var service = BuildService(factory: factory);
 
         var result = await service.CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1 AS Value", "SELECT 2 AS Value",
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT 1 AS Value", "SELECT 2 AS Value",
                 MaxDiffRows: requestedLimit), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
@@ -284,7 +285,7 @@ public sealed class QueryComparisonServiceTests
     {
         var factory = new ComparisonConnectionFactory(hasDifferences: false);
         var result = await BuildService(factory: factory).CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1 AS Value", "SELECT 1 AS Value",
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT 1 AS Value", "SELECT 1 AS Value",
                 MaxDiffRows: 0), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
@@ -303,7 +304,7 @@ public sealed class QueryComparisonServiceTests
         var factory = new ComparisonConnectionFactory(failingDirection: failingDirection,
             failure: new InvalidOperationException("Difference query failed."));
         var result = await BuildService(factory: factory).CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1 AS Value", "SELECT 2 AS Value",
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT 1 AS Value", "SELECT 2 AS Value",
                 MaxDiffRows: 0), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
@@ -320,7 +321,7 @@ public sealed class QueryComparisonServiceTests
     {
         var factory = new ComparisonConnectionFactory();
         var result = await BuildService(factory: factory, commandTimeout: commandTimeout).CompareQueriesAsync(
-            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1 AS Value", "SELECT 2 AS Value"),
+            new QueryComparisonArgs(TestConstants.QualifiedDatabaseName, "SELECT 1 AS Value", "SELECT 2 AS Value"),
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
@@ -331,7 +332,7 @@ public sealed class QueryComparisonServiceTests
     private sealed class ComparisonConnectionFactory(
         bool hasDifferences = true, int failingDirection = 0, Exception? failure = null) : IDatabaseConnectionFactory
     {
-        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
         public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
         public FakeDbConnection? Connection { get; private set; }

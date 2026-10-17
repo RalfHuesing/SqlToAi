@@ -98,16 +98,17 @@ public sealed class AnalysisCleanupTests
     {
         var dependencies = new QueryExecutionDependencies(factory,
             new FakeQuerySafetyValidator(new QuerySafetyCheckResult(AccessLevel.ReadOnly, false)),
-            Options.Create(new SqlToAiOptions { QueryExecution = new QueryExecutionOptions { CommandTimeoutSeconds = 17 } }));
+            Options.Create(new SqlToAiOptions { QueryExecution = new QueryExecutionOptions { CommandTimeoutSeconds = 17 } }
+                .WithNamedServers(TestTargets.ServerAlias)));
         if (performance)
         {
             var service = new PerformanceMeasurementService(dependencies, NullLogger<PerformanceMeasurementService>.Instance);
-            var result = await service.MeasurePerformanceAsync(new QueryPerformanceArgs(TestConstants.DatabaseName,
+            var result = await service.MeasurePerformanceAsync(new QueryPerformanceArgs(TestConstants.QualifiedDatabaseName,
                 "SELECT 1 AS Value", WarmupRuns: 0, ExecutionRuns: 1, IncludePlanAnalysis: false), token);
             return result.IsFailure ? result.Error : null;
         }
         var comparison = new QueryComparisonService(dependencies, NullLogger<QueryComparisonService>.Instance);
-        var compared = await comparison.CompareQueriesAsync(TestConstants.DatabaseName, "SELECT 1 AS Value", "SELECT 1 AS Value", token);
+        var compared = await comparison.CompareQueriesAsync(TestConstants.QualifiedDatabaseName, "SELECT 1 AS Value", "SELECT 1 AS Value", token);
         return compared.IsFailure ? compared.Error : null;
     }
 }

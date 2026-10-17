@@ -69,7 +69,7 @@ public sealed class OptimizationBenchmarkService : IOptimizationBenchmarkService
         var (verdict, summary) = DetermineVerdictAndSummary(compResult.Value, deltas);
 
         return new OptimizationBenchmarkResult(
-            Database: args.DatabaseName,
+            Database: perfResultA.Value.Database,
             Verdict: verdict,
             Summary: summary,
             Comparison: compResult.Value,

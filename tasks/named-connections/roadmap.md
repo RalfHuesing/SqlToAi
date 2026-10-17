@@ -100,7 +100,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 - [x] [**M3.1 — Route schema inspection and existing schema exports**](roadmap/m3.1-route-schema-inspection-and-existing-schema-exports.md)
   Preserve database identity through metadata and export composition.
 
-- [ ] [**M3.2 — Route comparison, measurements, benchmarks and indexes**](roadmap/m3.2-route-comparison-measurements-benchmarks-and-indexes.md)
+- [x] [**M3.2 — Route comparison, measurements, benchmarks and indexes**](roadmap/m3.2-route-comparison-measurements-benchmarks-and-indexes.md)
   Prevent nested analysis calls from selecting different targets.
 
 - [ ] [**M3.3 — Expose server discovery and qualified MCP/CLI arguments**](roadmap/m3.3-expose-server-discovery-and-qualified-mcp-cli-arguments.md)
