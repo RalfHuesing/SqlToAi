@@ -293,6 +293,10 @@ public sealed class SchemaService : ISchemaService
 
             return await RenderPrimarySchemaAsync(connection, databaseName, objectName, typeCode, context, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to retrieve schema for {ObjectName} in database {DatabaseName}.", objectName, databaseName);

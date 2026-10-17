@@ -27,6 +27,64 @@ public sealed class AnonymizationRuleProviderTests
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task IsExcludedAsync_RequestedCancellationDoesNotCacheFallback(bool duringOpen)
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var queries = new List<string>();
+        var connection = duringOpen
+            ? new FakeDbConnection(_ => throw new NotSupportedException(),
+                new FakeDbConnectionOptions(OpenFailure: new OperationCanceledException(cancellation.Token)))
+            : MockConnection.Create([], beforeExecute: command =>
+            {
+                queries.Add(command.CommandText);
+                if (command.CommandText.Contains("COL_LENGTH", StringComparison.Ordinal))
+                {
+                    cancellation.Cancel();
+                    throw new OperationCanceledException(cancellation.Token);
+                }
+            });
+        var factory = new DummyConnectionFactory(connection);
+        var provider = new AnonymizationRuleProvider(factory, Options.Create(BuildOptions()), NullLogger<AnonymizationRuleProvider>.Instance);
+        if (duringOpen) await cancellation.CancelAsync();
+
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", cancellation.Token));
+
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        Assert.DoesNotContain(queries, query => query.Contains("WHERE [IsActive]", StringComparison.Ordinal));
+        factory.ConnectionToReturn = MockConnection.Create([new("%", "Customers", "Name", false)]);
+        Assert.True(await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken));
+        Assert.True(await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken));
+        Assert.Equal(2, factory.ConnectionCreatedCount);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task IsExcludedAsync_UnrequestedCancellationKeepsFallbackAndCachesIt(bool duringOpen)
+    {
+        var connection = duringOpen
+            ? new FakeDbConnection(_ => throw new NotSupportedException(),
+                new FakeDbConnectionOptions(OpenFailure: new OperationCanceledException()))
+            : MockConnection.Create([new("%", "Customers", "Name", false)], beforeExecute: command =>
+            {
+                if (command.CommandText.Contains("COL_LENGTH", StringComparison.Ordinal))
+                    throw new OperationCanceledException();
+            });
+        var factory = new DummyConnectionFactory(connection);
+        var provider = new AnonymizationRuleProvider(factory, Options.Create(BuildOptions()), NullLogger<AnonymizationRuleProvider>.Instance);
+
+        bool first = await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
+        bool second = await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
+
+        Assert.Equal(!duringOpen, first);
+        Assert.Equal(first, second);
+        Assert.Equal(1, factory.ConnectionCreatedCount);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void CreateConnection_ShouldUseBoundRuleTrustSetting_IndependentlyOfPrimary(bool trustRulesCertificate)

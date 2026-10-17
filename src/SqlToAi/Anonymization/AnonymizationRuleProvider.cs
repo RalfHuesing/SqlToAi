@@ -97,6 +97,10 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
 
             return rows.Select(r => new AnonymizationRule(r.DatabasePattern, r.SchemaPattern, r.TablePattern, r.ColumnPattern, r.Anonymize)).ToList();
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
@@ -124,10 +128,8 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
     }
 
     /// <summary>
-    /// Detects, without ever throwing, whether the physical rule table already has the optional
-    /// <c>SchemaPattern</c> column — so a rule set that hasn't run the migration adding it keeps
-    /// working with zero-config schema-agnostic matching (<see cref="RuleRow.SchemaPattern"/>'s
-    /// default <c>%</c>), exactly like before this column existed.
+    /// Detects the optional SchemaPattern column. Lookup failures use schema-agnostic rules;
+    /// requested cancellation propagates to the caller.
     /// </summary>
     private async Task<bool> HasSchemaPatternColumnAsync(DbConnection connection, string tableName, CancellationToken cancellationToken)
     {
@@ -136,6 +138,10 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
             const string checkSql = "SELECT CASE WHEN COL_LENGTH(@TableName, 'SchemaPattern') IS NOT NULL THEN 1 ELSE 0 END";
             return await connection.QueryFirstOrDefaultAsync<bool>(
                 new CommandDefinition(checkSql, new { TableName = tableName }, cancellationToken: cancellationToken, commandTimeout: _options.AnonymizationRules.CommandTimeoutSeconds));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -149,32 +155,9 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
     /// Picks the most specific active rule matching all four dimensions.
     /// </summary>
     /// <remarks>
-    /// Item 7 of the audit remediation (tasks/audit-2026-07-24/02-anonymisierung-tokenisierung.md,
-    /// Finding "Regel-Präzedenz gewichtet Datenbank- vor Spalten-Spezifität — breite DB-Regel kann
-    /// gezielten Spalten-Schutz aushebeln") replaced the previous weighted-sum scoring
-    /// (<c>DB*1000 + Schema*100 + Table*10 + Column</c>) with a Pareto-dominance comparison across
-    /// the four per-dimension <see cref="LikePatternMatcher.SpecificityScore"/> values. The old
-    /// weighted sum let a rule that was merely specific about the database dominate a rule that was
-    /// exactly specific about the column, even when the column rule was meant as a universal,
-    /// cross-database protection (e.g. an "SSN everywhere" rule losing to a "this one staging DB,
-    /// wide open" rule purely because DB outweighs column in the sum). A plain lexicographic tuple
-    /// comparison <c>(DB, Schema, Table, Column)</c> has the same flaw — DB still trumps every other
-    /// dimension regardless of value — so it was rejected too.
-    /// <para>
-    /// Instead: a rule X <b>dominates</b> rule Y if X's score is <c>&gt;=</c> Y's in all four
-    /// dimensions and strictly <c>&gt;</c> in at least one. Rules that no other matching rule
-    /// dominates are "Pareto-maximal". If exactly one such rule exists, it wins outright — this is
-    /// the unambiguous case and behaves the same as before (a rule that is more specific everywhere
-    /// still wins). If several rules are mutually non-dominated — genuinely incomparable, like an
-    /// all-databases/exact-column rule versus an exact-database/all-columns rule — the protective
-    /// ones (<see cref="AnonymizationRule.Anonymize"/> <c>== true</c>) are preferred over the
-    /// permissive ones, per audit option (a): when two configured intents genuinely conflict and
-    /// neither is objectively more specific, protecting data is the fail-safe default. Only if that
-    /// still leaves more than one candidate (e.g. two incomparable rules that are both protective, or
-    /// both permissive) does the old weighted-sum total break the remaining tie — purely as an
-    /// arbitrary-but-stable last resort with no security meaning of its own, just to avoid depending
-    /// on list/dictionary iteration order.
-    /// </para>
+    /// A rule dominates another when its specificity is at least equal in all four dimensions
+    /// and greater in one. Among non-dominated rules, protective rules win; weighted specificity
+    /// provides a deterministic final tie-break.
     /// </remarks>
     private static AnonymizationRule? FindMostSpecificMatch(
         IReadOnlyList<AnonymizationRule> rules, string databaseName, string schemaName, string tableName, string columnName)
@@ -194,10 +177,6 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
         var protectiveCandidates = nonDominated.Where(m => m.Rule.Anonymize).ToList();
         var tieBreakCandidates = protectiveCandidates.Count > 0 ? protectiveCandidates : nonDominated;
 
-        // Last-resort deterministic tie-break: several rules remain genuinely incomparable even
-        // after preferring protective ones (e.g. two incomparable rules that are both protective, or
-        // both permissive). The old weighted-sum total has no particular security meaning here — it
-        // is only used to guarantee a stable, repeatable pick instead of relying on list order.
         return tieBreakCandidates.Count == 1
             ? tieBreakCandidates[0].Rule
             : tieBreakCandidates.OrderByDescending(m => WeightedScore(m.Scores)).First().Rule;
@@ -292,9 +271,7 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
     }
 
     /// <summary>
-    /// The old weighted-sum score, kept only as the deterministic last-resort tie-break between
-    /// mutually non-dominated rules that are equally (non-)protective (see
-    /// <see cref="FindMostSpecificMatch"/>). Not used to rank comparable rules anymore.
+    /// Weights apply only to the final tie-break between equally protective, non-dominated rules.
     /// </summary>
     private const int DatabaseDimensionWeight = 1000;
     private const int SchemaDimensionWeight = 100;

@@ -11,18 +11,18 @@ internal sealed record MockConnectionFlags(bool ThrowException = false, bool Has
 
 internal sealed class DummyConnectionFactory : IDatabaseConnectionFactory
 {
-    private readonly DbConnection? _connectionToReturn;
+    public DbConnection? ConnectionToReturn { get; set; }
     public int ConnectionCreatedCount { get; private set; }
 
     public DummyConnectionFactory(DbConnection? connectionToReturn = null)
     {
-        _connectionToReturn = connectionToReturn;
+        ConnectionToReturn = connectionToReturn;
     }
 
     public DbConnection CreateConnection(string? databaseName = null)
     {
         ConnectionCreatedCount++;
-        return _connectionToReturn ?? MockConnection.Create([]);
+        return ConnectionToReturn ?? MockConnection.Create([]);
     }
 }
 
@@ -35,10 +35,15 @@ internal static class MockConnection
     public static FakeDbConnection Create(
         List<RuleRowData> rows,
         MockConnectionFlags? flags = null,
-        string? simulatedTableName = "dbo.AnonymizationRules")
+        string? simulatedTableName = "dbo.AnonymizationRules",
+        Action<FakeDbCommand>? beforeExecute = null)
     {
         return new FakeDbConnection(conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(
-            ExecuteReader: cmd => Dispatch(cmd, rows, flags ?? new MockConnectionFlags(), simulatedTableName))));
+            ExecuteReader: cmd =>
+            {
+                beforeExecute?.Invoke(cmd);
+                return Dispatch(cmd, rows, flags ?? new MockConnectionFlags(), simulatedTableName);
+            })));
     }
 
     private static FakeDbDataReader Dispatch(FakeDbCommand cmd, List<RuleRowData> rows, MockConnectionFlags flags, string? simulatedTableName)
