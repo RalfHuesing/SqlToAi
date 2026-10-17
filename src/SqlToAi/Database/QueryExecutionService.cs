@@ -207,61 +207,73 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
     {
         var messages = new List<string>();
         var transaction = args.Transaction;
-        if (args.Connection is SqlConnection sqlConn)
+        var sqlConn = args.Connection as SqlConnection;
+        SqlInfoMessageEventHandler infoMessageHandler = (_, e) => messages.Add(e.Message);
+        if (sqlConn is not null)
         {
-            sqlConn.InfoMessage += (_, e) => messages.Add(e.Message);
+            sqlConn.InfoMessage += infoMessageHandler;
         }
-        await EnableOptionsAsync(args.Connection, transaction, args.RowLimit, cancellationToken);
-
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
-        await using var command = args.Connection.CreateCommand();
-        command.CommandText = args.Query;
-        command.Transaction = transaction;
-        command.CommandTimeout = _options.CommandTimeoutSeconds;
-        SqlParameterBinder.BindParameters(command, args.Parameters);
-
-        var sb = new StringBuilder();
-        int rowCount = 0;
-        var tracker = new RowAnonymizationTracker();
-
         try
         {
-            CommandBehavior behavior = args.Anonymize
-                ? CommandBehavior.SequentialAccess | CommandBehavior.KeyInfo
-                : CommandBehavior.SequentialAccess;
+            await EnableOptionsAsync(args.Connection, transaction, args.RowLimit, cancellationToken);
 
-            await using var reader = await command.ExecuteReaderAsync(behavior, cancellationToken);
-            do
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            await using var command = args.Connection.CreateCommand();
+            command.CommandText = args.Query;
+            command.Transaction = transaction;
+            command.CommandTimeout = _options.CommandTimeoutSeconds;
+            SqlParameterBinder.BindParameters(command, args.Parameters);
+
+            var sb = new StringBuilder();
+            int rowCount = 0;
+            var tracker = new RowAnonymizationTracker();
+
+            try
             {
-                string[] columnNames = GetColumnNames(reader);
-                var anonCtx = await ResolveAnonymizationContextAsync(reader, columnNames, args.Anonymize, args.DatabaseName, cancellationToken);
+                CommandBehavior behavior = args.Anonymize
+                    ? CommandBehavior.SequentialAccess | CommandBehavior.KeyInfo
+                    : CommandBehavior.SequentialAccess;
 
-                while (rowCount < args.RowLimit && await reader.ReadAsync(cancellationToken))
+                await using var reader = await command.ExecuteReaderAsync(behavior, cancellationToken);
+                do
                 {
-                    AppendSerializedRow(sb, reader, columnNames, anonCtx, tracker);
-                    rowCount++;
+                    string[] columnNames = GetColumnNames(reader);
+                    var anonCtx = await ResolveAnonymizationContextAsync(reader, columnNames, args.Anonymize, args.DatabaseName, cancellationToken);
+
+                    while (rowCount < args.RowLimit && await reader.ReadAsync(cancellationToken))
+                    {
+                        AppendSerializedRow(sb, reader, columnNames, anonCtx, tracker);
+                        rowCount++;
+                    }
                 }
+                while (rowCount < args.RowLimit && await reader.NextResultAsync(cancellationToken));
             }
-            while (rowCount < args.RowLimit && await reader.NextResultAsync(cancellationToken));
+            finally
+            {
+                await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, transaction, "SET ROWCOUNT 0", cancellationToken);
+            }
+
+            stopwatch.Stop();
+
+            var (cpu, _, logical, _, _, _) = PerformanceMetricsCalculator.ParseRunMessages(messages);
+
+            if (rowCount == 0)
+            {
+                return new QueryExecutionResult("[]", false, Array.Empty<string>(), _anonymizationMode, ElapsedMs: stopwatch.ElapsedMilliseconds, RowCount: 0, CpuTimeMs: cpu, LogicalReads: logical);
+            }
+
+            return new QueryExecutionResult(
+                sb.ToString().TrimEnd(), tracker.WasAnonymized, tracker.AnonymizedColumns, _anonymizationMode, tracker.SearchableTokenColumns,
+                ElapsedMs: stopwatch.ElapsedMilliseconds, RowCount: rowCount, CpuTimeMs: cpu, LogicalReads: logical);
         }
         finally
         {
-            await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, transaction, "SET ROWCOUNT 0", cancellationToken);
+            if (sqlConn is not null)
+            {
+                sqlConn.InfoMessage -= infoMessageHandler;
+            }
         }
-
-        stopwatch.Stop();
-
-        var (cpu, _, logical, _, _, _) = PerformanceMetricsCalculator.ParseRunMessages(messages);
-
-        if (rowCount == 0)
-        {
-            return new QueryExecutionResult("[]", false, Array.Empty<string>(), _anonymizationMode, ElapsedMs: stopwatch.ElapsedMilliseconds, RowCount: 0, CpuTimeMs: cpu, LogicalReads: logical);
-        }
-
-        return new QueryExecutionResult(
-            sb.ToString().TrimEnd(), tracker.WasAnonymized, tracker.AnonymizedColumns, _anonymizationMode, tracker.SearchableTokenColumns,
-            ElapsedMs: stopwatch.ElapsedMilliseconds, RowCount: rowCount, CpuTimeMs: cpu, LogicalReads: logical);
     }
 
 }
