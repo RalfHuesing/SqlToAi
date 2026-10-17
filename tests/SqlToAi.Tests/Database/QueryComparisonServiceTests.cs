@@ -25,9 +25,10 @@ public sealed class QueryComparisonServiceTests
     private static QueryComparisonService BuildService(
         bool isAllowed = true,
         AccessLevel accessLevel = AccessLevel.ReadOnly,
-        SqlToAiError? error = null, IDatabaseConnectionFactory? factory = null)
+        SqlToAiError? error = null, IDatabaseConnectionFactory? factory = null, int? commandTimeout = null)
     {
         var options = new SqlToAiOptions { QueryExecution = new QueryExecutionOptions { MaxRowLimit = 3 } };
+        if (commandTimeout.HasValue) options.QueryExecution.CommandTimeoutSeconds = commandTimeout.Value;
         var dependencies = new QueryExecutionDependencies(
             factory ?? new ValidationMockConnectionFactory(),
             FakeQuerySafetyValidator.Create(isAllowed, accessLevel, error),
@@ -214,11 +215,27 @@ public sealed class QueryComparisonServiceTests
         Assert.Equal(0, factory.Connection?.LastTransaction?.CommitCount);
     }
 
+    [Theory]
+    [InlineData(17)]
+    [InlineData(0)]
+    public async Task CompareQueriesAsync_AppliesTimeoutToSchemaCountsAndDifferences(int commandTimeout)
+    {
+        var factory = new ComparisonConnectionFactory();
+        var result = await BuildService(factory: factory, commandTimeout: commandTimeout).CompareQueriesAsync(
+            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1 AS Value", "SELECT 2 AS Value"),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(6, factory.Commands.Count);
+        Assert.All(factory.Commands, command => Assert.Equal(commandTimeout, command.CommandTimeout));
+    }
+
     private sealed class ComparisonConnectionFactory(
         bool hasDifferences = true, int failingDirection = 0, Exception? failure = null) : IDatabaseConnectionFactory
     {
         public FakeDbConnection? Connection { get; private set; }
         public int DifferenceCalls { get; private set; }
+        public List<FakeDbCommand> Commands { get; } = [];
 
         public DbConnection CreateConnection(string? databaseName = null)
         {
@@ -226,6 +243,7 @@ public sealed class QueryComparisonServiceTests
                 connection => new FakeDbCommand(connection, new FakeDbCommandHandlers(
                     ExecuteReader: command =>
                     {
+                        Commands.Add(command);
                         if (!command.CommandText.Contains(" EXCEPT ", StringComparison.Ordinal))
                             return new FakeDbDataReader(["Value"], [[0]]);
 
@@ -238,7 +256,7 @@ public sealed class QueryComparisonServiceTests
                             ? Enumerable.Range(1, 4).Select(value => new object?[] { value + offset }).ToArray()
                             : []);
                     },
-                    ExecuteScalar: _ => 4L)),
+                    ExecuteScalar: command => { Commands.Add(command); return 4L; })),
                 new FakeDbConnectionOptions(BeginTransaction: (connection, _) => new FakeDbTransaction(connection)));
             return Connection;
         }

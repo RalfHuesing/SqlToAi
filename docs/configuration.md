@@ -30,6 +30,8 @@ The general local integration-test fixture has a separate, checked-in test-only 
 | `SchemaBatch` | `MaxInputCount` (10), `MaxResponseBytes` (65536 UTF-8 bytes); both must be greater than zero |
 | `Logging` | `Directory` (`log`), `AppLog`, `ErrorLog`, legacy `McpTrail` settings; see below |
 
+`QueryExecution.CommandTimeoutSeconds` applies to query and script execution, query validation, query comparison (schema, counts and differences), and performance warmup/measured runs. Their session `SET` and transaction-integrity commands use the same timeout. The value is per command; `0` means no command timeout. Metadata and anonymization-rule queries retain their separate provider timeout settings.
+
 Row limits constrain returned rows; they do not bound SQL Server's query cost or row scans. Command and connection timeouts are separate.
 
 ### Schema batch limits

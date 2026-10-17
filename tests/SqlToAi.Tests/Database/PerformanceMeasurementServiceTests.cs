@@ -24,11 +24,12 @@ public sealed class PerformanceMeasurementServiceTests
     private static PerformanceMeasurementService BuildService(
         bool isAllowed = true,
         AccessLevel accessLevel = AccessLevel.ReadOnly,
-        SqlToAiError? error = null)
+        SqlToAiError? error = null, IDatabaseConnectionFactory? factory = null, int? commandTimeout = null)
     {
         var options = new SqlToAiOptions();
+        if (commandTimeout.HasValue) options.QueryExecution.CommandTimeoutSeconds = commandTimeout.Value;
         var dependencies = new QueryExecutionDependencies(
-            new ValidationMockConnectionFactory(),
+            factory ?? new ValidationMockConnectionFactory(),
             FakeQuerySafetyValidator.Create(isAllowed, accessLevel, error),
             Options.Create(options));
 
@@ -226,5 +227,45 @@ public sealed class PerformanceMeasurementServiceTests
         Assert.Contains("INCLUDE (Amount)", missing.MissingIndexStatement);
         Assert.DoesNotContain("Amount DESC", missing.MissingIndexStatement);
         Assert.EndsWith(";", missing.MissingIndexStatement);
+    }
+
+    [Theory]
+    [InlineData(17)]
+    [InlineData(0)]
+    public async Task MeasurePerformanceAsync_AppliesTimeoutToWarmupMeasuredAndSetCommands(int commandTimeout)
+    {
+        var factory = new MockQueryConnectionFactory();
+        var result = await BuildService(factory: factory, commandTimeout: commandTimeout).MeasurePerformanceAsync(
+            new QueryPerformanceArgs(TestConstants.DatabaseName, "SELECT 1", WarmupRuns: 1, ExecutionRuns: 2),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(3, factory.ExecutedReaderCommands.Count);
+        Assert.Equal(3, factory.ExecutedNonQueryCommands.Count);
+        Assert.Contains("SET STATISTICS XML ON", factory.ExecutedNonQueryCommands);
+        Assert.Contains("SET STATISTICS IO ON", factory.ExecutedNonQueryCommands);
+        Assert.Contains("SET STATISTICS TIME ON", factory.ExecutedNonQueryCommands);
+        Assert.All(factory.ExecutedCommands, command => Assert.Equal(commandTimeout, command.CommandTimeout));
+    }
+
+    [Theory]
+    [InlineData(17, 0)]
+    [InlineData(0, 0)]
+    [InlineData(17, 1)]
+    [InlineData(0, 1)]
+    public async Task MeasurePerformanceAsync_ShowplanFallbackRetainsTimeout(int commandTimeout, int warmupRuns)
+    {
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(
+            ThrowOnExecute: SqlExceptionFactory.Create(SqlServerErrorCode.ShowplanPermissionMissing, "SHOWPLAN permission missing.")));
+        var result = await BuildService(factory: factory, commandTimeout: commandTimeout).MeasurePerformanceAsync(
+            new QueryPerformanceArgs(TestConstants.DatabaseName, "SELECT 1", WarmupRuns: warmupRuns),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
+        Assert.Contains("SET STATISTICS XML OFF", factory.ExecutedNonQueryCommands);
+        Assert.Equal(2, factory.ExecutedReaderCommands.Count);
+        Assert.All(factory.ExecutedCommands, command => Assert.Equal(commandTimeout, command.CommandTimeout));
+        Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);
     }
 }

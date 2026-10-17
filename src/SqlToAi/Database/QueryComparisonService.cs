@@ -121,7 +121,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         return null;
     }
 
-    private static async Task<QueryComparisonResult> PerformComparisonAsync(
+    private async Task<QueryComparisonResult> PerformComparisonAsync(
         DbConnection connection,
         DbTransaction transaction,
         QueryComparisonArgs args,
@@ -165,7 +165,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
             RowsInBNotInA: rowsInBNotA);
     }
 
-    private static async Task<(bool Match, List<string> Diffs)> CompareSchemasAsync(
+    private async Task<(bool Match, List<string> Diffs)> CompareSchemasAsync(
         DbConnection connection,
         DbTransaction transaction,
         string queryA,
@@ -203,7 +203,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         return (diffs.Count == 0, diffs);
     }
 
-    private static async Task<List<(string Name, string Type)>> GetSchemaColumnsAsync(
+    private async Task<List<(string Name, string Type)>> GetSchemaColumnsAsync(
         DbConnection connection,
         DbTransaction transaction,
         string query,
@@ -211,6 +211,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         CancellationToken ct)
     {
         await using var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = _dependencies.QueryExecutionOptions.CommandTimeoutSeconds;
         cmd.CommandText = query;
         cmd.Transaction = transaction;
         SqlParameterBinder.BindParameters(cmd, parameters);
@@ -224,7 +225,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         return list;
     }
 
-    private static async Task<long> ExecuteCountAsync(
+    private async Task<long> ExecuteCountAsync(
         DbConnection connection,
         DbTransaction transaction,
         string query,
@@ -244,6 +245,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         sb.AppendLine(string.Create(CultureInfo.InvariantCulture, $"SELECT COUNT_BIG(*) FROM ({d.MainSelect}) AS SqlToAiCountSubQuery"));
 
         await using var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = _dependencies.QueryExecutionOptions.CommandTimeoutSeconds;
         cmd.CommandText = sb.ToString();
         cmd.Transaction = transaction;
         SqlParameterBinder.BindParameters(cmd, parameters);
@@ -252,7 +254,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         return result is long l ? l : Convert.ToInt64(result, CultureInfo.InvariantCulture);
     }
 
-    private static async Task<(string RowsInANotB, string RowsInBNotA)> ExecuteExceptDiffsAsync(
+    private async Task<(string RowsInANotB, string RowsInBNotA)> ExecuteExceptDiffsAsync(
         DbConnection connection,
         DbTransaction transaction,
         QueryComparisonArgs args,
@@ -287,7 +289,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         return (diffAnotB, diffBnotA);
     }
 
-    private static async Task<string> ExecuteDiffQueryAsync(
+    private async Task<string> ExecuteDiffQueryAsync(
         DbConnection connection,
         DbTransaction transaction,
         string exceptQuery,
@@ -297,6 +299,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         CancellationToken ct)
     {
         await using var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = _dependencies.QueryExecutionOptions.CommandTimeoutSeconds;
         cmd.CommandText = exceptQuery;
         cmd.Transaction = transaction;
 

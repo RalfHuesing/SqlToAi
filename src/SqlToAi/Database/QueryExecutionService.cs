@@ -130,7 +130,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
             await PrimaryConnection.OpenAsync(connection, cancellationToken);
 
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
-            int baselineTranCount = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, cancellationToken);
+            int baselineTranCount = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, _options.CommandTimeoutSeconds, cancellationToken);
 
             Result<QueryExecutionResult> result;
             bool tranCountChanged;
@@ -139,7 +139,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
                 var execArgs = new QueryBatchExecutionArgs(
                     connection, transaction, databaseName, query, effectiveLimit, anonymize, parameters);
                 result = await ((IQueryBatchExecutor)this).ExecuteBatchAsync(execArgs, cancellationToken);
-                int tranCountAfterExecution = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, cancellationToken);
+                int tranCountAfterExecution = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, _options.CommandTimeoutSeconds, cancellationToken);
                 tranCountChanged = tranCountAfterExecution != baselineTranCount;
             }
             catch
@@ -190,15 +190,15 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
         CancellationToken cancellationToken) =>
         ExecuteAndSerializeAsync(args, cancellationToken);
 
-    private static async Task EnableOptionsAsync(
+    private async Task EnableOptionsAsync(
         DbConnection connection,
         DbTransaction? transaction,
         int rowLimit,
         CancellationToken cancellationToken)
     {
-        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS IO ON", cancellationToken);
-        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS TIME ON", cancellationToken);
-        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, $"SET ROWCOUNT {rowLimit}", cancellationToken);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS IO ON", _options.CommandTimeoutSeconds, cancellationToken);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS TIME ON", _options.CommandTimeoutSeconds, cancellationToken);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, $"SET ROWCOUNT {rowLimit}", _options.CommandTimeoutSeconds, cancellationToken);
     }
 
     private async Task<Result<QueryExecutionResult>> ExecuteAndSerializeAsync(
@@ -251,7 +251,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
             }
             finally
             {
-                await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, transaction, "SET ROWCOUNT 0", cancellationToken);
+                await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, transaction, "SET ROWCOUNT 0", _options.CommandTimeoutSeconds, cancellationToken);
             }
 
             stopwatch.Stop();

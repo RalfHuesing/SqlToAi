@@ -29,10 +29,11 @@ internal static class TransactionIntegrityGuard
             "Rollback after a transaction-integrity violation failed for database {Database} — expected when the ambient transaction no longer exists.");
 
     /// <summary>Reads the current <c>@@TRANCOUNT</c> on the given connection/transaction.</summary>
-    public static async Task<int> GetTranCountAsync(DbConnection connection, DbTransaction transaction, CancellationToken cancellationToken)
+    public static async Task<int> GetTranCountAsync(DbConnection connection, DbTransaction transaction, int commandTimeout, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT @@TRANCOUNT";
+        command.CommandTimeout = commandTimeout;
         command.Transaction = transaction;
         object? value = await command.ExecuteScalarAsync(cancellationToken);
         return Convert.ToInt32(value, CultureInfo.InvariantCulture);

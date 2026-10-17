@@ -327,12 +327,36 @@ public sealed class ScriptExecutionServiceTests
         Assert.Equal(ScriptBatchStatus.Failed, result.Batches[0].Status);
     }
 
+    [Theory]
+    [InlineData(17, false)]
+    [InlineData(0, false)]
+    [InlineData(17, true)]
+    [InlineData(0, true)]
+    public async Task ExecuteAsync_AppliesTimeoutToBaselineAndIntegrityCommands(int commandTimeout, bool writeAllowed)
+    {
+        var factory = new MockQueryConnectionFactory();
+        var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(
+            writeAllowed ? AccessLevel.ReadWrite : AccessLevel.ReadOnly, writeAllowed));
+        var executor = new RecordingBatchExecutor();
+        var result = await BuildService(factory, safety, executor, commandTimeout).ExecuteAsync(
+            BuildRequest("SELECT 1\nGO\nSELECT 2"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(ScriptExecutionStatus.Success, result.Status);
+        Assert.Equal(3, factory.ExecutedCommands.Count);
+        Assert.All(factory.ExecutedCommands, command =>
+        {
+            Assert.Equal("SELECT @@TRANCOUNT", command.CommandText);
+            Assert.Equal(commandTimeout, command.CommandTimeout);
+        });
+    }
+
     private static ScriptExecutionService BuildService(
         MockQueryConnectionFactory factory,
         RecordingSafetyValidator safety,
-        RecordingBatchExecutor executor)
+        RecordingBatchExecutor executor, int? commandTimeout = null)
     {
         var options = new SqlToAiOptions();
+        if (commandTimeout.HasValue) options.QueryExecution.CommandTimeoutSeconds = commandTimeout.Value;
         return new ScriptExecutionService(
             factory,
             safety,

@@ -192,7 +192,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
         try
         {
             int baselineTranCount = await TransactionIntegrityGuard
-                .GetTranCountAsync(connection, transaction, cancellationToken)
+                .GetTranCountAsync(connection, transaction, _options.CommandTimeoutSeconds, cancellationToken)
                 .ConfigureAwait(false);
             var args = new QueryBatchExecutionArgs(
                 connection,
@@ -339,7 +339,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
         }
     }
 
-    private static async Task<bool> HasTransactionChangedAsync(
+    private async Task<bool> HasTransactionChangedAsync(
         ScriptTransactionContext context,
         DbTransaction transaction,
         CancellationToken cancellationToken)
@@ -348,6 +348,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
             .GetTranCountAsync(
                 context.ExecutionArgs.Connection,
                 transaction,
+                _options.CommandTimeoutSeconds,
                 cancellationToken)
             .ConfigureAwait(false);
         return currentTranCount != context.BaselineTranCount;

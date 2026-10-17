@@ -103,7 +103,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
         return null;
     }
 
-    private static async Task<PerformanceMeasurementResult> ExecuteMeasurementAsync(
+    private async Task<PerformanceMeasurementResult> ExecuteMeasurementAsync(
         DbConnection connection,
         DbTransaction transaction,
         QueryPerformanceArgs args,
@@ -122,7 +122,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
         {
             try
             {
-                await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS XML ON", ct);
+                await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS XML ON", _dependencies.QueryExecutionOptions.CommandTimeoutSeconds, ct);
             }
             catch (SqlException ex) when (IsPermissionError(ex, SqlServerErrorCode.ShowplanPermissionMissing, "SHOWPLAN"))
             {
@@ -131,8 +131,8 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             }
         }
 
-        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS IO ON", ct);
-        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS TIME ON", ct);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS IO ON", _dependencies.QueryExecutionOptions.CommandTimeoutSeconds, ct);
+        await DatabaseCommandExecutor.ExecuteSetOptionAsync(connection, transaction, "SET STATISTICS TIME ON", _dependencies.QueryExecutionOptions.CommandTimeoutSeconds, ct);
 
         int warmupRuns = Math.Max(0, args.WarmupRuns);
         var runContext = new MeasurementContext
@@ -175,7 +175,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
         public string? Note { get; set; }
     }
 
-    private static async Task ExecuteWarmupRunsAsync(
+    private async Task ExecuteWarmupRunsAsync(
         MeasurementContext context,
         int warmupRuns,
         CancellationToken ct)
@@ -190,14 +190,14 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             {
                 context.HasPermission = false;
                 context.Note = "SHOWPLAN permission missing; performance metrics captured without XML plan analysis.";
-                await DatabaseCommandExecutor.ExecuteSetOptionAsync(context.Connection, context.Transaction, "SET STATISTICS XML OFF", ct);
+                await DatabaseCommandExecutor.ExecuteSetOptionAsync(context.Connection, context.Transaction, "SET STATISTICS XML OFF", _dependencies.QueryExecutionOptions.CommandTimeoutSeconds, ct);
                 context.Messages.Clear();
                 i--;
             }
         }
     }
 
-    private static async Task<(string? XmlPlanText, IReadOnlyList<IReadOnlyList<string>> PerRunMessages)> ExecuteMeasuredRunsAsync(
+    private async Task<(string? XmlPlanText, IReadOnlyList<IReadOnlyList<string>> PerRunMessages)> ExecuteMeasuredRunsAsync(
         MeasurementContext context,
         int execRuns,
         CancellationToken ct)
@@ -220,7 +220,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             {
                 context.HasPermission = false;
                 context.Note = "SHOWPLAN permission missing; performance metrics captured without XML plan analysis.";
-                await DatabaseCommandExecutor.ExecuteSetOptionAsync(context.Connection, context.Transaction, "SET STATISTICS XML OFF", ct);
+                await DatabaseCommandExecutor.ExecuteSetOptionAsync(context.Connection, context.Transaction, "SET STATISTICS XML OFF", _dependencies.QueryExecutionOptions.CommandTimeoutSeconds, ct);
                 context.Messages.Clear();
                 i--;
             }
@@ -238,9 +238,10 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
     internal static bool IsPermissionError(SqlException ex, int errorNumber, string keyword) =>
         ex.Number == errorNumber || ex.Message.Contains(keyword, StringComparison.OrdinalIgnoreCase);
 
-    private static async Task<string?> RunQueryOnceAsync(DbConnection connection, DbTransaction transaction, QueryPerformanceArgs args, CancellationToken ct)
+    private async Task<string?> RunQueryOnceAsync(DbConnection connection, DbTransaction transaction, QueryPerformanceArgs args, CancellationToken ct)
     {
         await using var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = _dependencies.QueryExecutionOptions.CommandTimeoutSeconds;
         cmd.CommandText = args.Query;
         cmd.Transaction = transaction;
         SqlParameterBinder.BindParameters(cmd, args.Parameters);

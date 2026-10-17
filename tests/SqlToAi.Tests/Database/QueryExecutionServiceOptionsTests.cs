@@ -91,17 +91,22 @@ public sealed class QueryExecutionServiceOptionsTests
         Assert.Equal(0, result.Value.LogicalReads);
     }
 
-    [Fact]
-    public async Task ExecuteQueryAsync_ShouldApplyConfiguredCommandTimeout_ToCommand()
+    [Theory]
+    [InlineData(17)]
+    [InlineData(0)]
+    public async Task ExecuteQueryAsync_ShouldApplyConfiguredCommandTimeout_ToAllCommands(int commandTimeout)
     {
-        var options = new SqlToAiOptions { QueryExecution = new QueryExecutionOptions { CommandTimeoutSeconds = 45 } };
+        var options = new SqlToAiOptions { QueryExecution = new QueryExecutionOptions { CommandTimeoutSeconds = commandTimeout } };
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("Col1\tVal1"));
         var service = BuildService(factory, options);
 
         var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(45, factory.LastConnection?.LastCommand?.CommandTimeout);
+        Assert.Equal(7, factory.ExecutedCommands.Count);
+        Assert.Contains(factory.ExecutedCommands, command => command.CommandText == "SELECT @@TRANCOUNT");
+        Assert.Contains(factory.ExecutedCommands, command => command.CommandText == "SET ROWCOUNT 0");
+        Assert.All(factory.ExecutedCommands, command => Assert.Equal(commandTimeout, command.CommandTimeout));
     }
 
     [Fact]

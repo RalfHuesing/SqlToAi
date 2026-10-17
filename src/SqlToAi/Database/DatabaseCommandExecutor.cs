@@ -10,10 +10,11 @@ internal static class DatabaseCommandExecutor
     /// <summary>
     /// Executes a single <c>SET ...</c> statement on the given connection and optional transaction.
     /// </summary>
-    public static async Task ExecuteSetOptionAsync(DbConnection connection, DbTransaction? transaction, string sql, CancellationToken ct)
+    public static async Task ExecuteSetOptionAsync(DbConnection connection, DbTransaction? transaction, string sql, int commandTimeout, CancellationToken ct)
     {
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = sql;
+        cmd.CommandTimeout = commandTimeout;
         cmd.Transaction = transaction;
         await cmd.ExecuteNonQueryAsync(ct);
     }

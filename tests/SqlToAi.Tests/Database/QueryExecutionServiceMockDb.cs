@@ -246,6 +246,8 @@ internal sealed class MockQueryConnectionFactory(MockQueryRowConfig? config = nu
     /// <summary>Reader commands in execution order, including their assigned transactions.</summary>
     public List<FakeDbCommand> ExecutedReaderCommands { get; } = [];
 
+    public List<FakeDbCommand> ExecutedCommands { get; } = [];
+
     public DbConnection CreateConnection(string? databaseName)
     {
         LastConnection = BuildConnection(_config);
@@ -283,14 +285,18 @@ internal sealed class MockQueryConnectionFactory(MockQueryRowConfig? config = nu
     /// returns the next simulated value instead â€” letting tests drive the layer-2
     /// transaction-tampering detection without any real mutating keyword.
     /// </summary>
-    private static int ExecuteScalar(FakeDbCommand cmd, MockQueryRowConfig config) =>
-        config.TranCountSequence != null && cmd.CommandText.Contains("@@TRANCOUNT", StringComparison.OrdinalIgnoreCase)
+    private int ExecuteScalar(FakeDbCommand cmd, MockQueryRowConfig config)
+    {
+        ExecutedCommands.Add(cmd);
+        return config.TranCountSequence != null && cmd.CommandText.Contains("@@TRANCOUNT", StringComparison.OrdinalIgnoreCase)
             ? config.TranCountSequence.Next()
             : 1;
+    }
 
     /// <summary>Records the command text of every <c>ExecuteNonQuery</c> call (e.g. the <c>SET STATISTICS ...</c> commands issued before the main query).</summary>
     private int RecordNonQuery(FakeDbCommand cmd)
     {
+        ExecutedCommands.Add(cmd);
         ExecutedNonQueryCommands.Add(cmd.CommandText);
         return 0;
     }
@@ -305,6 +311,7 @@ internal sealed class MockQueryConnectionFactory(MockQueryRowConfig? config = nu
     private FakeDbDataReader ExecuteReader(FakeDbCommand cmd, FakeDbConnection conn, MockQueryRowConfig config)
     {
         conn.LastCommand = cmd;
+        ExecutedCommands.Add(cmd);
         ExecutedReaderCommands.Add(cmd);
         if (config.ThrowOnExecute != null)
         {
