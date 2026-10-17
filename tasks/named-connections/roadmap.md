@@ -36,7 +36,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 - [ ] **M1 — Aggregate:** M1.1–M1.3 accepted; one identity and policy contract is
   available to all later consumers.
 
-- [ ] **M1.1 — Define immutable targets and server configuration models.**
+- [x] **M1.1 — Define immutable targets and server configuration models.**
   **Depends on:** approved concept.
   **Intention:** separate caller target identity, policy comparison and physical
   database names before any consumer selects an endpoint.
@@ -53,6 +53,16 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   comparison uses `OrdinalIgnoreCase`, and raw database identity remains ordinal.
   Explicit `default` and two aliases for one physical endpoint gain no special
   behavior. Contexts contain no mutable current-server state.
+  **Completion evidence:** Added `DatabaseTargetParser`, `DatabaseTargetResolver`,
+  immutable `DatabaseTargetContext`, and `NamedServerOptions` under
+  `SqlToAi.Servers`. Focused tests cover parsing, alias canonicalization and
+  validation, unknown aliases, policy versus raw identity, explicit `default`,
+  duplicate endpoints, and per-server option binding. `dotnet build SqlToAi.slnx`
+  succeeded with 0 warnings and 0 errors. `dotnet test SqlToAi.slnx` succeeded:
+  1,281 passed, 19 skipped, 0 failed; skipped cases are TLS integration cases
+  whose external test endpoints are unavailable in this run. Assignment model /
+  effort: GPT-6-Luna / high. Host activation and legacy-contract removal remain
+  for M4.1; this slice does not change current runtime routing.
 
 - [ ] **M1.2 — Route primary connections and access policy through targets.**
   **Depends on:** M1.1.

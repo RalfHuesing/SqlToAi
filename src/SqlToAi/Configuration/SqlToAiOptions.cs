@@ -6,6 +6,7 @@ namespace SqlToAi.Configuration;
 public sealed class SqlToAiOptions
 {
     internal string? ResolvedRootDirectory { get; set; }
+    public Dictionary<string, NamedServerOptions> Servers { get; set; } = new(StringComparer.Ordinal);
     public SqlServerOptions SqlServer { get; set; } = new();
     public DatabasesOptions Databases { get; set; } = new();
     public AnonymizerOptions Anonymizer { get; set; } = new();
@@ -14,6 +15,20 @@ public sealed class SqlToAiOptions
     public QueryExecutionOptions QueryExecution { get; set; } = new();
     public SchemaBatchOptions SchemaBatch { get; set; } = new();
     public LoggingOptions Logging { get; set; } = new();
+}
+
+/// <summary>Connection and supporting-provider settings owned by one named SQL Server alias.</summary>
+public sealed class NamedServerOptions
+{
+    public string Server { get; set; } = string.Empty;
+    public string? UserId { get; set; }
+    public string? Password { get; set; }
+    public bool IntegratedSecurity { get; set; }
+    public bool TrustServerCertificate { get; set; }
+    public List<string> ExcludedDatabases { get; set; } = [];
+    public int ConnectTimeoutSeconds { get; set; } = 30;
+    public MetadataProviderOptions MetadataProvider { get; set; } = new() { Enabled = false };
+    public AnonymizationRulesOptions AnonymizationRules { get; set; } = new();
 }
 
 public sealed class SchemaBatchOptions
