@@ -121,11 +121,29 @@ public sealed class SchemaService : ISchemaService
             }
             if (ex is PrimaryConnectionException pex && (pex.IsTlsFailure || pex.Error.Code == SqlToAiError.TimeoutCode))
             {
-                _logger.LogWarning(ex, "SqlServer catalog connection failed.");
+                string failureType = pex.IsTlsFailure
+                    ? "TLS/certificate connection failure"
+                    : "SQL connection timeout";
+                _logger.LogWarning(pex, "SqlServer catalog connection failed for settings {SettingsPath} ({FailureType}).",
+                    $"SqlToAi:Servers:{canonicalServer}", failureType);
                 return pex.Error;
             }
 
-            _logger.LogWarning(ex, "Failed to query sys.databases catalog for server '{Server}'. Falling back to configured static database lists.", canonicalServer);
+            if (SqlToAiErrorMapper.IsTimeoutException(ex) || SqlToAiErrorMapper.IsTlsException(ex))
+            {
+                SqlToAiError mapped = SqlToAiErrorMapper.MapException(ex);
+                string settingsPath = $"SqlToAi:Servers:{canonicalServer}";
+                string failureType = mapped.Code == SqlToAiError.TimeoutCode
+                    ? "SQL catalog query timeout"
+                    : "TLS/certificate failure";
+                _logger.LogWarning("SqlServer catalog query failed for settings {SettingsPath} ({FailureType}).",
+                    settingsPath, failureType);
+                return mapped with { Message = $"{mapped.Message} Settings: {settingsPath}." };
+            }
+
+            _logger.LogWarning(ex is PrimaryConnectionException ? ex : null,
+                "Failed to query sys.databases catalog for settings {SettingsPath} ({FailureType}). Falling back to configured static database lists.",
+                $"SqlToAi:Servers:{canonicalServer}", SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex));
             return Result<IReadOnlyList<string>>.Success(GetStaticAllowedDatabases(canonicalServer));
         }
     }

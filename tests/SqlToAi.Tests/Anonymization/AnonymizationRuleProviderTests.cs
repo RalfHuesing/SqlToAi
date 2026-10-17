@@ -69,11 +69,13 @@ public sealed class AnonymizationRuleProviderTests
     [InlineData(false)]
     public async Task IsExcludedAsync_UnrequestedCancellationKeepsFallbackAndCachesIt(bool duringOpen)
     {
+        var queries = new List<string>();
         var connection = duringOpen
             ? new FakeDbConnection(_ => throw new NotSupportedException(),
                 new FakeDbConnectionOptions(OpenFailure: new OperationCanceledException()))
             : MockConnection.Create([new("%", "Customers", "Name", false)], beforeExecute: command =>
             {
+                queries.Add(command.CommandText);
                 if (command.CommandText.Contains("COL_LENGTH", StringComparison.Ordinal))
                     throw new OperationCanceledException();
             });
@@ -83,9 +85,10 @@ public sealed class AnonymizationRuleProviderTests
         bool first = await provider.IsExcludedAsync(Target("AnyDb"), "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
         bool second = await provider.IsExcludedAsync(Target("AnyDb"), "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
 
-        Assert.Equal(!duringOpen, first);
+        Assert.False(first);
         Assert.Equal(first, second);
         Assert.Equal(1, factory.ConnectionCreatedCount);
+        Assert.DoesNotContain(queries, query => query.Contains("WHERE [IsActive]", StringComparison.Ordinal));
     }
 
     [Theory]

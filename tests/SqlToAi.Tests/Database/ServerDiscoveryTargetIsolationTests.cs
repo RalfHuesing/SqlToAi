@@ -1,4 +1,6 @@
 using System.Data.Common;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
@@ -23,6 +25,10 @@ public sealed class ServerDiscoveryTargetIsolationTests
         public List<string?> OpenedCatalogServers { get; } = [];
         public int CatalogConnectionCount { get; private set; }
         public bool FailCatalogQuery { get; set; }
+        public Exception? CatalogQueryFailure { get; set; }
+        public Action? BeforeCatalogQueryFailure { get; set; }
+        public int CatalogQueryCount { get; private set; }
+        public FakeDbConnection? LastCatalogConnection { get; private set; }
 
         public DbConnection CreateTargetConnection(DatabaseTargetContext target) => throw new NotSupportedException();
 
@@ -31,9 +37,15 @@ public sealed class ServerDiscoveryTargetIsolationTests
         {
             CatalogConnectionCount++;
             OpenedCatalogServers.Add(serverAlias);
-            return Result<DbConnection>.Success(new FakeDbConnection(conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(
+            LastCatalogConnection = new FakeDbConnection(conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(
                 ExecuteReader: cmd =>
                 {
+                    CatalogQueryCount++;
+                    if (CatalogQueryFailure is not null)
+                    {
+                        BeforeCatalogQueryFailure?.Invoke();
+                        throw CatalogQueryFailure;
+                    }
                     if (FailCatalogQuery)
                     {
                         throw new InvalidOperationException("Simulated catalog query failure");
@@ -47,14 +59,16 @@ public sealed class ServerDiscoveryTargetIsolationTests
                     }
 
                     return new FakeDbDataReader(["val"], []);
-                }))));
+                })));
+            return Result<DbConnection>.Success(LastCatalogConnection);
         }
 
         public DbConnection CreateConnection(string? databaseName = null) => throw new NotSupportedException();
     }
 
     private static (SchemaService Service, DiscoveryTrackingConnectionFactory Factory) CreateService(
-        Action<SqlToAiOptions>? configure = null)
+        Action<SqlToAiOptions>? configure = null,
+        CapturingLogger<SchemaService>? logger = null)
     {
         var options = new SqlToAiOptions();
         options.Servers["alpha"] = new NamedServerOptions { Server = "srv-alpha", TrustServerCertificate = true };
@@ -69,7 +83,8 @@ public sealed class ServerDiscoveryTargetIsolationTests
         var access = new AccessLevelProvider(factory, opts, NullLogger<AccessLevelProvider>.Instance);
         var metadata = new MetadataProvider(factory, opts, NullLogger<MetadataProvider>.Instance);
         var policy = new AlwaysAllowPolicyResolver();
-        var service = new SchemaService(factory, security, access, metadata, policy, opts, NullLogger<SchemaService>.Instance);
+        var service = new SchemaService(factory, security, access, metadata, policy, opts,
+            (ILogger<SchemaService>?)logger ?? NullLogger<SchemaService>.Instance);
         return (service, factory);
     }
 
@@ -156,6 +171,86 @@ public sealed class ServerDiscoveryTargetIsolationTests
         Assert.Single(resultBeta.Value);
         Assert.Contains("beta/FinanceDb", resultBeta.Value);
         Assert.DoesNotContain("alpha/CustomersDb", resultBeta.Value);
+    }
+
+    [Theory]
+    [InlineData("list", "sql-timeout", SqlToAiError.TimeoutCode)]
+    [InlineData("search", "nested-timeout", SqlToAiError.TimeoutCode)]
+    [InlineData("list", "tls-certificate", SqlToAiError.InfrastructureErrorCode)]
+    public async Task CatalogQueryTimeoutOrTlsFailure_ReturnsSafeErrorAfterOpenWithoutFallback(
+        string operation, string failureKind, string expectedCode)
+    {
+        const string marker = "synthetic-secret-marker";
+        var logger = new CapturingLogger<SchemaService>();
+        var (service, factory) = CreateService(logger: logger);
+        factory.CatalogQueryFailure = failureKind switch
+        {
+            "sql-timeout" => SqlExceptionFactory.Create(-2, $"Timeout; SSL Provider Password={marker};Server=raw-marker;"),
+            "nested-timeout" => new InvalidOperationException($"outer {marker}", new TimeoutException($"inner {marker}")),
+            "tls-certificate" => SqlExceptionFactory.Create(unchecked((int)0x80090325), $"Certificate failure Password={marker};Server=raw-marker;"),
+            _ => throw new ArgumentOutOfRangeException(nameof(failureKind))
+        };
+
+        var result = operation == "list"
+            ? await service.ListDatabasesAsync("alpha", TestContext.Current.CancellationToken)
+            : await service.SearchDatabasesAsync("alpha", "Customer", TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(expectedCode, result.Error.Code);
+        Assert.Contains("SqlToAi:Servers:alpha", result.Error.Message);
+        Assert.DoesNotContain(marker, result.Error.Message);
+        Assert.DoesNotContain("raw-marker", result.Error.Message);
+        Assert.DoesNotContain("ConnectTimeout", result.Error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, factory.CatalogConnectionCount);
+        Assert.Equal(1, factory.LastCatalogConnection!.OpenCount);
+        Assert.Equal(1, factory.CatalogQueryCount);
+        Assert.NotEmpty(logger.Entries);
+        Assert.All(logger.Entries, entry =>
+        {
+            Assert.Contains("SqlToAi:Servers:alpha", entry.Message);
+            Assert.DoesNotContain(marker, entry.Message);
+            Assert.Null(entry.Exception);
+        });
+    }
+
+    [Fact]
+    public async Task CatalogQueryOrdinaryFailure_FallsBackToStaticGrantsWithSafeLog()
+    {
+        const string marker = "synthetic-secret-marker";
+        var logger = new CapturingLogger<SchemaService>();
+        var (service, factory) = CreateService(logger: logger);
+        factory.CatalogQueryFailure = new InvalidOperationException($"query failed Password={marker};Server=raw-marker;");
+
+        var result = await service.ListDatabasesAsync("alpha", TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(["alpha/CustomersDb", "alpha/OrdersDb"], result.Value);
+        Assert.Equal(1, factory.LastCatalogConnection!.OpenCount);
+        Assert.Equal(1, factory.CatalogQueryCount);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Contains("SqlToAi:Servers:alpha", entry.Message);
+        Assert.Contains("Falling back", entry.Message);
+        Assert.DoesNotContain(marker, entry.Message);
+        Assert.DoesNotContain("raw-marker", entry.Message);
+        Assert.Null(entry.Exception);
+    }
+
+    [Fact]
+    public async Task CatalogReaderRequestedCancellation_PropagatesWithoutFallback()
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var logger = new CapturingLogger<SchemaService>();
+        var (service, factory) = CreateService(logger: logger);
+        factory.CatalogQueryFailure = new OperationCanceledException(cancellation.Token);
+        factory.BeforeCatalogQueryFailure = () => cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.ListDatabasesAsync("alpha", cancellation.Token));
+
+        Assert.True(cancellation.IsCancellationRequested);
+        Assert.Equal(1, factory.LastCatalogConnection!.OpenCount);
+        Assert.Equal(1, factory.CatalogQueryCount);
+        Assert.Empty(logger.Entries);
     }
 
     [Theory]

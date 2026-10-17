@@ -43,10 +43,13 @@ loops, superseding the workflow's sequential-audit and one-correction defaults.
   and exact/case-only duplicate aliases. Validate resolved direct and bound options
   equivalently; preserve legitimate overrides, safe stderr and settings bytes.
   Evidence: [R2 review and gates](audit.md#r2--source-boundaries-and-effective-options-validation).
-- [ ] **R3 — Preserve discovery timeout/TLS failures after connection open.**
+- [x] **R3 — Preserve discovery timeout/TLS failures after connection open.**
   Classify catalog-command failures before static-grant fallback; preserve safe
   owner-specific errors, cancellation and fallback for other catalog errors.
   Include the canonical owner settings path in safe secondary-provider logs.
+  A failed SchemaPattern probe must retain default masking; only a successful
+  probe proving the column absent may use legacy schema-agnostic rules.
+  Evidence: [R3 review and gates](audit.md#r3--safe-discovery-and-failed-provider-loads).
 - [ ] **R4 — Carry one target through composed services and exploration.**
   Resolve once at export/benchmark entry and retain the context through child
   operations. Derive exploration's manifest rights from its actual canonical

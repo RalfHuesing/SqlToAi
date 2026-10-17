@@ -7,7 +7,10 @@ namespace SqlToAi.Tests.Anonymization;
 internal sealed record RuleRowData(string DatabasePattern, string TablePattern, string ColumnPattern, bool Anonymize, string SchemaPattern = "%");
 
 /// <summary>Bundles the mock connection's two independent boolean behaviors into one parameter object.</summary>
-internal sealed record MockConnectionFlags(bool ThrowException = false, bool HasSchemaPatternColumn = false);
+internal sealed record MockConnectionFlags(
+    bool ThrowException = false,
+    bool HasSchemaPatternColumn = false,
+    Exception? SchemaPatternFailure = null);
 
 internal sealed class DummyConnectionFactory : IDatabaseConnectionFactory
 {
@@ -61,6 +64,10 @@ internal static class MockConnection
         }
         if (cmd.CommandText.Contains("COL_LENGTH", StringComparison.Ordinal))
         {
+            if (flags.SchemaPatternFailure is not null)
+            {
+                throw flags.SchemaPatternFailure;
+            }
             return new FakeDbDataReader(["Value"], [[flags.HasSchemaPatternColumn]]);
         }
         bool includeSchemaPattern = cmd.CommandText.Contains("SchemaPattern", StringComparison.Ordinal);

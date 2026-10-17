@@ -77,6 +77,7 @@ public sealed class MetadataProvider : IMetadataProvider
             return null;
         }
 
+        string settingsPath = $"SqlToAi:Servers:{target.ServerAlias}:MetadataProvider";
         (string sql, string queryTableName) = BuildTableQuery(metadata, tableName, resolvedName);
 
         try
@@ -96,7 +97,7 @@ public sealed class MetadataProvider : IMetadataProvider
         catch (Exception ex)
         {
             string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
-            _logger.LogError("MetadataProvider {FailureType} while retrieving a table description.", failureType);
+            _logger.LogError("MetadataProvider {FailureType} at {SettingsPath} while retrieving a table description.", failureType, settingsPath);
             return null;
         }
     }
@@ -124,6 +125,7 @@ public sealed class MetadataProvider : IMetadataProvider
             return dict;
         }
 
+        string settingsPath = $"SqlToAi:Servers:{target.ServerAlias}:MetadataProvider";
         (string sql, string queryTableName) = BuildColumnQuery(metadata, tableName, resolvedName);
 
         try
@@ -149,7 +151,7 @@ public sealed class MetadataProvider : IMetadataProvider
         catch (Exception ex)
         {
             string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
-            _logger.LogError("MetadataProvider {FailureType} while retrieving column descriptions.", failureType);
+            _logger.LogError("MetadataProvider {FailureType} at {SettingsPath} while retrieving column descriptions.", failureType, settingsPath);
         }
 
         return dict;

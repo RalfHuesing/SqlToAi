@@ -163,6 +163,7 @@ Locations in this subsection refer to `cab47d3`, before remediation.
 | P1 contract | `src/SqlToAi/Configuration/UserConfiguration.cs:143,156,178–184` inspects only the first matching root and Servers property. Existing StartupHarness accepted hidden obsolete `SqlServer` and exact/case-only duplicate aliases in later wrappers, exit 0 and empty stderr. Violates Must 2/4. Introduced in `ec0b3e1`. | R2 |
 | P2 validation | `src/SqlToAi/Program.cs:133–142` resolves but does not validate either direct options or the separately bound DI instance. M4.1 expressly requires equivalent effective validation. Normal host startup validates separately; no security bypass of that route is claimed. | R2 |
 | P2 error contract | `src/SqlToAi/Database/SchemaService.cs:105–106,122–129` recognizes timeout/TLS only inside connection-open wrappers; a catalog reader timeout after successful open returns static grants as success. Violates discovery Verification; command-failure regression coverage is missing. Introduced in `5f5c648`. | R3 |
+| P1 security (found during R3) | `src/SqlToAi/Anonymization/AnonymizationRuleProvider.cs:205–221` treats a failed SchemaPattern probe as an absent column; the subsequent SELECT drops schema restrictions and `RuleRow.SchemaPattern` defaults to `%`. A private-schema exemption can consequently apply elsewhere. Existing `AnonymizationRuleProviderTests.cs:70–88` even expects an exemption after an unrequested probe cancellation. Violates Must 9's failed-load masking; predates this feature (`dbbbc694`, assertion added in `580dcede`). | R3 |
 | P2 diagnostics | `src/SqlToAi/Metadata/MetadataProvider.cs:99,152` and `src/SqlToAi/Anonymization/AnonymizationRuleProvider.cs:99,171,220` omit the server owner from provider failure diagnostics. Documented affected settings paths cannot be identified. Masking remains closed on failure. | R3 |
 | P2 architecture | `src/SqlToAi/Cli/SchemaExportService.cs:49–63,127–139` and `src/SqlToAi/Database/OptimizationBenchmarkService.cs:41–62` repeatedly pass strings into resolving children rather than retaining one entry context (Must 5). No misrouting under stable startup options was demonstrated. | R4 |
 | P2 correctness | `tools/SqlToAi.Exploration/Program.cs:45–50` reports rights for the first configured alias; the scenario targets `primary/DemoDB`. Direct context construction also misses uppercase-alias canonicalization. | R4 |
@@ -247,4 +248,34 @@ Parent gates after approval: `dotnet build SqlToAi.slnx --warnaserror` returned
 0 warnings/errors; full `dotnet test SqlToAi.slnx --no-build` returned 1,600 passed,
 19 skipped, 0 failed. TRX skip names exactly match the 19 external TLS baseline
 cases. `git diff --check` was clean.
+
+## R3 — Safe discovery and failed provider loads
+
+Coder: GPT-6-luna/high (`coder_r1`); independent reviewer: GPT-6.1-Sol/high
+(`audit_foundations`). Reviewed against `7f88de2` (the R2 commit); production
+approved, then a test-only amendment closed the reader-cancellation evidence gap.
+
+`src/SqlToAi/Database/SchemaService.cs:122–148` distinguishes sanitized open errors
+from raw post-open catalog failures. Timeout takes precedence over TLS and both
+return safe 0106/0105 errors with the canonical settings path. Ordinary failures
+retain owner-filtered static grants without logging raw provider exceptions.
+`ServerDiscoveryTargetIsolationTests.cs:174–254` verifies successful open and
+actual reader entry, safe responses/logs, fallback, and reader-triggered requested
+cancellation. Existing safe-wrapper assertions remain intact.
+
+Provider failures now identify `SqlToAi:Servers:<alias>:MetadataProvider` or
+`AnonymizationRules`. During this slice the orchestrator found, and a second
+read-only reviewer confirmed, that a failed optional SchemaPattern probe could
+broaden a schema-specific exemption. `AnonymizationRuleProvider.cs:157–176,209–213`
+now sends that failure to the existing fail-closed loader. The regression at
+`AnonymizationRuleProviderOwnerTests.cs:441–483` checks both schemas remain masked
+for the failed owner, no active-rule SELECT occurs, the empty cache is reused,
+and the healthy owner's private-only exemption stays scoped. The old unsafe
+probe-cancellation assertion was strengthened to default masking; successful
+absent-column and schema-specific-column tests remain. Provider diagnostic
+regressions cover both owners and omit raw exception/credential markers.
+
+Parent gates after approval: warning-as-error build returned 0 warnings/errors;
+full no-build tests returned 1,610 passed, 19 skipped, 0 failed. TRX skip names
+exactly match the external TLS baseline. `git diff --check` was clean.
 

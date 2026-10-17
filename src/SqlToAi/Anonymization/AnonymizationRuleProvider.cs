@@ -82,6 +82,7 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
             return false;
         }
 
+        string settingsPath = $"SqlToAi:Servers:{target.ServerAlias}:AnonymizationRules";
         RuleCacheKey cacheKey;
         try
         {
@@ -96,7 +97,8 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
             // Misconfigured source (e.g. dedicated server without an explicit database):
             // fail-safe to default masking instead of surfacing configuration details.
             string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
-            _logger.LogError("AnonymizationRules {FailureType} while resolving the rule source; default masking remains active.", failureType);
+            _logger.LogError("AnonymizationRules {FailureType} at {SettingsPath} while resolving the rule source; default masking remains active.",
+                failureType, settingsPath);
             return false;
         }
 
@@ -105,7 +107,7 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
 
         IReadOnlyList<AnonymizationRule> activeRules = await _cache.GetOrLoadAsync(
             cacheKey,
-            token => LoadRulesFromAsync(createConnection, rules, token),
+            token => LoadRulesFromAsync(createConnection, rules, settingsPath, token),
             TimeSpan.FromSeconds(rules.CacheTtlSeconds),
             cancellationToken);
 
@@ -122,6 +124,7 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
     private async Task<IReadOnlyList<AnonymizationRule>> LoadRulesFromAsync(
         Func<DbConnection> createConnection,
         AnonymizationRulesOptions rules,
+        string settingsPath,
         CancellationToken cancellationToken)
     {
         string tableName = rules.TableName;
@@ -168,7 +171,8 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
         catch (Exception ex)
         {
             string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
-            _logger.LogError("AnonymizationRules {FailureType} while loading central rules; default masking remains active.", failureType);
+            _logger.LogError("AnonymizationRules {FailureType} at {SettingsPath} while loading central rules; default masking remains active.",
+                failureType, settingsPath);
             return [];
         }
     }
@@ -199,27 +203,14 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
     private DatabaseTargetResolver Targets() => _targets ??= new DatabaseTargetResolver(_options);
 
     /// <summary>
-    /// Detects the optional SchemaPattern column. Lookup failures use schema-agnostic rules;
-    /// requested cancellation propagates to the caller.
+    /// Detects the optional SchemaPattern column. Lookup failures propagate to the loader so it
+    /// can keep default masking active; requested cancellation propagates to the caller.
     /// </summary>
     private async Task<bool> HasSchemaPatternColumnAsync(DbConnection connection, AnonymizationRulesOptions rules, CancellationToken cancellationToken)
     {
-        try
-        {
-            const string checkSql = "SELECT CASE WHEN COL_LENGTH(@TableName, 'SchemaPattern') IS NOT NULL THEN 1 ELSE 0 END";
-            return await connection.QueryFirstOrDefaultAsync<bool>(
-                new CommandDefinition(checkSql, new { TableName = rules.TableName }, cancellationToken: cancellationToken, commandTimeout: rules.CommandTimeoutSeconds));
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
-            _logger.LogWarning("AnonymizationRules {FailureType} while checking the optional SchemaPattern column; using schema-agnostic rules.", failureType);
-            return false;
-        }
+        const string checkSql = "SELECT CASE WHEN COL_LENGTH(@TableName, 'SchemaPattern') IS NOT NULL THEN 1 ELSE 0 END";
+        return await connection.QueryFirstOrDefaultAsync<bool>(
+            new CommandDefinition(checkSql, new { TableName = rules.TableName }, cancellationToken: cancellationToken, commandTimeout: rules.CommandTimeoutSeconds));
     }
 
     /// <summary>

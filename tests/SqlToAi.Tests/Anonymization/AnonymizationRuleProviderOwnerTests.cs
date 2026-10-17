@@ -1,5 +1,6 @@
 using System.Data.Common;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
@@ -38,6 +39,11 @@ public sealed class AnonymizationRuleProviderOwnerTests
         public List<string> TargetAliases { get; } = [];
         public int TargetConnectionCount { get; private set; }
         public int FailFirstConnections { get; init; }
+        public Exception? Failure { get; init; }
+        public MockConnectionFlags Flags { get; init; } = new();
+        public Dictionary<string, MockConnectionFlags> FlagsByTarget { get; init; } = new(StringComparer.Ordinal);
+        public Action<string, FakeDbCommand>? BeforeExecute { get; init; }
+        public List<(string Target, string Command)> Commands { get; } = [];
 
         /// <summary>Serves the same rows for every requested target context.</summary>
         public TargetConnectionFactory(List<RuleRowData> rows)
@@ -64,14 +70,24 @@ public sealed class AnonymizationRuleProviderOwnerTests
 
             if (TargetConnectionCount <= FailFirstConnections || _failingTargets.Contains(targetKey))
             {
-                throw new InvalidOperationException("connection failed");
+                throw Failure ?? new InvalidOperationException("connection failed");
             }
 
             if (!_rowsByTarget.TryGetValue(targetKey, out List<RuleRowData>? rows))
             {
                 _rowsByTarget.TryGetValue(AnyTarget, out rows);
             }
-            return MockConnection.Create(rows ?? []);
+            MockConnectionFlags flags = FlagsByTarget.TryGetValue(targetKey, out MockConnectionFlags? targetFlags)
+                ? targetFlags
+                : Flags;
+            return MockConnection.Create(rows ?? [], flags, beforeExecute: command =>
+            {
+                lock (_gate)
+                {
+                    Commands.Add((targetKey, command.CommandText));
+                }
+                BeforeExecute?.Invoke(targetKey, command);
+            });
         }
 
         public Result<DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
@@ -154,8 +170,11 @@ public sealed class AnonymizationRuleProviderOwnerTests
         };
     }
 
-    private static AnonymizationRuleProvider BuildProvider(SqlToAiOptions options, IDatabaseConnectionFactory factory) =>
-        new(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
+    private static AnonymizationRuleProvider BuildProvider(
+        SqlToAiOptions options,
+        IDatabaseConnectionFactory factory,
+        CapturingLogger<AnonymizationRuleProvider>? logger = null) =>
+        new(factory, Options.Create(options), (ILogger<AnonymizationRuleProvider>?)logger ?? NullLogger<AnonymizationRuleProvider>.Instance);
 
     private static AnonymizationRuleProvider BuildDedicatedProvider(
         SqlToAiOptions options, IDatabaseConnectionFactory factory, DedicatedConnectionFactory dedicated) =>
@@ -382,6 +401,113 @@ public sealed class AnonymizationRuleProviderOwnerTests
         Assert.True(otherDb);
         Assert.Equal(["AppDb", "OtherDb"], factory.TargetDatabases);
         Assert.Equal(2, factory.TargetConnectionCount);
+    }
+
+    [Fact]
+    public async Task FailedLoadsLogDistinctOwnerSettingsPathsWithoutExceptionPayloads()
+    {
+        const string marker = "provider-secret-marker";
+        var options = BuildOptions();
+        AddServer(options, "prod", rulesEnabled: true);
+        var factory = new TargetConnectionFactory(
+            new Dictionary<string, List<RuleRowData>>(),
+            failingTargets: ["test/AppDb", "prod/AppDb"])
+        {
+            Failure = new InvalidOperationException($"Password={marker};Server=raw-marker;")
+        };
+        var logger = new CapturingLogger<AnonymizationRuleProvider>();
+        var provider = BuildProvider(options, factory, logger);
+
+        foreach (string alias in new[] { "test", "prod" })
+        {
+            bool excluded = await provider.IsExcludedAsync(
+                ResolveTarget(options, $"{alias}/AppDb"), "dbo", "Customers", "Email", TestContext.Current.CancellationToken);
+            Assert.False(excluded);
+        }
+
+        Assert.Equal(2, logger.Entries.Count);
+        foreach (string alias in new[] { "test", "prod" })
+        {
+            var entry = Assert.Single(logger.Entries, item => item.Message.Contains($"SqlToAi:Servers:{alias}:AnonymizationRules", StringComparison.Ordinal));
+            Assert.Contains("while loading central rules", entry.Message);
+            Assert.Contains("default masking remains active", entry.Message);
+            Assert.DoesNotContain(marker, entry.Message);
+            Assert.DoesNotContain("raw-marker", entry.Message);
+            Assert.Null(entry.Exception);
+        }
+    }
+
+    [Fact]
+    public async Task SchemaPatternProbeFailureLogsDistinctOwnerSettingsPathsWithoutExceptionPayloads()
+    {
+        const string marker = "schema-probe-secret-marker";
+        var options = BuildOptions();
+        AddServer(options, "prod", rulesEnabled: true);
+        var factory = new TargetConnectionFactory(new Dictionary<string, List<RuleRowData>>
+        {
+            ["test/AppDb"] = [new("%", "Customers", "Email", false, SchemaPattern: "private")],
+            ["prod/AppDb"] = [new("%", "Customers", "Email", false, SchemaPattern: "private")]
+        })
+        {
+            FlagsByTarget = new Dictionary<string, MockConnectionFlags>(StringComparer.Ordinal)
+            {
+                ["test/AppDb"] = new(HasSchemaPatternColumn: true),
+                ["prod/AppDb"] = new(HasSchemaPatternColumn: true)
+            },
+            BeforeExecute = (target, command) =>
+            {
+                if (target == "test/AppDb" && command.CommandText.Contains("COL_LENGTH", StringComparison.Ordinal))
+                {
+                    throw new TimeoutException($"Password={marker};Server=raw-marker;");
+                }
+            }
+        };
+        var logger = new CapturingLogger<AnonymizationRuleProvider>();
+        var provider = BuildProvider(options, factory, logger);
+
+        Assert.False(await provider.IsExcludedAsync(ResolveTarget(options, "test/AppDb"), "public", "Customers", "Email", TestContext.Current.CancellationToken));
+        Assert.False(await provider.IsExcludedAsync(ResolveTarget(options, "test/AppDb"), "private", "Customers", "Email", TestContext.Current.CancellationToken));
+        Assert.False(await provider.IsExcludedAsync(ResolveTarget(options, "prod/AppDb"), "public", "Customers", "Email", TestContext.Current.CancellationToken));
+        Assert.True(await provider.IsExcludedAsync(ResolveTarget(options, "prod/AppDb"), "private", "Customers", "Email", TestContext.Current.CancellationToken));
+
+        var probeLog = Assert.Single(logger.Entries, item => item.Message.Contains("while loading central rules", StringComparison.Ordinal));
+        Assert.Contains("SqlToAi:Servers:test:AnonymizationRules", probeLog.Message);
+        Assert.Contains("default masking remains active", probeLog.Message);
+        Assert.DoesNotContain(marker, probeLog.Message);
+        Assert.DoesNotContain("raw-marker", probeLog.Message);
+        Assert.Null(probeLog.Exception);
+        Assert.Equal(2, factory.TargetConnectionCount); // failed test owner cache plus successful prod owner cache
+        Assert.DoesNotContain(factory.Commands, command => command.Target == "test/AppDb"
+            && command.Command.Contains("WHERE [IsActive]", StringComparison.Ordinal));
+        Assert.Contains(factory.Commands, command => command.Target == "prod/AppDb"
+            && command.Command.Contains("WHERE [IsActive]", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RuleSourceResolutionFailureLogsOwnerSettingsPath()
+    {
+        var options = BuildOptions();
+        AddServer(options, "prod", rulesEnabled: true);
+        foreach (string alias in new[] { "test", "prod" })
+        {
+            options.Servers[alias].AnonymizationRules.Server = "dedicated-rules-host";
+            options.Servers[alias].AnonymizationRules.Database = null;
+        }
+        var factory = new TargetConnectionFactory([new("%", "Customers", "Email", false)]);
+        var logger = new CapturingLogger<AnonymizationRuleProvider>();
+        var provider = BuildProvider(options, factory, logger);
+
+        Assert.False(await provider.IsExcludedAsync(ResolveTarget(options, "test/AppDb"), "dbo", "Customers", "Email", TestContext.Current.CancellationToken));
+        Assert.False(await provider.IsExcludedAsync(ResolveTarget(options, "prod/AppDb"), "dbo", "Customers", "Email", TestContext.Current.CancellationToken));
+
+        Assert.Equal(2, logger.Entries.Count);
+        Assert.Equal(0, factory.TargetConnectionCount);
+        foreach (string alias in new[] { "test", "prod" })
+        {
+            var entry = Assert.Single(logger.Entries, item => item.Message.Contains($"SqlToAi:Servers:{alias}:AnonymizationRules", StringComparison.Ordinal));
+            Assert.Contains("while resolving the rule source", entry.Message);
+            Assert.Null(entry.Exception);
+        }
     }
 
     [Fact]

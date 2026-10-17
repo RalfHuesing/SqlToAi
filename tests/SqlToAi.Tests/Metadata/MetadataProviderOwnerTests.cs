@@ -5,6 +5,7 @@ using SqlToAi.Configuration;
 using SqlToAi.Database;
 using SqlToAi.Domain;
 using SqlToAi.Metadata;
+using SqlToAi.Tests.Database;
 using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Metadata;
@@ -125,6 +126,46 @@ public sealed class MetadataProviderOwnerTests
         string? description = await provider.GetTableDescriptionAsync(ResolveTarget(options, "test/AppDb"), Identity, TestContext.Current.CancellationToken);
 
         Assert.Null(description);
+    }
+
+    [Theory]
+    [InlineData("table")]
+    [InlineData("columns")]
+    public async Task ProviderFailureLogsOwnerSettingsPathWithoutExceptionPayload(string lookup)
+    {
+        const string marker = "provider-secret-marker";
+        var options = BuildOptions();
+        options.Servers["prod"] = new NamedServerOptions
+        {
+            Server = "prod-primary-host",
+            MetadataProvider = new MetadataProviderOptions { Enabled = true }
+        };
+        var factory = new TargetConnectionFactory { OpenFailure = new InvalidOperationException($"Password={marker};Server=raw-marker;") };
+        var logger = new CapturingLogger<MetadataProvider>();
+        var provider = new MetadataProvider(factory, Options.Create(options), logger);
+
+        foreach (string alias in new[] { "test", "prod" })
+        {
+            var target = ResolveTarget(options, $"{alias}/AppDb");
+            if (lookup == "table")
+            {
+                Assert.Null(await provider.GetTableDescriptionAsync(target, Identity, TestContext.Current.CancellationToken));
+            }
+            else
+            {
+                Assert.Empty(await provider.GetColumnDescriptionsAsync(target, Identity, TestContext.Current.CancellationToken));
+            }
+        }
+
+        Assert.Equal(2, logger.Entries.Count);
+        foreach (string alias in new[] { "test", "prod" })
+        {
+            var entry = Assert.Single(logger.Entries, item => item.Message.Contains($"SqlToAi:Servers:{alias}:MetadataProvider", StringComparison.Ordinal));
+            Assert.Contains("SQL connection or provider failure", entry.Message);
+            Assert.DoesNotContain(marker, entry.Message);
+            Assert.DoesNotContain("raw-marker", entry.Message);
+            Assert.Null(entry.Exception);
+        }
     }
 
     [Fact]
