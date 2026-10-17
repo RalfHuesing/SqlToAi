@@ -8,7 +8,7 @@ using SqlToAi.Domain;
 namespace SqlToAi.Database;
 
 /// <summary>
-/// Validates a SQL query using <c>SET PARSEONLY ON</c> within a rollback transaction,
+/// Validates a SQL query using <c>SET NOEXEC ON</c> within a rollback transaction,
 /// guarded by the same whitelist and access-level checks as query execution.
 /// </summary>
 public sealed class QueryValidationService : IQueryValidationService
@@ -37,7 +37,6 @@ public sealed class QueryValidationService : IQueryValidationService
         _logger = logger;
     }
 
-    /// <inheritdoc/>
     /// <inheritdoc/>
     public Task<Result<string>> ValidateQueryAsync(
         string databaseName,
@@ -71,15 +70,22 @@ public sealed class QueryValidationService : IQueryValidationService
             await PrimaryConnection.OpenAsync(connection, cancellationToken);
 
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+            bool validationFailed = false;
             try
             {
                 await ExecuteParseonlyValidationAsync(connection, transaction, query, parameters, cancellationToken);
-                return "Query syntax is valid.";
+            }
+            catch
+            {
+                validationFailed = true;
+                throw;
             }
             finally
             {
-                await transaction.RollbackAsync(cancellationToken);
+                await DatabaseCleanup.RollbackAsync(transaction, _queryExecutionOptions.CommandTimeoutSeconds, _logger, validationFailed);
             }
+            cancellationToken.ThrowIfCancellationRequested();
+            return "Query syntax is valid.";
         }
         catch (OperationCanceledException)
         {
@@ -105,6 +111,7 @@ public sealed class QueryValidationService : IQueryValidationService
         setNoexecCmd.CommandTimeout = _queryExecutionOptions.CommandTimeoutSeconds;
         await setNoexecCmd.ExecuteNonQueryAsync(cancellationToken);
 
+        bool validationFailed = false;
         try
         {
             await using var queryCmd = connection.CreateCommand();
@@ -114,13 +121,15 @@ public sealed class QueryValidationService : IQueryValidationService
             SqlParameterBinder.BindParameters(queryCmd, parameters);
             await queryCmd.ExecuteNonQueryAsync(cancellationToken);
         }
+        catch
+        {
+            validationFailed = true;
+            throw;
+        }
         finally
         {
-            await using var resetCmd = connection.CreateCommand();
-            resetCmd.CommandText = "SET NOEXEC OFF";
-            resetCmd.Transaction = transaction;
-            resetCmd.CommandTimeout = _queryExecutionOptions.CommandTimeoutSeconds;
-            await resetCmd.ExecuteNonQueryAsync(cancellationToken);
+            await DatabaseCleanup.ResetNoexecAsync(connection, transaction, _queryExecutionOptions.CommandTimeoutSeconds, _logger, validationFailed);
         }
+        cancellationToken.ThrowIfCancellationRequested();
     }
 }

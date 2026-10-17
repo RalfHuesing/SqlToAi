@@ -10,7 +10,8 @@ namespace SqlToAi.Tests.TestSupport;
 /// simulate a transaction that is already gone by the time defensive rollback runs (mirrors a
 /// real-world case where the statement itself committed server-side).
 /// </summary>
-internal sealed class FakeDbTransaction(DbConnection connection, Action? onRollback = null) : DbTransaction
+internal sealed class FakeDbTransaction(DbConnection connection, Action? onRollback = null,
+    Func<CancellationToken, Task>? onRollbackAsync = null) : DbTransaction
 {
     public int CommitCount { get; private set; }
     public int RollbackCount { get; private set; }
@@ -25,5 +26,13 @@ internal sealed class FakeDbTransaction(DbConnection connection, Action? onRollb
     {
         RollbackCount++;
         onRollback?.Invoke();
+    }
+
+    public override async Task RollbackAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        RollbackCount++;
+        onRollback?.Invoke();
+        if (onRollbackAsync is not null) await onRollbackAsync(cancellationToken);
     }
 }

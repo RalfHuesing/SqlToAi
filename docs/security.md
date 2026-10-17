@@ -32,6 +32,8 @@ The shipped main template has empty access lists, so every database, including `
 
 Validation uses SQL Server `NOEXEC` and rollback. Comparison and performance services also roll back. Rollback does not prevent expensive queries, locks, information disclosure or every external side effect; it does not replace SQL permissions.
 
+Single-query execution, validation, and transaction-integrity rejection attempt cleanup with cancellation independent of the caller. Reset commands have a command timeout; rollback cancellation depends on provider support and does not guarantee a wall-clock limit. Cleanup failures are logged without replacing an existing operation error or caller cancellation. A cleanup failure after otherwise successful work remains a failure. See [cleanup timeout behavior](configuration.md#settings-reference).
+
 ## String masking and tokenization
 
 Query and script result masking applies to `ReadOnlyAnonymized` with `Anonymizer.Enabled=true`, except excluded columns. Disabling this switch exposes raw values even at that access level. Empty strings and non-string values remain unchanged.

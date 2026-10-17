@@ -306,7 +306,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
                     if (await HasTransactionChangedAsync(context, transaction, cancellationToken).ConfigureAwait(false))
                     {
                         var violation = await TransactionIntegrityGuard
-                            .RejectViolationAsync(_logger, args.DatabaseName, transaction, cancellationToken)
+                            .RejectViolationAsync(_logger, args.DatabaseName, transaction, _options.CommandTimeoutSeconds)
                             .ConfigureAwait(false);
                         return new BatchExecutionOutcome(executions, violation.Error);
                     }

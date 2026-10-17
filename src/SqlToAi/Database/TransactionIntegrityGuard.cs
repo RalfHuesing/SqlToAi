@@ -11,8 +11,6 @@ namespace SqlToAi.Database;
 /// ADO.NET transaction, and — for non-write-allowed databases — treats any change as a
 /// transaction-integrity violation (e.g. an embedded <c>COMMIT</c> deep inside dynamic SQL
 /// silently committing the ambient transaction) rather than trusting the query's result.
-/// Extracted from <see cref="QueryExecutionService"/> so that file stays within the project's
-/// line-count budget; this guard has no other dependency on the rest of that class.
 /// </summary>
 internal static class TransactionIntegrityGuard
 {
@@ -45,12 +43,12 @@ internal static class TransactionIntegrityGuard
     /// result the caller must return instead of the query's own (untrustworthy) result.
     /// </summary>
     public static async Task<Result<QueryExecutionResult>> RejectViolationAsync(
-        ILogger logger, string databaseName, DbTransaction transaction, CancellationToken cancellationToken)
+        ILogger logger, string databaseName, DbTransaction transaction, int commandTimeout)
     {
         LogViolation(logger, databaseName, null);
         try
         {
-            await transaction.RollbackAsync(cancellationToken);
+            await DatabaseCleanup.RollbackAsync(transaction, commandTimeout, logger);
         }
         catch (Exception rollbackEx)
         {

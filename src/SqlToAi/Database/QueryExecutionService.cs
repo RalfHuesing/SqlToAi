@@ -130,12 +130,13 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
             await PrimaryConnection.OpenAsync(connection, cancellationToken);
 
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
-            int baselineTranCount = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, _options.CommandTimeoutSeconds, cancellationToken);
 
+            int baselineTranCount;
             Result<QueryExecutionResult> result;
             bool tranCountChanged;
             try
             {
+                baselineTranCount = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, _options.CommandTimeoutSeconds, cancellationToken);
                 var execArgs = new QueryBatchExecutionArgs(
                     connection, transaction, databaseName, query, effectiveLimit, anonymize, parameters);
                 result = await ((IQueryBatchExecutor)this).ExecuteBatchAsync(execArgs, cancellationToken);
@@ -144,13 +145,13 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
             }
             catch
             {
-                await transaction.RollbackAsync(cancellationToken);
+                await DatabaseCleanup.RollbackAsync(transaction, _options.CommandTimeoutSeconds, _logger, preservePrimaryFailure: true);
                 throw;
             }
 
             if (!writeAllowed && tranCountChanged)
             {
-                return await TransactionIntegrityGuard.RejectViolationAsync(_logger, databaseName, transaction, cancellationToken);
+                return await TransactionIntegrityGuard.RejectViolationAsync(_logger, databaseName, transaction, _options.CommandTimeoutSeconds);
             }
 
             if (writeAllowed)
@@ -162,7 +163,8 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
             }
             else
             {
-                await transaction.RollbackAsync(cancellationToken);
+                await DatabaseCleanup.RollbackAsync(transaction, _options.CommandTimeoutSeconds, _logger);
+                cancellationToken.ThrowIfCancellationRequested();
             }
 
             return result;
@@ -228,6 +230,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
             var sb = new StringBuilder();
             int rowCount = 0;
             var tracker = new RowAnonymizationTracker();
+            bool executionFailed = false;
 
             try
             {
@@ -249,10 +252,16 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
                 }
                 while (rowCount < args.RowLimit && await reader.NextResultAsync(cancellationToken));
             }
+            catch
+            {
+                executionFailed = true;
+                throw;
+            }
             finally
             {
-                await DatabaseCommandExecutor.ExecuteSetOptionAsync(args.Connection, transaction, "SET ROWCOUNT 0", _options.CommandTimeoutSeconds, cancellationToken);
+                await DatabaseCleanup.ResetRowCountAsync(args.Connection, transaction, _options.CommandTimeoutSeconds, _logger, executionFailed);
             }
+            cancellationToken.ThrowIfCancellationRequested();
 
             stopwatch.Stop();
 

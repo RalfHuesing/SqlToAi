@@ -94,7 +94,7 @@ public sealed class QueryExecutionServiceOptionsTests
     [Theory]
     [InlineData(17)]
     [InlineData(0)]
-    public async Task ExecuteQueryAsync_ShouldApplyConfiguredCommandTimeout_ToAllCommands(int commandTimeout)
+    public async Task ExecuteQueryAsync_ShouldApplyConfiguredCommandTimeout_WithBoundedCleanup(int commandTimeout)
     {
         var options = new SqlToAiOptions { QueryExecution = new QueryExecutionOptions { CommandTimeoutSeconds = commandTimeout } };
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("Col1\tVal1"));
@@ -106,7 +106,9 @@ public sealed class QueryExecutionServiceOptionsTests
         Assert.Equal(7, factory.ExecutedCommands.Count);
         Assert.Contains(factory.ExecutedCommands, command => command.CommandText == "SELECT @@TRANCOUNT");
         Assert.Contains(factory.ExecutedCommands, command => command.CommandText == "SET ROWCOUNT 0");
-        Assert.All(factory.ExecutedCommands, command => Assert.Equal(commandTimeout, command.CommandTimeout));
+        Assert.All(factory.ExecutedCommands, command => Assert.Equal(
+            command.CommandText == "SET ROWCOUNT 0" && commandTimeout == 0
+                ? new QueryExecutionOptions().CommandTimeoutSeconds : commandTimeout, command.CommandTimeout));
     }
 
     [Fact]

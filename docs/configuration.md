@@ -30,7 +30,9 @@ The general local integration-test fixture has a separate, checked-in test-only 
 | `SchemaBatch` | `MaxInputCount` (10), `MaxResponseBytes` (65536 UTF-8 bytes); both must be greater than zero |
 | `Logging` | `Directory` (`log`), `AppLog`, `ErrorLog`, legacy `McpTrail` settings; see below |
 
-`QueryExecution.CommandTimeoutSeconds` applies to query and script execution, query validation, query comparison (schema, counts and differences), and performance warmup/measured runs. Their session `SET` and transaction-integrity commands use the same timeout. The value is per command; `0` means no command timeout. Metadata and anonymization-rule queries retain their separate provider timeout settings.
+`QueryExecution.CommandTimeoutSeconds` applies to query and script execution, query validation, query comparison (schema, counts and differences), and performance warmup/measured runs. Their session `SET` and transaction-integrity commands use the same timeout. The value is per command; `0` leaves ordinary commands unlimited. Metadata and anonymization-rule queries retain their separate provider timeout settings.
+
+Single-query execution and validation reset `ROWCOUNT`/`NOEXEC` and roll back with cancellation independent of the request. Each cleanup operation uses the configured positive timeout, or the existing 30-second option default when `0` is configured; reset commands also receive that command timeout. Cleanup durations are capped at the timer API maximum, rounded down to whole seconds (derived from `uint.MaxValue - 1` milliseconds); ordinary command timeouts are not capped. Transaction-integrity rejection uses the same independent rollback cancellation. Rollback cancellation is cooperative: the current Windows SqlClient provider executes rollback synchronously and cannot guarantee a wall-clock limit. Cleanup is always awaited; an expired cleanup token is checked again when the operation finishes.
 
 Row limits constrain returned rows; they do not bound SQL Server's query cost or row scans. Command and connection timeouts are separate.
 
