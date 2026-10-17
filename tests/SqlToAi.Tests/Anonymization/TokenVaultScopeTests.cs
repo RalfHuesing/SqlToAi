@@ -71,23 +71,125 @@ public sealed class TokenVaultScopeTests
     }
 
     [Fact]
-    public void ExplicitStore_IsScopedAndNeverOverwritesAnotherOwnersToken()
+    public void ExplicitStore_ShouldRejectBindingIssuedToken_ToAnotherScope()
     {
         var vault = new TokenVault();
         var test = Target("test", "AppDb");
         var prod = Target("prod", "AppDb");
         string issuedToken = vault.GetOrAddToken("test-owner-value", "§§§T", "§§§", test);
 
-        vault.Store(issuedToken, "prod-adversarial-value", prod);
-        vault.Store("§§§T1§§§", "prod-forged-value", prod);
+        Assert.Throws<InvalidOperationException>(() => vault.Store(issuedToken, "prod-adversarial-value", prod));
 
         Assert.True(vault.TryResolve(issuedToken, test, out string? ownerValue));
         Assert.Equal("test-owner-value", ownerValue);
-        Assert.True(vault.TryResolve(issuedToken, prod, out string? adversarialValue));
-        Assert.Equal("prod-adversarial-value", adversarialValue);
-        Assert.True(vault.TryResolve("§§§T1§§§", prod, out string? forgedValue));
-        Assert.Equal("prod-forged-value", forgedValue);
-        Assert.False(vault.TryResolve("§§§T1§§§", test, out _));
+        Assert.False(vault.TryResolve(issuedToken, prod, out _));
+    }
+
+    [Fact]
+    public void ExplicitStore_ShouldReserveFutureMintedTokenText_AcrossScopes()
+    {
+        var vault = new TokenVault();
+        var test = Target("test", "AppDb");
+        var prod = Target("prod", "AppDb");
+
+        // Minted token text with prefix "§§§T" is e.g. "§§§TT1§§§" — the next mint would use
+        // "§§§TT2§§§". Reserving exactly that text in prod must force the next mint to skip it.
+        string first = vault.GetOrAddToken("test-value-1", "§§§T", "§§§", test);
+        Assert.Equal("§§§TT1§§§", first);
+        vault.Store("§§§TT2§§§", "prod-reserved-value", prod);
+
+        string second = vault.GetOrAddToken("test-value-2", "§§§T", "§§§", test);
+        Assert.Equal("§§§TT3§§§", second);
+
+        Assert.True(vault.TryResolve("§§§TT2§§§", prod, out string? reservedValue));
+        Assert.Equal("prod-reserved-value", reservedValue);
+        Assert.False(vault.TryResolve("§§§TT2§§§", test, out _));
+        Assert.True(vault.TryResolve(second, test, out string? secondValue));
+        Assert.Equal("test-value-2", secondValue);
+        Assert.False(vault.TryResolve(second, prod, out _));
+    }
+
+    [Fact]
+    public void ExplicitStore_ShouldAllowOverwrite_WithinOwningScope()
+    {
+        var vault = new TokenVault();
+        var target = Target("test", "AppDb");
+        vault.Store("§§§TT1§§§", "First", target);
+        vault.Store("§§§TT1§§§", "Second", target);
+
+        Assert.True(vault.TryResolve("§§§TT1§§§", target, out string? value));
+        Assert.Equal("Second", value);
+    }
+
+    [Fact]
+    public async Task CompetingStores_SameTokenText_DifferentScopes_OnlyOneOwnerWins()
+    {
+        var vault = new TokenVault();
+        var scopes = new[]
+        {
+            Target("test", "AppDb"),
+            Target("prod", "AppDb"),
+            Target("dev", "AppDb"),
+        };
+
+        var tasks = scopes.Select((scope, index) => Task.Run(() =>
+        {
+            try
+            {
+                vault.Store("§§§Tcontention§§§", $"value-{index}", scope);
+                return (Scope: scope, Won: true, Threw: false);
+            }
+            catch (InvalidOperationException)
+            {
+                return (Scope: scope, Won: false, Threw: true);
+            }
+        })).ToArray();
+
+        var results = await Task.WhenAll(tasks);
+
+        Assert.Equal(1, results.Count(r => r.Won));
+        Assert.Equal(scopes.Length - 1, results.Count(r => r.Threw));
+        foreach (var result in results)
+        {
+            if (result.Won)
+            {
+                Assert.True(vault.TryResolve("§§§Tcontention§§§", result.Scope, out string? value));
+                Assert.Equal($"value-{Array.IndexOf(scopes, result.Scope)}", value);
+            }
+            else
+            {
+                Assert.False(vault.TryResolve("§§§Tcontention§§§", result.Scope, out _));
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ConcurrentIssuanceAndStore_NeverCreateTwoOwnersForOneTokenText()
+    {
+        var vault = new TokenVault();
+        var test = Target("test", "AppDb");
+        var prod = Target("prod", "AppDb");
+        const int storeCount = 100;
+
+        var storeTasks = Enumerable.Range(1, storeCount).Select(i => Task.Run(() =>
+            vault.Store($"§§§TT{i}§§§", $"stored-{i}", prod))).ToArray();
+        var mintTasks = Enumerable.Range(0, 20).Select(_ => Task.Run(() =>
+            vault.GetOrAddToken($"minted-{Guid.NewGuid():N}", "§§§T", "§§§", test))).ToArray();
+
+        await Task.WhenAll(storeTasks.Concat(mintTasks));
+
+        string[] minted = await Task.WhenAll(mintTasks);
+        Assert.Empty(minted.Intersect(Enumerable.Range(1, storeCount).Select(i => $"§§§TT{i}§§§")));
+        foreach (string token in minted)
+        {
+            Assert.True(vault.TryResolve(token, test, out _));
+            Assert.False(vault.TryResolve(token, prod, out _));
+        }
+        for (int i = 1; i <= storeCount; i++)
+        {
+            Assert.True(vault.TryResolve($"§§§TT{i}§§§", prod, out _));
+            Assert.False(vault.TryResolve($"§§§TT{i}§§§", test, out _));
+        }
     }
 
     [Fact]

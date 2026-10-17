@@ -10,17 +10,24 @@ namespace SqlToAi.Anonymization;
 /// resolve a token issued in one tool call from a later tool call within the same session.
 /// <para>
 /// Token state is partitioned by <see cref="DatabaseTargetContext"/>: a token issued (or stored)
-/// for one canonical alias plus raw database can never be resolved against another target, and
-/// an explicit <see cref="Store"/> writes only into the scope it names. Token identifiers come
-/// from one process-global counter, so distinct scopes never mint the same token text.
+/// for one canonical alias plus raw database can never be resolved against another target. Every
+/// token text has exactly one immutable owner scope for the vault's lifetime — minted and
+/// explicitly stored alike — enforced by a shared ownership registry: a <see cref="Store"/> that
+/// tries to bind a foreign-owned token to another scope throws
+/// <see cref="InvalidOperationException"/> instead of silently rebinding, and minting skips IDs
+/// whose text was already reserved by a <see cref="Store"/>. Token identifiers come from one
+/// process-global counter (<c>long</c>, so IDs are never reused), so distinct scopes never mint
+/// the same token text.
 /// </para>
 /// </summary>
 public sealed class TokenVault : ITokenVault
 {
-    // Legacy, unscoped state kept until all consumers are migrated (M2.3/M4.1 remove it).
+    // Legacy, unscoped state kept until all consumers are migrated (M2.3/M4.1 remove it). It owns
+    // an isolated scope identity in the shared registry, so legacy and scoped tokens never collide.
     private readonly ScopeState _legacyScope = new();
     private readonly ConcurrentDictionary<DatabaseTargetContext, ScopeState> _scopes = new();
-    private int _counter;
+    private readonly ConcurrentDictionary<string, ScopeState> _tokenOwners = new(StringComparer.Ordinal);
+    private long _counter;
 
     /// <inheritdoc/>
     public string GetOrAddToken(string value, string prefix, string suffix) =>
@@ -34,13 +41,13 @@ public sealed class TokenVault : ITokenVault
     }
 
     /// <inheritdoc/>
-    public void Store(string token, string value) => _legacyScope.TokenToValue[token] = value;
+    public void Store(string token, string value) => Store(token, value, _legacyScope);
 
     /// <inheritdoc/>
     public void Store(string token, string value, DatabaseTargetContext target)
     {
         ArgumentNullException.ThrowIfNull(target);
-        GetScope(target).TokenToValue[token] = value;
+        Store(token, value, GetScope(target));
     }
 
     /// <inheritdoc/>
@@ -57,6 +64,21 @@ public sealed class TokenVault : ITokenVault
     private ScopeState GetScope(DatabaseTargetContext target) =>
         _scopes.GetOrAdd(target, _ => new ScopeState());
 
+    private void Store(string token, string value, ScopeState scope)
+    {
+        // GetOrAdd is atomic: under competing stores for the same text in different scopes, the
+        // first caller becomes the immutable owner and every later caller is rejected. Binding a
+        // foreign-owned token to another scope would break token non-resolution across targets.
+        ScopeState owner = _tokenOwners.GetOrAdd(token, scope);
+        if (!ReferenceEquals(owner, scope))
+        {
+            throw new InvalidOperationException(
+                "The token is already owned by another target scope and cannot be bound to a different one.");
+        }
+
+        scope.TokenToValue[token] = value;
+    }
+
     private string GetOrAddToken(string value, string prefix, string suffix, ScopeState scope)
     {
         // The lock keeps issuance atomic per scope: under parallel calls for the same value,
@@ -68,11 +90,26 @@ public sealed class TokenVault : ITokenVault
                 return existing;
             }
 
-            int id = Interlocked.Increment(ref _counter);
-            string token = $"{prefix}T{id}{suffix}";
+            string token = MintToken(prefix, suffix, scope);
             scope.TokenToValue[token] = value;
             scope.ValueToToken[value] = token;
             return token;
+        }
+    }
+
+    private string MintToken(string prefix, string suffix, ScopeState scope)
+    {
+        // Reserve the next identifier text atomically; text already reserved by an explicit Store
+        // (owned by any scope) is skipped, so minted tokens can never collide with reserved ones.
+        // The counter is 64-bit, so identifiers are never reused within the process lifetime.
+        while (true)
+        {
+            long id = Interlocked.Increment(ref _counter);
+            string token = $"{prefix}T{id}{suffix}";
+            if (_tokenOwners.TryAdd(token, scope))
+            {
+                return token;
+            }
         }
     }
 

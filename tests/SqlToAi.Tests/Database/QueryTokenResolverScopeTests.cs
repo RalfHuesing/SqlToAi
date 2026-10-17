@@ -74,6 +74,21 @@ public sealed class QueryTokenResolverScopeTests
     }
 
     [Fact]
+    public void ResolveTokens_ShouldLeaveIssuedTokenLiteral_AfterRejectedForeignStore()
+    {
+        var vault = new TokenVault();
+        var test = new DatabaseTargetContext("test", "AppDb");
+        var prod = new DatabaseTargetContext("prod", "AppDb");
+        string token = vault.GetOrAddToken("DE89370400440532013000", "§§§T", "§§§", test);
+        Assert.Throws<InvalidOperationException>(() => vault.Store(token, "attacker-value", prod));
+        var resolver = BuildResolver(vault);
+
+        string result = resolver.ResolveTokens($"SELECT * FROM Accounts WHERE IBAN = '{token}'", prod);
+
+        Assert.Equal($"SELECT * FROM Accounts WHERE IBAN = '{token}'", result);
+    }
+
+    [Fact]
     public async Task ResolveTokens_ShouldRouteEachParallelQuery_ToItsOwnScope()
     {
         var vault = new TokenVault();

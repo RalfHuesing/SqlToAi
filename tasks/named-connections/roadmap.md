@@ -201,24 +201,39 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   `IAnonymizer`/`Anonymizer` and scoped `ResolveTokens` to `IQueryTokenResolver`/
   `QueryTokenResolver`. `TokenVault` partitions token state per immutable
   `DatabaseTargetContext` (canonical alias + ordinal raw database, record equality,
-  no concatenation, no ambient state) with one process-global token-ID counter and
-  a per-scope issuance lock, so parallel issuance mints exactly one token per
-  plaintext/scope and IDs never collide across scopes. Explicit scoped `Store`
-  writes only into the named scope and cannot overwrite another owner's token.
+  no concatenation, no ambient state) with one process-global 64-bit token-ID
+  counter and a per-scope issuance lock, so parallel issuance mints exactly one
+  token per plaintext/scope. A shared ownership registry gives every token text
+  exactly one immutable owner scope for the vault's lifetime — minted and
+  explicitly stored tokens alike, with legacy state as its own isolated owner
+  until M4.1: a `Store` that tries to bind a foreign-owned token to another scope
+  throws `InvalidOperationException` (no silent rebind, so a foreign token can
+  never resolve through the vault), and minting skips counter IDs whose text was
+  already reserved by a `Store`, preventing cross-scope collisions in both
+  directions. Re-storing within the owning scope overwrites the remembered value.
   Legacy unscoped members remain on a separate legacy scope until M2.3/M4.1
   migrate their consumers (QueryExecutionService still calls the unscoped
   `ResolveTokens` at the existing call site); no consumer was migrated and no
-  legacy API was removed. New tests: `TokenVaultScopeTests` (cross-alias and
+  legacy API was removed. Tests: `TokenVaultScopeTests` (cross-alias and
   ordinal raw-database isolation incl. `App/Db` and Unicode, same-scope reuse,
-  adversarial explicit `Store`, parallel issuance/resolution), `AnonymizerScopeTests`
+  rejected foreign `Store` of an issued token, reserved future token text forces
+  the next mint to skip it, same-scope store overwrite, concurrent competing
+  stores with one winner, concurrent issuance versus store with no dual owners,
+  parallel issuance/resolution), `AnonymizerScopeTests`
   (scoped tokens, same-scope reuse, master-switch disabled path, nonusable
   tokenization -> hash fallback, null target rejection), `QueryTokenResolverScopeTests`
   (own-scope substitution, foreign token stays literal, unknown token matching real
   SQL text stays literal, quote escaping and comment/identifier preservation,
-  parallel per-scope resolution). Gates run in this session: `dotnet build
-  SqlToAi.slnx` -> 0 warnings, 0 errors; `dotnet test SqlToAi.slnx` -> 1,387
+  parallel per-scope resolution, issued token stays literal after a rejected
+  foreign store). Correction in the same session (own execution only, this
+  writer): the initial scoped `Store` semantics violated concept Must 10 — a test
+  asserted that a token issued for one target could be explicitly stored into
+  another and resolve there. Replaced by the immutable one-owner-per-token-text
+  registry above, with regression tests for the rejection, reservation, and
+  concurrency cases. Gates run in this session: `dotnet build
+  SqlToAi.slnx` -> 0 warnings, 0 errors; `dotnet test SqlToAi.slnx` -> 1,392
   passed, 19 skipped, 0 failed (skips remain unavailable external TLS endpoints,
-  unverified, not passes); focused filter over the three new test classes -> 17
+  unverified, not passes); focused filter over the three token test classes -> 22
   passed, 0 failed. `git diff --check` clean. AiNetCodeNavigator semantic
   navigation used (`ITokenVault` references: only Anonymizer, QueryTokenResolver,
   Program DI and tests). AiNetLinter verify (scope=changes,

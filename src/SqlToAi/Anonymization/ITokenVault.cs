@@ -10,8 +10,10 @@ namespace SqlToAi.Anonymization;
 /// <para>
 /// The context-aware members scope token state by canonical server alias plus exact raw database
 /// name (see <see cref="DatabaseTargetContext"/>): identical plaintext in different targets yields
-/// different tokens, and a token from one target cannot be resolved through another. The unscoped
-/// members are legacy state kept until all consumers are migrated.
+/// different tokens, and a token from one target cannot be resolved through another. Every token
+/// text has exactly one immutable owner scope for the vault's lifetime, so an explicitly stored
+/// token cannot be bound to a second target either. The unscoped members are legacy state kept
+/// until all consumers are migrated.
 /// </para>
 /// </summary>
 public interface ITokenVault
@@ -36,8 +38,11 @@ public interface ITokenVault
     string GetOrAddToken(string value, string prefix, string suffix, DatabaseTargetContext target);
 
     /// <summary>
-    /// Remembers the real value behind a token within <paramref name="target"/>'s scope only; it
-    /// never overwrites a token owned by another target.
+    /// Remembers the real value behind a token within <paramref name="target"/>'s scope only. Every
+    /// token text has exactly one immutable owner scope for the vault's lifetime: binding a token
+    /// owned by another target (minted or previously stored) to a different scope throws
+    /// <see cref="InvalidOperationException"/>; re-storing within the owning scope overwrites the
+    /// remembered value.
     /// </summary>
     void Store(string token, string value, DatabaseTargetContext target);
 
