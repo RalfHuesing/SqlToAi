@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using SqlToAi.Database;
+using SqlToAi.Domain;
 
 namespace SqlToAi.Configuration;
 
@@ -45,29 +47,12 @@ public static class ConfigurationResolver
 
     private static void ExpandEnvironmentVariables(SqlToAiOptions options)
     {
-        if (options.SqlServer != null)
-        {
-            options.SqlServer.Server = Expand(options.SqlServer.Server);
-            options.SqlServer.UserId = Expand(options.SqlServer.UserId);
-            options.SqlServer.Password = Expand(options.SqlServer.Password);
-        }
-
         if (options.Databases != null)
         {
             ExpandListInPlace(options.Databases.ReadWrite);
             ExpandListInPlace(options.Databases.ReadOnly);
             ExpandListInPlace(options.Databases.ReadOnlyAnonymized);
             ExpandListInPlace(options.Databases.SchemaOnly);
-        }
-
-        if (options.MetadataProvider != null)
-        {
-            options.MetadataProvider.Server = Expand(options.MetadataProvider.Server);
-            options.MetadataProvider.Database = Expand(options.MetadataProvider.Database);
-            options.MetadataProvider.UserId = Expand(options.MetadataProvider.UserId);
-            options.MetadataProvider.Password = Expand(options.MetadataProvider.Password);
-            options.MetadataProvider.TableMetadataQuery = Expand(options.MetadataProvider.TableMetadataQuery);
-            options.MetadataProvider.ColumnMetadataQuery = Expand(options.MetadataProvider.ColumnMetadataQuery);
         }
 
         if (options.Anonymizer != null)
@@ -77,14 +62,6 @@ public static class ConfigurationResolver
                 options.Anonymizer.Tokenization.Prefix = Expand(options.Anonymizer.Tokenization.Prefix);
                 options.Anonymizer.Tokenization.Suffix = Expand(options.Anonymizer.Tokenization.Suffix);
             }
-        }
-
-        if (options.AnonymizationRules != null)
-        {
-            options.AnonymizationRules.Server = Expand(options.AnonymizationRules.Server);
-            options.AnonymizationRules.Database = Expand(options.AnonymizationRules.Database);
-            options.AnonymizationRules.UserId = Expand(options.AnonymizationRules.UserId);
-            options.AnonymizationRules.Password = Expand(options.AnonymizationRules.Password);
         }
 
         foreach (NamedServerOptions server in options.Servers.Values)
@@ -120,18 +97,65 @@ public static class ConfigurationResolver
 
     private static void ResolveSqlFiles(SqlToAiOptions options, string root)
     {
-        if (options.MetadataProvider != null)
-        {
-            options.MetadataProvider.TableMetadataQuery = ResolveValue(options.MetadataProvider.TableMetadataQuery, root);
-            options.MetadataProvider.ColumnMetadataQuery = ResolveValue(options.MetadataProvider.ColumnMetadataQuery, root);
-        }
-
         foreach (NamedServerOptions server in options.Servers.Values)
         {
             if (server.MetadataProvider != null)
             {
                 server.MetadataProvider.TableMetadataQuery = ResolveValue(server.MetadataProvider.TableMetadataQuery, root);
                 server.MetadataProvider.ColumnMetadataQuery = ResolveValue(server.MetadataProvider.ColumnMetadataQuery, root);
+            }
+        }
+    }
+
+    public static void Validate(SqlToAiOptions options, string? settingsPath = null)
+    {
+        string pathSuffix = settingsPath is not null
+            ? $" Settings file: '{settingsPath}'. Correct this manually using the supplied appsettings.json template, then restart."
+            : " Correct this manually using the supplied appsettings.json template, then restart.";
+
+        if (options.Servers == null || options.Servers.Count == 0)
+        {
+            throw new ConfigurationStartupException(
+                $"At least one named server must be configured under 'SqlToAi.Servers'.{pathSuffix}");
+        }
+
+        foreach (var (alias, server) in options.Servers)
+        {
+            if (!DatabaseTargetParser.IsValidAlias(alias))
+            {
+                throw new ConfigurationStartupException(
+                    $"Server alias '{alias}' is invalid. Server aliases must match [A-Za-z][A-Za-z0-9_-]*.{pathSuffix}");
+            }
+
+            if (string.IsNullOrWhiteSpace(server.Server))
+            {
+                throw new ConfigurationStartupException(
+                    $"Server '{alias}' has an empty or missing 'Server' address.{pathSuffix}");
+            }
+        }
+
+        ValidateGrants("SqlToAi.Databases.ReadWrite", options.Databases.ReadWrite, options.Servers, pathSuffix);
+        ValidateGrants("SqlToAi.Databases.ReadOnly", options.Databases.ReadOnly, options.Servers, pathSuffix);
+        ValidateGrants("SqlToAi.Databases.ReadOnlyAnonymized", options.Databases.ReadOnlyAnonymized, options.Servers, pathSuffix);
+        ValidateGrants("SqlToAi.Databases.SchemaOnly", options.Databases.SchemaOnly, options.Servers, pathSuffix);
+    }
+
+    private static void ValidateGrants(string sectionName, List<string>? grants, Dictionary<string, NamedServerOptions> servers, string pathSuffix)
+    {
+        if (grants == null) return;
+        foreach (string grant in grants)
+        {
+            var parsed = DatabaseTargetParser.Parse(grant);
+            if (parsed.IsFailure)
+            {
+                throw new ConfigurationStartupException(
+                    $"Database grant '{grant}' in {sectionName} is invalid: {parsed.Error.Message} Every database grant must be qualified in 'alias/database' form.{pathSuffix}");
+            }
+
+            if (!servers.Keys.Any(s => string.Equals(s, parsed.Value.ServerAlias, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new ConfigurationStartupException(
+                    $"Database grant '{grant}' in {sectionName} references unknown server alias '{parsed.Value.ServerAlias}'.{pathSuffix}");
             }
         }
     }

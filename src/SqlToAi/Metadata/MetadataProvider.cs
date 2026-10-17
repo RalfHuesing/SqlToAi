@@ -155,94 +155,7 @@ public sealed class MetadataProvider : IMetadataProvider
         return dict;
     }
 
-    /// <summary>
-    /// Retrieves the description for a table.
-    /// </summary>
-    /// <param name="databaseName">The database name.</param>
-    /// <param name="tableName">The name of the table.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The table description, or null if not found.</returns>
-    public async Task<string?> GetTableDescriptionAsync(string databaseName, string tableName, CancellationToken cancellationToken = default)
-        => await GetTableDescriptionCoreAsync(databaseName, tableName, null, cancellationToken);
 
-    public Task<string?> GetTableDescriptionAsync(string databaseName, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
-        => GetTableDescriptionCoreAsync(databaseName, identity.QualifiedName, identity.ObjectName, cancellationToken);
-
-    private async Task<string?> GetTableDescriptionCoreAsync(string databaseName, string tableName, string? resolvedName, CancellationToken cancellationToken)
-    {
-        if (!_options.MetadataProvider.Enabled || string.IsNullOrWhiteSpace(tableName))
-        {
-            return null;
-        }
-
-        (string sql, string queryTableName) = BuildTableQuery(_options.MetadataProvider, tableName, resolvedName);
-
-        try
-        {
-            await using var connection = CreateConnection(databaseName);
-            await connection.OpenAsync(cancellationToken);
-
-            string? description = await connection.QueryFirstOrDefaultAsync<string>(
-                new CommandDefinition(sql, new { TableName = queryTableName }, cancellationToken: cancellationToken));
-
-            return description;
-        }
-        catch (Exception ex)
-        {
-            string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
-            _logger.LogError("MetadataProvider {FailureType} while retrieving a table description.", failureType);
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Retrieves a dictionary mapping column names to their descriptions for a specific table.
-    /// </summary>
-    /// <param name="databaseName">The database name.</param>
-    /// <param name="tableName">The name of the table.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A dictionary of column names to descriptions.</returns>
-    public async Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(string databaseName, string tableName, CancellationToken cancellationToken = default)
-        => await GetColumnDescriptionsCoreAsync(databaseName, tableName, null, cancellationToken);
-
-    public Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(string databaseName, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
-        => GetColumnDescriptionsCoreAsync(databaseName, identity.QualifiedName, identity.ObjectName, cancellationToken);
-
-    private async Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsCoreAsync(string databaseName, string tableName, string? resolvedName, CancellationToken cancellationToken)
-    {
-        var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        if (!_options.MetadataProvider.Enabled || string.IsNullOrWhiteSpace(tableName))
-        {
-            return dict;
-        }
-
-        (string sql, string queryTableName) = BuildColumnQuery(_options.MetadataProvider, tableName, resolvedName);
-
-        try
-        {
-            await using var connection = CreateConnection(databaseName);
-            await connection.OpenAsync(cancellationToken);
-
-            var rows = await connection.QueryAsync<object>(
-                new CommandDefinition(sql, new { TableName = queryTableName }, cancellationToken: cancellationToken));
-
-            foreach (var row in rows)
-            {
-                if (row is IDictionary<string, object> dictRow)
-                {
-                    ExtractColumnDescription(dictRow, dict);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
-            _logger.LogError("MetadataProvider {FailureType} while retrieving column descriptions.", failureType);
-        }
-
-        return dict;
-    }
 
     private static (string Sql, string QueryTableName) BuildTableQuery(MetadataProviderOptions metadata, string tableName, string? resolvedName)
     {
@@ -286,7 +199,7 @@ public sealed class MetadataProvider : IMetadataProvider
     private bool TryGetOwnerOptions(string serverAlias, out NamedServerOptions ownerServer, out MetadataProviderOptions metadata)
     {
         ownerServer = new NamedServerOptions();
-        metadata = _options.MetadataProvider;
+        metadata = new MetadataProviderOptions();
         if (DatabaseTargetParser.IsValidAlias(serverAlias)
             && Targets().TryGetServerOptions(serverAlias, out NamedServerOptions? resolved)
             && resolved is not null)
@@ -304,18 +217,4 @@ public sealed class MetadataProvider : IMetadataProvider
     private DbConnection CreateOwnerConnection(DatabaseTargetContext target, NamedServerOptions ownerServer, MetadataProviderOptions metadata)
         => SecondaryConnectionBuilder.CreateForOwner(
             target, ownerServer, metadata, SecondaryConnectionBuilder.MetadataApplicationName, _connectionFactory);
-
-    private DbConnection CreateConnection(string databaseName)
-    {
-        var settings = new SecondaryConnectionSettings(
-            _options.MetadataProvider.Server,
-            _options.MetadataProvider.Database,
-            _options.MetadataProvider.UserId,
-            _options.MetadataProvider.Password,
-            _options.MetadataProvider.IntegratedSecurity,
-            _options.MetadataProvider.TrustServerCertificate,
-            _options.MetadataProvider.CommandTimeoutSeconds);
-
-        return SecondaryConnectionBuilder.Create(settings, SecondaryConnectionBuilder.MetadataApplicationName, databaseName, _connectionFactory);
-    }
 }

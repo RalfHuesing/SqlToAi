@@ -39,28 +39,7 @@ internal static class SecondaryConnectionBuilder
     internal const string AnonymizationRulesApplicationName = "SqlToAi-AnonymizationRules";
     internal const string MetadataApplicationName = "SqlToAi-Metadata";
 
-    /// <summary>
-    /// Creates a connection for a secondary database. If <see cref="SecondaryConnectionSettings.Server"/>
-    /// is not configured, falls back to <paramref name="fallbackConnectionFactory"/> against
-    /// <paramref name="fallbackDatabaseName"/> (the customer connection).
-    /// </summary>
-    public static DbConnection Create(
-        SecondaryConnectionSettings settings,
-        string applicationName,
-        string fallbackDatabaseName,
-        IDatabaseConnectionFactory fallbackConnectionFactory)
-    {
-        // Raw database names are preserved exactly, including significant whitespace (" " is a real
-        // raw name); only null or empty means the database was omitted and the fallback name applies.
-        string targetDb = !string.IsNullOrEmpty(settings.Database) ? settings.Database! : fallbackDatabaseName;
 
-        if (string.IsNullOrWhiteSpace(settings.Server))
-        {
-            return fallbackConnectionFactory.CreateConnection(targetDb);
-        }
-
-        return BuildDedicatedConnection(settings, applicationName, targetDb);
-    }
 
     /// <summary>
     /// Resolves the effective source for one owner-specific provider call without opening a

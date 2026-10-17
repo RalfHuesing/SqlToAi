@@ -26,16 +26,18 @@ public static class StartupHarness
         using var startup = UserConfiguration.Load(root);
         await using var services = SqlToAi.Program.BuildServiceProvider(startup.Configuration, startup.Options, startup.RootDirectory);
         var boundOptions = services.GetRequiredService<IOptions<SqlToAiOptions>>().Value;
+        var directServer = startup.Options.Servers.TryGetValue("test", out var directOpt) ? directOpt : startup.Options.Servers.Values.FirstOrDefault() ?? new();
+        var boundServer = boundOptions.Servers.TryGetValue("test", out var boundOpt) ? boundOpt : boundOptions.Servers.Values.FirstOrDefault() ?? new();
         Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
         {
             startup.RootDirectory,
-            startup.Options.SqlServer.Server,
-            startup.Options.SqlServer.Password,
-            BoundServer = boundOptions.SqlServer.Server,
+            directServer.Server,
+            directServer.Password,
+            BoundServer = boundServer.Server,
             AppLogEnabled = boundOptions.Logging.AppLog.Enabled,
             ErrorLogEnabled = boundOptions.Logging.ErrorLog.Enabled,
-            DirectMetadata = startup.Options.MetadataProvider.TableMetadataQuery,
-            BoundMetadata = boundOptions.MetadataProvider.TableMetadataQuery,
+            DirectMetadata = directServer.MetadataProvider?.TableMetadataQuery,
+            BoundMetadata = boundServer.MetadataProvider?.TableMetadataQuery,
             DirectLogRoot = startup.Options.Logging.GetAbsoluteRoot(),
             BoundLogRoot = boundOptions.Logging.GetAbsoluteRoot(),
             Probe = startup.Configuration["StartupProbe"]

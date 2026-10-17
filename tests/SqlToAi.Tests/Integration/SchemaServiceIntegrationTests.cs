@@ -83,7 +83,7 @@ public sealed class SchemaServiceIntegrationTests
         Assert.Same(first, result.Value[1].Object.Value);
         Assert.Same(first, result.Value[2].Object.Value);
 
-        await using var connection = _fx.ConnectionFactory.CreateConnection(_db);
+        await using var connection = _fx.ConnectionFactory.CreateTargetConnection(new DatabaseTargetContext(_server, _db));
         await connection.OpenAsync(TestContext.Current.CancellationToken);
         var matchingIds = (await connection.QueryAsync<int>(new CommandDefinition(
             "SELECT object_id FROM sys.objects WHERE is_ms_shipped = 0 AND schema_name(schema_id) = @SchemaName AND name = @ObjectName",

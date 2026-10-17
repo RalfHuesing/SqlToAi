@@ -8,34 +8,28 @@ namespace SqlToAi.Tests.Security;
 
 public sealed class AccessLevelProviderTests
 {
+    private static readonly DatabaseTargetContext Target = new("primary", "DemoDB");
+
     [Fact]
-    public async Task GetAccessLevelAsync_ShouldReturnNone_WhenDatabaseIsWhitespaceOrNull()
+    public async Task GetTargetAccessLevelAsync_ShouldReturnNone_WhenServerNotConfigured()
     {
-        // Arrange
         var options = new SqlToAiOptions();
         var provider = new AccessLevelProvider(Options.Create(options));
 
-        // Act
-        var levelNull = await provider.GetAccessLevelAsync("", TestContext.Current.CancellationToken);
-        var levelWs = await provider.GetAccessLevelAsync("   ", TestContext.Current.CancellationToken);
+        var level = await provider.GetTargetAccessLevelAsync(Target, TestContext.Current.CancellationToken);
 
-        // Assert
-        Assert.Equal(AccessLevel.None, levelNull);
-        Assert.Equal(AccessLevel.None, levelWs);
+        Assert.Equal(AccessLevel.None, level);
     }
 
     [Fact]
-    public async Task GetAccessLevelAsync_ShouldReturnNone_WhenDatabaseIsNotInAnyList()
+    public async Task GetTargetAccessLevelAsync_ShouldReturnNone_WhenTargetIsNotInAnyList()
     {
-        // Arrange
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = ["AllowedDB"];
+        var options = new SqlToAiOptions().WithNamedServers("primary");
+        options.Databases.ReadWrite = ["primary/AllowedDB"];
         var provider = new AccessLevelProvider(Options.Create(options));
 
-        // Act
-        var level = await provider.GetAccessLevelAsync("UnknownDB", TestContext.Current.CancellationToken);
+        var level = await provider.GetTargetAccessLevelAsync(new DatabaseTargetContext("primary", "UnknownDB"), TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(AccessLevel.None, level);
     }
 
@@ -44,69 +38,61 @@ public sealed class AccessLevelProviderTests
     [InlineData("ReadOnly", "ArchiveDB", AccessLevel.ReadOnly)]
     [InlineData("ReadOnlyAnonymized", "CustomerDB", AccessLevel.ReadOnlyAnonymized)]
     [InlineData("SchemaOnly", "SystemDB", AccessLevel.SchemaOnly)]
-    public async Task GetAccessLevelAsync_ShouldReturnCorrectLevel_WhenConfiguredInSpecificList(
+    public async Task GetTargetAccessLevelAsync_ShouldReturnCorrectLevel_WhenConfiguredInSpecificList(
         string listName, string dbName, AccessLevel expectedLevel)
     {
-        // Arrange
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers("primary");
+        string qualified = $"primary/{dbName}";
         switch (listName)
         {
             case "ReadWrite":
-                options.Databases.ReadWrite = [dbName];
+                options.Databases.ReadWrite = [qualified];
                 break;
             case "ReadOnly":
-                options.Databases.ReadOnly = [dbName];
+                options.Databases.ReadOnly = [qualified];
                 break;
             case "ReadOnlyAnonymized":
-                options.Databases.ReadOnlyAnonymized = [dbName];
+                options.Databases.ReadOnlyAnonymized = [qualified];
                 break;
             case "SchemaOnly":
-                options.Databases.SchemaOnly = [dbName];
+                options.Databases.SchemaOnly = [qualified];
                 break;
         }
 
         var provider = new AccessLevelProvider(Options.Create(options));
 
-        // Act
-        var level = await provider.GetAccessLevelAsync(dbName.ToLowerInvariant(), TestContext.Current.CancellationToken);
+        var level = await provider.GetTargetAccessLevelAsync(new DatabaseTargetContext("primary", dbName.ToLowerInvariant()), TestContext.Current.CancellationToken);
 
-        // Assert — Case-insensitive exact match
         Assert.Equal(expectedLevel, level);
     }
 
     [Fact]
-    public async Task GetAccessLevelAsync_ShouldResolveConflictsUsingMostRestrictiveLevel()
+    public async Task GetTargetAccessLevelAsync_ShouldResolveConflictsUsingMostRestrictiveLevel()
     {
-        // Arrange — DB is present in multiple lists. Restrictive order: SchemaOnly > ReadOnlyAnonymized > ReadOnly > ReadWrite
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = ["ConflictedDB"];
-        options.Databases.ReadOnly = ["ConflictedDB"];
-        options.Databases.ReadOnlyAnonymized = ["ConflictedDB"];
-        options.Databases.SchemaOnly = ["ConflictedDB"];
+        var options = new SqlToAiOptions().WithNamedServers("primary");
+        options.Databases.ReadWrite = ["primary/ConflictedDB"];
+        options.Databases.ReadOnly = ["primary/ConflictedDB"];
+        options.Databases.ReadOnlyAnonymized = ["primary/ConflictedDB"];
+        options.Databases.SchemaOnly = ["primary/ConflictedDB"];
 
         var provider = new AccessLevelProvider(Options.Create(options));
 
-        // Act
-        var level = await provider.GetAccessLevelAsync("ConflictedDB", TestContext.Current.CancellationToken);
+        var level = await provider.GetTargetAccessLevelAsync(new DatabaseTargetContext("primary", "ConflictedDB"), TestContext.Current.CancellationToken);
 
-        // Assert — Most restrictive (SchemaOnly) wins
         Assert.Equal(AccessLevel.SchemaOnly, level);
     }
 
     [Fact]
-    public async Task GetAccessLevelAsync_ShouldPreferReadOnlyOverReadWrite_WhenInBothLists()
+    public async Task GetTargetAccessLevelAsync_ShouldPreferReadOnlyOverReadWrite_WhenInBothLists()
     {
-        // Arrange
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = ["SharedDB"];
-        options.Databases.ReadOnly = ["SharedDB"];
+        var options = new SqlToAiOptions().WithNamedServers("primary");
+        options.Databases.ReadWrite = ["primary/SharedDB"];
+        options.Databases.ReadOnly = ["primary/SharedDB"];
 
         var provider = new AccessLevelProvider(Options.Create(options));
 
-        // Act
-        var level = await provider.GetAccessLevelAsync("SharedDB", TestContext.Current.CancellationToken);
+        var level = await provider.GetTargetAccessLevelAsync(new DatabaseTargetContext("primary", "SharedDB"), TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(AccessLevel.ReadOnly, level);
     }
 }

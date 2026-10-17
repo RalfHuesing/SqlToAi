@@ -28,60 +28,17 @@ public sealed class AccessLevelProvider : IAccessLevelProvider
         _targetPolicy = new TargetAccessPolicy(_options);
     }
 
-    public Task<AccessLevel> GetTargetAccessLevelAsync(DatabaseTargetContext target, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(_targetPolicy.GetAccessLevel(target));
-    }
-
-    /// <summary>
-    /// Legacy constructor for backward compatibility with connection factory and logger DI setups.
-    /// </summary>
     public AccessLevelProvider(
         IDatabaseConnectionFactory connectionFactory,
         IOptions<SqlToAiOptions> options,
-        ILogger<AccessLevelProvider> logger)
+        Microsoft.Extensions.Logging.ILogger<AccessLevelProvider> logger)
         : this(options)
     {
     }
 
-    /// <summary>
-    /// Retrieves the access level allowed for the specified database by evaluating configured level lists.
-    /// Fail-safe conflict resolution: SchemaOnly > ReadOnlyAnonymized > ReadOnly > ReadWrite.
-    /// </summary>
-    /// <param name="databaseName">The database name.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The resolved <see cref="AccessLevel"/>.</returns>
-    public Task<AccessLevel> GetAccessLevelAsync(string databaseName, CancellationToken cancellationToken = default)
+    public Task<AccessLevel> GetTargetAccessLevelAsync(DatabaseTargetContext target, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(databaseName))
-        {
-            return Task.FromResult(AccessLevel.None);
-        }
-
-        string trimmedName = databaseName.Trim();
-
-        // Fail-Safe Whitelisting: SchemaOnly > ReadOnlyAnonymized > ReadOnly > ReadWrite
-        if (_options.Databases.SchemaOnly.Any(db => string.Equals(db, trimmedName, StringComparison.OrdinalIgnoreCase)))
-        {
-            return Task.FromResult(AccessLevel.SchemaOnly);
-        }
-
-        if (_options.Databases.ReadOnlyAnonymized.Any(db => string.Equals(db, trimmedName, StringComparison.OrdinalIgnoreCase)))
-        {
-            return Task.FromResult(AccessLevel.ReadOnlyAnonymized);
-        }
-
-        if (_options.Databases.ReadOnly.Any(db => string.Equals(db, trimmedName, StringComparison.OrdinalIgnoreCase)))
-        {
-            return Task.FromResult(AccessLevel.ReadOnly);
-        }
-
-        if (_options.Databases.ReadWrite.Any(db => string.Equals(db, trimmedName, StringComparison.OrdinalIgnoreCase)))
-        {
-            return Task.FromResult(AccessLevel.ReadWrite);
-        }
-
-        return Task.FromResult(AccessLevel.None);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(_targetPolicy.GetAccessLevel(target));
     }
 }

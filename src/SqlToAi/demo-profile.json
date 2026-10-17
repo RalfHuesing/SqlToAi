@@ -1,19 +1,21 @@
 {
   "SqlToAi": {
+    "Servers": {
+      "test": {
+        "Server": "%COMPUTERNAME%\\MSSQLSERVER2022",
+        "UserId": "Agent",
+        "Password": "Agent!",
+        "IntegratedSecurity": false,
+        "TrustServerCertificate": false,
+        "ConnectTimeoutSeconds": 30
+      }
+    },
     "Databases": {
       "CacheTtlSeconds": 300,
-      "ReadWrite": [ "DemoDB" ],
+      "ReadWrite": [ "test/DemoDB" ],
       "ReadOnly": [],
       "ReadOnlyAnonymized": [],
       "SchemaOnly": []
-    },
-    "SqlServer": {
-      "Server": "%COMPUTERNAME%\\MSSQLSERVER2022",
-      "UserId": "Agent",
-      "Password": "Agent!",
-      "IntegratedSecurity": false,
-      "TrustServerCertificate": false,
-      "ConnectTimeoutSeconds": 30
     }
   }
 }

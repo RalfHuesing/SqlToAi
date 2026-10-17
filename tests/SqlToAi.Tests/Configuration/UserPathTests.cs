@@ -15,6 +15,8 @@ namespace SqlToAi.Tests.Configuration;
 [SupportedOSPlatform("windows")]
 public sealed class UserPathTests
 {
+    private const string MinimalSettings = """{"SqlToAi":{"Servers":{"test":{"Server":"test-host"}}}}""";
+
     private static Dictionary<string, string?> DefaultPaths => new()
     {
         ["SqlToAi__Logging__Directory"] = null
@@ -27,7 +29,7 @@ public sealed class UserPathTests
         string root = temp.CreateSubdirectory("user");
         const string sql = "SELECT 1 -- source.sql";
         temp.CreateFile("user/metadata.sql", sql);
-        temp.CreateFile("user/appsettings.json", """{"SqlToAi":{"MetadataProvider":{"TableMetadataQuery":"metadata.sql"}}}""");
+        temp.CreateFile("user/appsettings.json", """{"SqlToAi":{"Servers":{"primary":{"Server":"test-host","MetadataProvider":{"TableMetadataQuery":"metadata.sql"}}}}}""");
         using var startup = UserConfiguration.Load(root);
         // Re-register the already resolved instance after removing its source. The direct
         // options must retain SQL; DI binds a separate instance and reads the source once.
@@ -37,8 +39,8 @@ public sealed class UserPathTests
             File.Delete(temp.GetPath("user/metadata.sql"));
             ConfigurationResolver.Resolve(startup.Options, root);
             ConfigurationResolver.Resolve(bound, root);
-            Assert.Equal(sql, startup.Options.MetadataProvider.TableMetadataQuery);
-            Assert.Equal(sql, bound.MetadataProvider.TableMetadataQuery);
+            Assert.Equal(sql, startup.Options.Servers["primary"].MetadataProvider.TableMetadataQuery);
+            Assert.Equal(sql, bound.Servers["primary"].MetadataProvider.TableMetadataQuery);
             Assert.Equal(temp.GetPath("user/log"), bound.Logging.GetAbsoluteRoot());
             Assert.Equal(bound.Logging.Directory, startup.Options.Logging.Directory);
         }
@@ -61,7 +63,7 @@ public sealed class UserPathTests
         string root = temp.CreateSubdirectory("user");
         temp.CreateFile("metadata.sql", "wrong CWD contents");
         temp.CreateFile("user/metadata.sql", "SELECT 1 -- source.sql");
-        temp.CreateFile("user/appsettings.json", """{"SqlToAi":{"MetadataProvider":{"TableMetadataQuery":"metadata.sql"}}}""");
+        temp.CreateFile("user/appsettings.json", """{"SqlToAi":{"Servers":{"primary":{"Server":"test-host","MetadataProvider":{"TableMetadataQuery":"metadata.sql"}}}}}""");
         var result = await UserConfigurationTests.RunAsync(temp, root, entry, DefaultPaths);
         Assert.DoesNotContain("configuration", result.Error, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("not found", result.Error, StringComparison.OrdinalIgnoreCase);
@@ -77,11 +79,11 @@ public sealed class UserPathTests
         using var temp = TestTempDirectory.Create();
         string root = temp.CreateSubdirectory("user");
         string external = temp.CreateFile("external/query.sql", "SELECT 'external'");
-        temp.CreateFile("user/appsettings.json", "{}");
+        temp.CreateFile("user/appsettings.json", MinimalSettings);
         var environment = DefaultPaths;
         environment["SQLTOAI_TEST_METADATA"] = external;
         environment["SQLTOAI_TEST_LOGS"] = temp.GetPath("absolute-logs");
-        environment["SqlToAi__MetadataProvider__TableMetadataQuery"] = "%SQLTOAI_TEST_METADATA%";
+        environment["SqlToAi__Servers__test__MetadataProvider__TableMetadataQuery"] = "%SQLTOAI_TEST_METADATA%";
         environment["SqlToAi__Logging__Directory"] = "%SQLTOAI_TEST_LOGS%";
         var result = await UserConfigurationTests.RunAsync(temp, root, "inspect", environment);
         Assert.Equal(0, result.ExitCode);
@@ -100,7 +102,7 @@ public sealed class UserPathTests
     {
         using var temp = TestTempDirectory.Create();
         string root = temp.CreateSubdirectory("user");
-        temp.CreateFile("user/appsettings.json", "{}");
+        temp.CreateFile("user/appsettings.json", MinimalSettings);
         var environment = DefaultPaths;
         if (mode == "absolute") environment["SqlToAi__Logging__Directory"] = temp.GetPath("external-logs");
         if (mode == "relative") environment["SqlToAi__Logging__Directory"] = "custom-logs";
@@ -125,7 +127,7 @@ public sealed class UserPathTests
     {
         using var temp = TestTempDirectory.Create();
         string root = temp.CreateSubdirectory("user");
-        temp.CreateFile("user/appsettings.json", "{}");
+        temp.CreateFile("user/appsettings.json", MinimalSettings);
         temp.CreateFile("user/input.sql", "wrong root");
         temp.CreateFile("input.sql", "SELECT 'CWD'");
         var result = await UserConfigurationTests.RunAsync(temp, root, "cwd-probe", DefaultPaths);
@@ -140,7 +142,7 @@ public sealed class UserPathTests
     {
         using var temp = TestTempDirectory.Create();
         string root = temp.CreateSubdirectory("user");
-        temp.CreateFile("user/appsettings.json", """{"SqlToAi":{"MetadataProvider":{"TableMetadataQuery":"missing.sql"}}}""");
+        temp.CreateFile("user/appsettings.json", """{"SqlToAi":{"Servers":{"primary":{"Server":"test-host","MetadataProvider":{"TableMetadataQuery":"missing.sql"}}}}}""");
         var result = await UserConfigurationTests.RunAsync(temp, root, "server", DefaultPaths);
         Assert.Equal(1, result.ExitCode);
         Assert.Empty(result.Output);
@@ -155,7 +157,7 @@ public sealed class UserPathTests
     {
         using var temp = TestTempDirectory.Create();
         string root = temp.CreateSubdirectory("user");
-        string file = temp.CreateFile("user/appsettings.json", """{"SqlToAi":{"Logging":{"Directory":"%SQLTOAI_TEST_RELATIVE_LOGS%"}}}""");
+        string file = temp.CreateFile("user/appsettings.json", """{"SqlToAi":{"Servers":{"test":{"Server":"test-host"}},"Logging":{"Directory":"%SQLTOAI_TEST_RELATIVE_LOGS%"}}}""");
         var environment = DefaultPaths;
         environment["SQLTOAI_TEST_RELATIVE_LOGS"] = "expanded-logs";
         var result = await UserConfigurationTests.RunAsync(temp, root, "log-probe", environment);
@@ -169,7 +171,7 @@ public sealed class UserPathTests
     {
         using var temp = TestTempDirectory.Create();
         string root = temp.CreateSubdirectory("user");
-        temp.CreateFile("user/appsettings.json", """{"SqlToAi":{"Logging":{"AppLog":{"Enabled":false},"ErrorLog":{"Enabled":false}}}}""");
+        temp.CreateFile("user/appsettings.json", """{"SqlToAi":{"Servers":{"test":{"Server":"test-host"}},"Logging":{"AppLog":{"Enabled":false},"ErrorLog":{"Enabled":false}}}}""");
         using (DenyWrites(root))
         {
             var result = await UserConfigurationTests.RunAsync(temp, root, "server", DefaultPaths);
@@ -189,7 +191,7 @@ public sealed class UserPathTests
     {
         using var temp = TestTempDirectory.Create();
         string root = temp.CreateSubdirectory("user");
-        temp.CreateFile("user/appsettings.json", "{}");
+        temp.CreateFile("user/appsettings.json", MinimalSettings);
         string blocked = temp.CreateFile($"user/log/{sink}", "preserve");
         var result = await UserConfigurationTests.RunAsync(temp, root, "server", DefaultPaths);
         Assert.Equal(1, result.ExitCode);
@@ -204,7 +206,7 @@ public sealed class UserPathTests
     {
         using var temp = TestTempDirectory.Create();
         string root = temp.CreateSubdirectory("user");
-        temp.CreateFile("user/appsettings.json", "{}");
+        temp.CreateFile("user/appsettings.json", MinimalSettings);
         string file = temp.CreateFile("user/log/app/app-" + DateTime.Now.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture) + ".log", "preserve");
         await using var locked = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
         var result = await UserConfigurationTests.RunAsync(temp, root, "log-probe", DefaultPaths);
@@ -224,7 +226,7 @@ public sealed class UserPathTests
         foreach (string file in Directory.EnumerateFiles(AppContext.BaseDirectory))
             File.Copy(file, Path.Combine(install, Path.GetFileName(file)));
         string legacy = temp.CreateFile("installation/appsettings.json", "deliberately invalid legacy settings");
-        temp.CreateFile("user/appsettings.json", "{}");
+        temp.CreateFile("user/appsettings.json", MinimalSettings);
         using (DenyWrites(install))
         {
             var result = await UserConfigurationTests.RunAsync(temp, root, "query-help", DefaultPaths, install);
@@ -246,7 +248,7 @@ public sealed class UserPathTests
         string root = temp.CreateSubdirectory("user");
         string install = temp.CreateSubdirectory("installation");
         string settings = temp.CreateFile("user/appsettings.json",
-            """{ "SqlToAi": { "SqlServer": { "Server": "manual-user-server" } }, "UnknownUserKey": [1, 2] }""");
+            """{ "SqlToAi": { "Servers": { "test": { "Server": "manual-user-server" } } }, "UnknownUserKey": [1, 2] }""");
         string existingLog = temp.CreateFile("user/log/app/existing.log", "existing diagnostic bytes\r\n");
         string legacyLog = temp.CreateFile("installation/log/legacy.log", "legacy bytes\r\n");
         byte[] settingsBefore = await File.ReadAllBytesAsync(settings, TestContext.Current.CancellationToken);

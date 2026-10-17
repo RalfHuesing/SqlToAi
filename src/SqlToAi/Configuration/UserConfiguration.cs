@@ -45,17 +45,31 @@ internal sealed class UserConfiguration : IDisposable
         IConfigurationRoot? configuration = null;
         try
         {
+            CheckObsoleteEnvironmentVariables(expectedPath);
+
             // Open before constructing providers: even a nonexistent root must fail without creation.
-            using var baseFile = File.OpenRead(expectedPath);
+            byte[] baseBytes = File.ReadAllBytes(expectedPath);
+            InspectJsonSource(baseBytes, expectedPath, expectedPath);
+
+            string envName = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production";
+            string envFile = Path.Combine(root, $"appsettings.{envName}.json");
+            if (File.Exists(envFile))
+            {
+                byte[] envBytes = File.ReadAllBytes(envFile);
+                InspectJsonSource(envBytes, envFile, expectedPath);
+            }
+
+            using var baseStream = new MemoryStream(baseBytes);
             configuration = new ConfigurationBuilder()
                 .SetBasePath(root)
-                .AddJsonStream(baseFile)
-                .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"}.json",
+                .AddJsonStream(baseStream)
+                .AddJsonFile($"appsettings.{envName}.json",
                     optional: true, reloadOnChange: false)
                 .AddEnvironmentVariables()
                 .Build();
             var options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
             ConfigurationResolver.Resolve(options, root);
+            ConfigurationResolver.Validate(options, expectedPath);
             ValidateLoggingOptions(options.Logging, expectedPath);
             ValidateSchemaBatchOptions(options.SchemaBatch, expectedPath);
             EnsureWritableDirectory(root);
@@ -79,6 +93,97 @@ internal sealed class UserConfiguration : IDisposable
                 $"{reason} ({exception.GetType().Name}). Expected base settings file: '{expectedPath}'. " +
                 "Create and configure this file manually from the supplied appsettings.json template, then restart.", exception);
         }
+    }
+
+    private static void CheckObsoleteEnvironmentVariables(string settingsPath)
+    {
+        var envVars = Environment.GetEnvironmentVariables();
+        foreach (object? keyObj in envVars.Keys)
+        {
+            if (keyObj is string key)
+            {
+                if (key.StartsWith("SqlToAi__SqlServer", StringComparison.OrdinalIgnoreCase) ||
+                    key.StartsWith("SqlToAi__MetadataProvider", StringComparison.OrdinalIgnoreCase) ||
+                    key.StartsWith("SqlToAi__AnonymizationRules", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ConfigurationStartupException(
+                        $"Obsolete configuration environment variable '{key}' detected. Legacy single-server settings ('SqlServer', 'MetadataProvider', 'AnonymizationRules') have been removed in favor of 'SqlToAi.Servers.<alias>'. " +
+                        $"Settings file: '{settingsPath}'. Correct this manually using the supplied appsettings.json template, then restart.");
+                }
+            }
+        }
+    }
+
+    private static void InspectJsonSource(byte[] jsonBytes, string filePath, string settingsPath)
+    {
+        using var document = JsonDocument.Parse(jsonBytes, new JsonDocumentOptions
+        {
+            AllowTrailingCommas = true,
+            CommentHandling = JsonCommentHandling.Skip
+        });
+
+        JsonElement root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        // Check top-level obsolete sections
+        foreach (var prop in root.EnumerateObject())
+        {
+            if (IsObsoleteSection(prop.Name))
+            {
+                throw new ConfigurationStartupException(
+                    $"Obsolete configuration section '{prop.Name}' detected in '{filePath}'. Legacy single-server settings ('SqlServer', 'MetadataProvider', 'AnonymizationRules') have been removed in favor of 'SqlToAi.Servers.<alias>'. " +
+                    $"Settings file: '{settingsPath}'. Correct this manually using the supplied appsettings.json template, then restart.");
+            }
+        }
+
+        // Check SqlToAi-level obsolete sections & server alias uniqueness
+        var sqlToAiProp = GetPropertyCaseInsensitive(root, "SqlToAi");
+        if (sqlToAiProp is { ValueKind: JsonValueKind.Object } sqlToAiObj)
+        {
+            foreach (var prop in sqlToAiObj.EnumerateObject())
+            {
+                if (IsObsoleteSection(prop.Name))
+                {
+                    throw new ConfigurationStartupException(
+                        $"Obsolete configuration section 'SqlToAi.{prop.Name}' detected in '{filePath}'. Legacy single-server settings ('SqlServer', 'MetadataProvider', 'AnonymizationRules') have been removed in favor of 'SqlToAi.Servers.<alias>'. " +
+                        $"Settings file: '{settingsPath}'. Correct this manually using the supplied appsettings.json template, then restart.");
+                }
+            }
+
+            var serversProp = GetPropertyCaseInsensitive(sqlToAiObj, "Servers");
+            if (serversProp is { ValueKind: JsonValueKind.Object } serversObj)
+            {
+                var seenAliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var serverProp in serversObj.EnumerateObject())
+                {
+                    if (!seenAliases.Add(serverProp.Name))
+                    {
+                        throw new ConfigurationStartupException(
+                            $"Duplicate server alias '{serverProp.Name}' detected in '{filePath}'. Server aliases must be unique (case-insensitive). " +
+                            $"Settings file: '{settingsPath}'. Correct this manually using the supplied appsettings.json template, then restart.");
+                    }
+                }
+            }
+        }
+    }
+
+    private static bool IsObsoleteSection(string name) =>
+        string.Equals(name, "SqlServer", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "MetadataProvider", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "AnonymizationRules", StringComparison.OrdinalIgnoreCase);
+
+    private static JsonElement? GetPropertyCaseInsensitive(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object) return null;
+        foreach (var prop in element.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+                return prop.Value;
+        }
+        return null;
     }
 
     private static void ValidateLoggingOptions(LoggingOptions logging, string settingsPath)

@@ -181,8 +181,8 @@ public sealed class SchemaServiceBatchTests
         var factory = new SchemaBatchTestFactory { CatalogSchema = schema };
         if (custom)
         {
-            factory.Options.MetadataProvider.TableMetadataQuery = "CUSTOM_TABLE_DESCRIPTION";
-            factory.Options.MetadataProvider.ColumnMetadataQuery = "CUSTOM_COLUMN_DESCRIPTION";
+            factory.Options.Servers[TestTargets.ServerAlias].MetadataProvider.TableMetadataQuery = "CUSTOM_TABLE_DESCRIPTION";
+            factory.Options.Servers[TestTargets.ServerAlias].MetadataProvider.ColumnMetadataQuery = "CUSTOM_COLUMN_DESCRIPTION";
         }
         factory.Options.Anonymizer.Tokenization.Enabled = true;
         var bound = Options.Create(factory.Options);
@@ -207,8 +207,8 @@ public sealed class SchemaServiceBatchTests
     public async Task Batch_CustomMetadataMatchesLegacyUnquotedScalarForOrdinaryNames()
     {
         var factory = new SchemaBatchTestFactory();
-        factory.Options.MetadataProvider.TableMetadataQuery = "CUSTOM_TABLE_DESCRIPTION";
-        factory.Options.MetadataProvider.ColumnMetadataQuery = "CUSTOM_COLUMN_DESCRIPTION";
+        factory.Options.Servers[TestTargets.ServerAlias].MetadataProvider.TableMetadataQuery = "CUSTOM_TABLE_DESCRIPTION";
+        factory.Options.Servers[TestTargets.ServerAlias].MetadataProvider.ColumnMetadataQuery = "CUSTOM_COLUMN_DESCRIPTION";
         var metadata = new MetadataProvider(factory, Options.Create(factory.Options), NullLogger<MetadataProvider>.Instance);
         var service = factory.Service(metadata);
         var scalar = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "dbo.Orders", TestContext.Current.CancellationToken);
@@ -226,15 +226,6 @@ public sealed class SchemaServiceBatchTests
     private sealed class ExactUnmaskedRule(string expectedSchema, string expectedTable) : IAnonymizationRuleProvider
     {
         internal List<string> Columns { get; } = [];
-
-        public Task<bool> IsExcludedAsync(string databaseName, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
-        {
-            Assert.Equal("DemoDB", databaseName);
-            Assert.Equal(expectedSchema, schemaName);
-            Assert.Equal(expectedTable, tableName);
-            Columns.Add(columnName);
-            return Task.FromResult(columnName == "Exempt");
-        }
 
         public Task<bool> IsExcludedAsync(SqlToAi.Domain.DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
         {

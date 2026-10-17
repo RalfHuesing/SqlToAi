@@ -6,13 +6,7 @@ using SqlToAi.Tests.TestSupport;
 namespace SqlToAi.Tests.Database;
 
 /// <summary>
-/// Single source of truth for the 6-stage guardrail-pipeline tests. Replaces 31 individual
-/// negative test cases that used to be duplicated across <c>QueryExecutionServiceTests</c>,
-/// <c>QueryValidationServiceTests</c>, <c>PerformanceMeasurementServiceTests</c>, and
-/// <c>QueryComparisonServiceTests</c> (step-003 / DRY-T3). The service tests now focus on
-/// service-specific behaviour (transactions, anonymization, command-timeout source, before-touching
-/// database) instead of the pipeline. Service-internal behaviour (e.g. transaction commit/rollback)
-/// stays in the service tests.
+/// Single source of truth for the 6-stage guardrail-pipeline tests.
 /// </summary>
 public sealed class QuerySafetyValidatorTests
 {
@@ -26,7 +20,6 @@ public sealed class QuerySafetyValidatorTests
 
     // -------------------------------------------------------------------------
     // Stage 1: empty / whitespace / null database name → InvalidParameters
-    // Mirrors ShouldFail_WhenDatabaseNameIsEmpty across QE, PM, QC (use "") and QV (uses "   ").
     // -------------------------------------------------------------------------
 
     [Theory]
@@ -49,9 +42,17 @@ public sealed class QuerySafetyValidatorTests
         Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
     }
 
+    [Fact]
+    public async Task ValidateQuerySafetyAsync_UnqualifiedDatabaseName_ReturnsInvalidParameters()
+    {
+        var v = BuildValidator();
+        var result = await v.ValidateQuerySafetyAsync("UnqualifiedDb", "SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
+    }
+
     // -------------------------------------------------------------------------
     // Stage 2: empty / whitespace query → InvalidParameters
-    // Mirrors ShouldFail_WhenQueryIsEmpty across QE, QV (use "   ") and PM, QC (use "").
     // -------------------------------------------------------------------------
 
     [Theory]
@@ -60,65 +61,59 @@ public sealed class QuerySafetyValidatorTests
     public async Task ValidateQuerySafetyAsync_EmptyQuery_ReturnsInvalidParameters(string query)
     {
         var v = BuildValidator();
-        var result = await v.ValidateQuerySafetyAsync("TestDb", query, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateQuerySafetyAsync("primary/TestDb", query, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
     }
 
     // -------------------------------------------------------------------------
     // Stage 3: database not in whitelist → SafetyCheckFailed
-    // Mirrors ShouldFail_WhenDatabaseNotAllowed across all four service tests.
     // -------------------------------------------------------------------------
 
     [Fact]
     public async Task ValidateQuerySafetyAsync_DatabaseNotAllowed_ReturnsSafetyCheckFailed()
     {
         var v = BuildValidator(isAllowed: false);
-        var result = await v.ValidateQuerySafetyAsync("BlockedDb", "SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateQuerySafetyAsync("primary/BlockedDb", "SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
     }
 
     // -------------------------------------------------------------------------
-    // Stage 4a: AccessLevel.None → WriteOperationBlocked (regardless of allowSchemaOnly)
-    // Mirrors ShouldFail_WhenAccessLevelIsNone (QV) and the None branch of
-    // ShouldFail_WhenAccessLevelTooLow (QE), and AccessLevelNone branches in PM and QC.
+    // Stage 4a: AccessLevel.None → WriteOperationBlocked
     // -------------------------------------------------------------------------
 
     [Fact]
     public async Task ValidateQuerySafetyAsync_AccessLevelNone_ReturnsWriteOperationBlocked()
     {
         var v = BuildValidator(accessLevel: AccessLevel.None);
-        var result = await v.ValidateQuerySafetyAsync("TestDb", "SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateQuerySafetyAsync("primary/TestDb", "SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
     }
 
     // -------------------------------------------------------------------------
     // Stage 4b: AccessLevel.SchemaOnly without the allowSchemaOnly flag → WriteOperationBlocked
-    // Mirrors the SchemaOnly branch of ShouldFail_WhenAccessLevelTooLow (QE).
     // -------------------------------------------------------------------------
 
     [Fact]
     public async Task ValidateQuerySafetyAsync_AccessLevelSchemaOnly_WithoutFlag_ReturnsWriteOperationBlocked()
     {
         var v = BuildValidator(accessLevel: AccessLevel.SchemaOnly);
-        var result = await v.ValidateQuerySafetyAsync("TestDb", "SELECT 1", allowSchemaOnly: false, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateQuerySafetyAsync("primary/TestDb", "SELECT 1", allowSchemaOnly: false, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
     }
 
     // -------------------------------------------------------------------------
     // Stage 4b positive: AccessLevel.SchemaOnly with allowSchemaOnly:true → Success
-    // (only QueryValidationService opts into the SchemaOnly flag; the other three services
-    // pass false by default. This test pins the QueryValidationService behaviour end-to-end.)
     // -------------------------------------------------------------------------
 
     [Fact]
     public async Task ValidateQuerySafetyAsync_AccessLevelSchemaOnly_WithFlag_ReturnsSuccess()
     {
         var v = BuildValidator(accessLevel: AccessLevel.SchemaOnly);
-        var result = await v.ValidateQuerySafetyAsync("TestDb", "SELECT 1", allowSchemaOnly: true, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateQuerySafetyAsync("primary/TestDb", "SELECT 1", allowSchemaOnly: true, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.Equal(AccessLevel.SchemaOnly, result.Value.AccessLevel);
         Assert.False(result.Value.IsWriteAllowed);
@@ -126,11 +121,6 @@ public sealed class QuerySafetyValidatorTests
 
     // -------------------------------------------------------------------------
     // Stage 5: mutating query without ReadWrite → WriteOperationBlocked.
-    // Mirrors ShouldFail_WhenQueryIsMutating (QE) using "DELETE FROM Customers",
-    // ShouldFail_WhenQueryIsMutating_AndAccessLevelIsNotReadWrite (QV) using "DELETE FROM Foo",
-    // MeasurePerformanceAsync_MutatingQuery (PM) and CompareQueriesAsync_MutatingQuery (QC) using
-    // "DROP TABLE Users". The four concrete queries are kept as four InlineData so the test
-    // reproduces the exact behaviour that each service test pinned — no semantic change.
     // -------------------------------------------------------------------------
 
     [Theory]
@@ -140,16 +130,13 @@ public sealed class QuerySafetyValidatorTests
     public async Task ValidateQuerySafetyAsync_MutatingQuery_WithoutReadWrite_ReturnsWriteOperationBlocked(string query)
     {
         var v = BuildValidator(accessLevel: AccessLevel.ReadOnly);
-        var result = await v.ValidateQuerySafetyAsync("TestDb", query, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateQuerySafetyAsync("primary/TestDb", query, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
     }
 
     // -------------------------------------------------------------------------
-    // Stage 5: sp_executesql is rejected by the read-only-guard regex regardless of the
-    // wrapping form. Mirrors ShouldReject_SpExecuteSql_BeforeTouchingDatabase (QV) — the
-    // service-level "before touching DB" assertion stays in the service test; here we pin the
-    // pipeline's WriteOperationBlocked outcome for all three wrapping forms.
+    // Stage 5: sp_executesql is rejected by the read-only-guard regex
     // -------------------------------------------------------------------------
 
     [Theory]
@@ -159,21 +146,20 @@ public sealed class QuerySafetyValidatorTests
     public async Task ValidateQuerySafetyAsync_SpExecuteSql_WithoutReadWrite_ReturnsWriteOperationBlocked(string query)
     {
         var v = BuildValidator(accessLevel: AccessLevel.ReadOnly);
-        var result = await v.ValidateQuerySafetyAsync("TestDb", query, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateQuerySafetyAsync("primary/TestDb", query, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
     }
 
     // -------------------------------------------------------------------------
     // Stage 5 positive: mutating query with ReadWrite → Success (write allowed, no rejection).
-    // Mirrors ShouldNotBlock_MutatingQuery_WhenAccessLevelIsReadWrite (QV) at the pipeline layer.
     // -------------------------------------------------------------------------
 
     [Fact]
     public async Task ValidateQuerySafetyAsync_MutatingQuery_WithReadWrite_ReturnsSuccess()
     {
         var v = BuildValidator(accessLevel: AccessLevel.ReadWrite);
-        var result = await v.ValidateQuerySafetyAsync("TestDb", "DELETE FROM Customers", cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateQuerySafetyAsync("primary/TestDb", "DELETE FROM Customers", cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.Equal(AccessLevel.ReadWrite, result.Value.AccessLevel);
         Assert.True(result.Value.IsWriteAllowed);
@@ -181,7 +167,6 @@ public sealed class QuerySafetyValidatorTests
 
     // -------------------------------------------------------------------------
     // Stage 6: multi-statement detection — always enforced.
-    // Mirrors ShouldFail_WhenMultipleStatements (QE) with three InlineData forms.
     // -------------------------------------------------------------------------
 
     [Theory]
@@ -191,14 +176,13 @@ public sealed class QuerySafetyValidatorTests
     public async Task ValidateQuerySafetyAsync_MultiStatement_ReturnsMultipleStatementsForbidden(string query)
     {
         var v = BuildValidator(accessLevel: AccessLevel.ReadWrite);
-        var result = await v.ValidateQuerySafetyAsync("TestDb", query, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateQuerySafetyAsync("primary/TestDb", query, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, result.Error.Code);
     }
 
     // -------------------------------------------------------------------------
     // Stage 6 parameterised by access level: multi-statement is rejected even at ReadWrite.
-    // Mirrors ShouldFail_WhenMultipleStatements_RegardlessOfAccessLevel (QV) with two InlineData.
     // -------------------------------------------------------------------------
 
     [Theory]
@@ -207,46 +191,41 @@ public sealed class QuerySafetyValidatorTests
     public async Task ValidateQuerySafetyAsync_MultiStatement_RegardlessOfAccessLevel_ReturnsMultipleStatementsForbidden(AccessLevel level)
     {
         var v = BuildValidator(accessLevel: level);
-        var result = await v.ValidateQuerySafetyAsync("TestDb", "SELECT 1; SELECT 2", cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateQuerySafetyAsync("primary/TestDb", "SELECT 1; SELECT 2", cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, result.Error.Code);
     }
 
     // -------------------------------------------------------------------------
-    // Happy path: all 6 stages pass — pins the AccessLevel plumbing end-to-end at the pipeline
-    // layer. Uses ReadOnlyAnonymized because the service tests assert on the resolved
-    // AccessLevel for that case (anonymization toggle).
+    // Happy path: all 6 stages pass
     // -------------------------------------------------------------------------
 
     [Fact]
     public async Task ValidateQuerySafetyAsync_AllStagesPass_ReturnsResolvedAccessLevelAndWriteFlag()
     {
         var v = BuildValidator(accessLevel: AccessLevel.ReadOnlyAnonymized);
-        var result = await v.ValidateQuerySafetyAsync("TestDb", "SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateQuerySafetyAsync("primary/TestDb", "SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.Equal(AccessLevel.ReadOnlyAnonymized, result.Value.AccessLevel);
         Assert.False(result.Value.IsWriteAllowed);
     }
 
     // -------------------------------------------------------------------------
-    // ReadWrite + simple SELECT: all stages pass with write allowed. Mirrors the happy-path
-    // scenario the service tests use for the commit/rollback/anonymization assertions.
+    // ReadWrite + simple SELECT: all stages pass with write allowed.
     // -------------------------------------------------------------------------
 
     [Fact]
     public async Task ValidateQuerySafetyAsync_ReadWrite_SelectQuery_ReturnsSuccess()
     {
         var v = BuildValidator(accessLevel: AccessLevel.ReadWrite);
-        var result = await v.ValidateQuerySafetyAsync("TestDb", "SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateQuerySafetyAsync("primary/TestDb", "SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.Equal(AccessLevel.ReadWrite, result.Value.AccessLevel);
         Assert.True(result.Value.IsWriteAllowed);
     }
 
     // -------------------------------------------------------------------------
-    // Short-circuit verification: an empty database name must fail before the whitelist is even
-    // checked, so even a database that the whitelist would reject stays at InvalidParameters
-    // (this guards against future reorderings of the 6 stages).
+    // Short-circuit verification: an empty database name must fail before the whitelist is checked
     // -------------------------------------------------------------------------
 
     [Fact]
@@ -259,15 +238,14 @@ public sealed class QuerySafetyValidatorTests
     }
 
     // -------------------------------------------------------------------------
-    // SchemaOnly blocks mutating queries even when allowSchemaOnly:true (the flag only bypasses
-    // the access-level check, not the read-only guard's mutating-keyword detection).
+    // SchemaOnly blocks mutating queries even when allowSchemaOnly:true
     // -------------------------------------------------------------------------
 
     [Fact]
     public async Task ValidateQuerySafetyAsync_AccessLevelSchemaOnly_WithFlag_MutatingQuery_ReturnsWriteOperationBlocked()
     {
         var v = BuildValidator(accessLevel: AccessLevel.SchemaOnly);
-        var result = await v.ValidateQuerySafetyAsync("TestDb", "DELETE FROM Customers", allowSchemaOnly: true, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateQuerySafetyAsync("primary/TestDb", "DELETE FROM Customers", allowSchemaOnly: true, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
     }
@@ -276,7 +254,7 @@ public sealed class QuerySafetyValidatorTests
     public async Task ValidateBatchSafetyAsync_ReadWrite_AllowsMultipleStatements()
     {
         var v = BuildValidator(accessLevel: AccessLevel.ReadWrite);
-        var result = await v.ValidateBatchSafetyAsync("TestDb", "UPDATE Customers SET Name = 'X'; UPDATE Orders SET Flag = 1", TestContext.Current.CancellationToken);
+        var result = await v.ValidateBatchSafetyAsync("primary/TestDb", "UPDATE Customers SET Name = 'X'; UPDATE Orders SET Flag = 1", TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.Equal(AccessLevel.ReadWrite, result.Value.AccessLevel);
         Assert.True(result.Value.IsWriteAllowed);
@@ -286,7 +264,7 @@ public sealed class QuerySafetyValidatorTests
     public async Task ValidateBatchSafetyAsync_ReadOnly_AllowsMultipleReadStatements()
     {
         var v = BuildValidator(accessLevel: AccessLevel.ReadOnly);
-        var result = await v.ValidateBatchSafetyAsync("TestDb", "SELECT 1; SELECT 2", TestContext.Current.CancellationToken);
+        var result = await v.ValidateBatchSafetyAsync("primary/TestDb", "SELECT 1; SELECT 2", TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.Equal(AccessLevel.ReadOnly, result.Value.AccessLevel);
         Assert.False(result.Value.IsWriteAllowed);
@@ -296,7 +274,7 @@ public sealed class QuerySafetyValidatorTests
     public async Task ValidateBatchSafetyAsync_ReadOnly_RejectsMutatingStatement()
     {
         var v = BuildValidator(accessLevel: AccessLevel.ReadOnly);
-        var result = await v.ValidateBatchSafetyAsync("TestDb", "SELECT 1; DELETE FROM Customers", TestContext.Current.CancellationToken);
+        var result = await v.ValidateBatchSafetyAsync("primary/TestDb", "SELECT 1; DELETE FROM Customers", TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
     }
@@ -307,7 +285,7 @@ public sealed class QuerySafetyValidatorTests
     public async Task ValidateQuerySafetyAsync_UseStatement_ReturnsSafetyCheckFailed(AccessLevel accessLevel)
     {
         var v = BuildValidator(accessLevel: accessLevel);
-        var result = await v.ValidateQuerySafetyAsync("TestDb", "USE master; SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateQuerySafetyAsync("primary/TestDb", "USE master; SELECT 1", cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
     }
@@ -318,7 +296,7 @@ public sealed class QuerySafetyValidatorTests
     public async Task ValidateBatchSafetyAsync_UseStatement_ReturnsSafetyCheckFailed(AccessLevel accessLevel)
     {
         var v = BuildValidator(accessLevel: accessLevel);
-        var result = await v.ValidateBatchSafetyAsync("TestDb", "USE master", cancellationToken: TestContext.Current.CancellationToken);
+        var result = await v.ValidateBatchSafetyAsync("primary/TestDb", "USE master", cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
     }

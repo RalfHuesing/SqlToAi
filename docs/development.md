@@ -37,14 +37,14 @@ dotnet test SqlToAi.slnx --filter 'Category=TlsIntegration'
 
 The first command must discover and run tests without SQL Server or personal settings. Ordinary SQL tests fail when their configured local database is unavailable. TLS cases with no `SQLTOAI_TLS_TEST_PROFILE` or with a missing endpoint section are reported as skipped and remain unverified; configured endpoint failures fail the selection.
 
-The general integration fixture accepts explicit test-process environment overrides after loading the demo profile and test-only overlay, using the `SQLTOAI_INTEGRATION_` prefix followed by the configuration path with double underscores. An explicit environment value such as `SQLTOAI_INTEGRATION_SqlToAi__SqlServer__TrustServerCertificate=false` overrides the overlay. The checked-in overlay makes the ordinary local suite work with the existing self-signed instance without a manual environment override:
+The general integration fixture accepts explicit test-process environment overrides after loading the demo profile and test-only overlay, using the `SQLTOAI_INTEGRATION_` prefix followed by the configuration path with double underscores. An explicit environment value such as `SQLTOAI_INTEGRATION_SqlToAi__Servers__test__TrustServerCertificate=false` overrides the overlay. The checked-in overlay makes the ordinary local suite work with the existing self-signed instance without a manual environment override:
 
 ```powershell
 dotnet build SqlToAi.slnx
 dotnet test SqlToAi.slnx
 ```
 
-The overlay accepts the presented certificate without authenticating server identity; encryption remains required. The exception is explicit, fixture-only, never inferred, and does not edit shipped profiles or user settings. Other fixture options use the same prefix, for example `SQLTOAI_INTEGRATION_SqlToAi__SqlServer__Server`. Dedicated metadata/rule endpoints require their own explicit trust settings. A successful general suite using this exception does not establish secure-default certificate authentication.
+The overlay accepts the presented certificate without authenticating server identity; encryption remains required. The exception is explicit, fixture-only, never inferred, and does not edit shipped profiles or user settings. Other fixture options use the same prefix, for example `SQLTOAI_INTEGRATION_SqlToAi__Servers__test__Server`. Dedicated metadata/rule endpoints require their own explicit trust settings. A successful general suite using this exception does not establish secure-default certificate authentication.
 
 ### Shared local and CI validation
 
@@ -72,11 +72,13 @@ Store this file outside the checkout. Each optional section has this shape, usin
 {
   "LocalUntrusted": {
     "Database": "DemoDB",
-    "SqlServer": {
-      "Server": "localhost\\MSSQLSERVER2022",
-      "IntegratedSecurity": true,
-      "ConnectTimeoutSeconds": 5,
-      "TrustServerCertificate": false
+    "Servers": {
+      "test": {
+        "Server": "localhost\\MSSQLSERVER2022",
+        "IntegratedSecurity": true,
+        "ConnectTimeoutSeconds": 5,
+        "TrustServerCertificate": false
+      }
     }
   }
 }
@@ -108,9 +110,9 @@ With no arguments, or with `server`, the executable starts MCP stdio. `query <to
 ```powershell
 .\SqlToAi.exe query --help
 .\SqlToAi.exe query sql_execute_query --help
-.\SqlToAi.exe query sql_list_databases
-.\SqlToAi.exe query sql_execute_query --database ReportingDB --query 'SELECT TOP 5 * FROM dbo.Customers'
-.\SqlToAi.exe query sql_execute_file --file_path .\scripts\report.sql --database ReportingDB --requested_row_limit 100 --parameters '{"CustomerId":42}'
+.\SqlToAi.exe query sql_list_databases --server primary
+.\SqlToAi.exe query sql_execute_query --database primary/ReportingDB --query 'SELECT TOP 5 * FROM dbo.Customers'
+.\SqlToAi.exe query sql_execute_file --file_path .\scripts\report.sql --database primary/ReportingDB --requested_row_limit 100 --parameters '{"CustomerId":42}'
 ```
 
 For primary schemas, pass `--object_names` as **one JSON array token**. PowerShell
@@ -119,10 +121,10 @@ not array syntax. Scalar, list, combined and empty-array forms use the same
 selection rules as [MCP calls](tools.md#primary-schema-selection):
 
 ```powershell
-.\SqlToAi.exe query sql_get_schema --database DemoDB --object_name Orders
-.\SqlToAi.exe query sql_get_schema --database DemoDB --object_names '["Orders","Customers"]'
-.\SqlToAi.exe query sql_get_schema --database DemoDB --object_name ' Orders ' --object_names '[null," ","Customers","Orders"]'
-.\SqlToAi.exe query sql_get_schema --database DemoDB --object_name Orders --object_names '[]'
+.\SqlToAi.exe query sql_get_schema --database primary/DemoDB --object_name Orders
+.\SqlToAi.exe query sql_get_schema --database primary/DemoDB --object_names '["Orders","Customers"]'
+.\SqlToAi.exe query sql_get_schema --database primary/DemoDB --object_name ' Orders ' --object_names '[null," ","Customers","Orders"]'
+.\SqlToAi.exe query sql_get_schema --database primary/DemoDB --object_name Orders --object_names '[]'
 ```
 
 Omitting `--object_names` or passing the JSON token `null` preserves scalar
@@ -135,7 +137,7 @@ stderr and the command exits with code 1; successful batches go to stdout.
 The last successful content block goes to stdout; preceding notices/metrics go to stderr. Errors go to stderr and exit with code 1. Export query rows as JSON Lines with normal shell redirection:
 
 ```powershell
-.\SqlToAi.exe query sql_execute_query --database ReportingDB --query 'SELECT TOP 5 * FROM dbo.Customers' > rows.jsonl
+.\SqlToAi.exe query sql_execute_query --database primary/ReportingDB --query 'SELECT TOP 5 * FROM dbo.Customers' > rows.jsonl
 ```
 
 Configuration is loaded from `%LOCALAPPDATA%\SqlToAi\appsettings.json`; create and configure it manually from the shipped conservative template. Relative script input paths resolve against the process working directory. See [tool arguments](tools.md) and [configuration](configuration.md).
@@ -146,7 +148,7 @@ The existing executable exports schema through shared application services,
 without starting MCP stdio. Both options are required:
 
 ```powershell
-.\SqlToAi.exe export-schema --database DemoDB --output C:\Doku\Database
+.\SqlToAi.exe export-schema --database primary/DemoDB --output C:\Doku\Database
 ```
 
 Configuration, credentials, database access checks and logging use the same
@@ -164,8 +166,8 @@ original `export-schema` command. The registry-generated CLI accepts the same
 explicit scope and fully qualified server destination as MCP:
 
 ```powershell
-.\SqlToAi.exe query sql_export_schema --database DemoDB --scope selected --output_path C:\Doku\Selected --object_names '["dbo.FakeProjects","dbo.FakeAddresses"]'
-.\SqlToAi.exe query sql_export_schema --database DemoDB --scope all --output_path C:\Doku\Full
+.\SqlToAi.exe query sql_export_schema --database primary/DemoDB --scope selected --output_path C:\Doku\Selected --object_names '["dbo.FakeProjects","dbo.FakeAddresses"]'
+.\SqlToAi.exe query sql_export_schema --database primary/DemoDB --scope all --output_path C:\Doku\Full
 ```
 
 This deliberate operation persists potentially large schema dumps and can take

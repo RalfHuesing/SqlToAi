@@ -236,9 +236,9 @@ public sealed class QueryValidationServiceTests
     {
         var options = new SqlToAiOptions
         {
-            SqlServer = new SqlServerOptions { ConnectTimeoutSeconds = 99 },
             QueryExecution = new QueryExecutionOptions { CommandTimeoutSeconds = 42 },
         }.WithNamedServers(TestTargets.ServerAlias);
+        options.Servers[TestTargets.ServerAlias].ConnectTimeoutSeconds = 99;
         var factory = new ValidationMockConnectionFactory();
         var service = BuildService(factory: factory, options: options);
 

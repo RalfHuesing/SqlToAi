@@ -13,8 +13,6 @@ namespace SqlToAi.Tests.TestSupport;
 internal sealed class FakeSecurityGuard(bool allowed) : ISecurityGuard
 {
     public bool IsTargetAllowed(SqlToAi.Domain.DatabaseTargetContext target) => allowed;
-
-    public bool IsDatabaseAllowed(string databaseName) => allowed;
 }
 
 /// <summary>
@@ -26,9 +24,6 @@ internal sealed class FakeSecurityGuard(bool allowed) : ISecurityGuard
 internal sealed class FakeAccessLevelProvider(AccessLevel level) : IAccessLevelProvider
 {
     public Task<SqlToAi.Domain.AccessLevel> GetTargetAccessLevelAsync(SqlToAi.Domain.DatabaseTargetContext target, CancellationToken cancellationToken = default)
-        => Task.FromResult(level);
-
-    public Task<AccessLevel> GetAccessLevelAsync(string databaseName, CancellationToken cancellationToken = default)
         => Task.FromResult(level);
 }
 

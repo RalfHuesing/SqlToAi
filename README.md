@@ -20,7 +20,7 @@ See the [tool reference](docs/tools.md) for arguments and behavior.
 Export schema without starting the MCP server:
 
 ```powershell
-.\SqlToAi.exe export-schema --database DemoDB --output C:\Doku\Database
+.\SqlToAi.exe export-schema --database primary/DemoDB --output C:\Doku\Database
 ```
 
 The output directory must be absent or empty. The export contains schema details
@@ -61,21 +61,23 @@ credentials, and access lists deliberately. The separate
 local demo credentials and `ReadWrite` access. Select it manually for a local
 test database only; the host does not load it automatically.
 
-For Windows authentication and string masking, replace the `Databases` and
-`SqlServer` sections with the following, substituting your database and server:
+For Windows authentication and string masking, configure the `Databases` and
+`Servers` sections with the following, substituting your database and server:
 
 ```json
 "Databases": {
   "CacheTtlSeconds": 300,
   "ReadWrite": [],
   "ReadOnly": [],
-  "ReadOnlyAnonymized": ["ReportingDB"],
+  "ReadOnlyAnonymized": ["primary/ReportingDB"],
   "SchemaOnly": []
 },
-"SqlServer": {
-  "Server": "localhost\\MSSQLSERVER2022",
-  "IntegratedSecurity": true,
-  "ConnectTimeoutSeconds": 30
+"Servers": {
+  "primary": {
+    "Server": "localhost\\MSSQLSERVER2022",
+    "IntegratedSecurity": true,
+    "ConnectTimeoutSeconds": 30
+  }
 }
 ```
 
@@ -108,8 +110,8 @@ path to your executable. The exact configuration location depends on the client.
 ```powershell
 Set-Location src/SqlToAi/bin/Release/net10.0
 .\SqlToAi.exe query --help
-.\SqlToAi.exe query sql_list_databases
-.\SqlToAi.exe query sql_execute_query --database ReportingDB --query "SELECT TOP 5 name FROM sys.tables"
+.\SqlToAi.exe query sql_list_databases --server primary
+.\SqlToAi.exe query sql_execute_query --database primary/ReportingDB --query "SELECT TOP 5 name FROM sys.tables"
 ```
 
 Tool results contain Markdown or JSON. Successful CLI calls write data to stdout;

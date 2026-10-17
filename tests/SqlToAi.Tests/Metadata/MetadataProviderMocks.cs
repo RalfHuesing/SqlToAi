@@ -5,7 +5,7 @@ namespace SqlToAi.Tests.Metadata;
 
 internal sealed class DummyConnectionFactory : SqlToAi.Database.IDatabaseConnectionFactory
 {
-    public DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+    public DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
     public SqlToAi.Domain.Result<DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
     private readonly DbConnection? _connectionToReturn;

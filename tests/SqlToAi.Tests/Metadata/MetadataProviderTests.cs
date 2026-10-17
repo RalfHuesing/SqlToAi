@@ -2,6 +2,7 @@ using System.Data;
 using System.Data.Common;
 using SqlToAi.Configuration;
 using SqlToAi.Database;
+using SqlToAi.Domain;
 using SqlToAi.Metadata;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -20,6 +21,9 @@ namespace SqlToAi.Tests.Metadata;
 public sealed class MetadataProviderTests
 {
     private static readonly Type TargetType = typeof(MetadataProvider);
+    private const string ServerAlias = "primary";
+    private static readonly DatabaseTargetContext Target = new(ServerAlias, "TargetDb");
+    private static readonly DatabaseTargetContext TestDbTarget = new(ServerAlias, TestConstants.DatabaseName);
     public static string? LastTableNameParameter { get; set; }
 
     [Theory]
@@ -34,17 +38,17 @@ public sealed class MetadataProviderTests
         var connection = new FakeDbConnection(_ => throw new NotSupportedException(), new FakeDbConnectionOptions(OpenFailure: failure));
         var factory = new DummyConnectionFactory(connection);
         var logger = new CapturingLogger<MetadataProvider>();
-        var options = new SqlToAiOptions();
-        options.MetadataProvider.Enabled = true;
+        var options = new SqlToAiOptions().WithNamedServers(ServerAlias);
+        options.Servers[ServerAlias].MetadataProvider.Enabled = true;
         var provider = new MetadataProvider(factory, Options.Create(options), logger);
 
         if (lookup == "table")
         {
-            Assert.Null(await provider.GetTableDescriptionAsync("TargetDb", "dbo.Customers", TestContext.Current.CancellationToken));
+            Assert.Null(await provider.GetTableDescriptionAsync(Target, "dbo.Customers", TestContext.Current.CancellationToken));
         }
         else
         {
-            Assert.Empty(await provider.GetColumnDescriptionsAsync("TargetDb", "dbo.Customers", TestContext.Current.CancellationToken));
+            Assert.Empty(await provider.GetColumnDescriptionsAsync(Target, "dbo.Customers", TestContext.Current.CancellationToken));
         }
 
         Assert.Equal(1, factory.ConnectionCreatedCount);
@@ -75,24 +79,25 @@ public sealed class MetadataProviderTests
 
         var factory = new DummyConnectionFactory();
         var logger = new CapturingLogger<MetadataProvider>();
-        var options = new SqlToAiOptions();
-        options.MetadataProvider.Enabled = true;
-        options.MetadataProvider.Server = $"127.0.0.1,{port}";
-        options.MetadataProvider.Database = "MetadataDb";
-        options.MetadataProvider.UserId = "metadata-user-marker";
-        options.MetadataProvider.Password = "metadata-password-marker";
-        options.MetadataProvider.IntegratedSecurity = false;
-        options.MetadataProvider.TrustServerCertificate = false;
-        options.MetadataProvider.CommandTimeoutSeconds = 2;
+        var options = new SqlToAiOptions().WithNamedServers(ServerAlias);
+        var metadata = options.Servers[ServerAlias].MetadataProvider;
+        metadata.Enabled = true;
+        metadata.Server = $"127.0.0.1,{port}";
+        metadata.Database = "MetadataDb";
+        metadata.UserId = "metadata-user-marker";
+        metadata.Password = "metadata-password-marker";
+        metadata.IntegratedSecurity = false;
+        metadata.TrustServerCertificate = false;
+        metadata.CommandTimeoutSeconds = 2;
         var provider = new MetadataProvider(factory, Options.Create(options), logger);
 
         if (lookup == "table")
         {
-            Assert.Null(await provider.GetTableDescriptionAsync("TargetDb", "dbo.Customers", TestContext.Current.CancellationToken));
+            Assert.Null(await provider.GetTableDescriptionAsync(Target, "dbo.Customers", TestContext.Current.CancellationToken));
         }
         else
         {
-            Assert.Empty(await provider.GetColumnDescriptionsAsync("TargetDb", "dbo.Customers", TestContext.Current.CancellationToken));
+            Assert.Empty(await provider.GetColumnDescriptionsAsync(Target, "dbo.Customers", TestContext.Current.CancellationToken));
         }
         await accepted.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
@@ -111,14 +116,14 @@ public sealed class MetadataProviderTests
     public async Task GetTableDescriptionAsync_ShouldReturnNull_WhenDisabled()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.MetadataProvider.Enabled = false;
+        var options = new SqlToAiOptions().WithNamedServers(ServerAlias);
+        options.Servers[ServerAlias].MetadataProvider.Enabled = false;
 
         var mockFactory = new DummyConnectionFactory();
         var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
 
         // Act
-        var desc = await provider.GetTableDescriptionAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
+        var desc = await provider.GetTableDescriptionAsync(TestDbTarget, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Null(desc);
@@ -129,15 +134,15 @@ public sealed class MetadataProviderTests
     public async Task GetTableDescriptionAsync_ShouldReturnDescription_WhenEnabled()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.MetadataProvider.Enabled = true;
+        var options = new SqlToAiOptions().WithNamedServers(ServerAlias);
+        options.Servers[ServerAlias].MetadataProvider.Enabled = true;
 
         var mockConn = MockMetadataConnection.Create(tableDesc: "Test Table Description");
         var mockFactory = new DummyConnectionFactory(mockConn);
         var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
 
         // Act
-        var desc = await provider.GetTableDescriptionAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
+        var desc = await provider.GetTableDescriptionAsync(TestDbTarget, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal("Test Table Description", desc);
@@ -148,8 +153,8 @@ public sealed class MetadataProviderTests
     public async Task GetColumnDescriptionsAsync_ShouldReturnDescriptions_WhenEnabled()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.MetadataProvider.Enabled = true;
+        var options = new SqlToAiOptions().WithNamedServers(ServerAlias);
+        options.Servers[ServerAlias].MetadataProvider.Enabled = true;
 
         var columnsData = new Dictionary<string, string>
         {
@@ -161,7 +166,7 @@ public sealed class MetadataProviderTests
         var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
 
         // Act
-        var result = await provider.GetColumnDescriptionsAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
+        var result = await provider.GetColumnDescriptionsAsync(TestDbTarget, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(2, result.Count);
@@ -173,17 +178,15 @@ public sealed class MetadataProviderTests
     public void CreateConnection_ShouldUseConfiguredDatabase_WhenDatabaseIsSpecified()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.MetadataProvider.Enabled = true;
-        options.MetadataProvider.Database = "CustomMetadataDb";
+        var options = new SqlToAiOptions().WithNamedServers(ServerAlias);
+        options.Servers[ServerAlias].MetadataProvider.Enabled = true;
+        options.Servers[ServerAlias].MetadataProvider.Database = "CustomMetadataDb";
 
         var mockFactory = new DummyConnectionFactory();
-        var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
 
         // Act
-        var method = typeof(MetadataProvider).GetMethod("CreateConnection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(method);
-        using var connection = (DbConnection)method.Invoke(provider, new object[] { "TargetDb" })!;
+        using var connection = SecondaryConnectionBuilder.CreateForOwner(
+            Target, options.Servers[ServerAlias], options.Servers[ServerAlias].MetadataProvider, SecondaryConnectionBuilder.MetadataApplicationName, mockFactory);
 
         // Assert
         Assert.NotNull(connection);
@@ -195,9 +198,9 @@ public sealed class MetadataProviderTests
     public async Task GetTableDescriptionAsync_ShouldStripSchemaPrefix_WhenCustomQueryIsUsed()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.MetadataProvider.Enabled = true;
-        options.MetadataProvider.TableMetadataQuery = "SELECT Description FROM TableMetadata WHERE TableName = @TableName";
+        var options = new SqlToAiOptions().WithNamedServers(ServerAlias);
+        options.Servers[ServerAlias].MetadataProvider.Enabled = true;
+        options.Servers[ServerAlias].MetadataProvider.TableMetadataQuery = "SELECT Description FROM TableMetadata WHERE TableName = @TableName";
 
         var mockConn = MockMetadataConnection.Create(tableDesc: "Metadata description");
         var mockFactory = new DummyConnectionFactory(mockConn);
@@ -206,7 +209,7 @@ public sealed class MetadataProviderTests
         LastTableNameParameter = null;
 
         // Act
-        var desc = await provider.GetTableDescriptionAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
+        var desc = await provider.GetTableDescriptionAsync(TestDbTarget, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal("Metadata description", desc);
@@ -217,9 +220,9 @@ public sealed class MetadataProviderTests
     public async Task GetColumnDescriptionsAsync_ShouldStripSchemaPrefix_WhenCustomQueryIsUsed()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.MetadataProvider.Enabled = true;
-        options.MetadataProvider.ColumnMetadataQuery = "SELECT ColumnName, Description FROM ColumnMetadata WHERE TableName = @TableName";
+        var options = new SqlToAiOptions().WithNamedServers(ServerAlias);
+        options.Servers[ServerAlias].MetadataProvider.Enabled = true;
+        options.Servers[ServerAlias].MetadataProvider.ColumnMetadataQuery = "SELECT ColumnName, Description FROM ColumnMetadata WHERE TableName = @TableName";
 
         var mockConn = MockMetadataConnection.Create(columnDescs: new Dictionary<string, string> { { "Col1", "Desc1" } });
         var mockFactory = new DummyConnectionFactory(mockConn);
@@ -228,7 +231,7 @@ public sealed class MetadataProviderTests
         LastTableNameParameter = null;
 
         // Act
-        var result = await provider.GetColumnDescriptionsAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
+        var result = await provider.GetColumnDescriptionsAsync(TestDbTarget, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Single(result);
@@ -240,25 +243,25 @@ public sealed class MetadataProviderTests
     public void CreateConnection_ShouldUseIndividualCredentials_WhenServerIsSpecified()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.MetadataProvider.Enabled = true;
-        options.MetadataProvider.Server = "custom-metadata-server";
-        options.MetadataProvider.UserId = "meta-user";
-        options.MetadataProvider.Password = "meta-pass";
-        options.MetadataProvider.CommandTimeoutSeconds = 45;
+        var options = new SqlToAiOptions().WithNamedServers(ServerAlias);
+        var metadata = options.Servers[ServerAlias].MetadataProvider;
+        metadata.Enabled = true;
+        metadata.Server = "custom-metadata-server";
+        metadata.Database = "CustomMetadataDb";
+        metadata.UserId = "meta-user";
+        metadata.Password = "meta-pass";
+        metadata.CommandTimeoutSeconds = 45;
 
         var mockFactory = new DummyConnectionFactory();
-        var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
 
         // Act
-        var method = typeof(MetadataProvider).GetMethod("CreateConnection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(method);
-        using var connection = (DbConnection)method.Invoke(provider, new object[] { "TargetDb" })!;
+        using var connection = (SqlConnection)SecondaryConnectionBuilder.CreateForOwner(
+            Target, options.Servers[ServerAlias], metadata, SecondaryConnectionBuilder.MetadataApplicationName, mockFactory);
 
         // Assert
         Assert.NotNull(connection);
         Assert.Contains("Data Source=custom-metadata-server", connection.ConnectionString);
-        Assert.Contains("Initial Catalog=TargetDb", connection.ConnectionString);
+        Assert.Contains("Initial Catalog=CustomMetadataDb", connection.ConnectionString);
         Assert.Contains("User ID=meta-user", connection.ConnectionString);
         Assert.Contains("Password=meta-pass", connection.ConnectionString);
         Assert.Contains("Connect Timeout=45", connection.ConnectionString);
@@ -268,23 +271,23 @@ public sealed class MetadataProviderTests
     public void CreateConnection_ShouldUseIntegratedSecurity_WhenEnabledForMetadata()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.MetadataProvider.Enabled = true;
-        options.MetadataProvider.Server = "custom-metadata-server";
-        options.MetadataProvider.IntegratedSecurity = true;
+        var options = new SqlToAiOptions().WithNamedServers(ServerAlias);
+        var metadata = options.Servers[ServerAlias].MetadataProvider;
+        metadata.Enabled = true;
+        metadata.Server = "custom-metadata-server";
+        metadata.Database = "CustomMetadataDb";
+        metadata.IntegratedSecurity = true;
 
         var mockFactory = new DummyConnectionFactory();
-        var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
 
         // Act
-        var method = typeof(MetadataProvider).GetMethod("CreateConnection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(method);
-        using var connection = (DbConnection)method.Invoke(provider, new object[] { "TargetDb" })!;
+        using var connection = (SqlConnection)SecondaryConnectionBuilder.CreateForOwner(
+            Target, options.Servers[ServerAlias], metadata, SecondaryConnectionBuilder.MetadataApplicationName, mockFactory);
 
         // Assert
         Assert.NotNull(connection);
         Assert.Contains("Data Source=custom-metadata-server", connection.ConnectionString);
-        Assert.Contains("Initial Catalog=TargetDb", connection.ConnectionString);
+        Assert.Contains("Initial Catalog=CustomMetadataDb", connection.ConnectionString);
         Assert.Contains("Integrated Security=True", connection.ConnectionString);
     }
 
@@ -296,18 +299,19 @@ public sealed class MetadataProviderTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["SqlToAi:SqlServer:TrustServerCertificate"] = (!trustMetadataCertificate).ToString(),
-                ["SqlToAi:MetadataProvider:Server"] = "metadata-server",
-                ["SqlToAi:MetadataProvider:Database"] = "MetadataDb",
-                ["SqlToAi:MetadataProvider:IntegratedSecurity"] = "true",
-                ["SqlToAi:MetadataProvider:TrustServerCertificate"] = trustMetadataCertificate.ToString()
+                ["SqlToAi:Servers:primary:Server"] = "metadata-primary",
+                ["SqlToAi:Servers:primary:TrustServerCertificate"] = (!trustMetadataCertificate).ToString(),
+                ["SqlToAi:Servers:primary:MetadataProvider:Server"] = "metadata-server",
+                ["SqlToAi:Servers:primary:MetadataProvider:Database"] = "MetadataDb",
+                ["SqlToAi:Servers:primary:MetadataProvider:IntegratedSecurity"] = "true",
+                ["SqlToAi:Servers:primary:MetadataProvider:TrustServerCertificate"] = trustMetadataCertificate.ToString()
             })
             .Build();
         var options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>()!;
-        var provider = new MetadataProvider(new DummyConnectionFactory(), Options.Create(options), NullLogger<MetadataProvider>.Instance);
-        var method = typeof(MetadataProvider).GetMethod("CreateConnection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-
-        using var connection = (DbConnection)method.Invoke(provider, new object[] { "TargetDb" })!;
+        var server = options.Servers["primary"];
+        var target = new DatabaseTargetContext("primary", "TargetDb");
+        using var connection = (SqlConnection)SecondaryConnectionBuilder.CreateForOwner(
+            target, server, server.MetadataProvider, SecondaryConnectionBuilder.MetadataApplicationName, new DummyConnectionFactory());
 
         var builder = new SqlConnectionStringBuilder(connection.ConnectionString);
         Assert.Equal("MetadataDb", builder.InitialCatalog);
@@ -319,23 +323,20 @@ public sealed class MetadataProviderTests
     public void CreateConnection_ShouldThrow_WhenMetadataServerSetButIntegratedSecurityFalseAndCredentialsMissing()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.MetadataProvider.Enabled = true;
-        options.MetadataProvider.Server = "custom-metadata-server";
-        options.MetadataProvider.IntegratedSecurity = false;
-        options.MetadataProvider.UserId = "";
-        options.MetadataProvider.Password = "";
+        var options = new SqlToAiOptions().WithNamedServers(ServerAlias);
+        var metadata = options.Servers[ServerAlias].MetadataProvider;
+        metadata.Enabled = true;
+        metadata.Server = "custom-metadata-server";
+        metadata.Database = "CustomMetadataDb";
+        metadata.IntegratedSecurity = false;
+        metadata.UserId = "";
+        metadata.Password = "";
 
         var mockFactory = new DummyConnectionFactory();
-        var provider = new MetadataProvider(mockFactory, Options.Create(options), NullLogger<MetadataProvider>.Instance);
 
-        // Act
-        var method = typeof(MetadataProvider).GetMethod("CreateConnection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(method);
-
-        // Assert
-        var ex = Assert.Throws<System.Reflection.TargetInvocationException>(() => method.Invoke(provider, new object[] { "TargetDb" }));
-        Assert.IsType<InvalidOperationException>(ex.InnerException);
+        // Act & Assert
+        Assert.Throws<InvalidOperationException>(() => SecondaryConnectionBuilder.CreateForOwner(
+            Target, options.Servers[ServerAlias], metadata, SecondaryConnectionBuilder.MetadataApplicationName, mockFactory));
     }
 
 }

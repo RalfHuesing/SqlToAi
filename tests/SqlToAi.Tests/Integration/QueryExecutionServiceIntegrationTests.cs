@@ -12,12 +12,14 @@ namespace SqlToAi.Tests.Integration;
 public sealed class QueryExecutionServiceIntegrationTests
 {
     private readonly SqlServerFixture _fx;
+    private readonly string _server;
     private readonly string _db;
     private readonly string _target;
 
     public QueryExecutionServiceIntegrationTests(SqlServerFixture fx)
     {
         _fx = fx;
+        _server = TestTargets.ServerAlias;
         _db = TestConstants.DatabaseName;
         _target = TestConstants.QualifiedDatabaseName;
     }
@@ -110,7 +112,7 @@ public sealed class QueryExecutionServiceIntegrationTests
 
     private async Task<long> CountFakeProjectsAsync()
     {
-        await using var connection = _fx.ConnectionFactory.CreateConnection(_db);
+        await using var connection = _fx.ConnectionFactory.CreateTargetConnection(new DatabaseTargetContext(_server, _db));
         await connection.OpenAsync(TestContext.Current.CancellationToken);
         return await connection.ExecuteScalarAsync<long>("SELECT COUNT(*) FROM dbo.FakeProjects");
     }
@@ -202,11 +204,9 @@ public sealed class QueryExecutionServiceIntegrationTests
 
     private SqlToAi.Configuration.SqlToAiOptions CloneOptions() => new()
     {
-        SqlServer = _fx.Options.SqlServer,
         Servers = _fx.Options.Servers,
         Databases = _fx.Options.Databases,
         Anonymizer = _fx.Options.Anonymizer,
-        MetadataProvider = _fx.Options.MetadataProvider,
         QueryExecution = new SqlToAi.Configuration.QueryExecutionOptions
         {
             DefaultRowLimit = _fx.Options.QueryExecution.DefaultRowLimit,

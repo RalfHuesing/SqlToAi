@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
 using SqlToAi.Database;
+using SqlToAi.Domain;
 using SqlToAi.Metadata;
 using SqlToAi.Security;
 
@@ -48,7 +49,7 @@ public sealed class TlsConnectionIntegrationTests(ITestOutputHelper output)
         bool rejected = endpoint != "TrustedTcp" && !trust;
         ConfigureProviders(options, database, trust, dedicated: true);
         // A primary exception must not relax a dedicated provider's default policy.
-        options.SqlServer.TrustServerCertificate = path == "Primary" ? trust : true;
+        options.Servers["test"].TrustServerCertificate = path == "Primary" ? trust : true;
         var factory = new CountingFactory(new SqlConnectionFactory(Options.Create(options)));
         var metadataLog = new TestLogger<MetadataProvider>();
         var rulesLog = new TestLogger<AnonymizationRuleProvider>();
@@ -57,15 +58,14 @@ public sealed class TlsConnectionIntegrationTests(ITestOutputHelper output)
 
         // Observe the connection constructed by each actual provider, without exposing
         // a production test hook or replacing its dedicated connection with a fake.
+        var target = new DatabaseTargetContext("test", database);
         await using DbConnection connection = path switch
         {
-            "Primary" => factory.CreateConnection(database),
-            "Metadata" => (DbConnection)typeof(MetadataProvider)
-                .GetMethod("CreateConnection", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .Invoke(metadata, [database])!,
-            _ => (DbConnection)typeof(AnonymizationRuleProvider)
-                .GetMethod("CreateConnection", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .Invoke(rules, null)!
+            "Primary" => factory.CreateTargetConnection(target),
+            "Metadata" => SecondaryConnectionBuilder.CreateForOwner(
+                target, options.Servers["test"], options.Servers["test"].MetadataProvider, SecondaryConnectionBuilder.MetadataApplicationName, factory),
+            _ => SecondaryConnectionBuilder.CreateForOwner(
+                target, options.Servers["test"], options.Servers["test"].AnonymizationRules, SecondaryConnectionBuilder.AnonymizationRulesApplicationName, factory)
         };
 
         if (rejected)
@@ -89,7 +89,7 @@ public sealed class TlsConnectionIntegrationTests(ITestOutputHelper output)
 
         if (path == "Metadata")
         {
-            string? observation = await metadata.GetTableDescriptionAsync(database, "tls_probe", TestContext.Current.CancellationToken);
+            string? observation = await metadata.GetTableDescriptionAsync(target, "tls_probe", TestContext.Current.CancellationToken);
             if (rejected)
                 Assert.Null(observation);
             else
@@ -104,7 +104,7 @@ public sealed class TlsConnectionIntegrationTests(ITestOutputHelper output)
         }
         if (path == "Rules")
         {
-            Assert.False(await rules.IsExcludedAsync(database, "dbo", "tls_probe", "value", TestContext.Current.CancellationToken));
+            Assert.False(await rules.IsExcludedAsync(target, "dbo", "tls_probe", "value", TestContext.Current.CancellationToken));
             VerifyLogs(rulesLog, rejected, "AnonymizationRules");
             output.WriteLine($"{endpoint}/Rules: real lookup returned default masking; its separate lookup session was not observed.");
         }
@@ -117,16 +117,6 @@ public sealed class TlsConnectionIntegrationTests(ITestOutputHelper output)
     public async Task PrimaryDefault_RealCertificateFailureReachesServiceError(string endpoint)
     {
         var (options, database) = LoadEndpoint(endpoint);
-        // Migrated services resolve qualified targets; compose the named-server view of this
-        // single-endpoint TLS profile the same way the other integration fixtures do.
-        options.Servers["test"] = new NamedServerOptions
-        {
-            Server = options.SqlServer.Server,
-            UserId = options.SqlServer.UserId,
-            Password = options.SqlServer.Password,
-            IntegratedSecurity = options.SqlServer.IntegratedSecurity,
-            ConnectTimeoutSeconds = options.SqlServer.ConnectTimeoutSeconds
-        };
         options.Databases.ReadWrite = [$"test/{database}"];
         var wrapped = Options.Create(options);
         var factory = new CountingFactory(new SqlConnectionFactory(wrapped));
@@ -158,13 +148,14 @@ public sealed class TlsConnectionIntegrationTests(ITestOutputHelper output)
     {
         var (options, database) = LoadEndpoint("LocalUntrusted");
         ConfigureProviders(options, database, !primaryTrust, dedicated: false);
-        options.SqlServer.TrustServerCertificate = primaryTrust;
+        options.Servers["test"].TrustServerCertificate = primaryTrust;
         var factory = new CountingFactory(new SqlConnectionFactory(Options.Create(options)));
         var metadataLog = new TestLogger<MetadataProvider>();
         var rulesLog = new TestLogger<AnonymizationRuleProvider>();
         var metadata = new MetadataProvider(factory, Options.Create(options), metadataLog);
         var rules = new AnonymizationRuleProvider(factory, Options.Create(options), rulesLog);
-        string? observation = await metadata.GetTableDescriptionAsync(database, "tls_probe", TestContext.Current.CancellationToken);
+        var target = new DatabaseTargetContext("test", database);
+        string? observation = await metadata.GetTableDescriptionAsync(target, "tls_probe", TestContext.Current.CancellationToken);
         if (primaryTrust)
         {
             Assert.NotNull(observation);
@@ -173,7 +164,7 @@ public sealed class TlsConnectionIntegrationTests(ITestOutputHelper output)
         }
         else
             Assert.Null(observation);
-        Assert.False(await rules.IsExcludedAsync(database, "dbo", "tls_probe", "value", TestContext.Current.CancellationToken));
+        Assert.False(await rules.IsExcludedAsync(target, "dbo", "tls_probe", "value", TestContext.Current.CancellationToken));
         VerifyLogs(metadataLog, !primaryTrust, "MetadataProvider");
         VerifyLogs(rulesLog, !primaryTrust, "AnonymizationRules");
         Assert.Equal(2, factory.Count);
@@ -186,38 +177,45 @@ public sealed class TlsConnectionIntegrationTests(ITestOutputHelper output)
         var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(profile!), optional: false).Build();
         var section = configuration.GetSection(name);
         Assert.SkipWhen(!section.Exists(), $"Unverified: {name} endpoint is unavailable.");
-        var options = new SqlToAiOptions { SqlServer = section.GetSection("SqlServer").Get<SqlServerOptions>()! };
-        Assert.NotNull(options.SqlServer);
-        Assert.False(options.SqlServer.TrustServerCertificate, "TLS inputs must retain secure defaults; each test selects its own exception.");
-        Assert.False(string.IsNullOrWhiteSpace(options.SqlServer.Server));
+        var serverSection = section.GetSection("Servers:test").Exists()
+            ? section.GetSection("Servers:test")
+            : (section.GetSection("Servers:primary").Exists()
+                ? section.GetSection("Servers:primary")
+                : section.GetSection("SqlServer"));
+        var serverOptions = serverSection.Get<NamedServerOptions>() ?? new NamedServerOptions();
+        var options = new SqlToAiOptions();
+        options.Servers["test"] = serverOptions;
+        Assert.NotNull(options.Servers["test"]);
+        Assert.False(options.Servers["test"].TrustServerCertificate, "TLS inputs must retain secure defaults; each test selects its own exception.");
+        Assert.False(string.IsNullOrWhiteSpace(options.Servers["test"].Server));
         if (name.EndsWith("Tcp", StringComparison.Ordinal))
-            Assert.StartsWith("tcp:", options.SqlServer.Server, StringComparison.OrdinalIgnoreCase);
+            Assert.StartsWith("tcp:", options.Servers["test"].Server, StringComparison.OrdinalIgnoreCase);
         string database = section["Database"] ?? "DemoDB";
         return (options, database);
     }
 
     private static void ConfigureProviders(SqlToAiOptions options, string database, bool trust, bool dedicated)
     {
-        var primary = options.SqlServer;
-        options.MetadataProvider.Enabled = true;
-        options.MetadataProvider.Server = dedicated ? primary.Server : string.Empty;
-        options.MetadataProvider.Database = database;
-        options.MetadataProvider.IntegratedSecurity = primary.IntegratedSecurity;
-        options.MetadataProvider.UserId = primary.UserId;
-        options.MetadataProvider.Password = primary.Password;
-        options.MetadataProvider.TrustServerCertificate = trust;
-        options.MetadataProvider.CommandTimeoutSeconds = primary.ConnectTimeoutSeconds;
-        options.MetadataProvider.TableMetadataQuery = ObservationQuery;
-        options.AnonymizationRules.Enabled = true;
-        options.AnonymizationRules.Server = dedicated ? primary.Server : string.Empty;
-        options.AnonymizationRules.Database = database;
-        options.AnonymizationRules.IntegratedSecurity = primary.IntegratedSecurity;
-        options.AnonymizationRules.UserId = primary.UserId;
-        options.AnonymizationRules.Password = primary.Password;
-        options.AnonymizationRules.TrustServerCertificate = trust;
-        options.AnonymizationRules.CommandTimeoutSeconds = primary.ConnectTimeoutSeconds;
+        var primary = options.Servers["test"];
+        primary.MetadataProvider.Enabled = true;
+        primary.MetadataProvider.Server = dedicated ? primary.Server : string.Empty;
+        primary.MetadataProvider.Database = database;
+        primary.MetadataProvider.IntegratedSecurity = primary.IntegratedSecurity;
+        primary.MetadataProvider.UserId = primary.UserId;
+        primary.MetadataProvider.Password = primary.Password;
+        primary.MetadataProvider.TrustServerCertificate = trust;
+        primary.MetadataProvider.CommandTimeoutSeconds = primary.ConnectTimeoutSeconds;
+        primary.MetadataProvider.TableMetadataQuery = ObservationQuery;
+        primary.AnonymizationRules.Enabled = true;
+        primary.AnonymizationRules.Server = dedicated ? primary.Server : string.Empty;
+        primary.AnonymizationRules.Database = database;
+        primary.AnonymizationRules.IntegratedSecurity = primary.IntegratedSecurity;
+        primary.AnonymizationRules.UserId = primary.UserId;
+        primary.AnonymizationRules.Password = primary.Password;
+        primary.AnonymizationRules.TrustServerCertificate = trust;
+        primary.AnonymizationRules.CommandTimeoutSeconds = primary.ConnectTimeoutSeconds;
         // A missing fictional table tests successful optional loading without changing SQL objects.
-        options.AnonymizationRules.TableName = "dbo.SqlToAiTlsProbeNotPresent";
+        primary.AnonymizationRules.TableName = "dbo.SqlToAiTlsProbeNotPresent";
     }
 
     private static void VerifyLogs<T>(TestLogger<T> logger, bool rejected, string section)
@@ -248,11 +246,6 @@ public sealed class TlsConnectionIntegrationTests(ITestOutputHelper output)
         public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
         public int Count { get; private set; }
-        public DbConnection CreateConnection(string? databaseName = null)
-        {
-            Count++;
-            return inner.CreateConnection(databaseName);
-        }
     }
 
     private sealed class TestLogger<T> : ILogger<T>

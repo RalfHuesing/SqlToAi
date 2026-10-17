@@ -1,13 +1,14 @@
 # SQL tool reference
 
-The server registers 18 SQL tools. Required arguments are listed below; `database` is an explicit target name wherever shown. Failed tool results set MCP `isError=true`; catalog errors appear as `[SQL-AI-...] message` in text content or structured `error` objects in JSON envelopes. Successful content can be Markdown or JSON, depending on the tool.
+The server registers 19 SQL tools. Required arguments are listed below; `database` is an explicit qualified target (`alias/database`) wherever shown. Failed tool results set MCP `isError=true`; catalog errors appear as `[SQL-AI-...] message` in text content or structured `error` objects in JSON envelopes. Successful content can be Markdown or JSON, depending on the tool.
 
 ## Discovery and schema
 
 | Tool | Required arguments | Optional arguments | Result |
 | --- | --- | --- | --- |
-| `sql_list_databases` | None | None | Permitted databases |
-| `sql_search_databases` | `search_term` | None | Permitted databases matching a substring |
+| `sql_list_servers` | None | None | List of configured named server aliases |
+| `sql_list_databases` | `server` | None | Permitted databases on the specified server alias |
+| `sql_search_databases` | `server`, `search_term` | None | Permitted databases on the specified server matching a substring |
 | `sql_validate_query` | `query`, `database` | `parameters` | Validation message; SQL Server `NOEXEC` compilation without executing the query |
 | `sql_search_objects` | `search_term`, `database` | `max_results`, `object_type` | Object matches; `object_type` matches SQL Server `type_desc`, supporting LIKE patterns such as `SQL_%` |
 | `sql_get_schema` | `database` | `object_name`, `object_names` | Scalar primary-schema Markdown, or an ordered JSON batch envelope |
@@ -34,10 +35,10 @@ with `SQL-AI-0001`. Details remain separate tools.
 These argument objects are accepted by the registered MCP tool:
 
 ```json
-{"database":"DemoDB","object_name":"Orders"}
-{"database":"DemoDB","object_names":["Orders","Customers"]}
-{"database":"DemoDB","object_name":" Orders ","object_names":[null," ","Customers","Orders"]}
-{"database":"DemoDB","object_name":"Orders","object_names":[]}
+{"database":"primary/DemoDB","object_name":"Orders"}
+{"database":"primary/DemoDB","object_names":["Orders","Customers"]}
+{"database":"primary/DemoDB","object_name":" Orders ","object_names":[null," ","Customers","Orders"]}
+{"database":"primary/DemoDB","object_name":"Orders","object_names":[]}
 ```
 
 Batch identifiers can be unqualified or SQL-schema-qualified, including quoted
@@ -80,7 +81,7 @@ root-relative, URL and device-namespace paths are rejected. The directory must b
 absent or completely empty, including no child directories; an existing file fails.
 
 ```json
-{"database":"DemoDB","scope":"selected","output_path":"C:\\Doku\\Selected","object_name":"dbo.FakeProjects","object_names":["dbo.FakeAddresses"]}
+{"database":"primary/DemoDB","scope":"selected","output_path":"C:\\Doku\\Selected","object_name":"dbo.FakeProjects","object_names":["dbo.FakeAddresses"]}
 ```
 
 Both scopes reuse the [CLI dump layout](development.md#schema-export), with UTF-8
@@ -176,4 +177,4 @@ The implementation source is [SqlToAiError.cs](../src/SqlToAi/Domain/SqlToAiErro
 | `SQL-AI-0112` | Script exceeds configured size limit |
 | `SQL-AI-0113` | Script extension is not `.sql` |
 
-Primary connection-open failures use safe diagnostics identifying the `SqlServer` configuration section. TLS/certificate failures return `SQL-AI-0105`, including database discovery, schema/export operations and index suggestions; database discovery does not conceal these failures behind its configured-list fallback. Actual connection timeouts return `SQL-AI-0106`, even when the timeout occurs during a TLS handshake. The diagnostics discard raw provider messages and inner exception payloads before service logging, so authentication secrets and full connection strings from those exceptions cannot reach the response or connection-failure logs. Ordinary SQL execution errors retain their existing handling. No connection failure triggers a retry with weaker encryption or certificate checks.
+Primary connection-open failures use safe diagnostics identifying the `SqlToAi:Servers:<alias>` configuration section. TLS/certificate failures return `SQL-AI-0105`, including database discovery, schema/export operations and index suggestions; database discovery does not conceal these failures behind its configured-list fallback. Actual connection timeouts return `SQL-AI-0106`, even when the timeout occurs during a TLS handshake. The diagnostics discard raw provider messages and inner exception payloads before service logging, so authentication secrets and full connection strings from those exceptions cannot reach the response or connection-failure logs. Ordinary SQL execution errors retain their existing handling. No connection failure triggers a retry with weaker encryption or certificate checks.

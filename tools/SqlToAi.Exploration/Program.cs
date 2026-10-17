@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using SqlToAi.Configuration;
+using SqlToAi.Domain;
 using SqlToAi.Exploration.Scenarios;
 using SqlToAi.Mcp;
 using SqlToAi.Security;
@@ -41,11 +42,12 @@ internal static class ExplorationRunner
             await using var services = SqlToAi.Program.BuildServiceProvider(startup.Configuration, startup.Options, startup.RootDirectory);
             var context = new ExplorationContext(services.GetRequiredService<IToolDispatcher>(), repositoryRoot, outputDirectory, timeout.Token);
             var access = services.GetRequiredService<IAccessLevelProvider>();
+            string firstServer = startup.Options.Servers.Keys.FirstOrDefault() ?? "test";
             await context.WriteJsonAsync(Path.Combine(outputDirectory, "run.json"), new
             {
                 scenario = scenario.GetType().Name,
                 configurationDirectory,
-                demoDbAccessLevel = (await access.GetAccessLevelAsync("DemoDB", timeout.Token)).ToString(),
+                demoDbAccessLevel = (await access.GetTargetAccessLevelAsync(new DatabaseTargetContext(firstServer, "DemoDB"), timeout.Token)).ToString(),
                 timeoutSeconds = seconds,
                 configurationOverrides = "None; production configuration and environment providers apply."
             });

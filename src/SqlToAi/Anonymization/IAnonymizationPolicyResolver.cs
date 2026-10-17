@@ -13,18 +13,12 @@ namespace SqlToAi.Anonymization;
 /// </summary>
 public interface IAnonymizationPolicyResolver
 {
-    Task<bool> WillAnonymizeAsync(string databaseName, SchemaObjectIdentity identity, string columnName, CancellationToken cancellationToken = default)
-        => WillAnonymizeAsync(databaseName, identity.DisplayName, columnName, cancellationToken);
-
     /// <summary>Target-aware form: resolves against the owning server's provider settings and rule cache.</summary>
     Task<bool> WillAnonymizeAsync(DatabaseTargetContext target, SchemaObjectIdentity identity, string columnName, CancellationToken cancellationToken = default)
         => WillAnonymizeAsync(target, identity.DisplayName, columnName, cancellationToken);
 
     /// <summary>Target-aware form: resolves against the owning server's provider settings and rule cache.</summary>
     Task<bool> WillAnonymizeAsync(DatabaseTargetContext target, string tableName, string columnName, CancellationToken cancellationToken = default);
-
-    /// <summary>Returns <c>true</c> if string values in this column would currently be anonymized.</summary>
-    Task<bool> WillAnonymizeAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Whether anonymized columns currently use reversible, searchable tokenization (see

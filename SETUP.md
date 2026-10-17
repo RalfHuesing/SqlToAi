@@ -31,25 +31,27 @@ The expected location is `%LOCALAPPDATA%\SqlToAi\appsettings.json`, derived from
 Windows Local Application Data, independently of installation directory and CWD.
 Changing the `LOCALAPPDATA` environment variable is not a supported root override.
 
-Inside the `SqlToAi` object, configure `SqlServer.Server` and either
+Inside the `SqlToAi` object, configure `Servers.<alias>.Server` and either
 `IntegratedSecurity=true` for the process Windows identity, or `UserId`/`Password`
-for SQL authentication. Add only deliberate database grants to `Databases`:
-`SchemaOnly`, `ReadOnlyAnonymized`, `ReadOnly`, or `ReadWrite`. Unlisted databases
-are denied. Restrict SQL Server permissions too. The separate
-`demo-profile.json` contains fictional local DemoDB credentials
-and `ReadWrite` access. Copy selected values only for that deliberate local demo;
-the host never loads this profile automatically.
+for SQL authentication. Valid server aliases match `^[A-Za-z][A-Za-z0-9_-]*$`.
+Add only deliberate database grants to `Databases`: `SchemaOnly`, `ReadOnlyAnonymized`,
+`ReadOnly`, or `ReadWrite` using qualified target names (`<alias>/<database>`),
+such as `primary/DemoDB`. Unlisted databases are denied. Restrict SQL Server
+permissions too. The separate `demo-profile.json` contains fictional local DemoDB
+credentials under server alias `test` and `ReadWrite` access to `test/DemoDB`.
+Copy selected values only for that deliberate local demo; the host never loads
+this profile automatically.
 
 SQL connections require encryption and validate the server certificate by default.
 Existing settings that omit `TrustServerCertificate` now validate certificates;
 startup does not rewrite or migrate them. For a local SQL Server with a
-self-signed certificate, deliberately set `SqlServer.TrustServerCertificate` to
+self-signed certificate, deliberately set `Servers.<alias>.TrustServerCertificate` to
 `true` in the user file or process environment. This skips certificate identity
-validation while keeping encryption required. It applies only to the primary
-server; separately configured metadata and anonymization-rule servers require
-their own `MetadataProvider.TrustServerCertificate` or
-`AnonymizationRules.TrustServerCertificate` setting. The demo profile leaves all
-exceptions disabled.
+validation while keeping encryption required. It applies only to that server alias;
+separately configured secondary metadata and anonymization-rule servers require
+their own `Servers.<alias>.MetadataProvider.TrustServerCertificate` or
+`Servers.<alias>.AnonymizationRules.TrustServerCertificate` setting. The demo profile
+leaves all exceptions disabled.
 
 Save the file and restart the MCP server in your client after every configuration
 change. Configure a stdio entry with an absolute executable path, for example:
@@ -91,12 +93,14 @@ Overrides never replace the required base file and are never persisted. Set them
 in the environment of the process/client that launches SqlToAi, then restart:
 
 ```powershell
-$env:SqlToAi__SqlServer__Server = 'localhost\SQLEXPRESS'
-$env:SqlToAi__SqlServer__IntegratedSecurity = 'true'
+$env:SqlToAi__Servers__primary__Server = 'localhost\SQLEXPRESS'
+$env:SqlToAi__Servers__primary__IntegratedSecurity = 'true'
 ```
 
 Double underscores address nested keys; SQL authentication can use
-`SqlToAi__SqlServer__UserId` and `SqlToAi__SqlServer__Password`.
+`SqlToAi__Servers__<alias>__UserId` and `SqlToAi__Servers__<alias>__Password`.
+Obsolete `SqlToAi__SqlServer*` environment variables or obsolete root sections
+in JSON cause fatal startup exit code 1 with clean actionable stderr diagnostics.
 There is no special `SQLTOAI_CONNECTION_STRING` setting.
 
 ## Logs and updates

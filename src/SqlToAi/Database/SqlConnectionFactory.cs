@@ -75,49 +75,4 @@ public sealed class SqlConnectionFactory : IDatabaseConnectionFactory
 
         return new SqlConnection(builder.ConnectionString);
     }
-
-    /// <summary>
-    /// Creates and returns a new <see cref="SqlConnection"/> using the configured connection string parameters.
-    /// </summary>
-    /// <param name="databaseName">The database to connect to. Overrides default database if specified.</param>
-    /// <returns>A configured <see cref="SqlConnection"/> instance.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if server connection settings are missing.</exception>
-    public DbConnection CreateConnection(string? databaseName = null)
-    {
-        if (string.IsNullOrWhiteSpace(_options.SqlServer.Server))
-        {
-            throw new InvalidOperationException("SQL Server address must be configured via 'SqlServer:Server'.");
-        }
-
-        var builder = new SqlConnectionStringBuilder
-        {
-            DataSource = _options.SqlServer.Server,
-            ApplicationName = "SqlToAi",
-            Encrypt = SqlConnectionEncryptOption.Mandatory,
-            TrustServerCertificate = _options.SqlServer.TrustServerCertificate,
-            ConnectTimeout = _options.SqlServer.ConnectTimeoutSeconds
-        };
-
-        if (_options.SqlServer.IntegratedSecurity)
-        {
-            builder.IntegratedSecurity = true;
-        }
-        else
-        {
-            if (string.IsNullOrWhiteSpace(_options.SqlServer.UserId) || string.IsNullOrWhiteSpace(_options.SqlServer.Password))
-            {
-                throw new InvalidOperationException("SQL Server authentication error: 'IntegratedSecurity' is false, but 'UserId' or 'Password' is not configured.");
-            }
-            builder.UserID = _options.SqlServer.UserId;
-            builder.Password = _options.SqlServer.Password;
-        }
-
-        // Set or override target database
-        if (!string.IsNullOrWhiteSpace(databaseName))
-        {
-            builder.InitialCatalog = databaseName;
-        }
-
-        return new SqlConnection(builder.ConnectionString);
-    }
 }

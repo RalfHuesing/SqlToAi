@@ -9,44 +9,38 @@ namespace SqlToAi.Tests.Security;
 public sealed class SecurityGuardTests
 {
     [Fact]
-    public void IsDatabaseAllowed_ShouldReturnFalse_ForEmptyOrNullDatabase()
+    public void IsTargetAllowed_ShouldReturnTrue_WhenTargetIsInConfiguredLevelList()
     {
         // Arrange
         var options = new SqlToAiOptions();
+        options.Servers["primary"] = new NamedServerOptions { Server = "localhost" };
+        options.Databases.ReadWrite = ["primary/DemoDB"];
+        options.Databases.ReadOnly = ["primary/ReportingDB"];
         var guard = new SecurityGuard(Options.Create(options));
 
         // Act & Assert
-        Assert.False(guard.IsDatabaseAllowed(""));
-        Assert.False(guard.IsDatabaseAllowed("   "));
+        Assert.True(guard.IsTargetAllowed(new DatabaseTargetContext("primary", "DemoDB")));
+        Assert.True(guard.IsTargetAllowed(new DatabaseTargetContext("primary", "ReportingDB")));
+        Assert.False(guard.IsTargetAllowed(new DatabaseTargetContext("primary", "UnknownDB")));
+        Assert.False(guard.IsTargetAllowed(new DatabaseTargetContext("other", "DemoDB")));
     }
 
     [Fact]
-    public void IsDatabaseAllowed_ShouldReturnTrue_WhenDatabaseIsInConfiguredLevelList()
+    public void IsTargetAllowed_ShouldReturnFalse_WhenTargetIsGloballyExcluded()
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = ["DemoDB"];
-        options.Databases.ReadOnly = ["ReportingDB"];
+        options.Servers["primary"] = new NamedServerOptions
+        {
+            Server = "localhost",
+            ExcludedDatabases = ["HR_Payroll", "master*"]
+        };
+        options.Databases.ReadWrite = ["primary/DemoDB", "primary/HR_Payroll"];
         var guard = new SecurityGuard(Options.Create(options));
 
         // Act & Assert
-        Assert.True(guard.IsDatabaseAllowed("DemoDB"));
-        Assert.True(guard.IsDatabaseAllowed("ReportingDB"));
-        Assert.False(guard.IsDatabaseAllowed("UnknownDB"));
-    }
-
-    [Fact]
-    public void IsDatabaseAllowed_ShouldReturnFalse_WhenDatabaseIsGloballyExcluded()
-    {
-        // Arrange
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = ["DemoDB", "HR_Payroll"];
-        options.SqlServer.ExcludedDatabases = ["HR_Payroll", "master*"];
-        var guard = new SecurityGuard(Options.Create(options));
-
-        // Act & Assert
-        Assert.True(guard.IsDatabaseAllowed("DemoDB"));
-        Assert.False(guard.IsDatabaseAllowed("HR_Payroll"));
+        Assert.True(guard.IsTargetAllowed(new DatabaseTargetContext("primary", "DemoDB")));
+        Assert.False(guard.IsTargetAllowed(new DatabaseTargetContext("primary", "HR_Payroll")));
     }
 
     [Theory]

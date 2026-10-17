@@ -20,10 +20,10 @@ public sealed class SchemaServiceAnonymizationTests
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         options.Databases.SchemaOnly = [TestConstants.QualifiedDatabaseName];
-        options.MetadataProvider.Enabled = false;
+        options.Servers[TestTargets.ServerAlias].MetadataProvider.Enabled = false;
         options.Anonymizer.Enabled = true;
-        options.AnonymizationRules.Enabled = true;
-        options.AnonymizationRules.TableName = "dbo.AnonymizationRules";
+        options.Servers[TestTargets.ServerAlias].AnonymizationRules.Enabled = true;
+        options.Servers[TestTargets.ServerAlias].AnonymizationRules.TableName = "dbo.AnonymizationRules";
         var bound = Options.Create(options);
         var ruleConnection = Anonymization.MockConnection.Create([], beforeExecute: command =>
         {

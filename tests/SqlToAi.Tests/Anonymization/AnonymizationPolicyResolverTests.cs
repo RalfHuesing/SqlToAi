@@ -17,6 +17,8 @@ public sealed class AnonymizationPolicyResolverTests
         return new AnonymizationPolicyResolver(Options.Create(options), ruleProvider);
     }
 
+    private static readonly SqlToAi.Domain.DatabaseTargetContext Target = new("primary", "Db");
+
     [Fact]
     public async Task WillAnonymizeAsync_ShouldReturnFalse_WhenGloballyDisabled()
     {
@@ -24,7 +26,7 @@ public sealed class AnonymizationPolicyResolverTests
         options.Anonymizer.Enabled = false;
         var resolver = BuildResolver(options);
 
-        bool result = await resolver.WillAnonymizeAsync("Db", "Table", "Column", TestContext.Current.CancellationToken);
+        bool result = await resolver.WillAnonymizeAsync(Target, "Table", "Column", TestContext.Current.CancellationToken);
 
         Assert.False(result);
     }
@@ -34,7 +36,7 @@ public sealed class AnonymizationPolicyResolverTests
     {
         var resolver = BuildResolver(centralExcluded: true);
 
-        bool result = await resolver.WillAnonymizeAsync("Db", "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
+        bool result = await resolver.WillAnonymizeAsync(Target, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
 
         Assert.False(result);
     }
@@ -44,7 +46,7 @@ public sealed class AnonymizationPolicyResolverTests
     {
         var resolver = BuildResolver();
 
-        bool result = await resolver.WillAnonymizeAsync("Db", "Customers", "LastName", TestContext.Current.CancellationToken);
+        bool result = await resolver.WillAnonymizeAsync(Target, "Customers", "LastName", TestContext.Current.CancellationToken);
 
         Assert.True(result);
     }
@@ -75,9 +77,6 @@ public sealed class AnonymizationPolicyResolverTests
 
     private sealed class FakeRuleProvider(bool excluded) : IAnonymizationRuleProvider
     {
-        public Task<bool> IsExcludedAsync(string databaseName, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
-            => Task.FromResult(excluded);
-
         public Task<bool> IsExcludedAsync(SqlToAi.Domain.DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
             => Task.FromResult(excluded);
     }

@@ -88,10 +88,10 @@ public sealed class ExplorationTests
     public async Task ProductionConfigurationAndServices_AreReusedWithoutDatabaseConnection()
     {
         using var temp = TestTempDirectory.Create();
-        temp.CreateFile("appsettings.json", """{"SqlToAi":{"Databases":{"ReadOnly":["ExplorationTestDatabase"]}}}""");
+        temp.CreateFile("appsettings.json", """{"SqlToAi":{"Servers":{"primary":{"Server":"localhost"}},"Databases":{"ReadOnly":["primary/ExplorationTestDatabase"]}}}""");
         using var startup = UserConfiguration.Load(temp.DirectoryPath);
         await using var services = SqlToAi.Program.BuildServiceProvider(startup.Configuration, startup.Options);
-        Assert.Contains("ExplorationTestDatabase", services.GetRequiredService<IOptions<SqlToAiOptions>>().Value.Databases.ReadOnly);
+        Assert.Contains("primary/ExplorationTestDatabase", services.GetRequiredService<IOptions<SqlToAiOptions>>().Value.Databases.ReadOnly);
         var dispatcher = services.GetRequiredService<IToolDispatcher>();
         var result = await dispatcher.DispatchAsync(new ToolCallParams { Name = "exploration_unknown_tool" }, TestContext.Current.CancellationToken);
         Assert.True(result.IsError);

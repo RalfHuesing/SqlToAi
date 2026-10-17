@@ -24,8 +24,8 @@ internal static class TestTargets
             {
                 Server = ".\\SQLTEST",
                 IntegratedSecurity = true,
-                MetadataProvider = options.MetadataProvider,
-                AnonymizationRules = options.AnonymizationRules
+                MetadataProvider = new MetadataProviderOptions { Enabled = true },
+                AnonymizationRules = new AnonymizationRulesOptions { Enabled = true }
             };
         }
         return options;

@@ -8,7 +8,7 @@ public sealed class SqlServerFixtureConfigurationTests
     [Fact]
     public void GeneralFixture_UsesCheckedInTrustOverlay_WithoutChangingDemoDefaults()
     {
-        const string variable = "SQLTOAI_INTEGRATION_SqlToAi__SqlServer__TrustServerCertificate";
+        const string variable = "SQLTOAI_INTEGRATION_SqlToAi__Servers__test__TrustServerCertificate";
         string? original = Environment.GetEnvironmentVariable(variable);
         Environment.SetEnvironmentVariable(variable, null);
 
@@ -16,12 +16,12 @@ public sealed class SqlServerFixtureConfigurationTests
         {
             var configuration = SqlServerFixture.BuildConfiguration(AppContext.BaseDirectory);
             var fixtureOptions = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>()!;
-            Assert.True(fixtureOptions.SqlServer.TrustServerCertificate);
+            Assert.True(fixtureOptions.Servers["test"].TrustServerCertificate);
 
             using var demoStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "appsettings.integration.json"));
             var demo = new ConfigurationBuilder().AddJsonStream(demoStream).Build()
                 .GetSection("SqlToAi").Get<SqlToAiOptions>()!;
-            Assert.False(demo.SqlServer.TrustServerCertificate);
+            Assert.False(demo.Servers["test"].TrustServerCertificate);
         }
         finally
         {
@@ -32,7 +32,7 @@ public sealed class SqlServerFixtureConfigurationTests
     [Fact]
     public void ExplicitFalseEnvironmentValue_OverridesGeneralFixtureTrustOverlay()
     {
-        const string variable = "SQLTOAI_INTEGRATION_SqlToAi__SqlServer__TrustServerCertificate";
+        const string variable = "SQLTOAI_INTEGRATION_SqlToAi__Servers__test__TrustServerCertificate";
         string? original = Environment.GetEnvironmentVariable(variable);
         Environment.SetEnvironmentVariable(variable, "false");
 
@@ -41,7 +41,7 @@ public sealed class SqlServerFixtureConfigurationTests
             var configuration = SqlServerFixture.BuildConfiguration(AppContext.BaseDirectory);
             var options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>()!;
 
-            Assert.False(options.SqlServer.TrustServerCertificate);
+            Assert.False(options.Servers["test"].TrustServerCertificate);
         }
         finally
         {

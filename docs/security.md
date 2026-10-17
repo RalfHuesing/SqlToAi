@@ -10,7 +10,7 @@ database names, raw logs, or unredacted query/result content in public reports.
 
 ## Database access
 
-Access lists use exact, case-insensitive database names. Unlisted databases resolve to `None`. Global `SqlServer.ExcludedDatabases` glob patterns override allow lists. If a name occurs in several lists, the first configured level in this table wins:
+Access lists use qualified target names (`<alias>/<database>`), compared case-insensitively. Unlisted databases resolve to `None`. Server-scoped `Servers.<alias>.ExcludedDatabases` glob patterns match the raw database name and override database grants. If a target occurs in several lists, the first configured level in this table wins:
 
 | Level | Behavior |
 | --- | --- |
@@ -20,7 +20,7 @@ Access lists use exact, case-insensitive database names. Unlisted databases reso
 | `ReadWrite` | Query/script execution can persist changes |
 | `None` | Access blocked; default for unlisted databases |
 
-The shipped main template has empty access lists, so every database, including `DemoDB`, is denied until an administrator configures a level deliberately. The separate fictional DemoDB example explicitly grants `ReadWrite` for a local test database and is never loaded by the host automatically. Database discovery returns permitted databases only. Index suggestions also accept `SchemaOnly`, since they read metadata.
+The shipped main template has empty access lists, so every database, including `DemoDB`, is denied until an administrator configures a level deliberately. The separate fictional DemoDB example explicitly grants `ReadWrite` to `test/DemoDB` for a local test database and is never loaded by the host automatically. Database discovery returns permitted databases only. Index suggestions also accept `SchemaOnly`, since they read metadata.
 
 ## Query guards and transactions
 
@@ -64,7 +64,7 @@ Specificity ranks exact text above partial wildcards above `%` in each of the fo
 
 ## Primary connection failures
 
-Primary connection-open failures return `SQL-AI-0105` with a safe `SqlServer` diagnostic, including TLS/certificate validation and handshake failures. This also applies to schema discovery/export and index suggestions. Database discovery returns the connection error for TLS failures and connection timeouts instead of substituting the configured database list. Actual timeouts retain `SQL-AI-0106`; a timeout during the pre-login handshake is still a timeout. The migrated query execution and validation paths identify the selected owner's `SqlToAi:Servers:<alias>` settings path; remaining preparation paths and host callers stay on `SqlServer` until the named-server cutover described in [architecture](architecture.md).
+Primary connection-open failures return `SQL-AI-0105` with a safe diagnostic identifying the affected `SqlToAi:Servers:<alias>` configuration section, including TLS/certificate validation and handshake failures. This also applies to schema discovery/export and index suggestions. Database discovery returns the connection error for TLS failures and connection timeouts instead of substituting the configured database list. Actual timeouts retain `SQL-AI-0106`; a timeout during the pre-login handshake is still a timeout. All connection, query execution and validation paths identify the selected server's `SqlToAi:Servers:<alias>` settings path.
 
 The primary connection-open boundary discards raw provider messages and inner exceptions before service loggers receive the failure. Responses and connection-failure exception payloads therefore contain no credentials or full connection strings taken from those exceptions. Diagnostics direct the administrator to certificate trust, validity, name and transport configuration. There is no retry with encryption or certificate validation disabled. This protection is scoped to connection-open failures; ordinary SQL execution errors, query text and other logs retain the exposure limits below.
 
@@ -75,7 +75,7 @@ The primary connection-open boundary discards raw provider messages and inner ex
 - Schema/DDL text is raw. Comparison returns raw difference samples; benchmark results embed them. Plan warnings, SQL literals, errors, logs and metadata can contain sensitive information.
 - Deterministic masks and tokens reveal repeated values. Cleartext exposed elsewhere can be correlated with protected values. These mechanisms do not guarantee anonymity or PII removal.
 - Access lists check the requested database. They do not sandbox every cross-database reference, synonym, linked server or SQL Server object. Restrict the login accordingly.
-- SQL connections require encryption and validate the server certificate by default, including primary and dedicated metadata/rule endpoints. `SqlServer.TrustServerCertificate`, `MetadataProvider.TrustServerCertificate`, and `AnonymizationRules.TrustServerCertificate` default to `false`. Setting one to `true` accepts the presented certificate without validating its identity for that endpoint while keeping encryption required; this is intended only as a deliberate local/self-signed development exception. A primary exception does not apply to dedicated secondary servers. When a secondary server is omitted, its connection uses the primary factory and inherits the primary endpoint's effective policy. Existing settings are not automatically migrated or rewritten, so settings that omit these options now validate certificates. The shipped main and demo profiles keep the exception off.
+- SQL connections require encryption and validate the server certificate by default, including primary and dedicated metadata/rule endpoints. `Servers.<alias>.TrustServerCertificate`, `Servers.<alias>.MetadataProvider.TrustServerCertificate`, and `Servers.<alias>.AnonymizationRules.TrustServerCertificate` default to `false`. Setting one to `true` accepts the presented certificate without validating its identity for that endpoint while keeping encryption required; this is intended only as a deliberate local/self-signed development exception. A server exception does not apply to dedicated secondary servers. When a secondary server is omitted, its connection uses the primary factory and inherits the owning server's effective policy. Existing settings are not automatically migrated or rewritten, so settings that omit these options now validate certificates. The shipped main and demo profiles keep the exception off.
 - General local SQL integration tests explicitly load a separate test-only trust overlay for the existing self-signed instance. That fixture exception is not used by application configuration or the isolated TLS default-policy cases, and passing with it does not verify certificate identity validation.
 - Script execution reads local files available to the server process; URLs and UNC paths are rejected, but access is not restricted to one script directory.
 - SQL text, parameters and results can reach the client's model provider and local logs. Review both before using sensitive data.

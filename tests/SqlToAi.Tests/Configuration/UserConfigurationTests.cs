@@ -7,6 +7,8 @@ namespace SqlToAi.Tests.Configuration;
 
 public sealed class UserConfigurationTests
 {
+    private const string MinimalSettings = """{"SqlToAi":{"Servers":{"primary":{"Server":"localhost"}}}}""";
+
     public static TheoryData<string, string> MissingFileCases => new(
         from entry in new[] { "default", "server", "query", "export", "exploration" }
         from setup in new[] { "empty", "environment", "environment-json", "legacy" }
@@ -28,7 +30,7 @@ public sealed class UserConfigurationTests
         using var temp = TestTempDirectory.Create();
         string root = temp.GetPath("user-root");
         Dictionary<string, string?> environment = [];
-        if (setup == "environment") environment["SqlToAi__SqlServer__Server"] = "environment-only";
+        if (setup == "environment") environment["SqlToAi__Servers__primary__Server"] = "environment-only";
         if (setup == "environment-json") temp.CreateFile("user-root/appsettings.StartupTest.json", "{}");
         string legacyPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
         Assert.True(File.Exists(legacyPath)); // Build output contains the executable-adjacent legacy template.
@@ -70,7 +72,7 @@ public sealed class UserConfigurationTests
     {
         using var temp = TestTempDirectory.Create();
         string file = temp.CreateFile("user-root/appsettings.json",
-            $"{{ \"SqlToAi\": {{ \"Logging\": {{ \"{sink}\": {{ \"RetainedFileCount\": {count} }} }} }} }}");
+            $"{{ \"SqlToAi\": {{ \"Servers\": {{ \"primary\": {{ \"Server\": \"localhost\" }} }}, \"Logging\": {{ \"{sink}\": {{ \"RetainedFileCount\": {count} }} }} }} }}");
         string root = Path.GetDirectoryName(file)!;
 
         var result = await RunAsync(temp, root, "query-help");
@@ -93,7 +95,7 @@ public sealed class UserConfigurationTests
     {
         using var temp = TestTempDirectory.Create();
         temp.CreateFile("user-root/appsettings.json",
-            $"{{ \"SqlToAi\": {{ \"SchemaBatch\": {{ \"{field}\": {value} }} }} }}");
+            $"{{ \"SqlToAi\": {{ \"Servers\": {{ \"primary\": {{ \"Server\": \"localhost\" }} }}, \"SchemaBatch\": {{ \"{field}\": {value} }} }} }}");
         string root = temp.GetPath("user-root");
         var result = await RunAsync(temp, root, "query-help");
         AssertFailure(result, root);
@@ -108,7 +110,7 @@ public sealed class UserConfigurationTests
     public void PositiveSchemaBatchLimits_LoadWithoutRewritingSettings(int maxCount, int maxBytes)
     {
         using var temp = TestTempDirectory.Create();
-        string text = $"{{ \"SqlToAi\": {{ \"SchemaBatch\": {{ \"MaxInputCount\": {maxCount}, \"MaxResponseBytes\": {maxBytes} }} }} }}";
+        string text = $"{{ \"SqlToAi\": {{ \"Servers\": {{ \"primary\": {{ \"Server\": \"localhost\" }} }}, \"SchemaBatch\": {{ \"MaxInputCount\": {maxCount}, \"MaxResponseBytes\": {maxBytes} }} }} }}";
         string path = temp.CreateFile("user-root/appsettings.json", text);
         using var configuration = UserConfiguration.Load(temp.GetPath("user-root"));
         Assert.Equal(maxCount, configuration.Options.SchemaBatch.MaxInputCount);
@@ -125,7 +127,7 @@ public sealed class UserConfigurationTests
     {
         using var temp = TestTempDirectory.Create();
         temp.CreateFile("user-root/appsettings.json",
-            $"{{ \"SqlToAi\": {{ \"Logging\": {{ \"{sink}\": {{ \"RetainedFileCount\": {count} }} }} }} }}");
+            $"{{ \"SqlToAi\": {{ \"Servers\": {{ \"primary\": {{ \"Server\": \"localhost\" }} }}, \"Logging\": {{ \"{sink}\": {{ \"RetainedFileCount\": {count} }} }} }} }}");
 
         var result = await RunAsync(temp, temp.GetPath("user-root"), "query-help");
 
@@ -143,7 +145,7 @@ public sealed class UserConfigurationTests
     {
         using var temp = TestTempDirectory.Create();
         temp.CreateFile("user-root/appsettings.json",
-            $"{{ \"SqlToAi\": {{ \"Logging\": {{ \"{sink}\": {{ \"Enabled\": false, \"RetainedFileCount\": {count} }} }} }} }}");
+            $"{{ \"SqlToAi\": {{ \"Servers\": {{ \"primary\": {{ \"Server\": \"localhost\" }} }}, \"Logging\": {{ \"{sink}\": {{ \"Enabled\": false, \"RetainedFileCount\": {count} }} }} }} }}");
 
         var result = await RunAsync(temp, temp.GetPath("user-root"), "query-help");
 
@@ -167,14 +169,14 @@ public sealed class UserConfigurationTests
     public async Task ExistingFile_PreservesUnknownKeysDuringRepeatedAndConcurrentLoads()
     {
         using var temp = TestTempDirectory.Create();
-        const string json = """{ "SqlToAi": { "SqlServer": { "Server": "manual" } }, "UnknownUserKey": [1, 2, 3] }""";
+        const string json = """{ "SqlToAi": { "Servers": { "primary": { "Server": "manual" } } }, "UnknownUserKey": [1, 2, 3] }""";
         string file = temp.CreateFile("user-root/appsettings.json", json);
         string root = Path.GetDirectoryName(file)!;
         byte[] before = await File.ReadAllBytesAsync(file, TestContext.Current.CancellationToken);
         await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => Task.Run(() =>
         {
             using var startup = UserConfiguration.Load(root);
-            Assert.Equal("manual", startup.Options.SqlServer.Server);
+            Assert.Equal("manual", startup.Options.Servers["primary"].Server);
             Assert.Equal("3", startup.Configuration["UnknownUserKey:2"]);
         }, TestContext.Current.CancellationToken)));
         using (var startup = UserConfiguration.Load(root)) Assert.Equal(root, startup.RootDirectory);
@@ -188,15 +190,15 @@ public sealed class UserConfigurationTests
         using var temp = TestTempDirectory.Create();
         string file = temp.CreateFile("user-root/appsettings.json", """
             { "StartupProbe": "base", "SqlToAi": {
-              "SqlServer": { "Server": "base-server" }
+              "Servers": { "test": { "Server": "base-server" } }
             } }
             """);
-        temp.CreateFile("user-root/appsettings.StartupTest.json", """{"StartupProbe":"environment-file","SqlToAi":{"SqlServer":{"Server":"environment-file-server"}}}""");
+        temp.CreateFile("user-root/appsettings.StartupTest.json", """{"StartupProbe":"environment-file","SqlToAi":{"Servers":{"test":{"Server":"environment-file-server"}}}}""");
         byte[] before = await File.ReadAllBytesAsync(file, TestContext.Current.CancellationToken);
         Dictionary<string, string?> environment = new()
         {
-            ["SqlToAi__SqlServer__Server"] = "runtime-server",
-            ["SqlToAi__SqlServer__Password"] = "runtime-test-secret"
+            ["SqlToAi__Servers__test__Server"] = "runtime-server",
+            ["SqlToAi__Servers__test__Password"] = "runtime-test-secret"
         };
         var result = await RunAsync(temp, Path.GetDirectoryName(file)!, "inspect", environment);
         Assert.Equal(0, result.ExitCode);
@@ -216,7 +218,7 @@ public sealed class UserConfigurationTests
     public async Task ExistingFile_ConcurrentCliStartsPreserveBytesAndUseOnlyIsolatedLogs()
     {
         using var temp = TestTempDirectory.Create();
-        string file = temp.CreateFile("user-root/appsettings.json", """{ "UnknownUserKey": "preserve me" }""");
+        string file = temp.CreateFile("user-root/appsettings.json", """{ "SqlToAi": { "Servers": { "primary": { "Server": "localhost" } } }, "UnknownUserKey": "preserve me" }""");
         byte[] before = await File.ReadAllBytesAsync(file, TestContext.Current.CancellationToken);
         string root = Path.GetDirectoryName(file)!;
         var results = await Task.WhenAll(RunAsync(temp, root, "query-help"), RunAsync(temp, root, "query-help"));
@@ -243,6 +245,157 @@ public sealed class UserConfigurationTests
         Assert.Equal(2, usage.ExitCode);
         Assert.Empty(usage.Output);
         Assert.Contains("Usage:", usage.Error, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("SqlServer")]
+    [InlineData("MetadataProvider")]
+    [InlineData("AnonymizationRules")]
+    public async Task ObsoleteSection_AtRootOrUnderSqlToAi_FailsAtStartup(string sectionName)
+    {
+        using var temp = TestTempDirectory.Create();
+        string root = temp.GetPath("user-root");
+
+        // Test under SqlToAi
+        temp.CreateFile("user-root/appsettings.json",
+            $$"""{ "SqlToAi": { "Servers": { "primary": { "Server": "localhost" } }, "{{sectionName}}": {} } }""");
+        var result = await RunAsync(temp, root, "query-help");
+        AssertFailure(result, root);
+        Assert.Contains("Obsolete configuration section", result.Error, StringComparison.Ordinal);
+
+        // Test at root
+        temp.CreateFile("user-root/appsettings.json",
+            $$"""{ "SqlToAi": { "Servers": { "primary": { "Server": "localhost" } } }, "{{sectionName}}": {} }""");
+        var resultRoot = await RunAsync(temp, root, "query-help");
+        AssertFailure(resultRoot, root);
+        Assert.Contains("Obsolete configuration section", resultRoot.Error, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("SqlToAi__SqlServer__Server")]
+    [InlineData("SqlToAi__MetadataProvider__TableMetadataQuery")]
+    [InlineData("SqlToAi__AnonymizationRules__Enabled")]
+    public async Task ObsoleteEnvironmentVariable_FailsAtStartup(string envKey)
+    {
+        using var temp = TestTempDirectory.Create();
+        string root = temp.GetPath("user-root");
+        temp.CreateFile("user-root/appsettings.json", MinimalSettings);
+
+        Dictionary<string, string?> environment = new()
+        {
+            [envKey] = "legacy-val"
+        };
+
+        var result = await RunAsync(temp, root, "query-help", environment);
+        AssertFailure(result, root);
+        Assert.Contains("Obsolete configuration environment variable", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DuplicateServerAlias_ExactOrCaseInsensitive_FailsAtStartup()
+    {
+        using var temp = TestTempDirectory.Create();
+        string root = temp.GetPath("user-root");
+        string json = """
+        {
+          "SqlToAi": {
+            "Servers": {
+              "ServerA": { "Server": "host1" },
+              "servera": { "Server": "host2" }
+            }
+          }
+        }
+        """;
+        temp.CreateFile("user-root/appsettings.json", json);
+
+        var result = await RunAsync(temp, root, "query-help");
+        AssertFailure(result, root);
+        Assert.Contains("Duplicate server alias", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MissingServers_FailsAtStartup()
+    {
+        using var temp = TestTempDirectory.Create();
+        string root = temp.GetPath("user-root");
+        temp.CreateFile("user-root/appsettings.json", """{ "SqlToAi": { "Servers": {} } }""");
+
+        var result = await RunAsync(temp, root, "query-help");
+        AssertFailure(result, root);
+        Assert.Contains("At least one named server must be configured", result.Error, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("123invalid")]
+    [InlineData("bad/alias")]
+    [InlineData("-dashstart")]
+    public async Task InvalidServerAlias_FailsAtStartup(string alias)
+    {
+        using var temp = TestTempDirectory.Create();
+        string root = temp.GetPath("user-root");
+        string json = $$"""{ "SqlToAi": { "Servers": { "{{alias}}": { "Server": "host" } } } }""";
+        temp.CreateFile("user-root/appsettings.json", json);
+
+        var result = await RunAsync(temp, root, "query-help");
+        AssertFailure(result, root);
+        Assert.Contains("is invalid", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EmptyServerAddress_FailsAtStartup()
+    {
+        using var temp = TestTempDirectory.Create();
+        string root = temp.GetPath("user-root");
+        string json = """{ "SqlToAi": { "Servers": { "primary": { "Server": "   " } } } }""";
+        temp.CreateFile("user-root/appsettings.json", json);
+
+        var result = await RunAsync(temp, root, "query-help");
+        AssertFailure(result, root);
+        Assert.Contains("empty or missing 'Server' address", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UnqualifiedDatabaseGrant_FailsAtStartup()
+    {
+        using var temp = TestTempDirectory.Create();
+        string root = temp.GetPath("user-root");
+        string json = """
+        {
+          "SqlToAi": {
+            "Servers": { "primary": { "Server": "localhost" } },
+            "Databases": {
+              "ReadWrite": [ "DemoDB" ]
+            }
+          }
+        }
+        """;
+        temp.CreateFile("user-root/appsettings.json", json);
+
+        var result = await RunAsync(temp, root, "query-help");
+        AssertFailure(result, root);
+        Assert.Contains("Every database grant must be qualified in 'alias/database' form", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DatabaseGrant_ReferencingUnknownServer_FailsAtStartup()
+    {
+        using var temp = TestTempDirectory.Create();
+        string root = temp.GetPath("user-root");
+        string json = """
+        {
+          "SqlToAi": {
+            "Servers": { "primary": { "Server": "localhost" } },
+            "Databases": {
+              "ReadWrite": [ "unknown/DemoDB" ]
+            }
+          }
+        }
+        """;
+        temp.CreateFile("user-root/appsettings.json", json);
+
+        var result = await RunAsync(temp, root, "query-help");
+        AssertFailure(result, root);
+        Assert.Contains("references unknown server alias", result.Error, StringComparison.Ordinal);
     }
 
     private static void AssertFailure(ProcessResult result, string root)

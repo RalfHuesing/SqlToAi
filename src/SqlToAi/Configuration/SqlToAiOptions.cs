@@ -7,11 +7,8 @@ public sealed class SqlToAiOptions
 {
     internal string? ResolvedRootDirectory { get; set; }
     public Dictionary<string, NamedServerOptions> Servers { get; set; } = new(StringComparer.Ordinal);
-    public SqlServerOptions SqlServer { get; set; } = new();
     public DatabasesOptions Databases { get; set; } = new();
     public AnonymizerOptions Anonymizer { get; set; } = new();
-    public AnonymizationRulesOptions AnonymizationRules { get; set; } = new();
-    public MetadataProviderOptions MetadataProvider { get; set; } = new();
     public QueryExecutionOptions QueryExecution { get; set; } = new();
     public SchemaBatchOptions SchemaBatch { get; set; } = new();
     public LoggingOptions Logging { get; set; } = new();
@@ -35,22 +32,6 @@ public sealed class SchemaBatchOptions
 {
     public int MaxInputCount { get; set; } = 10;
     public int MaxResponseBytes { get; set; } = 65_536;
-}
-
-/// <summary>
-/// Options specifically for the SQL Server connection credentials and global safety checks.
-/// </summary>
-public sealed class SqlServerOptions
-{
-    public string Server { get; set; } = string.Empty;
-    public string? UserId { get; set; }
-    public string? Password { get; set; }
-    public bool IntegratedSecurity { get; set; }
-    public bool TrustServerCertificate { get; set; }
-    public List<string> ExcludedDatabases { get; set; } = [];
-
-    /// <summary>ADO.NET connection (login) timeout in seconds, i.e. how long to wait when opening the connection.</summary>
-    public int ConnectTimeoutSeconds { get; set; } = 30;
 }
 
 /// <summary>

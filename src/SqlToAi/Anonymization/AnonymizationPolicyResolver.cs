@@ -25,26 +25,6 @@ public sealed class AnonymizationPolicyResolver : IAnonymizationPolicyResolver
     }
 
     /// <inheritdoc/>
-    public async Task<bool> WillAnonymizeAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
-    {
-        if (!_options.Anonymizer.Enabled)
-        {
-            return false;
-        }
-
-        if (await _ruleProvider.IsExcludedAsync(databaseName, string.Empty, tableName, columnName, cancellationToken))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    public async Task<bool> WillAnonymizeAsync(string databaseName, SchemaObjectIdentity identity, string columnName, CancellationToken cancellationToken = default)
-        => _options.Anonymizer.Enabled && !await _ruleProvider.IsExcludedAsync(
-            databaseName, identity.SchemaName, identity.ObjectName, columnName, cancellationToken);
-
-    /// <inheritdoc/>
     public async Task<bool> WillAnonymizeAsync(DatabaseTargetContext target, string tableName, string columnName, CancellationToken cancellationToken = default)
     {
         if (!_options.Anonymizer.Enabled)

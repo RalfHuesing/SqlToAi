@@ -1,5 +1,6 @@
 using SqlToAi.Configuration;
 using SqlToAi.Database;
+using SqlToAi.Domain;
 using Microsoft.Extensions.Options;
 using Microsoft.Data.SqlClient;
 
@@ -14,30 +15,46 @@ public sealed class SqlConnectionFactoryTests
     private static readonly Type TargetType = typeof(SqlConnectionFactory);
 
     [Fact]
-    public void CreateConnection_ShouldThrow_WhenServerIsMissing()
+    public void CreateTargetConnection_ShouldThrow_WhenServerIsMissing()
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.SqlServer.Server = "";
+        options.Servers["primary"] = new NamedServerOptions { Server = "" };
         var factory = new SqlConnectionFactory(Options.Create(options));
+        var target = new DatabaseTargetContext("primary", "MyDb");
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => factory.CreateConnection());
+        Assert.Throws<InvalidOperationException>(() => factory.CreateTargetConnection(target));
     }
 
     [Fact]
-    public void CreateConnection_ShouldUseOptions()
+    public void CreateTargetConnection_ShouldThrow_WhenServerAliasNotFound()
+    {
+        var options = new SqlToAiOptions();
+        options.Servers["primary"] = new NamedServerOptions { Server = "localhost" };
+        var factory = new SqlConnectionFactory(Options.Create(options));
+        var target = new DatabaseTargetContext("unknown", "MyDb");
+
+        Assert.Throws<InvalidOperationException>(() => factory.CreateTargetConnection(target));
+    }
+
+    [Fact]
+    public void CreateTargetConnection_ShouldUseOptions()
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.SqlServer.Server = "localhost\\MSSQLSERVER";
-        options.SqlServer.UserId = "test-user";
-        options.SqlServer.Password = "secret";
-        options.SqlServer.IntegratedSecurity = false;
+        options.Servers["primary"] = new NamedServerOptions
+        {
+            Server = "localhost\\MSSQLSERVER",
+            UserId = "test-user",
+            Password = "secret",
+            IntegratedSecurity = false
+        };
         var factory = new SqlConnectionFactory(Options.Create(options));
+        var target = new DatabaseTargetContext("primary", "MyDb");
 
         // Act
-        using var connection = factory.CreateConnection("MyDb");
+        using var connection = factory.CreateTargetConnection(target);
 
         // Assert
         Assert.Contains("Data Source=localhost\\MSSQLSERVER", connection.ConnectionString);
@@ -51,31 +68,39 @@ public sealed class SqlConnectionFactoryTests
     }
 
     [Fact]
-    public void CreateConnection_ShouldThrow_WhenIntegratedSecurityIsFalseAndCredentialsMissing()
+    public void CreateTargetConnection_ShouldThrow_WhenIntegratedSecurityIsFalseAndCredentialsMissing()
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.SqlServer.Server = "localhost";
-        options.SqlServer.IntegratedSecurity = false;
-        options.SqlServer.UserId = "";
-        options.SqlServer.Password = "";
+        options.Servers["primary"] = new NamedServerOptions
+        {
+            Server = "localhost",
+            IntegratedSecurity = false,
+            UserId = "",
+            Password = ""
+        };
         var factory = new SqlConnectionFactory(Options.Create(options));
+        var target = new DatabaseTargetContext("primary", "MyDb");
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => factory.CreateConnection("MyDb"));
+        Assert.Throws<InvalidOperationException>(() => factory.CreateTargetConnection(target));
     }
 
     [Fact]
-    public void CreateConnection_ShouldUseIntegratedSecurity_WhenEnabled()
+    public void CreateTargetConnection_ShouldUseIntegratedSecurity_WhenEnabled()
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.SqlServer.Server = "localhost";
-        options.SqlServer.IntegratedSecurity = true;
+        options.Servers["primary"] = new NamedServerOptions
+        {
+            Server = "localhost",
+            IntegratedSecurity = true
+        };
         var factory = new SqlConnectionFactory(Options.Create(options));
+        var target = new DatabaseTargetContext("primary", "MyDb");
 
         // Act
-        using var connection = factory.CreateConnection("MyDb");
+        using var connection = factory.CreateTargetConnection(target);
 
         // Assert
         Assert.Contains("Integrated Security=True", connection.ConnectionString);
@@ -86,15 +111,19 @@ public sealed class SqlConnectionFactoryTests
     }
 
     [Fact]
-    public void CreateConnection_ShouldAllowExplicitTrustException_WithoutDisablingEncryption()
+    public void CreateTargetConnection_ShouldAllowExplicitTrustException_WithoutDisablingEncryption()
     {
         var options = new SqlToAiOptions();
-        options.SqlServer.Server = "localhost";
-        options.SqlServer.IntegratedSecurity = true;
-        options.SqlServer.TrustServerCertificate = true;
+        options.Servers["primary"] = new NamedServerOptions
+        {
+            Server = "localhost",
+            IntegratedSecurity = true,
+            TrustServerCertificate = true
+        };
         var factory = new SqlConnectionFactory(Options.Create(options));
+        var target = new DatabaseTargetContext("primary", "MyDb");
 
-        using var connection = factory.CreateConnection("MyDb");
+        using var connection = factory.CreateTargetConnection(target);
 
         var builder = new SqlConnectionStringBuilder(connection.ConnectionString);
         Assert.Equal(SqlConnectionEncryptOption.Mandatory, builder.Encrypt);
@@ -102,19 +131,43 @@ public sealed class SqlConnectionFactoryTests
     }
 
     [Fact]
-    public void CreateConnection_ShouldUseConfiguredConnectTimeout()
+    public void CreateTargetConnection_ShouldUseConfiguredConnectTimeout()
     {
         // Arrange
         var options = new SqlToAiOptions();
-        options.SqlServer.Server = "localhost";
-        options.SqlServer.IntegratedSecurity = true;
-        options.SqlServer.ConnectTimeoutSeconds = 7;
+        options.Servers["primary"] = new NamedServerOptions
+        {
+            Server = "localhost",
+            IntegratedSecurity = true,
+            ConnectTimeoutSeconds = 7
+        };
         var factory = new SqlConnectionFactory(Options.Create(options));
+        var target = new DatabaseTargetContext("primary", "MyDb");
 
         // Act
-        using var connection = factory.CreateConnection("MyDb");
+        using var connection = factory.CreateTargetConnection(target);
 
         // Assert
         Assert.Contains("Connect Timeout=7", connection.ConnectionString);
+    }
+
+    [Fact]
+    public void CreateCatalogConnection_WithServerAlias_OmitInitialCatalog()
+    {
+        var options = new SqlToAiOptions();
+        options.Servers["primary"] = new NamedServerOptions
+        {
+            Server = "localhost",
+            IntegratedSecurity = true
+        };
+        var factory = new SqlConnectionFactory(Options.Create(options));
+
+        var result = factory.CreateCatalogConnection("primary");
+
+        Assert.True(result.IsSuccess);
+        using var connection = result.Value;
+        var builder = new SqlConnectionStringBuilder(connection.ConnectionString);
+        Assert.Empty(builder.InitialCatalog);
+        Assert.Equal("localhost", builder.DataSource);
     }
 }

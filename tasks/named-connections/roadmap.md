@@ -114,7 +114,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 - [ ] **M4 — Aggregate:** M4.1–M4.3 accepted; every concept acceptance criterion
   is verified and the final contract contains no compatibility behavior.
 
-- [ ] [**M4.1 — Activate strict startup and remove the single-server contract**](roadmap/m4.1-activate-strict-startup-and-remove-the-single-server-contract.md)
+- [x] [**M4.1 — Activate strict startup and remove the single-server contract**](roadmap/m4.1-activate-strict-startup-and-remove-the-single-server-contract.md)
   Make every shipped entry point accept only the approved contract.
 
 - [ ] [**M4.2 — Verify composed target isolation and Native AOT compilation**](roadmap/m4.2-verify-composed-target-isolation-and-native-aot-compilation.md)

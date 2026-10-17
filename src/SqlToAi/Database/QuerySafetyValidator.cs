@@ -139,6 +139,16 @@ internal sealed class QuerySafetyValidator : IQuerySafetyValidator
             return SqlToAiError.InvalidParameters("Query must not be empty.");
         }
 
+        if (target is null)
+        {
+            var parsed = DatabaseTargetParser.Parse(databaseName);
+            if (parsed.IsFailure)
+            {
+                return parsed.Error;
+            }
+            target = new DatabaseTargetContext(parsed.Value.ServerAlias, parsed.Value.DatabaseName);
+        }
+
         // Reject database context switching via USE statements across all access levels.
         if (SqlUseStatementDetector.ContainsUseStatement(query))
         {
@@ -146,21 +156,19 @@ internal sealed class QuerySafetyValidator : IQuerySafetyValidator
         }
 
         // Stage 3: static whitelist check (configured allow/deny patterns).
-        if (!(target is null ? _securityGuard.IsDatabaseAllowed(databaseName) : _securityGuard.IsTargetAllowed(target)))
+        if (!_securityGuard.IsTargetAllowed(target))
         {
-            return SqlToAiError.SafetyCheckFailed(databaseName);
+            return SqlToAiError.SafetyCheckFailed(target.QualifiedName);
         }
 
         // Stage 4: dynamic access level probe (cached inside the provider).
-        var accessLevel = await (target is null
-            ? _accessLevelProvider.GetAccessLevelAsync(databaseName, cancellationToken)
-            : _accessLevelProvider.GetTargetAccessLevelAsync(target, cancellationToken)).ConfigureAwait(false);
+        var accessLevel = await _accessLevelProvider.GetTargetAccessLevelAsync(target, cancellationToken).ConfigureAwait(false);
 
         if (accessLevel == AccessLevel.None
             || (!allowSchemaOnly && accessLevel == AccessLevel.SchemaOnly))
         {
             return SqlToAiError.WriteOperationBlocked(
-                $"Database '{databaseName}' is not permitted to run this query (AccessLevel: {accessLevel}).");
+                $"Database '{target.QualifiedName}' is not permitted to run this query (AccessLevel: {accessLevel}).");
         }
 
         // Stage 5: read-only guard — rejected only when the database is not fully unlocked.

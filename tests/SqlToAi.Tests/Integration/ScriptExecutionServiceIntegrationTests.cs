@@ -287,7 +287,7 @@ public sealed class ScriptExecutionServiceIntegrationTests
 
     private async Task<long> CountMarkerAsync(string marker)
     {
-        await using var connection = _fixture.ConnectionFactory.CreateConnection(TestConstants.DatabaseName);
+        await using var connection = _fixture.ConnectionFactory.CreateTargetConnection(new SqlToAi.Domain.DatabaseTargetContext("test", TestConstants.DatabaseName));
         await connection.OpenAsync(TestContext.Current.CancellationToken);
         return await connection.ExecuteScalarAsync<long>(new CommandDefinition(
             "SELECT COUNT(*) FROM dbo.FakeProjects WHERE ProjectName = @Marker",
@@ -297,7 +297,7 @@ public sealed class ScriptExecutionServiceIntegrationTests
 
     private async Task DeleteMarkerAsync(string marker)
     {
-        await using var connection = _fixture.ConnectionFactory.CreateConnection(TestConstants.DatabaseName);
+        await using var connection = _fixture.ConnectionFactory.CreateTargetConnection(new SqlToAi.Domain.DatabaseTargetContext("test", TestConstants.DatabaseName));
         await connection.OpenAsync(CancellationToken.None);
         await connection.ExecuteAsync(new CommandDefinition(
             "DELETE FROM dbo.FakeProjects WHERE ProjectName = @Marker",

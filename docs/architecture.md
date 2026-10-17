@@ -14,7 +14,7 @@ The selected user root follows configuration through direct options, DI post-con
 
 Query services share `QuerySafetyValidator`. It combines database policy, access-level selection, read-only parsing and statement-count restrictions. Execution and script services control transactions and result serialization. The protection limits are in [security.md](security.md); argument/result contracts are in [tools.md](tools.md).
 
-The named-server preparation contracts resolve `alias/database` through
+The named-server architecture resolves `alias/database` through
 `DatabaseTargetResolver` into an immutable `DatabaseTargetContext`. The factory's
 `CreateTargetConnection` uses that alias's endpoint and the exact raw database as
 InitialCatalog. `IsTargetAllowed`, `GetTargetAccessLevelAsync` and the validator's
@@ -24,9 +24,8 @@ qualified global grants, server-local raw-name exclusions and default deny.
 `CreateCatalogConnection` separately requires a configured alias and may use the
 login's default database for discovery. `PrimaryConnection.OpenTargetAsync` and
 `OpenCatalogAsync` retain safe diagnostics identifying `SqlToAi:Servers:<alias>`.
-The host and existing service callers still use the single-server contracts while
-the remaining [named-server slices](../tasks/named-connections/roadmap.md) migrate
-them; these preparation APIs do not activate the public named-server feature.
+All tools, CLI commands, and internal services operate exclusively on qualified targets;
+legacy single-server contracts and fallback behaviors have been completely removed.
 
 ## Source map
 
@@ -83,13 +82,7 @@ For batch table/view enrichment, typed identities keep SQL lookup names separate
 from metadata/rule names. Native descriptions use the safely quoted qualified name;
 custom metadata queries receive the raw base object name. Anonymization policies
 receive the resolved SQL schema and object names, so quoted names, literal dots and
-escaped brackets do not change explicit exemptions. The identity overloads retain
-the existing string-based provider contract as a fallback for custom implementations.
-Named-server preparation adds target-aware contracts: enrichment calls can carry the
-resolved server alias and raw database name, so each alias uses its own provider
-settings and rule-cache partition while legacy string-based calls remain in place
-until the consumer migration slices remove them.
-Scalar inspection and offline export continue to use their existing paths.
+escaped brackets do not change explicit exemptions. All enrichment and rule lookup calls carry the resolved server alias and raw database name (`DatabaseTargetContext`), so each alias uses its own provider settings and rule-cache partition. Scalar inspection and offline export use these same target-aware paths.
 
 `GetExportTriggerDefinitionAsync` validates the trigger's object ID, SQL schema/name and table/view parent association together, then retrieves its definition by that same ID. It shares definition retrieval and rendering with the existing trigger operation. The MCP trigger operation retains its simple-name definition lookup and its limitation for triggers outside the default schema; the export entry does not change MCP tool contracts or results.
 

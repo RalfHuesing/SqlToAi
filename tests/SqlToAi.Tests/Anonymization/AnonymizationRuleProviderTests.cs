@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
+using SqlToAi.Database;
+using SqlToAi.Domain;
 using System.Data.Common;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
@@ -16,13 +18,15 @@ namespace SqlToAi.Tests.Anonymization;
 public sealed class AnonymizationRuleProviderTests
 {
     private static readonly Type TargetType = typeof(AnonymizationRuleProvider);
+    private const string ServerAlias = "primary";
+    private static DatabaseTargetContext Target(string dbName) => new(ServerAlias, dbName);
 
     private static SqlToAiOptions BuildOptions(bool enabled = true, int cacheTtlSeconds = 300)
     {
-        var options = new SqlToAiOptions();
-        options.AnonymizationRules.Enabled = enabled;
-        options.AnonymizationRules.TableName = "dbo.AnonymizationRules";
-        options.AnonymizationRules.CacheTtlSeconds = cacheTtlSeconds;
+        var options = new SqlToAiOptions().WithNamedServers(ServerAlias);
+        options.Servers[ServerAlias].AnonymizationRules.Enabled = enabled;
+        options.Servers[ServerAlias].AnonymizationRules.TableName = "dbo.AnonymizationRules";
+        options.Servers[ServerAlias].AnonymizationRules.CacheTtlSeconds = cacheTtlSeconds;
         return options;
     }
 
@@ -50,13 +54,13 @@ public sealed class AnonymizationRuleProviderTests
         if (duringOpen) await cancellation.CancelAsync();
 
         var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", cancellation.Token));
+            provider.IsExcludedAsync(Target("AnyDb"), "dbo", "Customers", "Name", cancellation.Token));
 
         Assert.Equal(cancellation.Token, exception.CancellationToken);
         Assert.DoesNotContain(queries, query => query.Contains("WHERE [IsActive]", StringComparison.Ordinal));
         factory.ConnectionToReturn = MockConnection.Create([new("%", "Customers", "Name", false)]);
-        Assert.True(await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken));
-        Assert.True(await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken));
+        Assert.True(await provider.IsExcludedAsync(Target("AnyDb"), "dbo", "Customers", "Name", TestContext.Current.CancellationToken));
+        Assert.True(await provider.IsExcludedAsync(Target("AnyDb"), "dbo", "Customers", "Name", TestContext.Current.CancellationToken));
         Assert.Equal(2, factory.ConnectionCreatedCount);
     }
 
@@ -76,8 +80,8 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory(connection);
         var provider = new AnonymizationRuleProvider(factory, Options.Create(BuildOptions()), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        bool first = await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
-        bool second = await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
+        bool first = await provider.IsExcludedAsync(Target("AnyDb"), "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
+        bool second = await provider.IsExcludedAsync(Target("AnyDb"), "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
 
         Assert.Equal(!duringOpen, first);
         Assert.Equal(first, second);
@@ -92,18 +96,19 @@ public sealed class AnonymizationRuleProviderTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["SqlToAi:SqlServer:TrustServerCertificate"] = (!trustRulesCertificate).ToString(),
-                ["SqlToAi:AnonymizationRules:Server"] = "rules-server",
-                ["SqlToAi:AnonymizationRules:Database"] = "RulesDb",
-                ["SqlToAi:AnonymizationRules:IntegratedSecurity"] = "true",
-                ["SqlToAi:AnonymizationRules:TrustServerCertificate"] = trustRulesCertificate.ToString()
+                ["SqlToAi:Servers:primary:Server"] = "sql-primary",
+                ["SqlToAi:Servers:primary:TrustServerCertificate"] = (!trustRulesCertificate).ToString(),
+                ["SqlToAi:Servers:primary:AnonymizationRules:Server"] = "rules-server",
+                ["SqlToAi:Servers:primary:AnonymizationRules:Database"] = "RulesDb",
+                ["SqlToAi:Servers:primary:AnonymizationRules:IntegratedSecurity"] = "true",
+                ["SqlToAi:Servers:primary:AnonymizationRules:TrustServerCertificate"] = trustRulesCertificate.ToString()
             })
             .Build();
         var options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>()!;
-        var provider = new AnonymizationRuleProvider(new DummyConnectionFactory(), Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
-        var method = typeof(AnonymizationRuleProvider).GetMethod("CreateConnection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-
-        using var connection = (DbConnection)method.Invoke(provider, null)!;
+        var server = options.Servers["primary"];
+        var target = new DatabaseTargetContext("primary", "RulesDb");
+        using var connection = (SqlConnection)SecondaryConnectionBuilder.CreateForOwner(
+            target, server, server.AnonymizationRules, SecondaryConnectionBuilder.AnonymizationRulesApplicationName, new DummyConnectionFactory());
 
         var builder = new SqlConnectionStringBuilder(connection.ConnectionString);
         Assert.Equal("RulesDb", builder.InitialCatalog);
@@ -118,7 +123,7 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory();
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        bool excluded = await provider.IsExcludedAsync("AnyDb", "AnySchema", "AnyTable", "AnyColumn", TestContext.Current.CancellationToken);
+        bool excluded = await provider.IsExcludedAsync(Target("AnyDb"), "AnySchema", "AnyTable", "AnyColumn", TestContext.Current.CancellationToken);
 
         Assert.False(excluded);
         Assert.Equal(0, factory.ConnectionCreatedCount);
@@ -132,7 +137,7 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory(MockConnection.Create(rows));
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        bool excluded = await provider.IsExcludedAsync("AnyDb", string.Empty, "OtherTable", "OtherColumn", TestContext.Current.CancellationToken);
+        bool excluded = await provider.IsExcludedAsync(Target("AnyDb"), string.Empty, "OtherTable", "OtherColumn", TestContext.Current.CancellationToken);
 
         Assert.False(excluded);
     }
@@ -145,7 +150,7 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory(MockConnection.Create(rows));
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        bool excluded = await provider.IsExcludedAsync("AnyDb", string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
+        bool excluded = await provider.IsExcludedAsync(Target("AnyDb"), string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
 
         Assert.True(excluded);
     }
@@ -164,8 +169,8 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory(MockConnection.Create(rows));
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        bool nameExcluded = await provider.IsExcludedAsync("AnyDb", string.Empty, "FakeConsultants", "FullName", TestContext.Current.CancellationToken);
-        bool phoneExcluded = await provider.IsExcludedAsync("AnyDb", string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
+        bool nameExcluded = await provider.IsExcludedAsync(Target("AnyDb"), string.Empty, "FakeConsultants", "FullName", TestContext.Current.CancellationToken);
+        bool phoneExcluded = await provider.IsExcludedAsync(Target("AnyDb"), string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
 
         Assert.False(nameExcluded); // more specific rule wins -> stays anonymized
         Assert.True(phoneExcluded); // falls back to the wildcard rule -> allowed raw
@@ -180,8 +185,8 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory(MockConnection.Create(rows));
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        bool emailExcluded = await provider.IsExcludedAsync("FakeHighSecurityDb", string.Empty, "Contacts", "ContactEmail", TestContext.Current.CancellationToken);
-        bool otherExcluded = await provider.IsExcludedAsync("FakeHighSecurityDb", string.Empty, "Contacts", "Notes", TestContext.Current.CancellationToken);
+        bool emailExcluded = await provider.IsExcludedAsync(Target("FakeHighSecurityDb"), string.Empty, "Contacts", "ContactEmail", TestContext.Current.CancellationToken);
+        bool otherExcluded = await provider.IsExcludedAsync(Target("FakeHighSecurityDb"), string.Empty, "Contacts", "Notes", TestContext.Current.CancellationToken);
 
         Assert.True(emailExcluded);
         Assert.False(otherExcluded);
@@ -196,15 +201,15 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory(mockConn);
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        await provider.IsExcludedAsync("AnyDb", string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
+        await provider.IsExcludedAsync(Target("AnyDb"), string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
         Assert.Equal(1, factory.ConnectionCreatedCount);
 
-        await provider.IsExcludedAsync("AnyDb", string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
+        await provider.IsExcludedAsync(Target("AnyDb"), string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
         Assert.Equal(1, factory.ConnectionCreatedCount); // still cached
 
         await Task.Delay(1100, TestContext.Current.CancellationToken);
 
-        await provider.IsExcludedAsync("AnyDb", string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
+        await provider.IsExcludedAsync(Target("AnyDb"), string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
         Assert.Equal(2, factory.ConnectionCreatedCount); // reloaded after TTL
     }
 
@@ -215,7 +220,7 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory(MockConnection.Create([], simulatedTableName: null));
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        bool excluded = await provider.IsExcludedAsync("AnyDb", string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
+        bool excluded = await provider.IsExcludedAsync(Target("AnyDb"), string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
 
         Assert.False(excluded);
     }
@@ -227,7 +232,7 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory(MockConnection.Create([], new MockConnectionFlags(ThrowException: true)));
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        bool excluded = await provider.IsExcludedAsync("AnyDb", string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
+        bool excluded = await provider.IsExcludedAsync(Target("AnyDb"), string.Empty, "FakeConsultants", "Phone", TestContext.Current.CancellationToken);
 
         Assert.False(excluded);
     }
@@ -244,8 +249,8 @@ public sealed class AnonymizationRuleProviderTests
         var logger = new CapturingLogger<AnonymizationRuleProvider>();
         var provider = new AnonymizationRuleProvider(factory, Options.Create(BuildOptions()), logger);
 
-        bool first = await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
-        bool second = await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
+        bool first = await provider.IsExcludedAsync(Target("AnyDb"), "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
+        bool second = await provider.IsExcludedAsync(Target("AnyDb"), "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
 
         Assert.False(first);
         Assert.False(second);
@@ -275,19 +280,19 @@ public sealed class AnonymizationRuleProviderTests
         }, TestContext.Current.CancellationToken);
 
         var options = BuildOptions();
-        options.AnonymizationRules.Server = $"127.0.0.1,{port}";
-        options.AnonymizationRules.Database = "RulesDb";
-        options.AnonymizationRules.UserId = "rules-user-marker";
-        options.AnonymizationRules.Password = "rules-password-marker";
-        options.AnonymizationRules.IntegratedSecurity = false;
-        options.AnonymizationRules.TrustServerCertificate = false;
-        options.AnonymizationRules.CommandTimeoutSeconds = 2;
+        options.Servers[ServerAlias].AnonymizationRules.Server = $"127.0.0.1,{port}";
+        options.Servers[ServerAlias].AnonymizationRules.Database = "RulesDb";
+        options.Servers[ServerAlias].AnonymizationRules.UserId = "rules-user-marker";
+        options.Servers[ServerAlias].AnonymizationRules.Password = "rules-password-marker";
+        options.Servers[ServerAlias].AnonymizationRules.IntegratedSecurity = false;
+        options.Servers[ServerAlias].AnonymizationRules.TrustServerCertificate = false;
+        options.Servers[ServerAlias].AnonymizationRules.CommandTimeoutSeconds = 2;
         var factory = new DummyConnectionFactory();
         var logger = new CapturingLogger<AnonymizationRuleProvider>();
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), logger);
 
-        bool first = await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
-        bool second = await provider.IsExcludedAsync("AnyDb", "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
+        bool first = await provider.IsExcludedAsync(Target("AnyDb"), "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
+        bool second = await provider.IsExcludedAsync(Target("AnyDb"), "dbo", "Customers", "Name", TestContext.Current.CancellationToken);
         await accepted.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         Assert.False(first);
@@ -318,8 +323,8 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory(MockConnection.Create(rows, new MockConnectionFlags(HasSchemaPatternColumn: true)));
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        bool dboExcluded = await provider.IsExcludedAsync("AnyDb", "dbo", "Kunden", "Email", TestContext.Current.CancellationToken);
-        bool archivExcluded = await provider.IsExcludedAsync("AnyDb", "Archiv", "Kunden", "Email", TestContext.Current.CancellationToken);
+        bool dboExcluded = await provider.IsExcludedAsync(Target("AnyDb"), "dbo", "Kunden", "Email", TestContext.Current.CancellationToken);
+        bool archivExcluded = await provider.IsExcludedAsync(Target("AnyDb"), "Archiv", "Kunden", "Email", TestContext.Current.CancellationToken);
 
         // The rule is scoped to schema "dbo" only; the same-named table in schema "Archiv" must
         // stay anonymized (no matching rule for it).
@@ -338,8 +343,8 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory(MockConnection.Create(rows, new MockConnectionFlags(HasSchemaPatternColumn: false)));
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        bool dboExcluded = await provider.IsExcludedAsync("AnyDb", "dbo", "Kunden", "Email", TestContext.Current.CancellationToken);
-        bool archivExcluded = await provider.IsExcludedAsync("AnyDb", "Archiv", "Kunden", "Email", TestContext.Current.CancellationToken);
+        bool dboExcluded = await provider.IsExcludedAsync(Target("AnyDb"), "dbo", "Kunden", "Email", TestContext.Current.CancellationToken);
+        bool archivExcluded = await provider.IsExcludedAsync(Target("AnyDb"), "Archiv", "Kunden", "Email", TestContext.Current.CancellationToken);
 
         Assert.True(dboExcluded);
         Assert.True(archivExcluded);
@@ -372,7 +377,7 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory(MockConnection.Create(rows));
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        bool excluded = await provider.IsExcludedAsync("StagingDB", "dbo", "Mitarbeiter", "SSN", TestContext.Current.CancellationToken);
+        bool excluded = await provider.IsExcludedAsync(Target("StagingDB"), "dbo", "Mitarbeiter", "SSN", TestContext.Current.CancellationToken);
 
         Assert.False(excluded); // must stay anonymized -> NOT excluded, despite the broad StagingDB rule
     }
@@ -392,7 +397,7 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory(MockConnection.Create(rows));
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        bool nameExcluded = await provider.IsExcludedAsync("AnyDb", string.Empty, "FakeConsultants", "FullName", TestContext.Current.CancellationToken);
+        bool nameExcluded = await provider.IsExcludedAsync(Target("AnyDb"), string.Empty, "FakeConsultants", "FullName", TestContext.Current.CancellationToken);
 
         Assert.False(nameExcluded); // the dominating, more specific rule wins -> stays anonymized
     }
@@ -415,7 +420,7 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory(MockConnection.Create(rows));
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        bool excludedFoo = await provider.IsExcludedAsync("SpecificDb", "dbo", "AnyTable", "Foo", TestContext.Current.CancellationToken);
+        bool excludedFoo = await provider.IsExcludedAsync(Target("SpecificDb"), "dbo", "AnyTable", "Foo", TestContext.Current.CancellationToken);
 
         Assert.False(excludedFoo); // both candidates are protective, so either pick keeps it anonymized
     }
@@ -436,7 +441,7 @@ public sealed class AnonymizationRuleProviderTests
         var factory = new DummyConnectionFactory(MockConnection.Create(rows));
         var provider = new AnonymizationRuleProvider(factory, Options.Create(options), NullLogger<AnonymizationRuleProvider>.Instance);
 
-        bool excludedFoo = await provider.IsExcludedAsync("SpecificDb", "dbo", "AnyTable", "Foo", TestContext.Current.CancellationToken);
+        bool excludedFoo = await provider.IsExcludedAsync(Target("SpecificDb"), "dbo", "AnyTable", "Foo", TestContext.Current.CancellationToken);
 
         Assert.True(excludedFoo); // both candidates are permissive, so either pick allows raw output
     }

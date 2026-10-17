@@ -255,7 +255,6 @@ public sealed class NamedPrimaryRoutingTests
     public void MissingNamedSettings_CannotUseLegacyEndpointOrExposeCredentials(bool missingServer)
     {
         var options = CreateOptions();
-        options.SqlServer = new() { Server = "legacy-endpoint.invalid", IntegratedSecurity = true };
         if (missingServer) options.Servers["prod"].Server = "";
         else options.Servers["prod"].UserId = "";
         var factory = new SqlConnectionFactory(Options.Create(options));
