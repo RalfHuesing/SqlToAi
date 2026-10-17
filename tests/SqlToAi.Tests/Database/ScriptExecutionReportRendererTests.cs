@@ -38,6 +38,7 @@ public sealed class ScriptExecutionReportRendererTests
         Assert.Contains("UTF-8", markdown, StringComparison.Ordinal);
         Assert.Contains("ReportingDb", markdown, StringComparison.Ordinal);
         Assert.Contains("ReadWriteAtomic", markdown, StringComparison.Ordinal);
+        Assert.Contains("ReadWrite server-managed transaction", markdown, StringComparison.Ordinal);
         Assert.Contains("elapsed_ms: 17", markdown, StringComparison.Ordinal);
         Assert.Contains("cpu_time_ms: 9", markdown, StringComparison.Ordinal);
         Assert.Contains("logical_reads: 12", markdown, StringComparison.Ordinal);

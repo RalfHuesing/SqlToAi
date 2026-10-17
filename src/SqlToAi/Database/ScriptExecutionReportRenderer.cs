@@ -199,7 +199,7 @@ internal static class ScriptExecutionReportRenderer
 
     private static string FormatMode(ScriptTransactionMode mode) => mode switch
     {
-        ScriptTransactionMode.ReadWriteAtomic => "ReadWrite atomic",
+        ScriptTransactionMode.ReadWriteAtomic => "ReadWrite server-managed transaction",
         ScriptTransactionMode.ReadWriteProviderAutocommit => "ReadWrite provider-autocommit",
         ScriptTransactionMode.ReadOnlyRollback => "ReadOnly rollback",
         ScriptTransactionMode.ReadOnlyAnonymizedRollback => "ReadOnly anonymized rollback",

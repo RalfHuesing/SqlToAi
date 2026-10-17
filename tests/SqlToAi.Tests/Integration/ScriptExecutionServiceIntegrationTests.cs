@@ -27,6 +27,29 @@ public sealed class ScriptExecutionServiceIntegrationTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_RejectsEarlyCommitBeforeFictionalMarkerCanBeWritten()
+    {
+        string marker = CreateMarker();
+        string scriptPath = CreateScriptPath();
+        try
+        {
+            string script = $"INSERT INTO dbo.FakeProjects (ProjectName, Mandant, Description, Status) VALUES (N'{marker}', 1, N'Preflight rejection marker', N'Active');\nGO\nCOMMIT; THROW 51000, 'fictional-after-commit', 1;";
+            SqlScriptFile scriptFile = ReadScript(scriptPath, script);
+            ScriptExecutionReport report = await BuildService(_fixture.QuerySafetyValidator).ExecuteAsync(
+                new ScriptExecutionRequest(scriptFile, _databaseName), TestContext.Current.CancellationToken);
+
+            Assert.Equal(ScriptTransactionMode.NotStarted, report.Mode);
+            Assert.Equal(SqlToAiError.SafetyCheckFailedCode, report.Error!.Code);
+            Assert.All(report.Batches, batch => Assert.Empty(batch.Executions));
+            Assert.Equal(0, await CountMarkerAsync(marker));
+        }
+        finally
+        {
+            DeleteScriptFile(scriptPath);
+        }
+    }
+
+    [Fact]
     public async Task ExecuteAsync_MultipleGoBatchesWithRepeat_ReturnsOrderedResultsAndMetrics()
     {
         string scriptPath = CreateScriptPath();
@@ -68,7 +91,7 @@ public sealed class ScriptExecutionServiceIntegrationTests
         string scriptPath = CreateScriptPath();
         try
         {
-            string script = $"INSERT INTO dbo.FakeProjects (ProjectName, Mandant, Description, Status) VALUES (N'{marker}', 1, N'Step 008 atomic marker', N'Active')\nGO\nSELECT FROM dbo.FakeProjects\nGO\nSELECT 3 AS AfterFailure";
+            string script = $"INSERT INTO dbo.FakeProjects (ProjectName, Mandant, Description, Status) VALUES (N'{marker}', 1, N'Step 008 atomic marker', N'Active')\nGO\nTHROW 51000, 'fictional-runtime-failure', 1;\nGO\nSELECT 3 AS AfterFailure";
             SqlScriptFile scriptFile = ReadScript(scriptPath, script);
             ScriptExecutionReport report = await BuildService(_fixture.QuerySafetyValidator).ExecuteAsync(
                 new ScriptExecutionRequest(scriptFile, _databaseName),
@@ -86,7 +109,7 @@ public sealed class ScriptExecutionServiceIntegrationTests
             string markdown = ScriptExecutionReportRenderer.Render(report);
             Assert.Contains("failed_batch: 2", markdown, StringComparison.Ordinal);
             Assert.Contains("failed_source_lines: 3-3", markdown, StringComparison.Ordinal);
-            Assert.Contains("SELECT FROM dbo.FakeProjects", markdown, StringComparison.Ordinal);
+            Assert.Contains("fictional-runtime-failure", markdown, StringComparison.Ordinal);
             Assert.Contains(SqlToAiError.QueryErrorCode, markdown, StringComparison.Ordinal);
         }
         finally

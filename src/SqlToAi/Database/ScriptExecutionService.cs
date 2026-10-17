@@ -51,6 +51,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
             ScriptPreflightResult preflight = await PreflightAsync(
                 request.DatabaseName,
                 batches,
+                request.UseTransaction,
                 cancellationToken).ConfigureAwait(false);
             if (preflight.Error is not null)
             {
@@ -145,6 +146,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
     private async Task<ScriptPreflightResult> PreflightAsync(
         string databaseName,
         IReadOnlyList<SqlBatch> batches,
+        bool useTransaction,
         CancellationToken cancellationToken)
     {
         QuerySafetyCheckResult? firstOutcome = null;
@@ -163,6 +165,12 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
             if (safetyResult.IsFailure)
             {
                 return new ScriptPreflightResult(null, index + 1, safetyResult.Error);
+            }
+
+            if ((useTransaction || !safetyResult.Value.IsWriteAllowed)
+                && SqlExecutionControlGuard.Validate(batch.Text, validationOnly: false) is { } controlError)
+            {
+                return new ScriptPreflightResult(null, index + 1, controlError);
             }
 
             firstOutcome ??= safetyResult.Value;

@@ -109,6 +109,24 @@ public sealed class ToolRegistryTests
     }
 
     [Fact]
+    public void ExecutionTools_ShouldDescribeValidationAndAtomicityLimitsInLiveMetadata()
+    {
+        var tools = SqlMcpToolRegistrations.BuildToolCollection(ToolDispatcherTestHelper.BuildDispatcher());
+        var validation = tools.Single(t => t.ProtocolTool.Name == McpConstants.ToolValidateQuery).ProtocolTool;
+        var script = tools.Single(t => t.ProtocolTool.Name == McpConstants.ToolExecuteFile).ProtocolTool;
+
+        Assert.Contains("NOEXEC compilation", validation.Description, StringComparison.Ordinal);
+        Assert.Contains("Deferred name resolution", validation.Description, StringComparison.Ordinal);
+        Assert.Contains("atomicity is not guaranteed", script.Description, StringComparison.Ordinal);
+        Assert.Contains("dynamic SQL and triggers", script.Description, StringComparison.Ordinal);
+        Assert.Equal(_registry.GetAll().Single(t => t.Name == validation.Name).Description, validation.Description);
+        Assert.Equal(_registry.GetAll().Single(t => t.Name == script.Name).Description, script.Description);
+        string? transactionDescription = script.InputSchema.GetProperty("properties")
+            .GetProperty(McpConstants.ArgUseTransaction).GetProperty("description").GetString();
+        Assert.Contains("preserve that transaction", transactionDescription, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AllToolNames_ShouldBeUnique()
     {
         var names = _registry.GetAll().Select(t => t.Name).ToList();

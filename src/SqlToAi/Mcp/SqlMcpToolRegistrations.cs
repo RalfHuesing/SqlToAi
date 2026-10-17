@@ -175,7 +175,7 @@ public static class SqlMcpToolRegistrations
             new McpServerToolCreateOptions
             {
                 Name = McpConstants.ToolValidateQuery,
-                Description = "Validates SQL syntax and object references via PARSEONLY without executing the query."
+                Description = ExecutionToolDescriptions.ValidateQuery
             }));
 
         tools.Add(McpServerTool.Create(
@@ -212,7 +212,7 @@ public static class SqlMcpToolRegistrations
         tools.Add(McpServerTool.Create(
             ([Description("Local .sql file path, absolute or relative to the server working directory. Required.")] string file_path,
              [Description("Target database name. Required.")] string database,
-             [Description("Whether ReadWrite batches use one atomic transaction. Defaults to true; protected read-only modes always roll back.")] bool? use_transaction = null,
+             [Description(ExecutionToolDescriptions.UseTransaction)] bool? use_transaction = null,
              [Description("Maximum rows returned per SELECT batch. Capped by the server's configured maximum. Optional.")] int? requested_row_limit = null,
              [Description("Optional dictionary of typed SQL parameters for all batches.")] object? parameters = null,
              CancellationToken ct = default) =>
@@ -230,7 +230,7 @@ public static class SqlMcpToolRegistrations
             new McpServerToolCreateOptions
             {
                 Name = McpConstants.ToolExecuteFile,
-                Description = "Executes a local .sql file with multi-batch support and returns a structured Markdown report with transaction mode, metrics, results, and diagnostics."
+                Description = ExecutionToolDescriptions.ExecuteFile
             }));
     }
 

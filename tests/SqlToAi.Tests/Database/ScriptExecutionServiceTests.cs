@@ -10,6 +10,95 @@ namespace SqlToAi.Tests.Database;
 
 public sealed class ScriptExecutionServiceTests
 {
+    [Theory]
+    [InlineData("COMMIT;")]
+    [InlineData("COMMIT WORK;")]
+    [InlineData("ROLLBACK TRANSACTION;")]
+    [InlineData("BEGIN TRANSACTION;")]
+    [InlineData("BEGIN DISTRIBUTED TRANSACTION;")]
+    [InlineData("SAVE TRANSACTION caller_savepoint;")]
+    [InlineData("IF 1 = 0 BEGIN COMMIT TRANSACTION; END;")]
+    [InlineData("BEGIN TRY SELECT 1; END TRY BEGIN CATCH ROLLBACK; END CATCH;")]
+    [InlineData("CREATE PROCEDURE dbo.FictionalProcedure AS BEGIN COMMIT; END;")]
+    [InlineData("SET IMPLICIT_TRANSACTIONS ON;")]
+    [InlineData("SET IMPLICIT_TRANSACTIONS OFF;")]
+    public async Task ExecuteAsync_RejectsTransactionControlInLaterBatchBeforeAnyExecution(string control)
+    {
+        var factory = new MockQueryConnectionFactory();
+        var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(AccessLevel.ReadWrite, true));
+        var executor = new RecordingBatchExecutor();
+        var result = await BuildService(factory, safety, executor).ExecuteAsync(
+            BuildRequest($"INSERT INTO dbo.FictionalTable VALUES (1);\nGO\n{control}\nGO\nSELECT 3;"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ScriptTransactionMode.NotStarted, result.Mode);
+        Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error!.Code);
+        Assert.Null(factory.LastConnection);
+        Assert.Empty(executor.Calls);
+        Assert.Equal(ScriptBatchStatus.Failed, result.Batches[1].Status);
+    }
+
+    [Theory]
+    [InlineData(AccessLevel.ReadOnly)]
+    [InlineData(AccessLevel.ReadOnlyAnonymized)]
+    public async Task ExecuteAsync_ProtectsForcedReadOnlyTransactionWhenFlagIsFalse(AccessLevel accessLevel)
+    {
+        var factory = new MockQueryConnectionFactory();
+        var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(accessLevel, false));
+        var executor = new RecordingBatchExecutor();
+        var result = await BuildService(factory, safety, executor).ExecuteAsync(
+            BuildRequest("COMMIT;") with { UseTransaction = false }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error!.Code);
+        Assert.Null(factory.LastConnection);
+        Assert.Empty(executor.Calls);
+    }
+
+    [Theory]
+    [InlineData("SELECT N'COMMIT; SET IMPLICIT_TRANSACTIONS ON' AS [ROLLBACK]; /* BEGIN TRAN */")]
+    [InlineData("EXEC dbo.FictionalProcedure;")]
+    [InlineData("EXEC (N'SELECT 1;');")]
+    public async Task ExecuteAsync_PreservesLiteralsAndOpaqueExecutionCompatibility(string sql)
+    {
+        var factory = new MockQueryConnectionFactory();
+        var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(AccessLevel.ReadWrite, true));
+        var executor = new RecordingBatchExecutor();
+        var result = await BuildService(factory, safety, executor).ExecuteAsync(
+            BuildRequest(sql), TestContext.Current.CancellationToken);
+
+        Assert.Equal(ScriptExecutionStatus.Success, result.Status);
+        Assert.Single(executor.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_AllowsCallerTransactionControlWithoutServerTransaction()
+    {
+        var factory = new MockQueryConnectionFactory();
+        var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(AccessLevel.ReadWrite, true));
+        var executor = new RecordingBatchExecutor();
+        var result = await BuildService(factory, safety, executor).ExecuteAsync(
+            BuildRequest("BEGIN TRAN; SELECT 1; COMMIT;") with { UseTransaction = false },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ScriptExecutionStatus.Success, result.Status);
+        Assert.Null(executor.Calls[0].Transaction);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RejectsUnparseableLaterBatchBeforeAnyExecution()
+    {
+        var factory = new MockQueryConnectionFactory();
+        var safety = new RecordingSafetyValidator(_ => new QuerySafetyCheckResult(AccessLevel.ReadWrite, true));
+        var executor = new RecordingBatchExecutor();
+        var result = await BuildService(factory, safety, executor).ExecuteAsync(
+            BuildRequest("SELECT 1;\nGO\nSELECT FROM"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error!.Code);
+        Assert.Equal(ScriptTransactionMode.NotStarted, result.Mode);
+        Assert.Null(factory.LastConnection);
+        Assert.Empty(executor.Calls);
+    }
+
     [Fact]
     public async Task ExecuteAsync_EmptyScript_ReturnsInvalidParametersBeforeOpeningConnection()
     {

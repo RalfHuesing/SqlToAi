@@ -71,7 +71,7 @@ public sealed class ToolRegistry
     private static ToolDefinition BuildValidateQuery() => new()
     {
         Name = McpConstants.ToolValidateQuery,
-        Description = "Validates SQL syntax and object references via PARSEONLY without executing the query.",
+        Description = ExecutionToolDescriptions.ValidateQuery,
         InputSchema = new ToolInputSchema
         {
             Properties = new Dictionary<string, ToolParameterDefinition>
@@ -216,14 +216,14 @@ public sealed class ToolRegistry
     private static ToolDefinition BuildExecuteFile() => new()
     {
         Name = McpConstants.ToolExecuteFile,
-        Description = "Executes a local .sql file with multi-batch support and returns a structured Markdown report with transaction mode, metrics, results, and diagnostics.",
+        Description = ExecutionToolDescriptions.ExecuteFile,
         InputSchema = new ToolInputSchema
         {
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
                 [McpConstants.ArgFilePath]           = StringParam("Local .sql file path, absolute or relative to the server working directory. Required."),
                 [McpConstants.ArgDatabase]           = StringParam("Target database name. Required."),
-                [McpConstants.ArgUseTransaction]     = new() { Type = "boolean", Description = "Whether ReadWrite batches use one atomic transaction. Defaults to true; protected read-only modes always roll back." },
+                [McpConstants.ArgUseTransaction]     = new() { Type = "boolean", Description = ExecutionToolDescriptions.UseTransaction },
                 [McpConstants.ArgRequestedRowLimit] = new() { Type = "integer", Description = "Maximum rows returned per SELECT batch. Capped by the server's configured maximum. Optional." },
                 [McpConstants.ArgParameters]        = new() { Type = "object", Description = "Optional dictionary of typed SQL parameters for all batches." }
             },

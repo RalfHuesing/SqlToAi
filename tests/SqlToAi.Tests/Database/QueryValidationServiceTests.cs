@@ -1,4 +1,4 @@
-﻿using System.Data.Common;
+using System.Data.Common;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
@@ -10,17 +10,59 @@ using SqlToAi.Tests.TestSupport;
 namespace SqlToAi.Tests.Database;
 
 /// <summary>
-/// Unit tests for <see cref="QueryValidationService"/>, covering the service-level behaviour
-/// (rollback-immer, command-timeout source, <c>sp_executesql</c> -> <c>WriteOperationBlocked</c>
-/// before touching the database, timeout/socket-exception mapping, TD-001 timeout-source pinning).
-/// The pure pipeline outcomes (empty parameters, blocked database, <see cref="AccessLevel.None"/>,
-/// <c>sp_executesql</c> detection, mutating-keyword detection, multi-statement detection) are
-/// covered end-to-end in the dedicated <c>QuerySafetyValidatorTests</c> class
-/// (step-003 / DRY-T3). Here the pipeline is pinned via <see cref="FakeQuerySafetyValidator"/>
-/// to keep each test focused on the service's own behaviour.
+/// Covers validation preflight, rollback, command timeouts and provider error mapping.
 /// </summary>
 public sealed class QueryValidationServiceTests
 {
+    [Theory]
+    [InlineData("SET NOEXEC OFF; THROW 51000, 'fictional-validation-executed', 1;")]
+    [InlineData("SET NOEXEC ON; SELECT 1;")]
+    [InlineData("BEGIN IF 1 = 0 SET NOEXEC OFF; END;")]
+    [InlineData("SET PARSEONLY OFF; SELECT 1;")]
+    [InlineData("SET PARSEONLY ON; SELECT 1;")]
+    [InlineData("SET FMTONLY OFF; SELECT 1;")]
+    [InlineData("SET FMTONLY ON; SELECT 1;")]
+    [InlineData("SET NOCOUNT, NOEXEC OFF; SELECT 1;")]
+    public async Task ValidateQueryAsync_RejectsExecutionControlBeforeOpeningConnection(string sql)
+    {
+        var factory = new ValidationMockConnectionFactory();
+        var service = BuildService(factory: factory, accessLevel: AccessLevel.ReadWrite);
+
+        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, sql, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
+        Assert.Null(factory.LastConnection);
+    }
+
+    [Theory]
+    [InlineData("SELECT N'SET NOEXEC OFF; COMMIT' AS [NOEXEC]; -- SET NOEXEC OFF")]
+    [InlineData("SET NOCOUNT ON; SELECT 1;")]
+    [InlineData("DECLARE @n int = 1; SELECT @n;")]
+    [InlineData("UPDATE dbo.FictionalTable SET Value = 1;")]
+    public async Task ValidateQueryAsync_AllowsNormalSqlAndControlTextInLiterals(string sql)
+    {
+        var factory = new ValidationMockConnectionFactory();
+        var result = await BuildService(factory: factory, accessLevel: AccessLevel.ReadWrite)
+            .ValidateQueryAsync(TestConstants.DatabaseName, sql, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
+        Assert.NotNull(factory.LastConnection);
+        Assert.Equal(1, factory.LastConnection.LastTransaction?.RollbackCount);
+    }
+
+    [Fact]
+    public async Task ValidateQueryAsync_RejectsUnparseableSqlBeforeOpeningConnection()
+    {
+        var factory = new ValidationMockConnectionFactory();
+        var result = await BuildService(factory: factory, accessLevel: AccessLevel.ReadWrite)
+            .ValidateQueryAsync(TestConstants.DatabaseName, "SELECT FROM", TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
+        Assert.Null(factory.LastConnection);
+    }
+
     private static QueryValidationService BuildService(
         IDatabaseConnectionFactory? factory = null,
         bool isAllowed = true,
@@ -45,15 +87,6 @@ public sealed class QueryValidationServiceTests
             NullLogger<QueryValidationService>.Instance);
     }
 
-    // -------------------------------------------------------------------------
-    // Tests: read-only guard (audit finding 4) — mirrors QueryExecutionService's layer 4.
-    // sql_validate_query previously had no guard at all and relied solely on the unverified
-    // assumption that SET PARSEONLY ON prevents any statement from actually executing. After
-    // step-002 the production regex lives in the IQuerySafetyValidator pipeline, so these
-    // service-level tests use FakeQuerySafetyValidator(error) to pin the WriteOperationBlocked
-    // outcome; the regex itself is exercised end-to-end by QuerySafetyValidatorTests.
-    // -------------------------------------------------------------------------
-
     [Fact]
     public async Task ValidateQueryAsync_ShouldFail_WhenQueryIsMutating_AndAccessLevelIsNotReadWrite()
     {
@@ -74,9 +107,7 @@ public sealed class QueryValidationServiceTests
     [Fact]
     public async Task ValidateQueryAsync_ShouldNotBlock_MutatingQuery_WhenAccessLevelIsReadWrite()
     {
-        // ReadWrite bypasses the guard here exactly as it does in QueryExecutionService — this
-        // service still never commits, so the query only ever runs under SET PARSEONLY inside a
-        // transaction that always gets rolled back.
+        // ReadWrite permits mutation syntax while validation retains NOEXEC and rollback.
         var factory = new ValidationMockConnectionFactory();
         var service = BuildService(factory: factory, accessLevel: AccessLevel.ReadWrite);
 
@@ -154,11 +185,11 @@ public sealed class QueryValidationServiceTests
     [Fact]
     public async Task ValidateQueryAsync_ShouldFail_AndStillRollBack_WhenExecutionThrows()
     {
-        var executionException = new InvalidOperationException("Syntax error near FROM.");
+        var executionException = new InvalidOperationException("Fictional provider failure.");
         var factory = new ValidationMockConnectionFactory(throwOnExecute: executionException);
         var service = BuildService(factory: factory);
 
-        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "SELECT FROM", TestContext.Current.CancellationToken);
+        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
@@ -222,7 +253,7 @@ public sealed class QueryValidationServiceTests
 // -------------------------------------------------------------------------
 // Minimal DbConnection/DbTransaction/DbCommand fakes for QueryValidationService, built on the
 // shared TestSupport plumbing. Unlike QueryExecutionService, this service never reads rows — it
-// only issues ExecuteNonQueryAsync calls (SET PARSEONLY ON / the query itself / SET PARSEONLY OFF)
+// only issues ExecuteNonQueryAsync calls (SET NOEXEC ON / the query itself / SET NOEXEC OFF)
 // inside a transaction it always rolls back — so no data-reader dispatch is needed here.
 // -------------------------------------------------------------------------
 

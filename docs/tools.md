@@ -19,7 +19,7 @@ The server registers 18 SQL tools. Required arguments are listed below; `databas
 | `sql_get_object_references` | `object_name`, `database` | None | Referencing entities for a table/view through `sys.dm_sql_referencing_entities` |
 | `sql_get_routine_parameters` | `object_name`, `database` | None | Procedure/function parameter names, types and directions |
 
-Schema details are separate calls so clients can request only relevant metadata. Validation is not a guarantee that all objects exist or that later execution will succeed: `NOEXEC` can defer name resolution. Schema definitions are raw text; [security.md](security.md) describes exposure limits.
+Schema details are separate calls so clients can request only relevant metadata. Validation is not a guarantee that all objects exist or that later execution will succeed: `NOEXEC` can defer name resolution. Caller `SET NOEXEC`, `SET PARSEONLY` and `SET FMTONLY` are rejected before opening the validation connection, even inside nested blocks (`SQL-AI-0104`); unparseable SQL returns `SQL-AI-0102`. Schema definitions are raw text; [security.md](security.md) describes exposure limits.
 
 ### Primary schema selection
 
@@ -107,7 +107,7 @@ There is no automatic cleanup or staging.
 
 `sql_execute_query` accepts one main statement with supported leading declarations. Returned rows are capped by `QueryExecution` limits. It returns separate text blocks: a masking notice when applicable, an execution header, then JSON rows. The header reports returned rows, client query time, server CPU time and logical reads from `STATISTICS IO/TIME`. Client elapsed time and server CPU time measure different things.
 
-`sql_execute_file` accepts local `.sql` files, absolute or relative to the server working directory, with `GO` batch separators. URLs and UNC paths are rejected. Size is checked against `MaxScriptFileSizeBytes` (10 MiB default). Parameters are shared across batches; row limits apply per SELECT batch. Results are a Markdown report with file metadata, transaction mode, batch results, metrics and diagnostics. See [transaction behavior](security.md#query-guards-and-transactions) before enabling writes or disabling atomic execution.
+`sql_execute_file` accepts local `.sql` files, absolute or relative to the server working directory, with `GO` batch separators. URLs and UNC paths are rejected. Size is checked against `MaxScriptFileSizeBytes` (10 MiB default). Parameters are shared across batches; row limits apply per SELECT batch. Results are a Markdown report with file metadata, transaction mode, batch results, metrics and diagnostics. Server-managed transactions reject explicit transaction control and `SET IMPLICIT_TRANSACTIONS` anywhere in the script before the first batch runs (`SQL-AI-0104`). Unparseable batches fail with `SQL-AI-0102`. Procedures, dynamic SQL and triggers remain supported in ReadWrite but can change transaction state outside that analysis; atomicity is not guaranteed for such code. See [transaction behavior](security.md#query-guards-and-transactions) before enabling writes or disabling the server-managed transaction.
 
 ## Parameters
 

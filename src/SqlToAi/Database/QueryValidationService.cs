@@ -64,6 +64,11 @@ public sealed class QueryValidationService : IQueryValidationService
             return safetyResult.Error;
         }
 
+        if (SqlExecutionControlGuard.Validate(query, validationOnly: true) is { } controlError)
+        {
+            return controlError;
+        }
+
         try
         {
             await using var connection = _connectionFactory.CreateConnection(databaseName);
@@ -73,7 +78,7 @@ public sealed class QueryValidationService : IQueryValidationService
             bool validationFailed = false;
             try
             {
-                await ExecuteParseonlyValidationAsync(connection, transaction, query, parameters, cancellationToken);
+                await ExecuteNoexecValidationAsync(connection, transaction, query, parameters, cancellationToken);
             }
             catch
             {
@@ -98,7 +103,7 @@ public sealed class QueryValidationService : IQueryValidationService
         }
     }
 
-    private async Task ExecuteParseonlyValidationAsync(
+    private async Task ExecuteNoexecValidationAsync(
         DbConnection connection,
         DbTransaction transaction,
         string query,
