@@ -113,6 +113,10 @@ Paths below are repository-relative; line numbers refer to the reviewed code.
 
 # M4.3 — Final concept audit and roadmap closure
 
+> Superseded by the independent deep audit below. These historical claims are
+> not current acceptance evidence; in particular, the Native AOT result hid
+> third-party diagnostics, and the composed tests did not exercise a real rule cache.
+
 Reviewed full repository state against `tasks/named-connections/Konzept.md` (Must 1–11, Out of scope, and Verification criteria).
 Verdict: all concept requirements and acceptance criteria are completely satisfied; no open findings; accept M4 and close the named-connections roadmap.
 
@@ -138,4 +142,55 @@ Verdict: all concept requirements and acceptance criteria are completely satisfi
 - `ComposedTargetIsolationTests`: 12/12 passed (multi-target concurrency, same physical endpoint under distinct aliases, unusual raw database names, server discovery, and MCP SDK bindings).
 - `git grep -i legacy src/ tests/ docs/`: 0 hits across all source, test, and documentation files.
 - Clean working directory, all changes committed.
+
+# Deep audit at cab47d3
+
+Date: 2026-10-17. Three independent read-only GPT-6.1-Sol/high agents reviewed
+foundations/startup/discovery, providers/tokens/execution, and remaining services/
+MCP/CLI/exploration. The orchestrator separately checked history, documentation and
+runtime gates. Scope: `988b641..cab47d3`, especially `41a4271..cab47d3`, concept
+Must 1–11 and all milestone acceptance contracts. No prior checkbox was treated as
+proof. AiNetCodeNavigator was used for declarations and relationships; no
+AiNetLinter tool was exposed, so no linter pass is claimed.
+
+## Prioritized findings and slices
+
+Locations in this subsection refer to `cab47d3`, before remediation.
+
+| Priority | Finding and evidence | Slice |
+| --- | --- | --- |
+| P1 security | `SqlCharScanner.cs:92,100` under `src/SqlToAi/Database/` closes escaped `]]` identifiers early and ignores double-quoted identifiers and nested block comments. `QueryTokenResolver.cs:54` can substitute a known token inside a valid output alias; `QueryExecutionService.Anonymization.cs:118` emits the resulting plaintext key. Repro: `SELECT 1 AS [a]]'<token>']` or `SELECT 1 AS "'<token>'"`. Violates Must 10 and the identifier-preservation contract. Predates this feature. | R1 |
+| P1 contract | `src/SqlToAi/Configuration/UserConfiguration.cs:143,156,178–184` inspects only the first matching root and Servers property. Existing StartupHarness accepted hidden obsolete `SqlServer` and exact/case-only duplicate aliases in later wrappers, exit 0 and empty stderr. Violates Must 2/4. Introduced in `ec0b3e1`. | R2 |
+| P2 validation | `src/SqlToAi/Program.cs:133–142` resolves but does not validate either direct options or the separately bound DI instance. M4.1 expressly requires equivalent effective validation. Normal host startup validates separately; no security bypass of that route is claimed. | R2 |
+| P2 error contract | `src/SqlToAi/Database/SchemaService.cs:105–106,122–129` recognizes timeout/TLS only inside connection-open wrappers; a catalog reader timeout after successful open returns static grants as success. Violates discovery Verification; command-failure regression coverage is missing. Introduced in `5f5c648`. | R3 |
+| P2 diagnostics | `src/SqlToAi/Metadata/MetadataProvider.cs:99,152` and `src/SqlToAi/Anonymization/AnonymizationRuleProvider.cs:99,171,220` omit the server owner from provider failure diagnostics. Documented affected settings paths cannot be identified. Masking remains closed on failure. | R3 |
+| P2 architecture | `src/SqlToAi/Cli/SchemaExportService.cs:49–63,127–139` and `src/SqlToAi/Database/OptimizationBenchmarkService.cs:41–62` repeatedly pass strings into resolving children rather than retaining one entry context (Must 5). No misrouting under stable startup options was demonstrated. | R4 |
+| P2 correctness | `tools/SqlToAi.Exploration/Program.cs:45–50` reports rights for the first configured alias; the scenario targets `primary/DemoDB`. Direct context construction also misses uppercase-alias canonicalization. | R4 |
+| P2 guard contract | Unused string overloads in `src/SqlToAi/Database/QuerySafetyValidator.cs:142` parse without configured-alias resolution; unknown aliases yield 0104 rather than 0001. Actual execution services resolve correctly first. | R4 |
+| P2 tests | `tests/SqlToAi.Tests/Database/ComposedTargetIsolationTests.cs:34–46,82–94,367` replaces the rule cache and SDK service validation with fakes. Those tests do not prove their claimed real cache/host composition. Existing focused routing/provider tests remain useful. | R5 |
+| P2 public contract | `src/SqlToAi/Mcp/ToolRegistry.cs:96` and corresponding SDK parameter descriptions still say only "Target database name. Required." The M4.2 claim of qualified descriptions has no supporting assertion. | R5 |
+| P1 acceptance evidence | `src/SqlToAi/SqlToAi.csproj:5` globally suppresses IL2104/IL3053, added by `912701a`. An unmasked detailed AOT publish emitted 103 IL diagnostics, including 17 IL3050 dynamic-code warnings. Exit 0 with suppression is not warning-free AOT compatibility. | R6 |
+| P2 documentation | The resume checkpoint still says M3 has not started, M3.4 evidence is absent here, and historical M4.3 declares complete acceptance without line/commit evidence. | R6 |
+
+No additional cross-owner grant, rule-cache or token-vault leak was demonstrated.
+Parser raw-name preservation, selected-owner policy, provider source identity,
+ordinal token ownership and request-local execution state were inspected. These
+positive observations do not substitute for missing composed runtime coverage.
+
+## Baseline execution evidence
+
+- At clean `cab47d3`, `dotnet build SqlToAi.slnx --warnaserror`: exit 0,
+  0 warnings/errors.
+- `dotnet test SqlToAi.slnx --no-build --logger 'trx;LogFileName=named-connections-baseline.trx' --results-directory temp/audit-baseline --logger 'console;verbosity=quiet'`:
+  exit 0, 1,486 passed, 19 skipped, 0 failed. TRX inspection confirmed all 19
+  skips belong to `TlsConnectionIntegrationTests`; no ordinary SQL skips.
+- `git diff --check`: clean before changes.
+- Diagnostic publish only (not the acceptance gate):
+  `dotnet publish src/SqlToAi/SqlToAi.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=true -p:NoWarn=NU1510 -p:TrimmerSingleWarn=false -p:TreatWarningsAsErrors=false -o temp/aot-diagnostic`:
+  exit 0 with 103 IL warning lines. Categories: IL2026 26, IL2046 8, IL2057 7,
+  IL2060 1, IL2067 5, IL2070 21, IL2072 7, IL2075 6, IL2080 2, IL2092 1,
+  IL2111 2, IL3050 17. Diagnostics include Dapper DynamicMethod generation and
+  SqlClient reflection/dynamic serialization. The Native AOT gate remains open.
+
+Remediation is tracked in [the roadmap](roadmap.md#deep-audit-remediation).
 

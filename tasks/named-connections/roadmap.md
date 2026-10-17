@@ -14,22 +14,51 @@ user-approved acceptance boundaries in the current concept.
 
 ## Resume checkpoint
 
-M1 and M2 are accepted; [M1.3 audit evidence](audit.md#m13--independent-foundation-audit) covers
-preparation contracts at `070d1bb`, and [M2.5 audit evidence](audit.md#m25--independent-provider-token-and-execution-audit)
-covers provider, token and execution isolation across `070d1bb..41a4271`.
-Resume execution at **M3.1** (Route schema inspection and existing schema exports).
-M3 and M4 items have not started. This is an intermediate, non-releasable state:
-schema/export, analysis, discovery/MCP/CLI arguments, strict host cutover, legacy-API removal,
-final composed checks and Native AOT evidence belong to the remaining slices.
+The independent deep audit started at `cab47d3` on 2026-10-17. Historical
+milestone checkmarks below describe prior acceptance, not renewed verification.
+Feature closure is reopened until the remediation slices and final audit below
+pass. Findings and their source locations are in the [deep audit](audit.md#deep-audit-at-cab47d3).
 
-Latest implementation commits: M2.1 `2913a11` + `67049c7`; M2.2 `d488565` +
-`208624d` + `337beb4`; M2.3 `7adeb6a` + `53aa63c`; M2.4 `41a4271`. No push,
-deployment or personal-settings change.
+Baseline gates: `dotnet build SqlToAi.slnx --warnaserror` returned 0 warnings and
+0 errors; `dotnet test SqlToAi.slnx --no-build` returned 1,486 passed, 19 skipped,
+0 failed. All skipped cases belong to `TlsConnectionIntegrationTests`; external
+TLS remains unverified. `git diff --check` was clean. No push, deployment or
+personal-settings change is authorized by this work.
 
-Parent verification after M2.5: `dotnet build SqlToAi.slnx` succeeded with
-0 warnings/errors; `dotnet test SqlToAi.slnx --no-build --logger
-'console;verbosity=quiet'` returned 1,424 passed, 19 skipped, 0 failed.
-`git diff --check` was clean.
+## Deep-audit remediation
+
+Each code slice requires a coder, a different independent reviewer, a clean
+warning-as-error build, the complete test suite (only the documented external TLS
+skips permitted), `git diff --check`, and an atomic commit. The current user request
+explicitly authorizes parallel read-only audits and repeated correction/review
+loops, superseding the workflow's sequential-audit and one-correction defaults.
+
+- [ ] **R1 — Preserve SQL identifier/comment boundaries during token resolution.**
+  Correct lexical handling of quoted identifiers, escaped brackets and relevant
+  nested comments; retain literal substitution and foreign-token isolation. Add
+  regression tests at scanner, resolver and execution boundaries.
+- [ ] **R2 — Validate every JSON source occurrence and both DI options paths.**
+  Inspect every matching wrapper before merge; reject hidden obsolete sections
+  and exact/case-only duplicate aliases. Validate resolved direct and bound options
+  equivalently; preserve legitimate overrides, safe stderr and settings bytes.
+- [ ] **R3 — Preserve discovery timeout/TLS failures after connection open.**
+  Classify catalog-command failures before static-grant fallback; preserve safe
+  owner-specific errors, cancellation and fallback for other catalog errors.
+  Include the canonical owner settings path in safe secondary-provider logs.
+- [ ] **R4 — Carry one target through composed services and exploration.**
+  Resolve once at export/benchmark entry and retain the context through child
+  operations. Derive exploration's manifest rights from its actual canonical
+  scenario target. Remove unused parser-only guard entry points that return the
+  wrong error for unknown aliases. Verify identity, denial and error paths.
+- [ ] **R5 — Test real composition and publish the qualified argument contract.**
+  Exercise production rule caches/services behind connection doubles and actual
+  SDK/CLI bindings; assert source loads, exemptions, tokens and same-address
+  owner separation. Share explicit `alias/database` descriptions and verify help.
+- [ ] **R6 — Verify Native AOT honestly and perform independent final audit.**
+  Investigate hidden third-party AOT diagnostics without adding suppressions;
+  run final build/tests/publish, retain unresolved compatibility findings openly,
+  replace unsupported M4.3 claims and supply the missing M3.4 evidence. No
+  production-grade or warning-free AOT claim is permitted while these remain open.
 
 ## Execution contract
 
