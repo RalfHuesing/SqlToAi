@@ -106,20 +106,30 @@ internal sealed class FakeSchemaService : ISchemaService
     public Task<Result<SchemaBatchResponse>> GetSchemaBatchAsync(string databaseName, JsonElement objectName = default, JsonElement objectNames = default, CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
 
+    public bool ListServersCalled { get; private set; }
     public bool ListDatabasesCalled { get; private set; }
     public bool SearchDatabasesCalled { get; private set; }
     public bool GetSchemaCalled { get; private set; }
+    public string? LastServer { get; private set; }
     public string? LastDatabase { get; private set; }
 
-    public Task<Result<IReadOnlyList<string>>> ListDatabasesAsync(CancellationToken ct = default)
+    public Result<IReadOnlyList<string>> ListServers()
+    {
+        ListServersCalled = true;
+        return Result<IReadOnlyList<string>>.Success([TestTargets.ServerAlias]);
+    }
+
+    public Task<Result<IReadOnlyList<string>>> ListDatabasesAsync(string server, CancellationToken ct = default)
     {
         ListDatabasesCalled = true;
+        LastServer = server;
         return Task.FromResult(Result<IReadOnlyList<string>>.Success([TestConstants.DatabaseName]));
     }
 
-    public Task<Result<IReadOnlyList<string>>> SearchDatabasesAsync(string searchTerm, CancellationToken ct = default)
+    public Task<Result<IReadOnlyList<string>>> SearchDatabasesAsync(string server, string searchTerm, CancellationToken ct = default)
     {
         SearchDatabasesCalled = true;
+        LastServer = server;
         return Task.FromResult(Result<IReadOnlyList<string>>.Success([TestConstants.DatabaseName]));
     }
 

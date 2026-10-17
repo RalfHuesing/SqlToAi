@@ -112,6 +112,7 @@ public sealed class McpModelsTests
         // All current tools must be present
         var tools = new[]
         {
+            McpConstants.ToolListServers,
             McpConstants.ToolListDatabases,
             McpConstants.ToolSearchDatabases,
             McpConstants.ToolValidateQuery,
@@ -132,7 +133,7 @@ public sealed class McpModelsTests
             McpConstants.ToolSuggestIndexes
         };
 
-        Assert.Equal(18, tools.Distinct().Count());
+        Assert.Equal(19, tools.Distinct().Count());
         Assert.All(tools, t => Assert.StartsWith("sql_", t));
     }
 }

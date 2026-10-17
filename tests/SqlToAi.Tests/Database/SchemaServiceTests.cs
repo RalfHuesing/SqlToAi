@@ -21,8 +21,8 @@ public sealed class SchemaServiceTests
     public async Task ListDatabasesAsync_ShouldReturnAllowedDatabases_WhenQuerySucceeds()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = [TestConstants.DatabaseName, "SalesDb"];
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+        options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName, $"{TestTargets.ServerAlias}/SalesDb"];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -33,7 +33,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.ListDatabasesAsync(TestContext.Current.CancellationToken);
+        var result = await service.ListDatabasesAsync(TestTargets.ServerAlias, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);

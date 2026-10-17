@@ -161,4 +161,79 @@ public sealed class ToolCommandFactoryTests
 
         Assert.NotEmpty(parseResult.Errors);
     }
+
+    [Fact]
+    public async Task ListServers_ShouldSucceed_WithoutArguments()
+    {
+        string? capturedTool = null;
+        Dictionary<string, object?>? capturedArgs = null;
+
+        Command queryCommand = BuildQueryCommand((toolName, args, _) =>
+        {
+            capturedTool = toolName;
+            capturedArgs = args;
+            return Task.FromResult(0);
+        });
+
+        RootCommand root = WrapInRoot(queryCommand);
+        ParseResult parseResult = root.Parse(["query", McpConstants.ToolListServers]);
+
+        Assert.Empty(parseResult.Errors);
+
+        int exitCode = await parseResult.InvokeAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(McpConstants.ToolListServers, capturedTool);
+        Assert.NotNull(capturedArgs);
+        Assert.Empty(capturedArgs);
+    }
+
+    [Fact]
+    public void ListDatabases_ShouldFailParsing_WhenServerOptionMissing()
+    {
+        Command queryCommand = BuildQueryCommand((_, _, _) => Task.FromResult(0));
+        RootCommand root = WrapInRoot(queryCommand);
+
+        ParseResult parseResult = root.Parse(["query", McpConstants.ToolListDatabases]);
+
+        Assert.NotEmpty(parseResult.Errors);
+    }
+
+    [Fact]
+    public async Task ListDatabases_ShouldPassParsedServerOption()
+    {
+        string? capturedTool = null;
+        Dictionary<string, object?>? capturedArgs = null;
+
+        Command queryCommand = BuildQueryCommand((toolName, args, _) =>
+        {
+            capturedTool = toolName;
+            capturedArgs = args;
+            return Task.FromResult(0);
+        });
+
+        RootCommand root = WrapInRoot(queryCommand);
+        ParseResult parseResult = root.Parse(["query", McpConstants.ToolListDatabases, "--server", "primary"]);
+
+        Assert.Empty(parseResult.Errors);
+
+        int exitCode = await parseResult.InvokeAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(McpConstants.ToolListDatabases, capturedTool);
+        Assert.Equal("primary", capturedArgs?[McpConstants.ArgServer]);
+    }
+
+    [Fact]
+    public void SearchDatabases_ShouldFailParsing_WhenServerOrSearchTermMissing()
+    {
+        Command queryCommand = BuildQueryCommand((_, _, _) => Task.FromResult(0));
+        RootCommand root = WrapInRoot(queryCommand);
+
+        ParseResult missingTerm = root.Parse(["query", McpConstants.ToolSearchDatabases, "--server", "primary"]);
+        Assert.NotEmpty(missingTerm.Errors);
+
+        ParseResult missingServer = root.Parse(["query", McpConstants.ToolSearchDatabases, "--search_term", "test"]);
+        Assert.NotEmpty(missingServer.Errors);
+    }
 }

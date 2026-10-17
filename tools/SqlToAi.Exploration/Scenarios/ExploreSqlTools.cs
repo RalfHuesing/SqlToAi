@@ -6,10 +6,12 @@ internal sealed class ExploreSqlTools : IExplorationScenario
 {
     public async Task RunAsync(ExplorationContext context)
     {
-        const string database = "DemoDB";
+        const string database = "primary/DemoDB";
+        const string server = "primary";
         const string objectName = "dbo.FakeProjects";
-        await context.CallAsync(McpConstants.ToolListDatabases, new { });
-        await context.CallAsync(McpConstants.ToolSearchDatabases, new { search_term = "Demo" });
+        await context.CallAsync(McpConstants.ToolListServers, new { });
+        await context.CallAsync(McpConstants.ToolListDatabases, new { server });
+        await context.CallAsync(McpConstants.ToolSearchDatabases, new { server, search_term = "Demo" });
         await context.CallAsync(McpConstants.ToolSearchObjects, new { database, search_term = "Fake", max_results = 20 });
         await context.CallAsync(McpConstants.ToolGetSchema, new { database, object_name = objectName });
         await context.CallAsync(McpConstants.ToolGetSchemaForeignKeys, new { database, object_name = objectName });

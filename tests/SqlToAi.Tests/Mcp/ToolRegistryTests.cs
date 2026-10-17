@@ -11,9 +11,9 @@ public sealed class ToolRegistryTests
     private readonly ToolRegistry _registry = new();
 
     [Fact]
-    public void GetAll_ShouldReturn_SeventeenTools()
+    public void GetAll_ShouldReturn_NineteenTools()
     {
-        Assert.Equal(18, _registry.GetAll().Count);
+        Assert.Equal(19, _registry.GetAll().Count);
     }
 
     [Fact]
@@ -21,6 +21,7 @@ public sealed class ToolRegistryTests
     {
         var names = _registry.GetAll().Select(t => t.Name).ToHashSet();
 
+        Assert.Contains(McpConstants.ToolListServers, names);
         Assert.Contains(McpConstants.ToolListDatabases, names);
         Assert.Contains(McpConstants.ToolSearchDatabases, names);
         Assert.Contains(McpConstants.ToolValidateQuery, names);
@@ -53,6 +54,8 @@ public sealed class ToolRegistryTests
     }
 
     [Theory]
+    [InlineData(McpConstants.ToolListDatabases, McpConstants.ArgServer)]
+    [InlineData(McpConstants.ToolSearchDatabases, McpConstants.ArgServer)]
     [InlineData(McpConstants.ToolSearchDatabases, McpConstants.ArgSearchTerm)]
     [InlineData(McpConstants.ToolValidateQuery, McpConstants.ArgQuery)]
     [InlineData(McpConstants.ToolSearchObjects, McpConstants.ArgSearchTerm)]
@@ -79,10 +82,17 @@ public sealed class ToolRegistryTests
     }
 
     [Fact]
-    public void ListDatabases_ShouldHaveNoRequiredArgs()
+    public void ListServers_ShouldHaveNoRequiredArgs()
+    {
+        var tool = _registry.GetAll().Single(t => t.Name == McpConstants.ToolListServers);
+        Assert.Empty(tool.InputSchema.Required);
+    }
+
+    [Fact]
+    public void ListDatabases_ShouldRequireServer()
     {
         var tool = _registry.GetAll().Single(t => t.Name == McpConstants.ToolListDatabases);
-        Assert.Empty(tool.InputSchema.Required);
+        Assert.Contains(McpConstants.ArgServer, tool.InputSchema.Required);
     }
 
     [Fact]

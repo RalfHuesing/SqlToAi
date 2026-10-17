@@ -73,46 +73,94 @@ public sealed class SchemaService : ISchemaService
         return target;
     }
 
-    public async Task<Result<IReadOnlyList<string>>> ListDatabasesAsync(CancellationToken cancellationToken = default)
+    public Result<IReadOnlyList<string>> ListServers()
     {
+        return Result<IReadOnlyList<string>>.Success(_targets.ConfiguredServerAliases);
+    }
+
+    public async Task<Result<IReadOnlyList<string>>> ListDatabasesAsync(string server, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(server))
+        {
+            return Result<IReadOnlyList<string>>.Failure(SqlToAiError.InvalidParameters("server must not be empty."));
+        }
+
+        var serverResult = _targets.ResolveServerAlias(server);
+        if (serverResult.IsFailure)
+        {
+            return Result<IReadOnlyList<string>>.Failure(serverResult.Error);
+        }
+        string canonicalServer = serverResult.Value;
+
         try
         {
-            await using var connection = _connectionFactory.CreateConnection();
-            await PrimaryConnection.OpenAsync(connection, cancellationToken);
+            var connResult = _connectionFactory.CreateCatalogConnection(canonicalServer);
+            if (connResult.IsFailure)
+            {
+                return Result<IReadOnlyList<string>>.Failure(connResult.Error);
+            }
+            await using var connection = connResult.Value;
+            await PrimaryConnection.OpenCatalogAsync(connection, canonicalServer, cancellationToken);
 
             var databases = await connection.QueryAsync<string>(
                 new CommandDefinition("SELECT name FROM sys.databases WHERE state = 0", cancellationToken: cancellationToken));
 
             var allowedDbs = databases
-                .Where(db => _securityGuard.IsDatabaseAllowed(db))
-                .OrderBy(db => db)
+                .Where(db => _securityGuard.IsTargetAllowed(new DatabaseTargetContext(canonicalServer, db)))
+                .OrderBy(db => db, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             return allowedDbs;
         }
         catch (Exception ex)
         {
-            if (ex is PrimaryConnectionException { IsTlsFailure: true }
-                or PrimaryConnectionException { Error.Code: SqlToAiError.TimeoutCode })
+            if (ex is OperationCanceledException)
+            {
+                throw;
+            }
+            if (ex is PrimaryConnectionException pex && (pex.IsTlsFailure || pex.Error.Code == SqlToAiError.TimeoutCode))
             {
                 _logger.LogWarning(ex, "SqlServer catalog connection failed.");
-                return SqlToAiErrorMapper.MapException(ex);
+                return pex.Error;
             }
-            _logger.LogWarning(ex, "Failed to query sys.databases catalog. Falling back to configured static database lists.");
-            var staticAllowed = _options.Databases.ReadWrite
-                .Concat(_options.Databases.ReadOnly)
-                .Concat(_options.Databases.ReadOnlyAnonymized)
-                .Concat(_options.Databases.SchemaOnly)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(db => db)
-                .ToList();
-            return staticAllowed;
+
+            _logger.LogWarning(ex, "Failed to query sys.databases catalog for server '{Server}'. Falling back to configured static database lists.", canonicalServer);
+            return Result<IReadOnlyList<string>>.Success(GetStaticAllowedDatabases(canonicalServer));
         }
     }
 
-    public async Task<Result<IReadOnlyList<string>>> SearchDatabasesAsync(string searchTerm, CancellationToken cancellationToken = default)
+    private IReadOnlyList<string> GetStaticAllowedDatabases(string canonicalServer)
     {
-        var dbsResult = await ListDatabasesAsync(cancellationToken);
+        var allGrants = _options.Databases.ReadWrite
+            .Concat(_options.Databases.ReadOnly)
+            .Concat(_options.Databases.ReadOnlyAnonymized)
+            .Concat(_options.Databases.SchemaOnly);
+
+        var dbNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string grant in allGrants)
+        {
+            var parsed = DatabaseTargetParser.Parse(grant);
+            if (parsed.IsSuccess && string.Equals(parsed.Value.ServerAlias, canonicalServer, StringComparison.Ordinal))
+            {
+                var target = new DatabaseTargetContext(canonicalServer, parsed.Value.DatabaseName);
+                if (_securityGuard.IsTargetAllowed(target))
+                {
+                    dbNames.Add(parsed.Value.DatabaseName);
+                }
+            }
+        }
+
+        return dbNames.OrderBy(db => db, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    public async Task<Result<IReadOnlyList<string>>> SearchDatabasesAsync(string server, string searchTerm, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            return Result<IReadOnlyList<string>>.Failure(SqlToAiError.InvalidParameters("search_term must not be empty."));
+        }
+
+        var dbsResult = await ListDatabasesAsync(server, cancellationToken);
         if (dbsResult.IsFailure)
         {
             return dbsResult.Error;

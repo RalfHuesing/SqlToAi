@@ -66,12 +66,18 @@ internal sealed class ToolDispatcher : IToolDispatcher
 
         _handlers = new(StringComparer.Ordinal)
         {
+            [McpConstants.ToolListServers] = (paramsObj, ct) =>
+                CallAsync(() => Task.FromResult(_schemaService.ListServers()),
+                    list => JsonSerializer.Serialize(list, typeof(IReadOnlyList<string>), McpJsonContext.Default)),
+
             [McpConstants.ToolListDatabases] = (paramsObj, ct) =>
-                CallAsync(() => _schemaService.ListDatabasesAsync(ct),
+                CallAsync(() => _schemaService.ListDatabasesAsync(
+                    Require(paramsObj, McpConstants.ArgServer), ct),
                     list => JsonSerializer.Serialize(list, typeof(IReadOnlyList<string>), McpJsonContext.Default)),
 
             [McpConstants.ToolSearchDatabases] = (paramsObj, ct) =>
                 CallAsync(() => _schemaService.SearchDatabasesAsync(
+                    Require(paramsObj, McpConstants.ArgServer),
                     Require(paramsObj, McpConstants.ArgSearchTerm), ct),
                     list => JsonSerializer.Serialize(list, typeof(IReadOnlyList<string>), McpJsonContext.Default)),
 

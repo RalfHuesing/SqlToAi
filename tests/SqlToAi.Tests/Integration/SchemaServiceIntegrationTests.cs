@@ -11,12 +11,14 @@ namespace SqlToAi.Tests.Integration;
 public sealed class SchemaServiceIntegrationTests
 {
     private readonly SqlServerFixture _fx;
+    private readonly string _server;
     private readonly string _db;
     private readonly string _target;
 
     public SchemaServiceIntegrationTests(SqlServerFixture fx)
     {
         _fx = fx;
+        _server = TestTargets.ServerAlias;
         _db = TestConstants.DatabaseName;
         _target = TestConstants.QualifiedDatabaseName;
     }
@@ -24,7 +26,7 @@ public sealed class SchemaServiceIntegrationTests
     [Fact]
     public async Task ListDatabasesAsync_ShouldIncludeConfiguredDefault()
     {
-        var result = await _fx.SchemaService.ListDatabasesAsync(TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.ListDatabasesAsync(_server, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value);
@@ -36,7 +38,7 @@ public sealed class SchemaServiceIntegrationTests
     {
         // Take a 3-letter prefix of the database name and search for it.
         string prefix = _db.Substring(0, Math.Min(3, _db.Length));
-        var result = await _fx.SchemaService.SearchDatabasesAsync(prefix, TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.SearchDatabasesAsync(_server, prefix, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value);

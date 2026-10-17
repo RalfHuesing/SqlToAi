@@ -33,6 +33,7 @@ internal static class McpConstants
     // Tool names (must match architecture-spec.md exactly)
     // -------------------------------------------------------------------------
 
+    internal const string ToolListServers = "sql_list_servers";
     internal const string ToolListDatabases = "sql_list_databases";
     internal const string ToolSearchDatabases = "sql_search_databases";
     internal const string ToolValidateQuery = "sql_validate_query";
@@ -56,6 +57,7 @@ internal static class McpConstants
     // Tool argument keys
     // -------------------------------------------------------------------------
 
+    internal const string ArgServer = "server";
     internal const string ArgDatabase = "database";
     internal const string ArgScope = "scope";
     internal const string ArgOutputPath = "output_path";

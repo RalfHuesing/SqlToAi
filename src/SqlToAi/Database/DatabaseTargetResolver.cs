@@ -74,4 +74,6 @@ public sealed class DatabaseTargetResolver
             ? canonicalAlias
             : SqlToAiError.InvalidParameters($"unknown server alias '{canonicalAlias}'.");
     }
+
+    public IReadOnlyList<string> ConfiguredServerAliases => _serversByAlias.Keys.OrderBy(a => a, StringComparer.Ordinal).ToList();
 }

@@ -8,7 +8,9 @@ namespace SqlToAi.Tests.Database;
 internal sealed class DummyConnectionFactory : IDatabaseConnectionFactory
 {
     public DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
-    public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Returned connection is owned by caller.")]
+    public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) =>
+        SqlToAi.Domain.Result<System.Data.Common.DbConnection>.Success(CreateConnection());
 
     public int ConnectionCreatedCount { get; private set; }
 

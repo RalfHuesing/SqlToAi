@@ -27,6 +27,7 @@ public sealed class ToolRegistry
 
     private static IReadOnlyList<ToolDefinition> BuildTools() =>
     [
+        BuildListServers(),
         BuildListDatabases(),
         BuildSearchDatabases(),
         BuildValidateQuery(),
@@ -47,24 +48,39 @@ public sealed class ToolRegistry
         BuildSuggestIndexes()
     ];
 
+    private static ToolDefinition BuildListServers() => new()
+    {
+        Name = McpConstants.ToolListServers,
+        Description = "Lists all configured named server aliases available for database routing.",
+        InputSchema = NoArgs()
+    };
+
     private static ToolDefinition BuildListDatabases() => new()
     {
         Name = McpConstants.ToolListDatabases,
-        Description = "Lists all databases on the SQL Server that are permitted by the server's whitelist configuration.",
-        InputSchema = NoArgs()
+        Description = "Lists all databases on the specified server alias that are permitted by security configuration.",
+        InputSchema = new ToolInputSchema
+        {
+            Properties = new Dictionary<string, ToolParameterDefinition>
+            {
+                [McpConstants.ArgServer] = StringParam("The named server alias to list databases for.")
+            },
+            Required = [McpConstants.ArgServer]
+        }
     };
 
     private static ToolDefinition BuildSearchDatabases() => new()
     {
         Name = McpConstants.ToolSearchDatabases,
-        Description = "Filters the list of allowed databases by a partial search term.",
+        Description = "Filters the list of allowed databases on the specified server alias by a partial search term.",
         InputSchema = new ToolInputSchema
         {
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
+                [McpConstants.ArgServer] = StringParam("The named server alias to search databases on."),
                 [McpConstants.ArgSearchTerm] = StringParam("Substring to filter database names by.")
             },
-            Required = [McpConstants.ArgSearchTerm]
+            Required = [McpConstants.ArgServer, McpConstants.ArgSearchTerm]
         }
     };
 

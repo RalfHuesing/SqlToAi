@@ -36,15 +36,42 @@ public sealed class ToolDispatcherTests : IDisposable
     // -------------------------------------------------------------------------
 
     [Fact]
+    public async Task ListServers_ShouldRouteToSchemaService()
+    {
+        var schema = new FakeSchemaService();
+        var dispatcher = BuildDispatcher(schema);
+
+        var result = await dispatcher.DispatchAsync(Call(McpConstants.ToolListServers), TestContext.Current.CancellationToken);
+
+        Assert.True(schema.ListServersCalled);
+        Assert.False(result.IsError);
+        Assert.Contains(TestTargets.ServerAlias, result.Content[0].Text);
+    }
+
+    [Fact]
     public async Task ListDatabases_ShouldRouteToSchemaService()
+    {
+        var schema = new FakeSchemaService();
+        var dispatcher = BuildDispatcher(schema);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolListDatabases, (McpConstants.ArgServer, TestTargets.ServerAlias)),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(schema.ListDatabasesCalled);
+        Assert.False(result.IsError);
+    }
+
+    [Fact]
+    public async Task ListDatabases_MissingServer_ReturnsInvalidParameters()
     {
         var schema = new FakeSchemaService();
         var dispatcher = BuildDispatcher(schema);
 
         var result = await dispatcher.DispatchAsync(Call(McpConstants.ToolListDatabases), TestContext.Current.CancellationToken);
 
-        Assert.True(schema.ListDatabasesCalled);
-        Assert.False(result.IsError);
+        Assert.True(result.IsError);
+        Assert.Contains(SqlToAiError.InvalidParametersCode, result.Content[0].Text);
     }
 
     [Fact]
@@ -54,11 +81,25 @@ public sealed class ToolDispatcherTests : IDisposable
         var dispatcher = BuildDispatcher(schema);
 
         var result = await dispatcher.DispatchAsync(
-            Call(McpConstants.ToolSearchDatabases, (McpConstants.ArgSearchTerm, "Demo")),
+            Call(McpConstants.ToolSearchDatabases, (McpConstants.ArgServer, TestTargets.ServerAlias), (McpConstants.ArgSearchTerm, "Demo")),
             TestContext.Current.CancellationToken);
 
         Assert.True(schema.SearchDatabasesCalled);
         Assert.False(result.IsError);
+    }
+
+    [Fact]
+    public async Task SearchDatabases_MissingServer_ReturnsInvalidParameters()
+    {
+        var schema = new FakeSchemaService();
+        var dispatcher = BuildDispatcher(schema);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolSearchDatabases, (McpConstants.ArgSearchTerm, "Demo")),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsError);
+        Assert.Contains(SqlToAiError.InvalidParametersCode, result.Content[0].Text);
     }
 
     [Fact]

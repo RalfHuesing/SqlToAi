@@ -11,7 +11,7 @@ namespace SqlToAi.Mcp;
 public static class SqlMcpToolRegistrations
 {
     /// <summary>
-    /// Builds and returns the collection of all 18 SQL tools, wired to the provided <paramref name="dispatcher"/>.
+    /// Builds and returns the collection of all 19 SQL tools, wired to the provided <paramref name="dispatcher"/>.
     /// </summary>
     public static McpServerPrimitiveCollection<McpServerTool> BuildToolCollection(IToolDispatcher dispatcher)
     {
@@ -29,24 +29,39 @@ public static class SqlMcpToolRegistrations
     {
         tools.Add(McpServerTool.Create(
             (CancellationToken ct = default) =>
-                ExecuteAsync(dispatcher, McpConstants.ToolListDatabases, new Dictionary<string, object?>(StringComparer.Ordinal), ct),
+                ExecuteAsync(dispatcher, McpConstants.ToolListServers, new Dictionary<string, object?>(StringComparer.Ordinal), ct),
             new McpServerToolCreateOptions
             {
-                Name = McpConstants.ToolListDatabases,
-                Description = "Lists all databases on the SQL Server that are permitted by the server's whitelist configuration."
+                Name = McpConstants.ToolListServers,
+                Description = "Lists all configured named server aliases available for database routing."
             }));
 
         tools.Add(McpServerTool.Create(
-            ([Description("Substring to filter database names by.")] string search_term,
+            ([Description("The named server alias to list databases for.")] string server,
+             CancellationToken ct = default) =>
+                ExecuteAsync(dispatcher, McpConstants.ToolListDatabases, new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    [McpConstants.ArgServer] = server
+                }, ct),
+            new McpServerToolCreateOptions
+            {
+                Name = McpConstants.ToolListDatabases,
+                Description = "Lists all databases on the specified server alias that are permitted by security configuration."
+            }));
+
+        tools.Add(McpServerTool.Create(
+            ([Description("The named server alias to search databases on.")] string server,
+             [Description("Substring to filter database names by.")] string search_term,
              CancellationToken ct = default) =>
                 ExecuteAsync(dispatcher, McpConstants.ToolSearchDatabases, new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
+                    [McpConstants.ArgServer] = server,
                     [McpConstants.ArgSearchTerm] = search_term
                 }, ct),
             new McpServerToolCreateOptions
             {
                 Name = McpConstants.ToolSearchDatabases,
-                Description = "Filters the list of allowed databases by a partial search term."
+                Description = "Filters the list of allowed databases on the specified server alias by a partial search term."
             }));
 
         tools.Add(McpServerTool.Create(

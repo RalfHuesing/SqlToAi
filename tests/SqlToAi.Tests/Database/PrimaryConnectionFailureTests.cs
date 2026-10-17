@@ -51,6 +51,8 @@ public sealed class PrimaryConnectionFailureTests
             or McpConstants.ToolMeasurePerformance
             or McpConstants.ToolBenchmarkOptimization
             or McpConstants.ToolSuggestIndexes
+            or McpConstants.ToolListDatabases
+            or McpConstants.ToolSearchDatabases
             ? "SqlToAi:Servers"
             : "SqlServer";
         Assert.Contains(expectedSettingsPath, text);
@@ -116,7 +118,7 @@ public sealed class PrimaryConnectionFailureTests
     public async Task ListDatabases_NonTlsFailure_PreservesConfiguredFallbackAndSafeLog()
     {
         using var harness = new FailureHarness(new InvalidOperationException(RawMarker));
-        var result = await harness.Schema.ListDatabasesAsync(TestContext.Current.CancellationToken);
+        var result = await harness.Schema.ListDatabasesAsync(TestTargets.ServerAlias, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.Contains(TestConstants.DatabaseName, result.Value);
         AssertSafe(string.Join(",", result.Value), harness);
@@ -187,7 +189,7 @@ public sealed class PrimaryConnectionFailureTests
             Factory = new FailingOpenFactory(failure);
             _loggers = LoggerFactory.Create(builder => builder.AddProvider(Log));
             var configuration = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
-            configuration.Databases.ReadWrite = [TestConstants.DatabaseName];
+            configuration.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
             var options = Options.Create(configuration);
             var safety = new FakeQuerySafetyValidator(new QuerySafetyCheckResult(level, level == AccessLevel.ReadWrite));
             var security = new FakeSecurityGuard(true);
@@ -219,6 +221,7 @@ public sealed class PrimaryConnectionFailureTests
             Name = tool,
             Arguments = new Dictionary<string, object?>
             {
+                [McpConstants.ArgServer] = TestTargets.ServerAlias,
                 [McpConstants.ArgDatabase] = TestConstants.QualifiedDatabaseName,
                 [McpConstants.ArgQuery] = "SELECT 1",
                 [McpConstants.ArgQueryA] = "SELECT 1",
@@ -244,7 +247,9 @@ public sealed class PrimaryConnectionFailureTests
     private sealed class FailingOpenFactory(Exception failure) : IDatabaseConnectionFactory
     {
         public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
-        public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
+        [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Returned connection is owned by caller.")]
+        public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) =>
+            SqlToAi.Domain.Result<System.Data.Common.DbConnection>.Success(CreateConnection());
 
         internal int OpenCount { get; private set; }
         public DbConnection CreateConnection(string? databaseName = null) => new FailingConnection(this, failure);

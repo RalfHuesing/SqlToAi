@@ -278,7 +278,7 @@ public sealed class UserConfigurationTests
         string[] arguments = entry switch
         {
             "server" => ["server"],
-            "query" => ["query", "sql_list_databases"],
+            "query" => ["query", "sql_list_servers"],
             "query-help" => ["query", "--help"],
             "export" => ["export-schema", "--database", "StartupTest", "--output", temp.GetPath("exports")],
             "exploration" => [temp.DirectoryPath, "ExploreSqlTools", "1"],

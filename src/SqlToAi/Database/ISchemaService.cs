@@ -9,19 +9,27 @@ namespace SqlToAi.Database;
 public interface ISchemaService
 {
     /// <summary>
-    /// Lists all allowed databases on the SQL Server.
+    /// Lists all configured named server aliases available for database routing.
     /// </summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A list of database names.</returns>
-    Task<Result<IReadOnlyList<string>>> ListDatabasesAsync(CancellationToken cancellationToken = default);
+    /// <returns>A list of canonical server aliases.</returns>
+    Result<IReadOnlyList<string>> ListServers();
 
     /// <summary>
-    /// Lists allowed databases matching a search term.
+    /// Lists all allowed databases on the specified server alias.
     /// </summary>
+    /// <param name="server">The named server alias.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A list of database names.</returns>
+    Task<Result<IReadOnlyList<string>>> ListDatabasesAsync(string server, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists allowed databases matching a search term on the specified server alias.
+    /// </summary>
+    /// <param name="server">The named server alias.</param>
     /// <param name="searchTerm">The term to search for.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A list of matching database names.</returns>
-    Task<Result<IReadOnlyList<string>>> SearchDatabasesAsync(string searchTerm, CancellationToken cancellationToken = default);
+    Task<Result<IReadOnlyList<string>>> SearchDatabasesAsync(string server, string searchTerm, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Searches for objects (tables, views, procedures, triggers, functions) in the target database.
