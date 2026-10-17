@@ -103,12 +103,18 @@ internal sealed class UserConfiguration : IDisposable
         {
             if (keyObj is string key)
             {
-                if (key.StartsWith("SqlToAi__SqlServer", StringComparison.OrdinalIgnoreCase) ||
-                    key.StartsWith("SqlToAi__MetadataProvider", StringComparison.OrdinalIgnoreCase) ||
-                    key.StartsWith("SqlToAi__AnonymizationRules", StringComparison.OrdinalIgnoreCase))
+                string normalizedPath = key.Replace("__", ":", StringComparison.Ordinal);
+                if (!normalizedPath.StartsWith("SqlToAi:", StringComparison.OrdinalIgnoreCase))
                 {
+                    continue;
+                }
+
+                string? obsoleteSection = GetObsoleteSectionPrefix(normalizedPath);
+                if (obsoleteSection is not null && obsoleteSection.StartsWith("SqlToAi.", StringComparison.Ordinal))
+                {
+                    string sectionName = obsoleteSection["SqlToAi.".Length..];
                     throw new ConfigurationStartupException(
-                        $"Obsolete configuration environment variable '{key}' detected. Obsolete single-server settings ('SqlServer', 'MetadataProvider', 'AnonymizationRules') have been removed in favor of 'SqlToAi.Servers.<alias>'. " +
+                        $"Obsolete configuration environment setting 'SqlToAi:{sectionName}' detected. Obsolete single-server settings ('SqlServer', 'MetadataProvider', 'AnonymizationRules') have been removed in favor of 'SqlToAi.Servers.<alias>'. " +
                         $"Settings file: '{settingsPath}'. Correct this manually using the supplied appsettings.json template, then restart.");
                 }
             }

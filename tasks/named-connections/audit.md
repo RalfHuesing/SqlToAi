@@ -357,3 +357,30 @@ Parent gates after independent approval: warning-as-error build returned
 unchanged settings bytes and exit 0. These checks do not establish Native AOT or
 strict external TLS acceptance.
 
+## R2a — Provider-equivalent environment path rejection
+
+Completed on 2026-10-18. Coder: GPT-6-luna/high (`coder_r1`); independent
+reviewer: GPT-6.1-Sol/high (`audit_state`), read-only approval against `f4145ed`
+(R5), including the additional opposite mixed-delimiter regression.
+
+The reviewer first reproduced the bypass with ten isolated StartupHarness child
+processes: colon paths and one mixed form were accepted, normal double-underscore
+legacy paths failed, and a legitimate colon-delimited Servers override affected
+both direct/bound options. `SqlServerless` was incorrectly rejected in the
+double-underscore form. These runs changed only child environments and temporary
+settings stayed byte-identical.
+
+`src/SqlToAi/Configuration/UserConfiguration.cs:106–119` now normalizes `__` to `:`
+like the environment provider and reuses exact-or-descendant section matching,
+limited to the `SqlToAi` product root. Diagnostics contain only the canonical known
+section, never arbitrary key descendants or values. Lookalike names remain valid.
+`tests/SqlToAi.Tests/Configuration/UserConfigurationTests.cs:274–335` covers all
+three sections, exact names, descendants, case variants and both mixed forms,
+safe stderr/exit 1, unchanged base/active files, harmless lookalikes and surviving
+Servers overrides. The configuration documentation states these boundaries.
+
+Parent gates after independent approval: warning-as-error build returned
+0 warnings/errors; full no-build tests returned 1,943 passed, 19 skipped, 0 failed.
+`temp/audit-gates/r2a.trx` skip names exactly match the external TLS baseline.
+`git diff --check` was clean. No process-global or personal environment was edited.
+

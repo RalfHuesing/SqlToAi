@@ -271,24 +271,70 @@ public sealed class UserConfigurationTests
         Assert.Contains("Obsolete configuration section", resultRoot.Error, StringComparison.Ordinal);
     }
 
+    public static TheoryData<string, string, string> ObsoleteEnvironmentVariableCases => new(
+        from section in new[] { "SqlServer", "MetadataProvider", "AnonymizationRules" }
+        from keyShape in new[] { "exact-double-underscore", "exact-colon", "child-double-underscore", "child-colon", "mixed-child", "mixed-delimiter-reverse" }
+        select (section, keyShape, $"SqlToAi:{section}"));
+
     [Theory]
-    [InlineData("SqlToAi__SqlServer__Server")]
-    [InlineData("SqlToAi__MetadataProvider__TableMetadataQuery")]
-    [InlineData("SqlToAi__AnonymizationRules__Enabled")]
-    public async Task ObsoleteEnvironmentVariable_FailsAtStartup(string envKey)
+    [MemberData(nameof(ObsoleteEnvironmentVariableCases))]
+    public async Task ObsoleteEnvironmentVariable_FailsAtStartupWithoutDisclosingKeySuffixOrChangingSettings(
+        string section, string keyShape, string expectedPath)
     {
         using var temp = TestTempDirectory.Create();
         string root = temp.GetPath("user-root");
-        temp.CreateFile("user-root/appsettings.json", MinimalSettings);
+        string baseFile = temp.CreateFile("user-root/appsettings.json", MinimalSettings);
+        string environmentFile = temp.CreateFile("user-root/appsettings.StartupTest.json", MinimalSettings);
+        byte[] baseBytes = await File.ReadAllBytesAsync(baseFile, TestContext.Current.CancellationToken);
+        byte[] environmentBytes = await File.ReadAllBytesAsync(environmentFile, TestContext.Current.CancellationToken);
+
+        string envKey = keyShape switch
+        {
+            "exact-double-underscore" => $"SqlToAi__{section}",
+            "exact-colon" => $"sQlToAi:{section.ToLowerInvariant()}",
+            "child-double-underscore" => $"SqlToAi__{section}__Server",
+            "child-colon" => $"SqlToAi:{section}:Server",
+            "mixed-delimiter-reverse" => $"SqlToAi:{section}__Password:credential-marker",
+            _ => $"sQlToAi__{MixedCase(section)}:Server:credential-marker"
+        };
 
         Dictionary<string, string?> environment = new()
         {
-            [envKey] = "obsolete-val"
+            [envKey] = "credential-marker",
+            ["SqlToAi__Servers__primary__Server"] = "environment-variable-override"
         };
 
         var result = await RunAsync(temp, root, "query-help", environment);
         AssertFailure(result, root);
-        Assert.Contains("Obsolete configuration environment variable", result.Error, StringComparison.Ordinal);
+        Assert.Contains($"Obsolete configuration environment setting '{expectedPath}'", result.Error, StringComparison.Ordinal);
+        Assert.Contains("Correct this manually", result.Error, StringComparison.Ordinal);
+        Assert.DoesNotContain("credential-marker", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(":Server", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(baseBytes, await File.ReadAllBytesAsync(baseFile, TestContext.Current.CancellationToken));
+        Assert.Equal(environmentBytes, await File.ReadAllBytesAsync(environmentFile, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ObsoleteEnvironmentLookalikesAndNewServerOverride_AreAccepted()
+    {
+        using var temp = TestTempDirectory.Create();
+        string root = temp.GetPath("user-root");
+        string file = temp.CreateFile("user-root/appsettings.json", MinimalSettings);
+        byte[] before = await File.ReadAllBytesAsync(file, TestContext.Current.CancellationToken);
+        Dictionary<string, string?> environment = new()
+        {
+            ["SqlToAi__Servers__primary__Server"] = "environment-variable-override",
+            ["SqlToAi__SqlServerless__Password"] = "decoy",
+            ["SqlToAi__MetadataProviderExtra__TableMetadataQuery"] = "decoy",
+            ["SqlToAi__AnonymizationRulesOther__Enabled"] = "true"
+        };
+
+        var result = await RunAsync(temp, root, "query", environment);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Empty(result.Error);
+        Assert.Equal("[\"primary\"]", result.Output.Trim());
+        Assert.Equal(before, await File.ReadAllBytesAsync(file, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -581,6 +627,11 @@ public sealed class UserConfigurationTests
         AssertFailure(result, root);
         Assert.Contains("references unknown server alias", result.Error, StringComparison.Ordinal);
     }
+
+    private static string MixedCase(string value) => string.Concat(
+        value.Select((character, index) => index % 2 == 0
+            ? char.ToLowerInvariant(character)
+            : char.ToUpperInvariant(character)));
 
     private static void AssertFailure(ProcessResult result, string root)
     {

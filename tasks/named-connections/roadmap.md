@@ -61,10 +61,11 @@ loops, superseding the workflow's sequential-audit and one-correction defaults.
   SDK/CLI bindings; assert source loads, exemptions, tokens and same-address
   owner separation. Share explicit `alias/database` descriptions and verify help.
   Evidence: [R5 review and gates](audit.md#r5--real-provider-composition-and-public-target-binding).
-- [ ] **R2a — Normalize obsolete environment paths at the provider boundary.**
+- [x] **R2a — Normalize obsolete environment paths at the provider boundary.**
   Reject colon and mixed-delimiter forms of known obsolete product sections;
   retain section boundaries so unrelated names such as SqlServerless remain valid.
   Use safe known-prefix diagnostics and isolated child-process regressions.
+  Evidence: [R2a review and gates](audit.md#r2a--provider-equivalent-environment-path-rejection).
 - [ ] **R6 — Verify Native AOT honestly and perform independent final audit.**
   Investigate hidden third-party AOT diagnostics without adding suppressions;
   run final build/tests/publish, retain unresolved compatibility findings openly,

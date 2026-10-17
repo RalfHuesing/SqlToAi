@@ -15,7 +15,7 @@ Selected connection fields, database access lists, metadata queries, token delim
 
 Database targets are selected by qualified tool arguments (`<alias>/<database>`). SQL connections require encryption and validate the server certificate by default. Existing settings that omit the trust options validate certificates; startup does not rewrite or migrate settings. For a deliberate local/self-signed development exception, set the server's `TrustServerCertificate` to `true`. This skips validation of the presented server certificate while encryption remains required. Set it only for the intended endpoint, then restart the server. For example, the primary server option can be set with `$env:SqlToAi__Servers__primary__TrustServerCertificate = 'true'`; dedicated secondary endpoints use `SqlToAi__Servers__<alias>__MetadataProvider__TrustServerCertificate` or `SqlToAi__Servers__<alias>__AnonymizationRules__TrustServerCertificate`. See [security limits](security.md#boundaries-and-data-exposure).
 
-Obsolete top-level sections (`SqlServer`, `MetadataProvider`, `AnonymizationRules`) and obsolete environment variables (`SqlToAi__SqlServer*`) are strictly rejected during configuration loading with exit code `1` and actionable stderr guidance.
+Obsolete top-level sections (`SqlServer`, `MetadataProvider`, `AnonymizationRules`) are strictly rejected. Environment-variable paths under `SqlToAi` are normalized from double underscores or colons and rejected only when they name one of those exact legacy sections or a descendant, with exit code `1` and actionable stderr guidance.
 
 Each JSON source is inspected before merging, using the configuration provider's
 colon-delimited paths, including flattened JSON keys. Every effective `SqlToAi` and
