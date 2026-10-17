@@ -54,7 +54,7 @@ public sealed class LogRetentionService
         if (!_options.McpTrail.Enabled) return;
         if (_options.McpTrail.RetainedDays <= 0) return;
 
-        // The resolver makes the legacy trail absolute under the selected log root.
+        // The resolver makes the trail directory absolute under the selected log root.
         // Unresolved standalone options retain the same log-root-relative convention.
         string trailRoot = Path.GetFullPath(_options.McpTrail.Directory, _options.GetAbsoluteRoot());
         if (!Directory.Exists(trailRoot)) return;

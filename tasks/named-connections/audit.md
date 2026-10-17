@@ -127,7 +127,7 @@ Verdict: all concept requirements and acceptance criteria are completely satisfi
 - **Must 7 (Scoped Exclusions):** Local database exclusions match raw DB glob patterns scoped strictly to the owning server alias, taking precedence over grants and safety guards.
 - **Must 8 (Scoped Supporting Providers):** MetadataProvider and AnonymizationRules are configured per server. Server-less providers inherit the primary endpoint, auth, TLS, and timeout with explicit or target database fallback; dedicated providers require their own raw database and never fall back to primary.
 - **Must 9 (Partitioned Rule Caches):** Anonymization rule caches are strictly partitioned by `(PolicyOwner, Endpoint, SourceDatabase, RulesTable)`. Fallback target database rules are never reused across different databases.
-- **Must 10 (Scoped Token Vault & Resolution):** Token issuance, storage, and resolution are scoped by `DatabaseTargetContext` with 64-bit global collision avoidance. Identical plaintext on different targets yields non-interchangeable tokens. Foreign tokens stay literal SQL text.
+- **Must 10 (Scoped Token Vault & Resolution):** Token issuance, storage, and resolution are scoped by `DatabaseTargetContext` with 64-bit global collision avoidance. Identical plaintext on different targets yields non-interchangeable tokens. Foreign tokens stay literal SQL text. Complete hard cut achieved: all unscoped methods and transitional `_legacyScope` state on `ITokenVault`, `TokenVault`, `IAnonymizer`, `Anonymizer`, `IQueryTokenResolver`, and `QueryTokenResolver` were completely deleted. Production code (`src/`), unit tests (`tests/`), and documentation (`docs/`) contain zero legacy methods, fallback artifacts, or transitional legacy comments (`rg -i legacy` returns zero hits across `src/`, `tests/`, and `docs/`).
 - **Must 11 (Limits, Formats & Operational Documentation):** Global row and command limits remain unchanged. Main and demo settings files, README, SETUP, and documentation across `docs/` have been updated to the qualified multi-server schema with manual hard-cut migration instructions.
 
 ## Verification gates passed
@@ -136,5 +136,6 @@ Verdict: all concept requirements and acceptance criteria are completely satisfi
 - `dotnet test SqlToAi.slnx`: 1,486 passed, 0 failed, 19 skipped (external TLS endpoints without live test server).
 - `dotnet publish src/SqlToAi/SqlToAi.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=true -o temp/aot`: Clean Native AOT publish with 0 warnings and 0 errors.
 - `ComposedTargetIsolationTests`: 12/12 passed (multi-target concurrency, same physical endpoint under distinct aliases, unusual raw database names, server discovery, and MCP SDK bindings).
+- `git grep -i legacy src/ tests/ docs/`: 0 hits across all source, test, and documentation files.
 - Clean working directory, all changes committed.
 

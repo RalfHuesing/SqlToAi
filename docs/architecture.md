@@ -8,7 +8,7 @@ SqlToAi is a .NET 10 / C# 14 process hosting MCP over stdio, with a CLI that dis
 
 `ToolRegistry` defines SQL tool names, schemas and descriptions. `SqlMcpToolRegistrations` creates SDK registrations; `ToolDispatcher` invokes application services and formats MCP results. The CLI builds its commands from the registry.
 
-The selected user root follows configuration through direct options, DI post-configuration, logging and retention. Relative metadata and logging paths resolve there once per options instance; DI binds its own instance against the same root. Default application and error logs reside under `%LOCALAPPDATA%\SqlToAi\log\`. Explicit absolute paths remain supported; relative SQL input and legacy CLI schema-export output still use CWD; MCP export requires a fully qualified Windows path. Root and logging failures have direct stderr diagnostics independent of file sinks. See [path and logging details](configuration.md#logs).
+The selected user root follows configuration through direct options, DI post-configuration, logging and retention. Relative metadata and logging paths resolve there once per options instance; DI binds its own instance against the same root. Default application and error logs reside under `%LOCALAPPDATA%\SqlToAi\log\`. Explicit absolute paths remain supported; relative SQL input and CLI schema-export output still use CWD; MCP export requires a fully qualified Windows path. Root and logging failures have direct stderr diagnostics independent of file sinks. See [path and logging details](configuration.md#logs).
 
 [SqlToAi.Exploration](exploration.md) reuses the executable's configuration and service-provider factories to invoke `IToolDispatcher` directly. It retains all inputs, content blocks and failures for manual inspection without starting MCP transport; scenarios do not run as automated tests.
 
@@ -25,7 +25,7 @@ qualified global grants, server-local raw-name exclusions and default deny.
 login's default database for discovery. `PrimaryConnection.OpenTargetAsync` and
 `OpenCatalogAsync` retain safe diagnostics identifying `SqlToAi:Servers:<alias>`.
 All tools, CLI commands, and internal services operate exclusively on qualified targets;
-legacy single-server contracts and fallback behaviors have been completely removed.
+obsolete single-server contracts and fallback behaviors have been completely removed.
 
 ## Source map
 
@@ -56,7 +56,7 @@ The internal [SchemaObjectSelection](../src/SqlToAi/Database/SchemaObjectSelecti
 existing `sql_get_schema` tool. Registry and SDK registration share the primary
 schema description and nullable selection schema. The SDK binds selections as
 nullable JSON elements, preserving argument shapes for service validation. The
-dispatcher selects the legacy scalar Markdown path for absent/null `object_names`
+dispatcher selects the scalar Markdown path for absent/null `object_names`
 and batch composition for supplied arrays, mapping `Complete` to MCP `isError`.
 The generated CLI parses one JSON array/null token for `--object_names`.
 The service validates normalized input count and identifying omission metadata
@@ -115,7 +115,7 @@ reporting completion. Failed/cancelled outcomes inspect retained files and child
 directories, including incomplete files, to determine partial output; an empty
 root alone is false. Completed outcomes set partial output to false. If an
 inspection fails, previously observed creation is retained as evidence. Output
-is never removed automatically. The legacy CLI adapter preserves its full-export
+is never removed automatically. The CLI export adapter preserves its full-export
 result and cancellation behavior and accepts paths relative to CWD.
 
 [SchemaExportPaths](../src/SqlToAi/Cli/SchemaExportPaths.cs) supplies one deterministic Windows-safe path mapping for filenames and every relative link, retaining original SQL names in headings. It checks all planned object paths for case-insensitive collisions before writes. The output must be absent or empty. Files use exclusive creation; the first failed service result or filesystem write stops export with a nonzero CLI exit code. Partial output remains, so retries need a new or manually emptied directory. Successful unavailable-definition notes permit exit zero. Unused kind directories are omitted. See [CLI export details](development.md#schema-export) for invocation, included sections and provider exclusions.

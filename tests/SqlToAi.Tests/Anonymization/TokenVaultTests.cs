@@ -1,15 +1,18 @@
 using SqlToAi.Anonymization;
+using SqlToAi.Domain;
 
 namespace SqlToAi.Tests.Anonymization;
 
 public sealed class TokenVaultTests
 {
+    private static readonly DatabaseTargetContext Target = new("test", "DemoDB");
+
     [Fact]
     public void TryResolve_ShouldReturnFalse_ForUnknownToken()
     {
         var vault = new TokenVault();
 
-        bool resolved = vault.TryResolve("§§§unknown§§§", out string? value);
+        bool resolved = vault.TryResolve("§§§unknown§§§", Target, out string? value);
 
         Assert.False(resolved);
         Assert.Null(value);
@@ -19,9 +22,9 @@ public sealed class TokenVaultTests
     public void TryResolve_ShouldReturnStoredValue_AfterStore()
     {
         var vault = new TokenVault();
-        vault.Store("§§§abc§§§", "DE89370400440532013000");
+        vault.Store("§§§abc§§§", "DE89370400440532013000", Target);
 
-        bool resolved = vault.TryResolve("§§§abc§§§", out string? value);
+        bool resolved = vault.TryResolve("§§§abc§§§", Target, out string? value);
 
         Assert.True(resolved);
         Assert.Equal("DE89370400440532013000", value);
@@ -31,10 +34,10 @@ public sealed class TokenVaultTests
     public void Store_ShouldOverwrite_WhenCalledAgainWithSameToken()
     {
         var vault = new TokenVault();
-        vault.Store("§§§abc§§§", "First");
-        vault.Store("§§§abc§§§", "Second");
+        vault.Store("§§§abc§§§", "First", Target);
+        vault.Store("§§§abc§§§", "Second", Target);
 
-        vault.TryResolve("§§§abc§§§", out string? value);
+        vault.TryResolve("§§§abc§§§", Target, out string? value);
 
         Assert.Equal("Second", value);
     }
@@ -43,8 +46,8 @@ public sealed class TokenVaultTests
     public void TryResolve_ShouldBeCaseSensitive()
     {
         var vault = new TokenVault();
-        vault.Store("§§§AbC§§§", "Value");
+        vault.Store("§§§AbC§§§", "Value", Target);
 
-        Assert.False(vault.TryResolve("§§§abc§§§", out _));
+        Assert.False(vault.TryResolve("§§§abc§§§", Target, out _));
     }
 }

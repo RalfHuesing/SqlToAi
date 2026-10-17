@@ -155,7 +155,7 @@ public sealed class OfflineSqlNameTests
 
     [Theory]
     [MemberData(nameof(Names))]
-    public async Task PrimaryAndTriggerRendering_KeepFullLegacyOutputAndUnavailableNotes(string name, string textName, string codeName)
+    public async Task PrimaryAndTriggerRendering_KeepFullOutputAndUnavailableNotes(string name, string textName, string codeName)
     {
         var identity = new SchemaObjectIdentity(501, "sales", name, SchemaObjectKind.Table);
         var trigger = new SchemaObject(new SchemaObjectIdentity(301, "sales", name, SchemaObjectKind.Trigger), identity);
@@ -179,10 +179,10 @@ public sealed class OfflineSqlNameTests
         Assert.StartsWith($"# Trigger Definition: {codeName} (on table {codeName})", (await service.GetExportTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, trigger, Token)).Value);
         Assert.Equal(triggerExpected, (await service.GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, name, Token)).Value);
         fixture.Definition = null;
-        string legacyNote = $"*Definition for trigger '{name}' not available.* {DetailSchemaRenderer.DdlUnavailableNote}";
-        Assert.Equal(legacyNote, (await service.GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, name, Token)).Value);
+        string unavailableNote = $"*Definition for trigger '{name}' not available.* {DetailSchemaRenderer.DdlUnavailableNote}";
+        Assert.Equal(unavailableNote, (await service.GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, name, Token)).Value);
         Assert.Equal($"*Definition for trigger {codeName} not available.* {DetailSchemaRenderer.DdlUnavailableNote}", (await service.GetExportTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, trigger, Token)).Value);
-        Assert.Equal(legacyNote, (await service.GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, name, Token)).Value);
+        Assert.Equal(unavailableNote, (await service.GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, name, Token)).Value);
         // Missing local targets use the same literal label formatting as navigation links.
         Assert.Equal(textName, context.TriggerLink(999, name));
         Assert.Equal(textName, context.ObjectLink("missing", name, name));

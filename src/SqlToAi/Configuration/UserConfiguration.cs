@@ -107,7 +107,7 @@ internal sealed class UserConfiguration : IDisposable
                     key.StartsWith("SqlToAi__AnonymizationRules", StringComparison.OrdinalIgnoreCase))
                 {
                     throw new ConfigurationStartupException(
-                        $"Obsolete configuration environment variable '{key}' detected. Legacy single-server settings ('SqlServer', 'MetadataProvider', 'AnonymizationRules') have been removed in favor of 'SqlToAi.Servers.<alias>'. " +
+                        $"Obsolete configuration environment variable '{key}' detected. Obsolete single-server settings ('SqlServer', 'MetadataProvider', 'AnonymizationRules') have been removed in favor of 'SqlToAi.Servers.<alias>'. " +
                         $"Settings file: '{settingsPath}'. Correct this manually using the supplied appsettings.json template, then restart.");
                 }
             }
@@ -134,7 +134,7 @@ internal sealed class UserConfiguration : IDisposable
             if (IsObsoleteSection(prop.Name))
             {
                 throw new ConfigurationStartupException(
-                    $"Obsolete configuration section '{prop.Name}' detected in '{filePath}'. Legacy single-server settings ('SqlServer', 'MetadataProvider', 'AnonymizationRules') have been removed in favor of 'SqlToAi.Servers.<alias>'. " +
+                    $"Obsolete configuration section '{prop.Name}' detected in '{filePath}'. Obsolete single-server settings ('SqlServer', 'MetadataProvider', 'AnonymizationRules') have been removed in favor of 'SqlToAi.Servers.<alias>'. " +
                     $"Settings file: '{settingsPath}'. Correct this manually using the supplied appsettings.json template, then restart.");
             }
         }
@@ -148,7 +148,7 @@ internal sealed class UserConfiguration : IDisposable
                 if (IsObsoleteSection(prop.Name))
                 {
                     throw new ConfigurationStartupException(
-                        $"Obsolete configuration section 'SqlToAi.{prop.Name}' detected in '{filePath}'. Legacy single-server settings ('SqlServer', 'MetadataProvider', 'AnonymizationRules') have been removed in favor of 'SqlToAi.Servers.<alias>'. " +
+                        $"Obsolete configuration section 'SqlToAi.{prop.Name}' detected in '{filePath}'. Obsolete single-server settings ('SqlServer', 'MetadataProvider', 'AnonymizationRules') have been removed in favor of 'SqlToAi.Servers.<alias>'. " +
                         $"Settings file: '{settingsPath}'. Correct this manually using the supplied appsettings.json template, then restart.");
                 }
             }

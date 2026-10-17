@@ -204,7 +204,7 @@ public sealed class SchemaServiceBatchTests
     }
 
     [Fact]
-    public async Task Batch_CustomMetadataMatchesLegacyUnquotedScalarForOrdinaryNames()
+    public async Task Batch_CustomMetadataMatchesScalarForOrdinaryNames()
     {
         var factory = new SchemaBatchTestFactory();
         factory.Options.Servers[TestTargets.ServerAlias].MetadataProvider.TableMetadataQuery = "CUSTOM_TABLE_DESCRIPTION";

@@ -10,12 +10,6 @@ namespace SqlToAi.Database;
 public interface IQueryTokenResolver
 {
     /// <summary>
-    /// Returns <paramref name="query"/> with every recognized, resolvable token inside a string
-    /// literal replaced by its real value. Tokens the vault does not recognize are left untouched.
-    /// </summary>
-    string ResolveTokens(string query);
-
-    /// <summary>
     /// Returns <paramref name="query"/> with every token resolvable within
     /// <paramref name="target"/>'s scope replaced by its real value. Tokens issued or stored for
     /// another target — and unrecognized tokens — stay literal SQL text.

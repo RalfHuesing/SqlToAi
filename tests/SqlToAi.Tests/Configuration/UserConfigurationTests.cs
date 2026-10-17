@@ -11,7 +11,7 @@ public sealed class UserConfigurationTests
 
     public static TheoryData<string, string> MissingFileCases => new(
         from entry in new[] { "default", "server", "query", "export", "exploration" }
-        from setup in new[] { "empty", "environment", "environment-json", "legacy" }
+        from setup in new[] { "empty", "environment", "environment-json", "installation-template" }
         select (entry, setup));
 
     [Fact]
@@ -32,9 +32,9 @@ public sealed class UserConfigurationTests
         Dictionary<string, string?> environment = [];
         if (setup == "environment") environment["SqlToAi__Servers__primary__Server"] = "environment-only";
         if (setup == "environment-json") temp.CreateFile("user-root/appsettings.StartupTest.json", "{}");
-        string legacyPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-        Assert.True(File.Exists(legacyPath)); // Build output contains the executable-adjacent legacy template.
-        byte[] legacyBytes = await File.ReadAllBytesAsync(legacyPath, TestContext.Current.CancellationToken);
+        string templatePath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        Assert.True(File.Exists(templatePath)); // Build output contains the executable-adjacent template.
+        byte[] templateBytes = await File.ReadAllBytesAsync(templatePath, TestContext.Current.CancellationToken);
 
         var result = await RunAsync(temp, root, entry, environment);
 
@@ -43,7 +43,7 @@ public sealed class UserConfigurationTests
         Assert.False(File.Exists(Path.Combine(root, "appsettings.json")));
         Assert.False(Directory.Exists(temp.GetPath("exports")));
         Assert.False(Directory.Exists(temp.GetPath("temp/exploration")));
-        Assert.Equal(legacyBytes, await File.ReadAllBytesAsync(legacyPath, TestContext.Current.CancellationToken));
+        Assert.Equal(templateBytes, await File.ReadAllBytesAsync(templatePath, TestContext.Current.CancellationToken));
         Assert.Empty(Directory.EnumerateFiles(temp.DirectoryPath, "*.bak", SearchOption.AllDirectories));
         Assert.Empty(Directory.EnumerateFiles(temp.DirectoryPath, "*.log", SearchOption.AllDirectories));
         if (setup != "environment-json") Assert.False(Directory.Exists(root));
@@ -283,7 +283,7 @@ public sealed class UserConfigurationTests
 
         Dictionary<string, string?> environment = new()
         {
-            [envKey] = "legacy-val"
+            [envKey] = "obsolete-val"
         };
 
         var result = await RunAsync(temp, root, "query-help", environment);

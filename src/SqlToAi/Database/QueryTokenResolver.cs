@@ -35,10 +35,6 @@ public sealed class QueryTokenResolver : IQueryTokenResolver
         _tokenPattern = _options.IsUsable ? BuildTokenPattern(_options) : null;
     }
 
-    /// <inheritdoc/>
-    public string ResolveTokens(string query) =>
-        ResolveTokensCore(query, token =>
-            _vault.TryResolve(token, out string? realValue) ? realValue : null);
 
     /// <inheritdoc/>
     public string ResolveTokens(string query, Domain.DatabaseTargetContext target)

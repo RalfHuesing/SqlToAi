@@ -26,10 +26,8 @@ internal sealed record SecondaryConnectionSettings(
 internal sealed record ProviderSourceResolution(string Endpoint, string SourceDatabase, bool IsDedicated);
 
 /// <summary>
-/// Builds ADO.NET connections for cross-cutting secondary databases. The legacy
-/// <see cref="Create"/> falls back to the standard <see cref="IDatabaseConnectionFactory"/> (the
-/// customer connection) when no dedicated server is configured for the secondary database.
-/// The context-aware <see cref="CreateForOwner"/> resolves the effective source per policy owner
+/// Builds ADO.NET connections for cross-cutting secondary databases.
+/// <see cref="CreateForOwner"/> resolves the effective source per policy owner
 /// and target: without a dedicated secondary server, the owner's primary endpoint, authentication,
 /// TLS and connect timeout are used; a dedicated secondary server always uses its own explicit raw
 /// database, authentication and TLS settings and never falls back to the primary endpoint.

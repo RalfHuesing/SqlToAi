@@ -22,16 +22,9 @@ namespace SqlToAi.Anonymization;
 /// </summary>
 public sealed class TokenVault : ITokenVault
 {
-    // Legacy, unscoped state kept until all consumers are migrated (M2.3/M4.1 remove it). It owns
-    // an isolated scope identity in the shared registry, so legacy and scoped tokens never collide.
-    private readonly ScopeState _legacyScope = new();
     private readonly ConcurrentDictionary<DatabaseTargetContext, ScopeState> _scopes = new();
     private readonly ConcurrentDictionary<string, ScopeState> _tokenOwners = new(StringComparer.Ordinal);
     private long _counter;
-
-    /// <inheritdoc/>
-    public string GetOrAddToken(string value, string prefix, string suffix) =>
-        GetOrAddToken(value, prefix, suffix, _legacyScope);
 
     /// <inheritdoc/>
     public string GetOrAddToken(string value, string prefix, string suffix, DatabaseTargetContext target)
@@ -41,18 +34,11 @@ public sealed class TokenVault : ITokenVault
     }
 
     /// <inheritdoc/>
-    public void Store(string token, string value) => Store(token, value, _legacyScope);
-
-    /// <inheritdoc/>
     public void Store(string token, string value, DatabaseTargetContext target)
     {
         ArgumentNullException.ThrowIfNull(target);
         Store(token, value, GetScope(target));
     }
-
-    /// <inheritdoc/>
-    public bool TryResolve(string token, [NotNullWhen(true)] out string? value) =>
-        _legacyScope.TokenToValue.TryGetValue(token, out value);
 
     /// <inheritdoc/>
     public bool TryResolve(string token, DatabaseTargetContext target, [NotNullWhen(true)] out string? value)

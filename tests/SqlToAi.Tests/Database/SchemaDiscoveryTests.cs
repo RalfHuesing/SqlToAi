@@ -185,7 +185,7 @@ public sealed class SchemaDiscoveryTests
     }
 
     [Fact]
-    public async Task TriggerCalls_KeepLegacyResolutionAndExportIdentitiesIsolatedWhenInterleaved()
+    public async Task TriggerCalls_KeepScalarResolutionAndExportIdentitiesIsolatedWhenInterleaved()
     {
         var salesTrigger = new SchemaObject(new SchemaObjectIdentity(301, "sales", "Changed", SchemaObjectKind.Trigger),
             new SchemaObjectIdentity(1, "sales", "Orders", SchemaObjectKind.Table));
@@ -255,7 +255,7 @@ public sealed class SchemaDiscoveryTests
     [InlineData("CREATE TRIGGER dbo.Audit ON dbo.Customers AFTER INSERT AS SELECT 1;", "# Trigger Definition: `Audit` (on table `sales.Customers`)\n\n```sql\nCREATE TRIGGER dbo.Audit ON dbo.Customers AFTER INSERT AS SELECT 1;\n```")]
     [InlineData(null, "*Definition for trigger 'Audit' not available.* *Definition not available — either the object is encrypted, or the configured login lacks VIEW DEFINITION permission on it.*")]
     [InlineData("  ", "*Definition for trigger 'Audit' not available.* *Definition not available — either the object is encrypted, or the configured login lacks VIEW DEFINITION permission on it.*")]
-    public async Task LegacyTrigger_PreservesCompleteDefinitionAndUnavailableNotes(string? definition, string expected)
+    public async Task GetTriggerDefinition_PreservesCompleteDefinitionAndUnavailableNotes(string? definition, string expected)
     {
         var factory = new ReaderConnectionFactory(command =>
         {
@@ -266,8 +266,7 @@ public sealed class SchemaDiscoveryTests
                 return new FakeDbDataReader(["name"], [["Audit"]]);
             }
 
-            // Preserve the legacy mismatch: even after validating sales.Audit, resolution
-            // uses the simple name and can return dbo.Audit's definition.
+            // Even after validating sales.Audit, resolution uses the simple name and can return dbo.Audit's definition.
             Assert.Equal("SELECT definition FROM sys.sql_modules WHERE object_id = OBJECT_ID(@TriggerName)", command.CommandText);
             return new FakeDbDataReader(["definition"], [[definition]]);
         });
@@ -277,7 +276,7 @@ public sealed class SchemaDiscoveryTests
     }
 
     [Fact]
-    public async Task LegacyTrigger_PreservesNotFoundFailure()
+    public async Task GetTriggerDefinition_PreservesNotFoundFailure()
     {
         var factory = new ReaderConnectionFactory(_ => new FakeDbDataReader(["name"], []));
         var result = await BuildService(factory).GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", "missing", TestContext.Current.CancellationToken);
@@ -286,7 +285,7 @@ public sealed class SchemaDiscoveryTests
     }
 
     [Fact]
-    public async Task LegacyTrigger_PreservesQueryFailure()
+    public async Task GetTriggerDefinition_PreservesQueryFailure()
     {
         var factory = new ReaderConnectionFactory(_ => throw new InvalidOperationException("fixed trigger failure"));
         var result = await BuildService(factory).GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", "Audit", TestContext.Current.CancellationToken);
@@ -294,7 +293,7 @@ public sealed class SchemaDiscoveryTests
     }
 
     [Fact]
-    public async Task LegacyOperations_PreserveDeniedAccessFailures()
+    public async Task DiscoveryOperations_PreserveDeniedAccessFailures()
     {
         var factory = new ReaderConnectionFactory(_ => throw new InvalidOperationException("Must not query"));
         var service = BuildService(factory, allowed: false);

@@ -60,33 +60,9 @@ public interface IAnonymizer
     /// Produces a deterministic, reversible token instead of the regular scramble/hash mask: the
     /// same value always yields the same token, and the server remembers the token-to-value mapping
     /// so a later query can reuse the token to find matching rows without the AI ever learning the
-    /// real value. Respects the exact same exclusion rules as <see cref="Anonymize(string, string)"/>
-    /// (master switch, central <see cref="IAnonymizationRuleProvider"/> rules) — this only changes
-    /// *how* an already-anonymized value is anonymized, never *whether* it is. Falls back to the
-    /// regular masking algorithm when
-    /// tokenization is not configured to be usable (see <c>TokenizationOptions.IsUsable</c>). No
-    /// schema context is available here, so <paramref name="columnName"/> doubles as its own origin
-    /// — this overload was always alias-only and stays that way for backward compatibility.
-    /// </summary>
-    /// <param name="columnName">The name of the column containing the value.</param>
-    /// <param name="originalValue">The original raw value.</param>
-    /// <returns>A token that can be resolved back to <paramref name="originalValue"/>, or the value unchanged if excluded or empty.</returns>
-    string Tokenize(string columnName, string originalValue);
-
-    /// <summary>
-    /// Produces a deterministic, reversible token using the resolved table/origin-column/exclusion
-    /// context — see <see cref="Tokenize(string, string)"/> and <see cref="Anonymize(string, AnonymizationColumnContext)"/>.
-    /// </summary>
-    /// <param name="originalValue">The original raw value.</param>
-    /// <param name="context">The resolved table/origin-column/exclusion context.</param>
-    /// <returns>A token that can be resolved back to <paramref name="originalValue"/>, or the value unchanged if excluded or empty.</returns>
-    string Tokenize(string originalValue, AnonymizationColumnContext context);
-
-    /// <summary>
-    /// Tokenizes within the scope of the given canonical target (see
+    /// real value. Token state is strictly scoped to the given canonical target (see
     /// <see cref="DatabaseTargetContext"/>): tokens issued for one target never resolve in another,
-    /// so identical plaintext in different targets yields non-interchangeable tokens. Exclusion and
-    /// fallback behavior matches <see cref="Tokenize(string, AnonymizationColumnContext)"/>.
+    /// so identical plaintext in different targets yields non-interchangeable tokens.
     /// </summary>
     /// <param name="originalValue">The original raw value.</param>
     /// <param name="context">The resolved table/origin-column/exclusion context.</param>

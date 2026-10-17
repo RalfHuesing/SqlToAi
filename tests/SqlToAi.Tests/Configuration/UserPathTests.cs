@@ -218,14 +218,14 @@ public sealed class UserPathTests
     }
 
     [Fact]
-    public async Task ReadOnlyInstallation_UsesWritableUserRootAndLeavesLegacyFilesUntouched()
+    public async Task ReadOnlyInstallation_UsesWritableUserRootAndLeavesInstallationFilesUntouched()
     {
         using var temp = TestTempDirectory.Create();
         string root = temp.CreateSubdirectory("user");
         string install = temp.CreateSubdirectory("installation");
         foreach (string file in Directory.EnumerateFiles(AppContext.BaseDirectory))
             File.Copy(file, Path.Combine(install, Path.GetFileName(file)));
-        string legacy = temp.CreateFile("installation/appsettings.json", "deliberately invalid legacy settings");
+        string installSettings = temp.CreateFile("installation/appsettings.json", "deliberately invalid template settings");
         temp.CreateFile("user/appsettings.json", MinimalSettings);
         using (DenyWrites(install))
         {
@@ -237,7 +237,7 @@ public sealed class UserPathTests
             var logResult = await UserConfigurationTests.RunAsync(temp, root, "log-probe", DefaultPaths, install);
             Assert.Equal(0, logResult.ExitCode);
         }
-        Assert.Equal("deliberately invalid legacy settings", await File.ReadAllTextAsync(legacy, TestContext.Current.CancellationToken));
+        Assert.Equal("deliberately invalid template settings", await File.ReadAllTextAsync(installSettings, TestContext.Current.CancellationToken));
         Assert.NotEmpty(Directory.GetFiles(temp.GetPath("user/log"), "*.log", SearchOption.AllDirectories));
     }
 
@@ -250,41 +250,41 @@ public sealed class UserPathTests
         string settings = temp.CreateFile("user/appsettings.json",
             """{ "SqlToAi": { "Servers": { "test": { "Server": "manual-user-server" } } }, "UnknownUserKey": [1, 2] }""");
         string existingLog = temp.CreateFile("user/log/app/existing.log", "existing diagnostic bytes\r\n");
-        string legacyLog = temp.CreateFile("installation/log/legacy.log", "legacy bytes\r\n");
+        string installLog = temp.CreateFile("installation/log/install.log", "installation log bytes\r\n");
         byte[] settingsBefore = await File.ReadAllBytesAsync(settings, TestContext.Current.CancellationToken);
         byte[] logBefore = await File.ReadAllBytesAsync(existingLog, TestContext.Current.CancellationToken);
         for (int replacement = 0; replacement < 2; replacement++)
         {
             foreach (string file in Directory.EnumerateFiles(AppContext.BaseDirectory))
                 File.Copy(file, Path.Combine(install, Path.GetFileName(file)), overwrite: true);
-            string legacy = temp.CreateFile("installation/appsettings.json", "invalid legacy template");
+            string installSettings = temp.CreateFile("installation/appsettings.json", "invalid installation template");
             var result = await UserConfigurationTests.RunAsync(temp, root, "query-help", DefaultPaths, install);
             Assert.Equal(0, result.ExitCode);
             Assert.Contains("sql_list_databases", result.Output, StringComparison.Ordinal);
             Assert.Empty(result.Error);
             Assert.Equal(settingsBefore, await File.ReadAllBytesAsync(settings, TestContext.Current.CancellationToken));
             Assert.Equal(logBefore, await File.ReadAllBytesAsync(existingLog, TestContext.Current.CancellationToken));
-            Assert.Equal("invalid legacy template", await File.ReadAllTextAsync(legacy, TestContext.Current.CancellationToken));
-            Assert.Equal("legacy bytes\r\n", await File.ReadAllTextAsync(legacyLog, TestContext.Current.CancellationToken));
+            Assert.Equal("invalid installation template", await File.ReadAllTextAsync(installSettings, TestContext.Current.CancellationToken));
+            Assert.Equal("installation log bytes\r\n", await File.ReadAllTextAsync(installLog, TestContext.Current.CancellationToken));
             Assert.Empty(Directory.GetFiles(temp.DirectoryPath, "*.bak", SearchOption.AllDirectories));
             Assert.Empty(Directory.GetFiles(temp.DirectoryPath, "*backup*", SearchOption.AllDirectories));
         }
     }
 
     [Fact]
-    public void Retention_UsesResolvedUserLogRootAndPreservesLegacyDirectories()
+    public void Retention_UsesResolvedUserLogRootAndPreservesInstallationDirectories()
     {
         using var temp = TestTempDirectory.Create();
         string oldDay = DateTime.UtcNow.AddDays(-100).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         string current = temp.CreateSubdirectory($"user/custom/mcp/{oldDay}");
-        string legacy = temp.CreateFile($"installation/log/mcp/{oldDay}/old.jsonl", "legacy");
+        string installOldLog = temp.CreateFile($"installation/log/mcp/{oldDay}/old.jsonl", "install-log");
         var options = new SqlToAiOptions();
         options.Logging.Directory = "custom";
         options.Logging.McpTrail.Enabled = true;
         ConfigurationResolver.Resolve(options, temp.GetPath("user"));
         new LogRetentionService(options.Logging, NullLogger<LogRetentionService>.Instance).Run();
         Assert.False(Directory.Exists(current));
-        Assert.Equal("legacy", File.ReadAllText(legacy));
+        Assert.Equal("install-log", File.ReadAllText(installOldLog));
         Assert.Equal(temp.GetPath("user/custom/mcp"), options.Logging.McpTrail.Directory);
     }
 

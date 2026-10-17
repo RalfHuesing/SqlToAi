@@ -40,22 +40,7 @@ public sealed class PrimaryConnectionFailureTests
         Assert.True(result.IsError);
         string text = string.Join("\n", result.Content.Select(content => content.Text));
         Assert.Contains(SqlToAiError.InfrastructureErrorCode, text);
-        // Migrated target-aware tools identify the owning named-server settings path;
-        // not-yet-migrated tools keep the legacy SqlServer section name.
-        string expectedSettingsPath = tool is McpConstants.ToolExecuteQuery
-            or McpConstants.ToolValidateQuery
-            or McpConstants.ToolSearchObjects
-            or McpConstants.ToolGetSchema
-            or McpConstants.ToolGetSchemaForeignKeys
-            or McpConstants.ToolCompareQueries
-            or McpConstants.ToolMeasurePerformance
-            or McpConstants.ToolBenchmarkOptimization
-            or McpConstants.ToolSuggestIndexes
-            or McpConstants.ToolListDatabases
-            or McpConstants.ToolSearchDatabases
-            ? "SqlToAi:Servers"
-            : "SqlServer";
-        Assert.Contains(expectedSettingsPath, text);
+        Assert.Contains("SqlToAi:Servers", text);
         Assert.Contains("TLS/certificate", text);
         AssertSafe(text, harness);
     }
@@ -171,9 +156,7 @@ public sealed class PrimaryConnectionFailureTests
         {
             Assert.DoesNotContain("marker", message);
             Assert.NotNull(exception);
-            // "SqlServer" covers both the legacy section name and the "SqlToAi:Servers:<alias>"
-            // settings path used by migrated target-aware callers.
-            Assert.Contains("Server", exception.Message);
+            Assert.Contains("SqlToAi:Servers", exception.Message);
             Assert.DoesNotContain("marker", exception.ToString());
             Assert.Null(exception.InnerException);
         }

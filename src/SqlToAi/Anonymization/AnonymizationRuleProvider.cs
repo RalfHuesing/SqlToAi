@@ -21,9 +21,9 @@ namespace SqlToAi.Anonymization;
 public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
 {
     /// <summary>
-    /// Cache identity for one rule load. <see cref="PolicyOwner"/> is the canonical server alias
-    /// (empty for the legacy single-server path), so aliases remain distinct owners even when they
-    /// point at the same endpoint. <see cref="Endpoint"/> and <see cref="SourceDatabase"/> capture
+    /// Cache identity for one rule load. <see cref="PolicyOwner"/> is the canonical server alias,
+    /// so aliases remain distinct owners even when they point at the same endpoint.
+    /// <see cref="Endpoint"/> and <see cref="SourceDatabase"/> capture
     /// the effective source including per-target fallback databases, and <see cref="RulesTable"/>
     /// the configured rule table name.
     /// </summary>

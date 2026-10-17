@@ -139,8 +139,8 @@ public sealed class AnonymizationRulesOptions : IProviderConnectionOptions
     public bool Enabled { get; set; }
 
     /// <summary>
-    /// SQL Server instance hosting the rule table. When empty, falls back to the standard
-    /// <see cref="SqlServerOptions.Server"/> connection.
+    /// SQL Server instance hosting the rule table. When empty, falls back to the owner's primary
+    /// <see cref="NamedServerOptions.Server"/> connection.
     /// </summary>
     public string Server { get; set; } = string.Empty;
 

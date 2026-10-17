@@ -51,27 +51,6 @@ public sealed class Anonymizer : IAnonymizer
     }
 
     /// <inheritdoc/>
-    public string Tokenize(string columnName, string originalValue) =>
-        Tokenize(originalValue, new AnonymizationColumnContext(null, columnName, null));
-
-    /// <inheritdoc/>
-    public string Tokenize(string originalValue, AnonymizationColumnContext context)
-    {
-        if (string.IsNullOrEmpty(originalValue) || IsColumnExcluded(context))
-        {
-            return originalValue;
-        }
-
-        var tokenization = _options.Anonymizer.Tokenization;
-        if (!tokenization.IsUsable)
-        {
-            return RunAnonymization(originalValue, _options.Anonymizer.DefaultMode);
-        }
-
-        return _tokenVault.GetOrAddToken(originalValue, tokenization.Prefix, tokenization.Suffix);
-    }
-
-    /// <inheritdoc/>
     public string Tokenize(string originalValue, AnonymizationColumnContext context, DatabaseTargetContext target)
     {
         ArgumentNullException.ThrowIfNull(target);

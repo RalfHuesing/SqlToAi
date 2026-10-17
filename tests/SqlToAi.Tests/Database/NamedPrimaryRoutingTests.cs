@@ -252,7 +252,7 @@ public sealed class NamedPrimaryRoutingTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void MissingNamedSettings_CannotUseLegacyEndpointOrExposeCredentials(bool missingServer)
+    public void MissingNamedSettings_CannotFallBackOrExposeCredentials(bool missingServer)
     {
         var options = CreateOptions();
         if (missingServer) options.Servers["prod"].Server = "";
@@ -262,7 +262,6 @@ public sealed class NamedPrimaryRoutingTests
         var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateTargetConnection(target));
         Assert.Contains("SqlToAi:Servers:prod", exception.Message);
         Assert.DoesNotContain("synthetic-password", exception.ToString());
-        Assert.DoesNotContain("legacy-endpoint", exception.ToString());
     }
 
     [Theory]

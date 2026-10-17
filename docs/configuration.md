@@ -28,7 +28,7 @@ The general local integration-test fixture has a separate, checked-in test-only 
 | `Anonymizer` | `Enabled` (true), `DefaultMode` (`ScramblePattern` or `Hash`), `Tokenization.Enabled` (false), `Tokenization.Prefix` / `Suffix` (both `§§§`) |
 | `QueryExecution` | `DefaultRowLimit` (100), `MaxRowLimit` (1000), `CommandTimeoutSeconds` (30), `MaxScriptFileSizeBytes` (10485760 = 10 MiB) |
 | `SchemaBatch` | `MaxInputCount` (10), `MaxResponseBytes` (65536 UTF-8 bytes); both must be greater than zero |
-| `Logging` | `Directory` (`log`), `AppLog`, `ErrorLog`, legacy `McpTrail` settings; see below |
+| `Logging` | `Directory` (`log`), `AppLog`, `ErrorLog`, `McpTrail` settings; see below |
 
 `QueryExecution.CommandTimeoutSeconds` applies to query and script execution, query validation, query comparison (schema, counts and differences), and performance warmup/measured runs. Their session `SET` and transaction-integrity commands use the same timeout. The value is per command; `0` leaves ordinary commands unlimited. Metadata and anonymization-rule queries retain their separate provider timeout settings.
 
@@ -62,7 +62,7 @@ Create `%LOCALAPPDATA%\SqlToAi\` yourself, copy the supplied conservative templa
 
 If the base file is absent, startup exits with code `1` before services, MCP transport or database work. It writes a direct stderr diagnostic containing the reason, absolute expected settings path, and manual template setup/restart guidance. Stdout contains no diagnostic text. Invalid or unreadable settings also produce a direct stderr diagnostic independently of file logging. Client display of stderr depends on the client.
 
-Startup never creates settings, migrates or rewrites JSON, imports legacy files, or generates configuration backups. Existing values and unknown keys remain unchanged. Executable-adjacent files are left untouched and are never a fallback. Manually create, relocate and adapt your settings at the user path. Compare future templates and apply configuration changes manually after binary updates; there is no migration command. Upgrades to named servers require manually updating legacy `SqlServer`, `MetadataProvider`, `AnonymizationRules`, and database grants to the new `Servers.<alias>` schema and qualified grants (`<alias>/<database>`); obsolete top-level sections or variables trigger a fatal exit code `1`.
+Startup never creates settings, migrates or rewrites JSON, imports installation files, or generates configuration backups. Existing values and unknown keys remain unchanged. Executable-adjacent files are left untouched and are never a fallback. Manually create, relocate and adapt your settings at the user path. Compare future templates and apply configuration changes manually after binary updates; there is no migration command. Upgrades to named servers require manually updating obsolete `SqlServer`, `MetadataProvider`, `AnonymizationRules`, and database grants to the new `Servers.<alias>` schema and qualified grants (`<alias>/<database>`); obsolete top-level sections or variables trigger a fatal exit code `1`.
 
 ## Metadata enrichment
 
@@ -87,4 +87,4 @@ When a file sink is enabled, its `RetainedFileCount` must be greater than zero. 
 
 The user root must be writable, including when file logging is disabled. Startup checks it without changing settings. Active Serilog destinations are checked before use. Root/directory failures return exit `1` with a direct stderr diagnostic naming the affected path and permission guidance; Serilog's later sink errors also go directly to stderr. These diagnostics do not depend on a working file logger, and stdout remains reserved for MCP or requested CLI data. No installation-directory writes are needed.
 
-`Logging.McpTrail` remains in the template and options, but the current host does not register a separate legacy trail writer. Do not rely on that section as an active request/response logging control. Its directory is relative to the resolved `Logging.Directory` unless absolute; the existing optional retention sweep uses that same path and does not implicitly sweep executable-adjacent legacy files. Its default remains disabled; retention limits are unchanged.
+`Logging.McpTrail` remains in the template and options, but the current host does not register a separate trail writer. Do not rely on that section as an active request/response logging control. Its directory is relative to the resolved `Logging.Directory` unless absolute; the existing optional retention sweep uses that same path and does not implicitly sweep executable-adjacent files. Its default remains disabled; retention limits are unchanged.

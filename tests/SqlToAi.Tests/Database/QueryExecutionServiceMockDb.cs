@@ -75,12 +75,9 @@ internal sealed class CapturingLogger<T> : ILogger<T>
 }
 
 /// <summary>
-/// Test double for <see cref="IQuerySafetyValidator"/>. Replaces the legacy
-/// <c>FakeSecurityGuard</c> / <c>FakeAccessLevelProvider</c> / <c>FakeReadOnlyGuard</c> triple
-/// (now in <c>TestSupport/LegacySecurityFakes.cs</c>, step-003 / DRY-T1) in the four
+/// Test double for <see cref="IQuerySafetyValidator"/> in the four
 /// guardrail-service tests so each test pins the pipeline outcome directly instead of composing
-/// three independent fakes. The legacy fakes themselves are still consumed by
-/// <c>IndexSuggestionServiceTests</c> and by this class's happy-path constructor below.
+/// three independent fakes.
 /// </summary>
 internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
 {
@@ -203,9 +200,8 @@ internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
             return Task.FromResult(ValidateTargetInput(query, rejectMultipleStatements: false));
         }
 
-        /// <summary>Mirrors the string-based input stages for target-aware calls; the access
-        /// level and whitelist outcome come from the configured result, exactly as with the
-        /// legacy string path.</summary>
+        /// <summary>Mirrors input validation stages for target-aware calls; the access
+        /// level and whitelist outcome come from the configured result.</summary>
         private Result<QuerySafetyCheckResult> ValidateTargetInput(string query, bool rejectMultipleStatements)
         {
             if (string.IsNullOrWhiteSpace(query))

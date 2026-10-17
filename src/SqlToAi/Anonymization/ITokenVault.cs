@@ -8,28 +8,15 @@ namespace SqlToAi.Anonymization;
 /// A token can only ever be resolved back to a value if this process previously handed that exact
 /// token to the AI — an unrecognized (guessed or forged) token simply fails to resolve.
 /// <para>
-/// The context-aware members scope token state by canonical server alias plus exact raw database
-/// name (see <see cref="DatabaseTargetContext"/>): identical plaintext in different targets yields
+/// Token state is strictly scoped by canonical server alias plus exact raw database name
+/// (see <see cref="DatabaseTargetContext"/>): identical plaintext in different targets yields
 /// different tokens, and a token from one target cannot be resolved through another. Every token
 /// text has exactly one immutable owner scope for the vault's lifetime, so an explicitly stored
-/// token cannot be bound to a second target either. The unscoped members are legacy state kept
-/// until all consumers are migrated.
+/// token cannot be bound to a second target either.
 /// </para>
 /// </summary>
 public interface ITokenVault
 {
-    /// <summary>
-    /// Returns an existing token for the specified <paramref name="value"/> if already generated,
-    /// or creates and stores a new short token (e.g. <c>§§§T1§§§</c>) bi-directionally.
-    /// </summary>
-    string GetOrAddToken(string value, string prefix, string suffix);
-
-    /// <summary>Remembers the real value behind a token, so it can be resolved later.</summary>
-    void Store(string token, string value);
-
-    /// <summary>Attempts to resolve a previously issued token back to its real value.</summary>
-    bool TryResolve(string token, [NotNullWhen(true)] out string? value);
-
     /// <summary>
     /// Returns an existing token for <paramref name="value"/> within <paramref name="target"/>'s
     /// scope, or creates and stores a new short token bi-directionally. The same plaintext in a

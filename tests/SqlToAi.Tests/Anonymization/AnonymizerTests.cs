@@ -1,12 +1,15 @@
 using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
+using SqlToAi.Domain;
 using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Anonymization;
 
 public sealed class AnonymizerTests
 {
+    private static readonly DatabaseTargetContext Target = new("test", "DemoDB");
+    private static AnonymizationColumnContext Col(string name) => new(null, name, null);
     private static readonly Type TargetType = typeof(Anonymizer);
 
     [Fact]
@@ -106,7 +109,7 @@ public sealed class AnonymizerTests
     {
         var anonymizer = new Anonymizer(Options.Create(AnonymizationTestHelper.BuildTokenizationOptions()), new TokenVault());
 
-        Assert.Equal("", anonymizer.Tokenize("IBAN", ""));
+        Assert.Equal("", anonymizer.Tokenize("", Col("IBAN"), Target));
     }
 
     [Fact]
@@ -114,8 +117,8 @@ public sealed class AnonymizerTests
     {
         var anonymizer = new Anonymizer(Options.Create(AnonymizationTestHelper.BuildTokenizationOptions()), new TokenVault());
 
-        var token1 = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
-        var token2 = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
+        var token1 = anonymizer.Tokenize("DE89370400440532013000", Col("IBAN"), Target);
+        var token2 = anonymizer.Tokenize("DE89370400440532013000", Col("IBAN"), Target);
 
         Assert.Equal(token1, token2);
     }
@@ -125,7 +128,7 @@ public sealed class AnonymizerTests
     {
         var anonymizer = new Anonymizer(Options.Create(AnonymizationTestHelper.BuildTokenizationOptions()), new TokenVault());
 
-        var token = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
+        var token = anonymizer.Tokenize("DE89370400440532013000", Col("IBAN"), Target);
 
         Assert.Equal("§§§T1§§§", token);
     }
@@ -135,8 +138,8 @@ public sealed class AnonymizerTests
     {
         var anonymizer = new Anonymizer(Options.Create(AnonymizationTestHelper.BuildTokenizationOptions()), new TokenVault());
 
-        var token1 = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
-        var token2 = anonymizer.Tokenize("IBAN", "DE11520513735120710131");
+        var token1 = anonymizer.Tokenize("DE89370400440532013000", Col("IBAN"), Target);
+        var token2 = anonymizer.Tokenize("DE11520513735120710131", Col("IBAN"), Target);
 
         Assert.NotEqual(token1, token2);
         Assert.Equal("§§§T1§§§", token1);
@@ -151,7 +154,7 @@ public sealed class AnonymizerTests
         options.Anonymizer.Tokenization.Suffix = ">>";
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
-        var token = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
+        var token = anonymizer.Tokenize("DE89370400440532013000", Col("IBAN"), Target);
 
         Assert.StartsWith("<<", token, StringComparison.Ordinal);
         Assert.EndsWith(">>", token, StringComparison.Ordinal);
@@ -164,9 +167,9 @@ public sealed class AnonymizerTests
         var vault = new TokenVault();
         var anonymizer = new Anonymizer(Options.Create(AnonymizationTestHelper.BuildTokenizationOptions()), vault);
 
-        var token = anonymizer.Tokenize("IBAN", "DE89370400440532013000");
+        var token = anonymizer.Tokenize("DE89370400440532013000", Col("IBAN"), Target);
 
-        Assert.True(vault.TryResolve(token, out string? resolved));
+        Assert.True(vault.TryResolve(token, Target, out string? resolved));
         Assert.Equal("DE89370400440532013000", resolved);
     }
 
@@ -175,7 +178,7 @@ public sealed class AnonymizerTests
     {
         var anonymizer = new Anonymizer(Options.Create(AnonymizationTestHelper.BuildTokenizationOptions(enabled: false)), new TokenVault());
 
-        var result = anonymizer.Tokenize("Name", "Ralf");
+        var result = anonymizer.Tokenize("Ralf", Col("Name"), Target);
 
         Assert.NotEqual("Ralf", result);
         Assert.Equal(4, result.Length); // ScramblePattern default preserves length
@@ -188,6 +191,6 @@ public sealed class AnonymizerTests
         options.Anonymizer.Enabled = false;
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
 
-        Assert.Equal("Ralf", anonymizer.Tokenize("Name", "Ralf"));
+        Assert.Equal("Ralf", anonymizer.Tokenize("Ralf", Col("Name"), Target));
     }
 }
