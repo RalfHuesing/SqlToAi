@@ -1,6 +1,5 @@
 # M1.3 — Independent foundation audit
 
-Actual model: `openai/gpt-6.1-sol`; reasoning: medium; provider: `openrouter`.
 Reviewed `988b641..070d1bbc7899caf179ede3fca0044950b19a9f3f` and current source/test bodies.
 Verdict: no blocking findings within M1.1/M1.2 preparation scope; accept M1.
 No production/test changes or correction item. Resume at M2.1, not feature release.

@@ -27,9 +27,8 @@ discovery/MCP/CLI arguments, strict host cutover, legacy-API removal, final
 composed checks and Native AOT evidence still belong to the remaining slices.
 
 Latest implementation commits: M2.1 `2913a11` + `67049c7`; M2.2 `d488565` +
-`208624d` + `337beb4`; M2.3 `7adeb6a` + `53aa63c`; M2.4 `41a4271`. Writers used
-`z-ai/glm-5.3-flash` / medium via `openrouter`; the M1 independent auditor used
-`openai/gpt-6.1-sol` / medium. No push, deployment or personal-settings change.
+`208624d` + `337beb4`; M2.3 `7adeb6a` + `53aa63c`; M2.4 `41a4271`. No push,
+deployment or personal-settings change.
 
 Parent verification after M2.4: `dotnet build SqlToAi.slnx` succeeded with
 0 warnings/errors; `dotnet test SqlToAi.slnx --no-build --logger
