@@ -6,6 +6,17 @@ Implement the approved [concept](Konzept.md) (`status: ready`). Its Must items
 and Verification section define the contract; this roadmap assigns implementation
 and evidence to ordered slices. It does not change scope or authorize publishing.
 
+**User-directed verification exception:** The user explicitly requested skipping
+the live proof with two SQL endpoints containing same-name databases and the
+published executable test in a disposable Windows profile because these
+environments cannot currently be provided. Do not provision them or claim those
+checks passed. Replace the dual-endpoint live proof with deterministic automated
+isolation coverage and retain available single-endpoint integration tests. Still
+run the Native AOT publish and in-memory/managed registered-MCP binding checks.
+M4.2 and M4.3 may close when all non-waived criteria pass and the two omitted
+checks are explicitly recorded as not run at the user's request. This exception
+overrides only the corresponding infrastructure-dependent acceptance below.
+
 Execute the first open task in order. Each task includes inspecting its current
 consumers, updating affected tests and canonical documentation, running the
 [required validation](../../.agents/rules/system-specs.mdc), recording concise
