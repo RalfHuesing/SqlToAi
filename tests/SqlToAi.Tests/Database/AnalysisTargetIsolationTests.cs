@@ -78,7 +78,7 @@ public sealed class AnalysisTargetIsolationTests
 
         var perf = new PerformanceMeasurementService(dependencies, NullLogger<PerformanceMeasurementService>.Instance);
         var comp = new QueryComparisonService(dependencies, NullLogger<QueryComparisonService>.Instance);
-        var bench = new OptimizationBenchmarkService(comp, perf, NullLogger<OptimizationBenchmarkService>.Instance);
+        var bench = new OptimizationBenchmarkService(comp, perf, bound);
         var idx = new IndexSuggestionService(factory, guard, accessProvider, bound, NullLogger<IndexSuggestionService>.Instance);
 
         var services = new DatabaseAnalysisServices(perf, comp, bench, idx);
@@ -221,21 +221,40 @@ public sealed class AnalysisTargetIsolationTests
         Assert.Contains(factory.OpenedTargets, t => t.ServerAlias == "srv2" && t.DatabaseName == "SharedDb");
     }
 
-    [Fact]
-    public async Task BenchmarkOptimization_CarriesSameTargetContextAndCanonicalReporting()
+    [Theory]
+    [InlineData("WhitelistedDb")]
+    [InlineData(" Raw/Db Å ")]
+    public async Task BenchmarkOptimization_CarriesSameTargetContextAndCanonicalReporting(string rawDatabase)
     {
-        var (services, factory) = CreateServices();
+        var (services, factory) = CreateServices(options => options.Databases.ReadOnly.Add("srv1/" + rawDatabase));
 
         var bench = await services.Benchmark.BenchmarkOptimizationAsync(
-            "srv1/WhitelistedDb", "SELECT 1", "SELECT 2",
+            "SRV1/" + rawDatabase, "SELECT 1", "SELECT 2",
             cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(bench.IsSuccess);
-        Assert.Equal("srv1/WhitelistedDb", bench.Value.Database);
+        Assert.Equal("srv1/" + rawDatabase, bench.Value.Database);
+        Assert.Equal(3, factory.OpenedTargets.Count);
         Assert.All(factory.OpenedTargets, t =>
         {
+            Assert.Same(factory.OpenedTargets[0], t);
             Assert.Equal("srv1", t.ServerAlias);
-            Assert.Equal("WhitelistedDb", t.DatabaseName);
+            Assert.Equal(rawDatabase, t.DatabaseName);
         });
+    }
+
+    [Theory]
+    [InlineData("srv1/BlockedDb", "SELECT 1", "SELECT 2", SqlToAiError.SafetyCheckFailedCode)]
+    [InlineData("srv1/SchemaDb", "SELECT 1", "SELECT 2", SqlToAiError.WriteOperationBlockedCode)]
+    [InlineData("srv1/SharedDb", "", "SELECT 2", SqlToAiError.InvalidParametersCode)]
+    [InlineData("srv1/SharedDb", "SELECT 1", "", SqlToAiError.InvalidParametersCode)]
+    public async Task Benchmark_RealServicesRejectBeforeAnySql(string database, string queryA, string queryB, string expectedError)
+    {
+        var (services, factory) = CreateServices();
+        var result = await services.Benchmark.BenchmarkOptimizationAsync(database, queryA, queryB, TestContext.Current.CancellationToken);
+        Assert.True(result.IsFailure);
+        Assert.Equal(expectedError, result.Error.Code);
+        Assert.Empty(factory.OpenedTargets);
+        Assert.Equal(0, factory.ConnectionCount);
     }
 }

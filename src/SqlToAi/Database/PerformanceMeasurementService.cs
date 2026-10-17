@@ -42,24 +42,29 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
     }
 
     /// <inheritdoc/>
-    public async Task<Result<PerformanceMeasurementResult>> MeasurePerformanceAsync(
+    public Task<Result<PerformanceMeasurementResult>> MeasurePerformanceAsync(
         QueryPerformanceArgs args,
         CancellationToken cancellationToken = default)
     {
+        var resolved = _dependencies.TargetResolver.Resolve(args.DatabaseName);
+        return resolved.IsFailure
+            ? Task.FromResult(Result<PerformanceMeasurementResult>.Failure(resolved.Error))
+            : MeasurePerformanceAsync(resolved.Value, args, cancellationToken);
+    }
+
+    public async Task<Result<PerformanceMeasurementResult>> MeasurePerformanceAsync(
+        DatabaseTargetContext target, QueryPerformanceArgs args,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        args = args with { DatabaseName = target.QualifiedName };
         var validationError = ValidateArgs(args);
         if (validationError != null)
         {
             return validationError;
         }
 
-        var targetResult = _dependencies.TargetResolver.Resolve(args.DatabaseName);
-        if (targetResult.IsFailure)
-        {
-            return targetResult.Error;
-        }
-        DatabaseTargetContext target = targetResult.Value;
-
-        // 1-5. Run the shared 6-stage guardrail pipeline (single source of truth).
+        // Keep measurement subject to the same query safety checks as execution.
         var safetyResult = await _dependencies.QuerySafetyValidator
             .ValidateTargetQuerySafetyAsync(target, args.Query, allowSchemaOnly: false, cancellationToken)
             .ConfigureAwait(false);
@@ -102,10 +107,6 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
 
     private static SqlToAiError? ValidateArgs(QueryPerformanceArgs args)
     {
-        if (string.IsNullOrWhiteSpace(args.DatabaseName))
-        {
-            return SqlToAiError.InvalidParameters("Database name must not be empty.");
-        }
         if (string.IsNullOrWhiteSpace(args.Query))
         {
             return SqlToAiError.InvalidParameters("Query must not be empty.");

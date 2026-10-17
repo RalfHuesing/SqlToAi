@@ -50,15 +50,12 @@ public sealed class SchemaService : ISchemaService
     /// <summary>
     /// Resolves the caller's qualified target and verifies static whitelisting and dynamic access level.
     /// </summary>
-    private async Task<Result<DatabaseTargetContext>> ResolveAndVerifyTargetAsync(string databaseName, CancellationToken cancellationToken)
-    {
-        var targetResult = _targets.Resolve(databaseName);
-        if (targetResult.IsFailure)
-        {
-            return targetResult.Error;
-        }
+    private Task<Result<DatabaseTargetContext>> ResolveAndVerifyTargetAsync(string databaseName, CancellationToken cancellationToken)
+        => WithTargetAsync(databaseName, target => VerifyTargetAsync(target, cancellationToken));
 
-        var target = targetResult.Value;
+    private async Task<Result<DatabaseTargetContext>> VerifyTargetAsync(DatabaseTargetContext target, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(target);
         if (!_securityGuard.IsTargetAllowed(target))
         {
             return SqlToAiError.SafetyCheckFailed($"Database '{target.QualifiedName}' is blocked by security policies (static whitelist).");
@@ -71,6 +68,12 @@ public sealed class SchemaService : ISchemaService
         }
 
         return target;
+    }
+
+    private Task<Result<T>> WithTargetAsync<T>(string databaseName, Func<DatabaseTargetContext, Task<Result<T>>> operation)
+    {
+        var resolved = _targets.Resolve(databaseName);
+        return resolved.IsFailure ? Task.FromResult(Result<T>.Failure(resolved.Error)) : operation(resolved.Value);
     }
 
     public Result<IReadOnlyList<string>> ListServers()
@@ -234,14 +237,16 @@ public sealed class SchemaService : ISchemaService
         }
     }
 
-    public async Task<Result<IReadOnlyList<SchemaObject>>> GetExportObjectsAsync(string databaseName, CancellationToken cancellationToken = default)
+    public Task<Result<IReadOnlyList<SchemaObject>>> GetExportObjectsAsync(string databaseName, CancellationToken cancellationToken = default)
+        => WithTargetAsync(databaseName, target => GetExportObjectsAsync(target, cancellationToken));
+
+    public async Task<Result<IReadOnlyList<SchemaObject>>> GetExportObjectsAsync(DatabaseTargetContext target, CancellationToken cancellationToken = default)
     {
-        var targetCheck = await ResolveAndVerifyTargetAsync(databaseName, cancellationToken);
+        var targetCheck = await VerifyTargetAsync(target, cancellationToken);
         if (targetCheck.IsFailure)
         {
             return targetCheck.Error;
         }
-        var target = targetCheck.Value;
 
         try
         {
@@ -258,15 +263,21 @@ public sealed class SchemaService : ISchemaService
     }
 
     public Task<Result<string>> GetExportTriggerDefinitionAsync(string databaseName, SchemaObject trigger, CancellationToken cancellationToken = default)
-        => ExecuteDetailQueryAsync(databaseName, trigger.Identity.DisplayName, "export trigger definition",
+        => WithTargetAsync(databaseName, target => GetExportTriggerDefinitionAsync(target, trigger, cancellationToken));
+
+    public Task<Result<string>> GetExportTriggerDefinitionAsync(DatabaseTargetContext target, SchemaObject trigger, CancellationToken cancellationToken = default)
+        => ExecuteDetailQueryAsync(target, trigger.Identity.DisplayName, "export trigger definition",
             (connection, _, ct) => DetailSchemaRenderer.GetExportTriggerDefinitionAsync(connection, trigger, ct), cancellationToken);
 
+    public Task<Result<IReadOnlyList<SchemaObject>>> GetSelectedExportObjectsAsync(string databaseName, IReadOnlyList<string> objectNames, CancellationToken cancellationToken = default)
+        => WithTargetAsync(databaseName, target => GetSelectedExportObjectsAsync(target, objectNames, cancellationToken));
+
     public async Task<Result<IReadOnlyList<SchemaObject>>> GetSelectedExportObjectsAsync(
-        string databaseName, IReadOnlyList<string> objectNames, CancellationToken cancellationToken = default)
+        DatabaseTargetContext target, IReadOnlyList<string> objectNames, CancellationToken cancellationToken = default)
     {
         if (objectNames.Count == 0)
             return SqlToAiError.InvalidParameters("At least one non-empty object name is required.");
-        var selection = await ResolveObjectsAsync(databaseName, objectNames, forExport: true, cancellationToken);
+        var selection = await ResolveObjectsAsync(target, objectNames, forExport: true, cancellationToken);
         if (selection.IsFailure) return selection.Error;
         var objects = new List<SchemaObject>();
         var ids = new HashSet<int>();
@@ -278,15 +289,18 @@ public sealed class SchemaService : ISchemaService
         return Result<IReadOnlyList<SchemaObject>>.Success(objects);
     }
 
-    internal async Task<Result<IReadOnlyList<SchemaObjectSelectionEntry>>> ResolveObjectsAsync(
+    internal Task<Result<IReadOnlyList<SchemaObjectSelectionEntry>>> ResolveObjectsAsync(
         string databaseName, IReadOnlyList<string> names, bool forExport, CancellationToken cancellationToken = default)
+        => WithTargetAsync(databaseName, target => ResolveObjectsAsync(target, names, forExport, cancellationToken));
+
+    private async Task<Result<IReadOnlyList<SchemaObjectSelectionEntry>>> ResolveObjectsAsync(
+        DatabaseTargetContext target, IReadOnlyList<string> names, bool forExport, CancellationToken cancellationToken)
     {
-        var targetCheck = await ResolveAndVerifyTargetAsync(databaseName, cancellationToken);
+        var targetCheck = await VerifyTargetAsync(target, cancellationToken);
         if (targetCheck.IsFailure)
         {
             return targetCheck.Error;
         }
-        var target = targetCheck.Value;
 
         try
         {
@@ -351,16 +365,21 @@ public sealed class SchemaService : ISchemaService
     }
 
     public Task<Result<string>> GetExportSchemaAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
-        => GetSchemaCoreAsync(databaseName, context.Source.QualifiedName, context, cancellationToken);
+        => WithTargetAsync(databaseName, target => GetExportSchemaAsync(target, context, cancellationToken));
 
-    private async Task<Result<string>> GetSchemaCoreAsync(string databaseName, string objectName, SchemaRenderingContext? context, CancellationToken cancellationToken)
+    public Task<Result<string>> GetExportSchemaAsync(DatabaseTargetContext target, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => GetSchemaCoreAsync(target, context.Source.QualifiedName, context, cancellationToken);
+
+    private Task<Result<string>> GetSchemaCoreAsync(string databaseName, string objectName, SchemaRenderingContext? context, CancellationToken cancellationToken)
+        => WithTargetAsync(databaseName, target => GetSchemaCoreAsync(target, objectName, context, cancellationToken));
+
+    private async Task<Result<string>> GetSchemaCoreAsync(DatabaseTargetContext target, string objectName, SchemaRenderingContext? context, CancellationToken cancellationToken)
     {
-        var targetCheck = await ResolveAndVerifyTargetAsync(databaseName, cancellationToken);
+        var targetCheck = await VerifyTargetAsync(target, cancellationToken);
         if (targetCheck.IsFailure)
         {
             return targetCheck.Error;
         }
-        var target = targetCheck.Value;
 
         try
         {
@@ -404,52 +423,67 @@ public sealed class SchemaService : ISchemaService
 
     public Task<Result<string>> GetSchemaForeignKeysAsync(string databaseName, string tableName, CancellationToken cancellationToken = default) =>
         ExecuteDetailQueryAsync(databaseName, tableName, "foreign keys",
-            (connection, target, ct) => DetailSchemaRenderer.GetSchemaForeignKeysAsync(connection, tableName, target.QualifiedName, ct),
+            (connection, selectedTarget, ct) => DetailSchemaRenderer.GetSchemaForeignKeysAsync(connection, tableName, selectedTarget.QualifiedName, ct),
             cancellationToken);
 
     public Task<Result<string>> GetSchemaIndexesAsync(string databaseName, string tableName, CancellationToken cancellationToken = default) =>
         ExecuteDetailQueryAsync(databaseName, tableName, "indexes",
-            (connection, target, ct) => DetailSchemaRenderer.GetSchemaIndexesAsync(connection, tableName, target.QualifiedName, ct),
+            (connection, selectedTarget, ct) => DetailSchemaRenderer.GetSchemaIndexesAsync(connection, tableName, selectedTarget.QualifiedName, ct),
             cancellationToken);
 
     public Task<Result<string>> GetExportSchemaForeignKeysAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
-        => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "foreign keys",
-            (connection, target, ct) => DetailSchemaRenderer.GetSchemaForeignKeysAsync(connection, context.Source.QualifiedName, target.QualifiedName, ct, context), cancellationToken);
+        => WithTargetAsync(databaseName, target => GetExportSchemaForeignKeysAsync(target, context, cancellationToken));
+
+    public Task<Result<string>> GetExportSchemaForeignKeysAsync(DatabaseTargetContext target, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => ExecuteDetailQueryAsync(target, context.Source.DisplayName, "foreign keys",
+            (connection, selectedTarget, ct) => DetailSchemaRenderer.GetSchemaForeignKeysAsync(connection, context.Source.QualifiedName, selectedTarget.QualifiedName, ct, context), cancellationToken);
 
     public Task<Result<string>> GetExportObjectReferencesAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
-        => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "referencing entities",
-            (connection, target, ct) => DetailSchemaRenderer.GetObjectReferencesAsync(connection, context.Source.QualifiedName, target.QualifiedName, ct, context), cancellationToken);
+        => WithTargetAsync(databaseName, target => GetExportObjectReferencesAsync(target, context, cancellationToken));
+
+    public Task<Result<string>> GetExportObjectReferencesAsync(DatabaseTargetContext target, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => ExecuteDetailQueryAsync(target, context.Source.DisplayName, "referencing entities",
+            (connection, selectedTarget, ct) => DetailSchemaRenderer.GetObjectReferencesAsync(connection, context.Source.QualifiedName, selectedTarget.QualifiedName, ct, context), cancellationToken);
 
     public Task<Result<string>> GetExportSchemaIndexesAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
-        => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "indexes",
-            (connection, target, ct) => DetailSchemaRenderer.GetSchemaIndexesAsync(connection, context.Source.QualifiedName, target.QualifiedName, ct, context), cancellationToken);
+        => WithTargetAsync(databaseName, target => GetExportSchemaIndexesAsync(target, context, cancellationToken));
+
+    public Task<Result<string>> GetExportSchemaIndexesAsync(DatabaseTargetContext target, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => ExecuteDetailQueryAsync(target, context.Source.DisplayName, "indexes",
+            (connection, selectedTarget, ct) => DetailSchemaRenderer.GetSchemaIndexesAsync(connection, context.Source.QualifiedName, selectedTarget.QualifiedName, ct, context), cancellationToken);
 
     public Task<Result<string>> GetExportSchemaConstraintsAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
-        => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "constraints",
-            (connection, target, ct) => DetailSchemaRenderer.GetSchemaConstraintsAsync(connection, context.Source.QualifiedName, target.QualifiedName, ct, context), cancellationToken);
+        => WithTargetAsync(databaseName, target => GetExportSchemaConstraintsAsync(target, context, cancellationToken));
+
+    public Task<Result<string>> GetExportSchemaConstraintsAsync(DatabaseTargetContext target, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => ExecuteDetailQueryAsync(target, context.Source.DisplayName, "constraints",
+            (connection, selectedTarget, ct) => DetailSchemaRenderer.GetSchemaConstraintsAsync(connection, context.Source.QualifiedName, selectedTarget.QualifiedName, ct, context), cancellationToken);
 
     public Task<Result<string>> GetExportRoutineParametersAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
-        => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "routine parameters",
-            (connection, target, ct) => DetailSchemaRenderer.GetRoutineParametersAsync(connection, context.Source.QualifiedName, target.QualifiedName, ct, context), cancellationToken);
+        => WithTargetAsync(databaseName, target => GetExportRoutineParametersAsync(target, context, cancellationToken));
+
+    public Task<Result<string>> GetExportRoutineParametersAsync(DatabaseTargetContext target, SchemaRenderingContext context, CancellationToken cancellationToken = default)
+        => ExecuteDetailQueryAsync(target, context.Source.DisplayName, "routine parameters",
+            (connection, selectedTarget, ct) => DetailSchemaRenderer.GetRoutineParametersAsync(connection, context.Source.QualifiedName, selectedTarget.QualifiedName, ct, context), cancellationToken);
 
     public Task<Result<string>> GetSchemaConstraintsAsync(string databaseName, string tableName, CancellationToken cancellationToken = default) =>
         ExecuteDetailQueryAsync(databaseName, tableName, "constraints",
-            (connection, target, ct) => DetailSchemaRenderer.GetSchemaConstraintsAsync(connection, tableName, target.QualifiedName, ct),
+            (connection, selectedTarget, ct) => DetailSchemaRenderer.GetSchemaConstraintsAsync(connection, tableName, selectedTarget.QualifiedName, ct),
             cancellationToken);
 
     public Task<Result<string>> GetTriggerDefinitionAsync(string databaseName, string tableName, string triggerName, CancellationToken cancellationToken = default) =>
         ExecuteDetailQueryAsync(databaseName, triggerName, "trigger DDL",
-            (connection, target, ct) => DetailSchemaRenderer.GetTriggerDefinitionAsync(connection, tableName, triggerName, target.QualifiedName, ct),
+            (connection, selectedTarget, ct) => DetailSchemaRenderer.GetTriggerDefinitionAsync(connection, tableName, triggerName, selectedTarget.QualifiedName, ct),
             cancellationToken);
 
     public Task<Result<string>> GetObjectReferencesAsync(string databaseName, string objectName, CancellationToken cancellationToken = default) =>
         ExecuteDetailQueryAsync(databaseName, objectName, "referencing entities",
-            (connection, target, ct) => DetailSchemaRenderer.GetObjectReferencesAsync(connection, objectName, target.QualifiedName, ct),
+            (connection, selectedTarget, ct) => DetailSchemaRenderer.GetObjectReferencesAsync(connection, objectName, selectedTarget.QualifiedName, ct),
             cancellationToken);
 
     public Task<Result<string>> GetRoutineParametersAsync(string databaseName, string routineName, CancellationToken cancellationToken = default) =>
         ExecuteDetailQueryAsync(databaseName, routineName, "routine parameters",
-            (connection, target, ct) => DetailSchemaRenderer.GetRoutineParametersAsync(connection, routineName, target.QualifiedName, ct),
+            (connection, selectedTarget, ct) => DetailSchemaRenderer.GetRoutineParametersAsync(connection, routineName, selectedTarget.QualifiedName, ct),
             cancellationToken);
 
     /// <summary>
@@ -457,19 +491,24 @@ public sealed class SchemaService : ISchemaService
     /// run a single DetailSchemaRenderer call inside a try/catch, log and translate any
     /// exception while preserving safe connection errors and existing query-error handling.
     /// </summary>
+    private Task<Result<string>> ExecuteDetailQueryAsync(
+        string databaseName, string objectName, string operationName,
+        Func<DbConnection, DatabaseTargetContext, CancellationToken, Task<Result<string>>> query,
+        CancellationToken cancellationToken)
+        => WithTargetAsync(databaseName, target => ExecuteDetailQueryAsync(target, objectName, operationName, query, cancellationToken));
+
     private async Task<Result<string>> ExecuteDetailQueryAsync(
-        string databaseName,
+        DatabaseTargetContext target,
         string objectName,
         string operationName,
         Func<DbConnection, DatabaseTargetContext, CancellationToken, Task<Result<string>>> query,
         CancellationToken cancellationToken)
     {
-        var targetCheck = await ResolveAndVerifyTargetAsync(databaseName, cancellationToken);
+        var targetCheck = await VerifyTargetAsync(target, cancellationToken);
         if (targetCheck.IsFailure)
         {
             return targetCheck.Error;
         }
-        var target = targetCheck.Value;
 
         try
         {

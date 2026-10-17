@@ -20,7 +20,7 @@ public sealed class SchemaExportTests
         var schema = DispatchProxy.Create<ISchemaService, ExportSchemaProxy>();
         var proxy = (ExportSchemaProxy)schema;
         proxy.Objects = objects;
-        return (new SchemaExportService(schema, NullLogger<SchemaExportService>.Instance), proxy);
+        return (new SchemaExportService(schema, TestTargets.BoundOptions, NullLogger<SchemaExportService>.Instance), proxy);
     }
 
     [Theory]
@@ -73,7 +73,7 @@ public sealed class SchemaExportTests
         objects.AddRange([trigger, secondTrigger]);
         var (export, proxy) = Create(objects.ToArray());
         string root = temp.GetPath("dump");
-        Assert.True((await export.ExportAsync("DemoDB", root, Token)).IsSuccess);
+        Assert.True((await export.ExportAsync(TestConstants.QualifiedDatabaseName, root, Token)).IsSuccess);
         var paths = SchemaExportPaths.Create(objects);
         Assert.Equal(objects.Count + 1, Directory.GetFiles(root, "*", SearchOption.AllDirectories).Length);
         foreach (SchemaObject item in objects)
@@ -102,6 +102,8 @@ public sealed class SchemaExportTests
         foreach (SchemaObject item in objects)
             Assert.Contains(SchemaRenderingContext.RelativeLink("README.md", paths[item.Identity], item.Identity.DisplayName), overview);
         Assert.Equal(0, proxy.InteractiveCalls);
+        Assert.All(proxy.Targets, target => Assert.Same(proxy.Targets[0], target));
+        Assert.Equal(TestConstants.QualifiedDatabaseName, proxy.Targets[0].QualifiedName);
     }
 
     [Theory]
@@ -112,8 +114,10 @@ public sealed class SchemaExportTests
         using var temp = TestTempDirectory.Create();
         string root = temp.GetPath("dump");
         if (existing) Directory.CreateDirectory(root);
-        var (export, _) = Create();
-        Assert.True((await export.ExportAsync("DemoDB", root, Token)).IsSuccess);
+        var (export, proxy) = Create();
+        Assert.True((await export.ExportAsync("TEST/DemoDB", root, Token)).IsSuccess);
+        Assert.Equal(TestConstants.QualifiedDatabaseName, Assert.Single(proxy.Targets).QualifiedName);
+        Assert.StartsWith("# Database schema: test/DemoDB", await File.ReadAllTextAsync(Path.Combine(root, "README.md"), Token));
         Assert.Single(Directory.GetFileSystemEntries(root));
         Assert.True(File.Exists(Path.Combine(root, "README.md")));
     }
@@ -129,7 +133,7 @@ public sealed class SchemaExportTests
         if (directory) Directory.CreateDirectory(Path.Combine(root, "child"));
         else await File.WriteAllTextAsync(Path.Combine(root, "existing.md"), "keep", Token);
         var (export, proxy) = Create(Object(1, "One"));
-        Assert.True((await export.ExportAsync("DemoDB", root, Token)).IsFailure);
+        Assert.True((await export.ExportAsync(TestConstants.QualifiedDatabaseName, root, Token)).IsFailure);
         Assert.Empty(proxy.Calls);
         Assert.Single(Directory.GetFileSystemEntries(root));
     }
@@ -142,7 +146,7 @@ public sealed class SchemaExportTests
         using var temp = TestTempDirectory.Create();
         string root = temp.GetPath("dump");
         var (export, proxy) = Create(Object(1, first), Object(2, second));
-        var result = await export.ExportAsync("DemoDB", root, Token);
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, root, Token);
         Assert.True(result.IsFailure);
         Assert.Contains("collision", result.Error.Message);
         Assert.False(Directory.Exists(root));
@@ -169,7 +173,7 @@ public sealed class SchemaExportTests
         }
         var (export, _) = Create(objects);
         string root = temp.GetPath("dump");
-        Assert.True((await export.ExportAsync("DemoDB", root, Token)).IsSuccess);
+        Assert.True((await export.ExportAsync(TestConstants.QualifiedDatabaseName, root, Token)).IsSuccess);
         string overview = await File.ReadAllTextAsync(Path.Combine(root, "README.md"), Token);
         foreach (var item in objects)
         {
@@ -200,7 +204,7 @@ public sealed class SchemaExportTests
             : [parent, Object(3, "Never")];
         var (export, proxy) = Create(objects);
         proxy.FailOperation = operation;
-        var result = await export.ExportAsync("DemoDB", temp.GetPath("dump"), Token);
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), Token);
         Assert.True(result.IsFailure);
         Assert.Equal(proxy.Failure, result.Error);
         Assert.Equal(operation, proxy.Calls.Last());
@@ -214,11 +218,11 @@ public sealed class SchemaExportTests
         var (export, proxy) = Create(Object(1, "First"), Object(2, "Second"));
         proxy.BeforePrimary = context => { if (context.Source.ObjectId == 2) proxy.FailOperation = "GetExportSchemaAsync"; };
         string root = temp.GetPath("dump");
-        Assert.True((await export.ExportAsync("DemoDB", root, Token)).IsFailure);
+        Assert.True((await export.ExportAsync(TestConstants.QualifiedDatabaseName, root, Token)).IsFailure);
         Assert.Single(Directory.GetFiles(root, "*", SearchOption.AllDirectories));
         string first = await File.ReadAllTextAsync(Path.Combine(root, "tables/dbo.First.md"), Token);
         int calls = proxy.Calls.Count;
-        Assert.True((await export.ExportAsync("DemoDB", root, Token)).IsFailure);
+        Assert.True((await export.ExportAsync(TestConstants.QualifiedDatabaseName, root, Token)).IsFailure);
         Assert.Equal(calls, proxy.Calls.Count);
         Assert.Equal(first, await File.ReadAllTextAsync(Path.Combine(root, "tables/dbo.First.md"), Token));
     }
@@ -240,14 +244,14 @@ public sealed class SchemaExportTests
                 else Directory.CreateDirectory(blockedPath);
             }
         };
-        var result = await export.ExportAsync("DemoDB", root, Token);
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, root, Token);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.InfrastructureErrorCode, result.Error.Code);
         Assert.True(File.Exists(Path.Combine(root, "tables/dbo.First.md")));
         Assert.False(File.Exists(Path.Combine(root, "tables/dbo.Never.md")));
         Assert.False(File.Exists(Path.Combine(root, "README.md")));
         if (existingFile) Assert.Equal("keep existing file", await File.ReadAllTextAsync(Path.Combine(root, "tables/dbo.Second.md"), Token));
-        Assert.True((await export.ExportAsync("DemoDB", root, Token)).IsFailure);
+        Assert.True((await export.ExportAsync(TestConstants.QualifiedDatabaseName, root, Token)).IsFailure);
     }
 
     [Theory]
@@ -264,7 +268,7 @@ public sealed class SchemaExportTests
         var (export, proxy) = Create(objects);
         proxy.PrimaryText = DetailSchemaRenderer.DdlUnavailableNote;
         proxy.TriggerText = DetailSchemaRenderer.DdlUnavailableNote;
-        Assert.True((await export.ExportAsync("DemoDB", temp.GetPath("dump"), Token)).IsSuccess);
+        Assert.True((await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), Token)).IsSuccess);
         Assert.Contains(DetailSchemaRenderer.DdlUnavailableNote,
             await File.ReadAllTextAsync(temp.GetPath("dump/" + SchemaExportPaths.Create(objects)[source.Identity]), Token));
     }
@@ -277,7 +281,7 @@ public sealed class SchemaExportTests
     {
         using var temp = TestTempDirectory.Create();
         var fixture = new SchemaPresentationFixture { ObjectType = type, RejectEnrichment = true, ExportDiscovery = true };
-        var exporter = new SchemaExportService(fixture.CreateService(), NullLogger<SchemaExportService>.Instance);
+        var exporter = new SchemaExportService(fixture.CreateService(), TestTargets.BoundOptions, NullLogger<SchemaExportService>.Instance);
         var result = await exporter.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), Token);
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         string text = await File.ReadAllTextAsync(temp.GetPath($"dump/{directory}/sales.Exported.md"), Token);
@@ -299,18 +303,78 @@ public sealed class SchemaExportTests
         var (export, proxy) = Create(trigger);
         proxy.TriggerText = DetailSchemaRenderer.DdlUnavailableNote;
         string root = temp.GetPath("dump");
-        Assert.True((await export.ExportAsync(name, root, Token)).IsSuccess);
+        Assert.True((await export.ExportAsync("TEST/" + name, root, Token)).IsSuccess);
         string overview = await File.ReadAllTextAsync(Path.Combine(root, "README.md"), Token);
-        Assert.Equal("# Database schema: " + textName, overview.Split('\n')[0].TrimEnd('\r'));
+        Assert.Equal("# Database schema: test/" + textName, overview.Split('\n')[0].TrimEnd('\r'));
         string document = await File.ReadAllTextAsync(Path.Combine(root, SchemaExportPaths.Create([trigger])[trigger.Identity]), Token);
         Assert.Equal($"# Trigger: {codeName}\n\nParent: sales.{textName}\n\n{DetailSchemaRenderer.DdlUnavailableNote}", document);
         Assert.Equal(0, proxy.InteractiveCalls);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("DemoDB")]
+    [InlineData("/DemoDB")]
+    [InlineData("bad alias/DemoDB")]
+    [InlineData("unknown/DemoDB")]
+    public async Task InvalidTarget_FailsBeforeDiscoveryAndFiles(string? database)
+    {
+        using var temp = TestTempDirectory.Create();
+        var (export, proxy) = Create();
+        string root = temp.GetPath("dump");
+        var result = await export.ExportAsync(database!, root, SchemaExportScope.All, cancellationToken: Token);
+        Assert.Equal(SchemaExportStatus.Failed, result.Status);
+        Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error!.Code);
+        Assert.False(result.PartialOutput);
+        Assert.Empty(proxy.Targets);
+        Assert.Empty(proxy.Calls);
+        Assert.False(Directory.Exists(root));
+    }
+
+    [Fact]
+    public async Task RealExport_OneContextReachesDiscoveryAndEveryRenderConnection()
+    {
+        using var temp = TestTempDirectory.Create();
+        const string rawDatabase = " Raw/Db Å ";
+        const string canonical = "test/" + rawDatabase;
+        var fixture = new SchemaPresentationFixture { ExportDiscovery = true, RejectEnrichment = true };
+        var export = new SchemaExportService(fixture.CreateService(databaseName: canonical), TestTargets.BoundOptions,
+            NullLogger<SchemaExportService>.Instance);
+        var result = await export.ExportAsync("TEST/" + rawDatabase, temp.GetPath("dump"), Token);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(6, fixture.Targets.Count);
+        Assert.All(fixture.Targets, target =>
+        {
+            Assert.Same(fixture.Targets[0], target);
+            Assert.Equal(rawDatabase, target.DatabaseName);
+            Assert.Equal(canonical, target.QualifiedName);
+        });
+        Assert.StartsWith("# Database schema: " + canonical.TrimEnd(),
+            await File.ReadAllTextAsync(temp.GetPath("dump/README.md"), Token));
+        Assert.Equal(0, fixture.MetadataCalls + fixture.PolicyCalls + fixture.RuleCalls);
+    }
+
+    [Fact]
+    public async Task RealExport_DeniedTargetStopsBeforeConnectionAndFiles()
+    {
+        using var temp = TestTempDirectory.Create();
+        var fixture = new SchemaPresentationFixture { ExportDiscovery = true };
+        var export = new SchemaExportService(fixture.CreateService(allowed: false), TestTargets.BoundOptions,
+            NullLogger<SchemaExportService>.Instance);
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), Token);
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
+        Assert.Empty(fixture.Targets);
+        Assert.False(Directory.Exists(temp.GetPath("dump")));
     }
 
     public class ExportSchemaProxy : DispatchProxy
     {
         internal IReadOnlyList<SchemaObject> Objects { get; set; } = [];
         internal List<string> Calls { get; } = [];
+        internal List<DatabaseTargetContext> Targets { get; } = [];
         internal string? FailOperation { get; set; }
         internal SqlToAiError Failure { get; } = SqlToAiError.QueryError("fixed export failure");
         internal Action<SchemaRenderingContext>? BeforePrimary { get; set; }
@@ -321,6 +385,7 @@ public sealed class SchemaExportTests
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
+            Targets.Add(Assert.IsType<DatabaseTargetContext>(args![0]));
             string method = targetMethod!.Name;
             Calls.Add(method);
             if (method == "GetSelectedExportObjectsAsync")

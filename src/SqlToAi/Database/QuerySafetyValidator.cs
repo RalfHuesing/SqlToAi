@@ -12,16 +12,12 @@ namespace SqlToAi.Database;
 /// </summary>
 public sealed record QuerySafetyCheckResult(AccessLevel AccessLevel, bool IsWriteAllowed)
 {
-    // Target-aware calls retain their resolved context for downstream operations.
+    // Preserve the caller's immutable target for downstream operations.
     public DatabaseTargetContext? Target { get; init; }
 }
 
 /// <summary>
-/// Single source of truth for the 6-stage guardrail pipeline that used to be duplicated across the
-/// four query-processing services. Centralising the checks here removes the refactoring-drift
-/// risk of the same logic living in <see cref="QueryExecutionService"/>,
-/// <see cref="QueryValidationService"/>, <see cref="PerformanceMeasurementService"/>, and
-/// <see cref="QueryComparisonService"/>.
+/// Shared query and batch safety checks for an already resolved database target.
 /// </summary>
 public interface IQuerySafetyValidator
 {
@@ -31,34 +27,6 @@ public interface IQuerySafetyValidator
 
     Task<Result<QuerySafetyCheckResult>> ValidateTargetBatchSafetyAsync(
         DatabaseTargetContext target, string query, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Runs the full 6-stage check (empty parameters, whitelist, access level, read-only guard,
-    /// single-statement) and returns either the resolved safety outcome or the first error
-    /// encountered.
-    /// </summary>
-    /// <param name="databaseName">Target database the query is meant to run against.</param>
-    /// <param name="query">The SQL text to validate.</param>
-    /// <param name="allowSchemaOnly">
-    /// When <c>true</c>, <see cref="AccessLevel.SchemaOnly"/> is treated as a pass for stage 4
-    /// (used by <see cref="QueryValidationService"/>, the only service whose business is to
-    /// describe schema). All other services pass <c>false</c>, the project default.
-    /// </param>
-    /// <param name="cancellationToken">Forwarded to the dynamic access-level probe.</param>
-    Task<Result<QuerySafetyCheckResult>> ValidateQuerySafetyAsync(
-        string databaseName,
-        string query,
-        bool allowSchemaOnly = false,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Runs the guardrail pipeline for one script batch and permits the batch's intentional
-    /// multiple statements while retaining all access-level and read-only checks.
-    /// </summary>
-    Task<Result<QuerySafetyCheckResult>> ValidateBatchSafetyAsync(
-        string databaseName,
-        string query,
-        CancellationToken cancellationToken = default);
 }
 
 /// <inheritdoc/>
@@ -84,69 +52,28 @@ internal sealed class QuerySafetyValidator : IQuerySafetyValidator
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(target);
-        return ValidateAsync(target.QualifiedName, query, allowSchemaOnly,
-            rejectMultipleStatements: true, cancellationToken, target);
+        return ValidateAsync(target, query, allowSchemaOnly,
+            rejectMultipleStatements: true, cancellationToken);
     }
 
     public Task<Result<QuerySafetyCheckResult>> ValidateTargetBatchSafetyAsync(
         DatabaseTargetContext target, string query, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(target);
-        return ValidateAsync(target.QualifiedName, query, allowSchemaOnly: false,
-            rejectMultipleStatements: false, cancellationToken, target);
-    }
-
-    /// <inheritdoc/>
-    public async Task<Result<QuerySafetyCheckResult>> ValidateQuerySafetyAsync(
-        string databaseName,
-        string query,
-        bool allowSchemaOnly = false,
-        CancellationToken cancellationToken = default)
-    {
-        return await ValidateAsync(
-            databaseName, query, allowSchemaOnly, rejectMultipleStatements: true, cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    /// <inheritdoc/>
-    public async Task<Result<QuerySafetyCheckResult>> ValidateBatchSafetyAsync(
-        string databaseName,
-        string query,
-        CancellationToken cancellationToken = default)
-    {
-        return await ValidateAsync(
-            databaseName, query, allowSchemaOnly: false, rejectMultipleStatements: false, cancellationToken)
-            .ConfigureAwait(false);
+        return ValidateAsync(target, query, allowSchemaOnly: false,
+            rejectMultipleStatements: false, cancellationToken);
     }
 
     private async Task<Result<QuerySafetyCheckResult>> ValidateAsync(
-        string databaseName,
+        DatabaseTargetContext target,
         string query,
         bool allowSchemaOnly,
         bool rejectMultipleStatements,
-        CancellationToken cancellationToken,
-        DatabaseTargetContext? target = null)
+        CancellationToken cancellationToken)
     {
-        // Stage 1: database name must be present.
-        if (string.IsNullOrWhiteSpace(databaseName))
-        {
-            return SqlToAiError.InvalidParameters("Database name must not be empty.");
-        }
-
-        // Stage 2: query text must be present.
         if (string.IsNullOrWhiteSpace(query))
         {
             return SqlToAiError.InvalidParameters("Query must not be empty.");
-        }
-
-        if (target is null)
-        {
-            var parsed = DatabaseTargetParser.Parse(databaseName);
-            if (parsed.IsFailure)
-            {
-                return parsed.Error;
-            }
-            target = new DatabaseTargetContext(parsed.Value.ServerAlias, parsed.Value.DatabaseName);
         }
 
         // Reject database context switching via USE statements across all access levels.
@@ -155,13 +82,11 @@ internal sealed class QuerySafetyValidator : IQuerySafetyValidator
             return SqlToAiError.SafetyCheckFailed("Switching database context via USE statement is not permitted; specify the target database in the tool arguments.");
         }
 
-        // Stage 3: static whitelist check (configured allow/deny patterns).
         if (!_securityGuard.IsTargetAllowed(target))
         {
             return SqlToAiError.SafetyCheckFailed(target.QualifiedName);
         }
 
-        // Stage 4: dynamic access level probe (cached inside the provider).
         var accessLevel = await _accessLevelProvider.GetTargetAccessLevelAsync(target, cancellationToken).ConfigureAwait(false);
 
         if (accessLevel == AccessLevel.None
@@ -171,8 +96,7 @@ internal sealed class QuerySafetyValidator : IQuerySafetyValidator
                 $"Database '{target.QualifiedName}' is not permitted to run this query (AccessLevel: {accessLevel}).");
         }
 
-        // Stage 5: read-only guard — rejected only when the database is not fully unlocked.
-        // ReadWrite bypasses the keyword filter by design.
+        // ReadWrite permits mutation; all other levels require a read-only statement.
         bool writeAllowed = accessLevel == AccessLevel.ReadWrite;
         if (!writeAllowed && !_readOnlyGuard.IsQuerySafe(query))
         {
@@ -180,8 +104,7 @@ internal sealed class QuerySafetyValidator : IQuerySafetyValidator
                 "The query contains mutating SQL statements (e.g. INSERT, UPDATE, DELETE, MERGE, DDL, EXEC) and was rejected in read-only mode.");
         }
 
-        // Stage 6: single-query calls enforce one statement; script batches intentionally skip
-        // this boundary because the splitter already defines their execution unit.
+        // Script batches allow multiple statements; single-query calls retain their boundary.
         if (rejectMultipleStatements && SqlMultiStatementDetector.ContainsMultipleStatements(query))
         {
             return SqlToAiError.MultipleStatementsForbidden();

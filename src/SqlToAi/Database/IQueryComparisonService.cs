@@ -30,4 +30,6 @@ public interface IQueryComparisonService
         string queryA,
         string queryB,
         CancellationToken cancellationToken = default);
+
+    Task<Result<QueryComparisonResult>> CompareQueriesAsync(DatabaseTargetContext target, QueryComparisonArgs args, CancellationToken cancellationToken = default);
 }

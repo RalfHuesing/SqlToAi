@@ -1,4 +1,5 @@
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using SqlToAi.Configuration;
 using SqlToAi.Domain;
 
 namespace SqlToAi.Database;
@@ -10,17 +11,17 @@ public sealed class OptimizationBenchmarkService : IOptimizationBenchmarkService
 {
     private readonly IQueryComparisonService _comparisonService;
     private readonly IPerformanceMeasurementService _performanceService;
-    private readonly ILogger<OptimizationBenchmarkService> _logger;
+    private readonly DatabaseTargetResolver _targets;
 
     /// <summary>Initializes a new instance of <see cref="OptimizationBenchmarkService"/>.</summary>
     public OptimizationBenchmarkService(
         IQueryComparisonService comparisonService,
         IPerformanceMeasurementService performanceService,
-        ILogger<OptimizationBenchmarkService> logger)
+        IOptions<SqlToAiOptions> options)
     {
         _comparisonService = comparisonService;
         _performanceService = performanceService;
-        _logger = logger;
+        _targets = new DatabaseTargetResolver(options.Value);
     }
 
     /// <inheritdoc/>
@@ -38,10 +39,15 @@ public sealed class OptimizationBenchmarkService : IOptimizationBenchmarkService
         QueryBenchmarkArgs args,
         CancellationToken cancellationToken = default)
     {
+        var resolved = _targets.Resolve(args.DatabaseName);
+        if (resolved.IsFailure) return resolved.Error;
+        DatabaseTargetContext target = resolved.Value;
+        args = args with { DatabaseName = target.QualifiedName };
+
         var compArgs = new QueryComparisonArgs(
             args.DatabaseName, args.QueryA, args.QueryB, args.ParametersA, args.ParametersB, args.SharedParameters);
 
-        var compResult = await _comparisonService.CompareQueriesAsync(compArgs, cancellationToken);
+        var compResult = await _comparisonService.CompareQueriesAsync(target, compArgs, cancellationToken);
         if (compResult.IsFailure)
         {
             return compResult.Error;
@@ -50,7 +56,7 @@ public sealed class OptimizationBenchmarkService : IOptimizationBenchmarkService
         var perfArgsA = new QueryPerformanceArgs(
             args.DatabaseName, args.QueryA, args.ParametersA ?? args.SharedParameters, args.WarmupRuns, args.ExecutionRuns);
 
-        var perfResultA = await _performanceService.MeasurePerformanceAsync(perfArgsA, cancellationToken);
+        var perfResultA = await _performanceService.MeasurePerformanceAsync(target, perfArgsA, cancellationToken);
         if (perfResultA.IsFailure)
         {
             return perfResultA.Error;
@@ -59,7 +65,7 @@ public sealed class OptimizationBenchmarkService : IOptimizationBenchmarkService
         var perfArgsB = new QueryPerformanceArgs(
             args.DatabaseName, args.QueryB, args.ParametersB ?? args.SharedParameters, args.WarmupRuns, args.ExecutionRuns);
 
-        var perfResultB = await _performanceService.MeasurePerformanceAsync(perfArgsB, cancellationToken);
+        var perfResultB = await _performanceService.MeasurePerformanceAsync(target, perfArgsB, cancellationToken);
         if (perfResultB.IsFailure)
         {
             return perfResultB.Error;
@@ -69,7 +75,7 @@ public sealed class OptimizationBenchmarkService : IOptimizationBenchmarkService
         var (verdict, summary) = DetermineVerdictAndSummary(compResult.Value, deltas);
 
         return new OptimizationBenchmarkResult(
-            Database: perfResultA.Value.Database,
+            Database: target.QualifiedName,
             Verdict: verdict,
             Summary: summary,
             Comparison: compResult.Value,

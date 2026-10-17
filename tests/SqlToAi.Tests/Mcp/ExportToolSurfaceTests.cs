@@ -24,8 +24,8 @@ public sealed class ExportToolSurfaceTests
         proxy.Objects = [new(new(1, "dbo", "Orders", SchemaObjectKind.Table)), new(new(2, "dbo", "Customers", SchemaObjectKind.Table))];
         var catalog = new CatalogFactory([new(1, "dbo", "Orders"), new(2, "dbo", "Customers")]);
         proxy.ResolveSelected = (names, ct) => catalog.Service().GetSelectedExportObjectsAsync(TestConstants.QualifiedDatabaseName, names, ct);
-        var export = open is null ? new SchemaExportService(schema, NullLogger<SchemaExportService>.Instance)
-            : new SchemaExportService(schema, NullLogger<SchemaExportService>.Instance, open);
+        var export = open is null ? new SchemaExportService(schema, TestTargets.BoundOptions, NullLogger<SchemaExportService>.Instance)
+            : new SchemaExportService(schema, TestTargets.BoundOptions, NullLogger<SchemaExportService>.Instance, open);
         return (ToolDispatcherTestHelper.BuildDispatcher(schema: schema, export: export), proxy);
     }
 
@@ -367,7 +367,7 @@ public sealed class ExportToolSurfaceTests
         var root = new RootCommand();
         root.Add(ToolCommandFactory.BuildQueryCommand(new ToolRegistry().GetAll(), async (name, args, ct) =>
             (await dispatcher.DispatchAsync(new ToolCallParams { Name = name, Arguments = args }, ct)).IsError ? 1 : 0));
-        var tokens = new List<string> { "query", "sql_export_schema", "--database", "DemoDB", "--scope", scope, "--output_path", temp.GetPath("dump") };
+        var tokens = new List<string> { "query", "sql_export_schema", "--database", TestConstants.QualifiedDatabaseName, "--scope", scope, "--output_path", temp.GetPath("dump") };
         if (scalar is not null) tokens.AddRange(["--object_name", scalar]);
         if (list is not null) tokens.AddRange(["--object_names", list]);
         var parsed = root.Parse(tokens.ToArray());

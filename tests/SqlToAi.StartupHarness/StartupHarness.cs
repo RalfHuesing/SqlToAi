@@ -60,8 +60,8 @@ public static class StartupHarness
         var script = SqlScriptFileReader.Read("input.sql", startup.Options.QueryExecution);
         if (script.IsFailure) return 1;
         var schema = DispatchProxy.Create<ISchemaService, EmptySchemaProxy>();
-        var export = new SchemaExportService(schema, NullLogger<SchemaExportService>.Instance);
-        var result = await export.ExportAsync("CwdProbe", "export");
+        var export = new SchemaExportService(schema, Options.Create(startup.Options), NullLogger<SchemaExportService>.Instance);
+        var result = await export.ExportAsync("test/CwdProbe", "export");
         Console.WriteLine(script.Value.Text);
         return result.IsSuccess ? 0 : 1;
     }
@@ -69,7 +69,7 @@ public static class StartupHarness
     public class EmptySchemaProxy : DispatchProxy
     {
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
-            targetMethod?.Name == "GetExportObjectsAsync"
+            targetMethod?.Name == "GetExportObjectsAsync" && args?[0] is DatabaseTargetContext
                 ? Task.FromResult(Result<IReadOnlyList<SchemaObject>>.Success([]))
                 : throw new InvalidOperationException("Unexpected schema call.");
     }

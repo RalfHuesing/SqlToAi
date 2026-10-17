@@ -170,6 +170,7 @@ Locations in this subsection refer to `cab47d3`, before remediation.
 | P2 guard contract | Unused string overloads in `src/SqlToAi/Database/QuerySafetyValidator.cs:142` parse without configured-alias resolution; unknown aliases yield 0104 rather than 0001. Actual execution services resolve correctly first. | R4 |
 | P2 tests | `tests/SqlToAi.Tests/Database/ComposedTargetIsolationTests.cs:34–46,82–94,367` replaces the rule cache and SDK service validation with fakes. Those tests do not prove their claimed real cache/host composition. Existing focused routing/provider tests remain useful. | R5 |
 | P2 public contract | `src/SqlToAi/Mcp/ToolRegistry.cs:96` and corresponding SDK parameter descriptions still say only "Target database name. Required." The M4.2 claim of qualified descriptions has no supporting assertion. | R5 |
+| P2 transport (runtime-confirmed during R4) | Required SDK delegate parameters reject missing server/database before the dispatcher. Against `dd17ef3`, actual StartupHarness stdio `tools/call` for `sql_list_databases` with `{}` and `sql_execute_query` with only `query` both returned generic "An error occurred invoking…" without required `SQL-AI-0001`. Unknown server did return 0001. No SQL was requested; a temporary settings root was used. Runtime server instructions also incorrectly claim unknown tokens always match nothing and omit the target scope. | R5 |
 | P1 acceptance evidence | `src/SqlToAi/SqlToAi.csproj:5` globally suppresses IL2104/IL3053, added by `912701a`. An unmasked detailed AOT publish emitted 103 IL diagnostics, including 17 IL3050 dynamic-code warnings. Exit 0 with suppression is not warning-free AOT compatibility. | R6 |
 | P2 documentation | The resume checkpoint still says M3 has not started, M3.4 evidence is absent here, and historical M4.3 declares complete acceptance without line/commit evidence. | R6 |
 
@@ -278,4 +279,40 @@ regressions cover both owners and omit raw exception/credential markers.
 Parent gates after approval: warning-as-error build returned 0 warnings/errors;
 full no-build tests returned 1,610 passed, 19 skipped, 0 failed. TRX skip names
 exactly match the external TLS baseline. `git diff --check` was clean.
+
+## R4 — One context through export, benchmark and exploration
+
+Completed on 2026-10-18. Coder: GPT-6.1-Sol/high (`audit_surfaces`);
+independent reviewer: GPT-6.1-Sol/high (`audit_foundations`), read-only approval
+against `dd17ef3` (R3). The paused implementation was resumed without treating
+its first build as completion evidence.
+
+`src/SqlToAi/Cli/SchemaExportService.cs:48–73,117–145` resolves the entry target
+once and shares that instance across discovery, selection, trigger/schema/detail
+rendering and the canonical README. The nine typed `ISchemaService` export
+overloads reuse existing cores; `SchemaService.VerifyTargetAsync` retains access
+checks before SQL. `OptimizationBenchmarkService.cs:40–82` resolves once and
+passes that same instance to typed comparison and both measurement calls; each
+child retains its guard, rollback and timeout behavior. Unused string safety
+entry points and the unused benchmark logger dependency were removed.
+
+`SchemaExportTests.cs:337–354` under `tests/SqlToAi.Tests/Cli/` observes the same
+instance through six real schema-service connections, alongside selected/empty
+and all-object proxy coverage. `Database/AnalysisTargetIsolationTests.cs:227–243`
+observes the same instance through a real comparison and two measurements.
+`OptimizationBenchmarkServiceTests.cs:144–201` adds canonical arguments,
+cancellation and failure-short-circuit checks. Invalid/unknown/denied targets
+remain rejected before SQL/output creation. Existing mutation, USE and statement
+guards remain; argument validation tests now exercise real service entry points.
+
+`tools/SqlToAi.Exploration/Program.cs:16–23,54–63` derives manifest target and
+rights from the actual shared scenario target. `ExplorationTests.cs:114–153`
+covers alias ordering, uppercase PRIMARY, other-owner rights, an absent primary,
+and the actual scenario requests. No server is inferred from dictionary order.
+
+Parent gates after independent approval: `dotnet build SqlToAi.slnx --warnaserror`
+returned 0 warnings/errors; full `dotnet test SqlToAi.slnx --no-build` returned
+1,646 passed, 19 skipped, 0 failed. TRX skip names exactly match the external TLS
+baseline. `git diff --check` was clean. These are managed checks; Native AOT
+acceptance remains open.
 

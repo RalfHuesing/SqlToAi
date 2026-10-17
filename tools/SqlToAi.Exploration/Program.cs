@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using SqlToAi.Configuration;
 using SqlToAi.Domain;
+using SqlToAi.Database;
 using SqlToAi.Exploration.Scenarios;
 using SqlToAi.Mcp;
 using SqlToAi.Security;
@@ -11,6 +12,14 @@ namespace SqlToAi.Exploration;
 internal static class ExplorationRunner
 {
     private static Task<int> Main(string[] args) => RunAsync(args);
+
+    internal static async Task<(string Target, AccessLevel AccessLevel)> DescribeBaselineAsync(
+        SqlToAiOptions options, IAccessLevelProvider access, CancellationToken cancellationToken)
+    {
+        var resolved = new DatabaseTargetResolver(options).Resolve(ExploreSqlTools.Database);
+        if (resolved.IsFailure) return (ExploreSqlTools.Database, AccessLevel.None);
+        return (resolved.Value.QualifiedName, await access.GetTargetAccessLevelAsync(resolved.Value, cancellationToken));
+    }
 
     internal static async Task<int> RunAsync(string[] args, string? userRoot = null)
     {
@@ -42,12 +51,13 @@ internal static class ExplorationRunner
             await using var services = SqlToAi.Program.BuildServiceProvider(startup.Configuration, startup.Options, startup.RootDirectory);
             var context = new ExplorationContext(services.GetRequiredService<IToolDispatcher>(), repositoryRoot, outputDirectory, timeout.Token);
             var access = services.GetRequiredService<IAccessLevelProvider>();
-            string firstServer = startup.Options.Servers.Keys.FirstOrDefault() ?? "test";
+            var baseline = await DescribeBaselineAsync(startup.Options, access, timeout.Token);
             await context.WriteJsonAsync(Path.Combine(outputDirectory, "run.json"), new
             {
                 scenario = scenario.GetType().Name,
                 configurationDirectory,
-                demoDbAccessLevel = (await access.GetTargetAccessLevelAsync(new DatabaseTargetContext(firstServer, "DemoDB"), timeout.Token)).ToString(),
+                demoDbTarget = baseline.Target,
+                demoDbAccessLevel = baseline.AccessLevel.ToString(),
                 timeoutSeconds = seconds,
                 configurationOverrides = "None; production configuration and environment providers apply."
             });

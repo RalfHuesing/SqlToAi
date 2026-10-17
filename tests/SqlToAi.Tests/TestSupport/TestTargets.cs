@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
 using SqlToAi.Database;
 using SqlToAi.Domain;
@@ -10,6 +11,8 @@ namespace SqlToAi.Tests.TestSupport;
 /// </summary>
 internal static class TestTargets
 {
+    internal static IOptions<SqlToAiOptions> BoundOptions => Options.Create(new SqlToAiOptions().WithNamedServers(ServerAlias));
+
     public const string ServerAlias = "test";
 
     public const string AlternateServerAlias = "prod";

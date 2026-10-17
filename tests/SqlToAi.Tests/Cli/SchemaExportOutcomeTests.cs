@@ -25,7 +25,7 @@ public sealed class SchemaExportOutcomeTests
         var proxy = (SchemaExportTests.ExportSchemaProxy)schema;
         proxy.Objects = objects;
         var logger = NullLogger<SchemaExportService>.Instance;
-        return (openFile is null ? new SchemaExportService(schema, logger) : new SchemaExportService(schema, logger, openFile), proxy);
+        return (openFile is null ? new SchemaExportService(schema, TestTargets.BoundOptions, logger) : new SchemaExportService(schema, TestTargets.BoundOptions, logger, openFile), proxy);
     }
 
     [Fact]
@@ -51,6 +51,8 @@ public sealed class SchemaExportOutcomeTests
         Assert.False(result.PartialOutput);
         Assert.Null(result.Error);
         Assert.Equal(3, catalog.Commands.Count);
+        Assert.All(proxy.Targets, target => Assert.Same(proxy.Targets[0], target));
+        Assert.Equal(TestConstants.QualifiedDatabaseName, proxy.Targets[0].QualifiedName);
         Assert.Equal(4, Directory.GetFiles(root, "*", SearchOption.AllDirectories).Length);
         Assert.Equal("dbo.Name.md", Path.GetFileName(Assert.Single(Directory.GetFiles(Path.Combine(root, "tables")))));
         Assert.False(File.Exists(Path.Combine(root, "views/dbo.Parent.md")));
@@ -75,7 +77,7 @@ public sealed class SchemaExportOutcomeTests
             new(1, "dbo", "Good"), new(2, "dbo", "Last"), new(3, "dbo", "Orders"),
             new(4, "sales", "Orders"), new(5, "dbo", "CheckOrders", "CHECK_CONSTRAINT"),
             new(6, "dbo", "ServerTrigger", "SQL_TRIGGER")]);
-        var exporter = new SchemaExportService(catalog.Service(), NullLogger<SchemaExportService>.Instance);
+        var exporter = new SchemaExportService(catalog.Service(), TestTargets.BoundOptions, NullLogger<SchemaExportService>.Instance);
         string root = temp.GetPath("dump");
         var result = await exporter.ExportAsync(TestConstants.QualifiedDatabaseName, root, SchemaExportScope.Selected,
             objectNames: JsonSerializer.SerializeToElement(new[] { "dbo.Good", invalid, "dbo.Last" }), cancellationToken: Token);
@@ -128,7 +130,7 @@ public sealed class SchemaExportOutcomeTests
     {
         using var temp = TestTempDirectory.Create();
         var (export, proxy) = Create([]);
-        var result = await export.ExportAsync("DemoDB", temp.GetPath("dump"), selected ? SchemaExportScope.Selected : SchemaExportScope.All, Json(scalar), Json(list), Token);
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), selected ? SchemaExportScope.Selected : SchemaExportScope.All, Json(scalar), Json(list), Token);
         Assert.Equal(SchemaExportStatus.Failed, result.Status);
         Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error!.Code);
         Assert.False(result.PartialOutput);
@@ -141,7 +143,7 @@ public sealed class SchemaExportOutcomeTests
     {
         using var temp = TestTempDirectory.Create();
         var (export, _) = Create([]);
-        var result = await export.ExportAsync("DemoDB", temp.GetPath("dump"), SchemaExportScope.All,
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), SchemaExportScope.All,
             Json("\" \""), Json("[null,\"\",\" \"]"), Token);
         Assert.Equal(SchemaExportStatus.Completed, result.Status);
         Assert.False(result.PartialOutput);
@@ -157,7 +159,7 @@ public sealed class SchemaExportOutcomeTests
         var (export, proxy) = Create([trigger]);
         string root = temp.GetPath("dump");
 
-        var result = await export.ExportAsync("DemoDB", root, SchemaExportScope.All, cancellationToken: Token);
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, root, SchemaExportScope.All, cancellationToken: Token);
 
         Assert.Equal(SchemaExportStatus.Completed, result.Status);
         Assert.Equal(["GetExportObjectsAsync", "GetExportTriggerDefinitionAsync"], proxy.Calls);
@@ -173,7 +175,7 @@ public sealed class SchemaExportOutcomeTests
     {
         using var temp = TestTempDirectory.Create();
         var catalog = new CatalogFactory([new(1, "dbo", "Good")]);
-        var exporter = new SchemaExportService(catalog.Service(allowed: excluded, excluded: excluded), NullLogger<SchemaExportService>.Instance);
+        var exporter = new SchemaExportService(catalog.Service(allowed: excluded, excluded: excluded), TestTargets.BoundOptions, NullLogger<SchemaExportService>.Instance);
         var result = await exporter.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), SchemaExportScope.Selected,
             Json("\"Good\""), cancellationToken: Token);
         Assert.Equal(SchemaExportStatus.Failed, result.Status);
@@ -188,7 +190,7 @@ public sealed class SchemaExportOutcomeTests
     {
         using var temp = TestTempDirectory.Create();
         var fixture = new SchemaPresentationFixture { ExportDiscovery = true, RejectEnrichment = true };
-        var export = new SchemaExportService(fixture.CreateService(), NullLogger<SchemaExportService>.Instance);
+        var export = new SchemaExportService(fixture.CreateService(), TestTargets.BoundOptions, NullLogger<SchemaExportService>.Instance);
         var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), SchemaExportScope.Selected,
             Json("\"sales.Exported\""), cancellationToken: Token);
         Assert.Equal(SchemaExportStatus.Completed, result.Status);
@@ -199,6 +201,8 @@ public sealed class SchemaExportOutcomeTests
         Assert.DoesNotContain(".md)", text);
         Assert.DoesNotContain("Anonymized", text);
         Assert.Equal(0, fixture.MetadataCalls + fixture.PolicyCalls + fixture.RuleCalls);
+        Assert.Equal(6, fixture.Targets.Count);
+        Assert.All(fixture.Targets, target => Assert.Same(fixture.Targets[0], target));
         Assert.Equal(2, Directory.GetFiles(result.OutputPath!, "*", SearchOption.AllDirectories).Length);
     }
 
@@ -213,7 +217,7 @@ public sealed class SchemaExportOutcomeTests
         {
             if (context.Source.ObjectId == (afterWrite ? 2 : 1)) proxy.FailOperation = "GetExportSchemaAsync";
         };
-        var result = await export.ExportAsync("DemoDB", temp.GetPath("dump"), SchemaExportScope.All, cancellationToken: Token);
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), SchemaExportScope.All, cancellationToken: Token);
         Assert.Equal(SchemaExportStatus.Failed, result.Status);
         Assert.Equal(proxy.Failure, result.Error);
         Assert.Equal(afterWrite, result.PartialOutput);
@@ -224,7 +228,7 @@ public sealed class SchemaExportOutcomeTests
             proxy.BeforePrimary = null;
             proxy.FailOperation = null;
             Assert.Equal(SchemaExportStatus.Completed,
-                (await export.ExportAsync("DemoDB", result.OutputPath!, SchemaExportScope.All, cancellationToken: Token)).Status);
+                (await export.ExportAsync(TestConstants.QualifiedDatabaseName, result.OutputPath!, SchemaExportScope.All, cancellationToken: Token)).Status);
         }
     }
 
@@ -242,7 +246,7 @@ public sealed class SchemaExportOutcomeTests
             cancellation.Cancel();
             proxy.FailOperation = "GetExportSchemaAsync";
         };
-        var result = await export.ExportAsync("DemoDB", temp.GetPath("dump"), SchemaExportScope.All, cancellationToken: cancellation.Token);
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), SchemaExportScope.All, cancellationToken: cancellation.Token);
         Assert.Equal(SchemaExportStatus.Cancelled, result.Status);
         Assert.Equal("cancelled", result.Reason);
         Assert.Null(result.Error);
@@ -258,7 +262,7 @@ public sealed class SchemaExportOutcomeTests
         using var cancellation = new CancellationTokenSource();
         await cancellation.CancelAsync();
         var (export, proxy) = Create([]);
-        var result = await export.ExportAsync("DemoDB", temp.GetPath("dump"), SchemaExportScope.All, cancellationToken: cancellation.Token);
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), SchemaExportScope.All, cancellationToken: cancellation.Token);
         Assert.Equal(SchemaExportStatus.Cancelled, result.Status);
         Assert.Equal(temp.GetPath("dump"), result.OutputPath);
         Assert.False(result.PartialOutput);
@@ -277,7 +281,7 @@ public sealed class SchemaExportOutcomeTests
             await cancellation.CancelAsync();
             return Result<IReadOnlyList<SchemaObject>>.Failure(proxy.Failure);
         };
-        var result = await export.ExportAsync("DemoDB", temp.GetPath("dump"), SchemaExportScope.Selected,
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), SchemaExportScope.Selected,
             Json("\"Selected\""), cancellationToken: cancellation.Token);
         Assert.Equal(SchemaExportStatus.Cancelled, result.Status);
         Assert.False(result.PartialOutput);
@@ -290,7 +294,7 @@ public sealed class SchemaExportOutcomeTests
         using var temp = TestTempDirectory.Create();
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(Token);
         var (export, _) = Create([], path => new CancelOnDisposeStream(path, cancellation));
-        var result = await export.ExportAsync("DemoDB", temp.GetPath("dump"), SchemaExportScope.All, cancellationToken: cancellation.Token);
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), SchemaExportScope.All, cancellationToken: cancellation.Token);
         Assert.Equal(SchemaExportStatus.Cancelled, result.Status);
         Assert.True(result.PartialOutput);
         Assert.Equal("README.md", Path.GetFileName(Assert.Single(Directory.GetFiles(result.OutputPath!))));
@@ -303,7 +307,7 @@ public sealed class SchemaExportOutcomeTests
     {
         using var temp = TestTempDirectory.Create();
         var (export, _) = Create(withObject ? [Object(1, "First")] : [], _ => throw new IOException("fixed write failure"));
-        var result = await export.ExportAsync("DemoDB", temp.GetPath("dump"), SchemaExportScope.All, cancellationToken: Token);
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), SchemaExportScope.All, cancellationToken: Token);
         Assert.Equal(SchemaExportStatus.Failed, result.Status);
         Assert.Equal(SqlToAiError.InfrastructureErrorCode, result.Error!.Code);
         Assert.Equal(withObject, result.PartialOutput);
@@ -318,13 +322,13 @@ public sealed class SchemaExportOutcomeTests
     {
         using var temp = TestTempDirectory.Create();
         var (export, _) = Create([], path => new PartialWriteStream(path, cancelled));
-        var result = await export.ExportAsync("DemoDB", temp.GetPath("dump"), SchemaExportScope.All, cancellationToken: Token);
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), SchemaExportScope.All, cancellationToken: Token);
         Assert.Equal(cancelled ? SchemaExportStatus.Cancelled : SchemaExportStatus.Failed, result.Status);
         Assert.True(result.PartialOutput);
         string file = Assert.Single(Directory.GetFiles(result.OutputPath!));
         Assert.Equal("README.md", Path.GetFileName(file));
         Assert.True(new FileInfo(file).Length > 0);
-        Assert.True((await export.ExportAsync("DemoDB", result.OutputPath!, Token)).IsFailure);
+        Assert.True((await export.ExportAsync(TestConstants.QualifiedDatabaseName, result.OutputPath!, Token)).IsFailure);
     }
 
     [Fact]
@@ -336,9 +340,9 @@ public sealed class SchemaExportOutcomeTests
         Assert.False(Path.IsPathFullyQualified(output));
         var command = new RootCommand();
         command.Add(SchemaExportCommand.Build(export.ExportAsync));
-        Assert.Equal(0, await command.Parse(["export-schema", "--database", "DemoDB", "--output", output]).InvokeAsync(cancellationToken: Token));
+        Assert.Equal(0, await command.Parse(["export-schema", "--database", TestConstants.QualifiedDatabaseName, "--output", output]).InvokeAsync(cancellationToken: Token));
         Assert.Equal(3, Directory.GetFiles(temp.GetPath("dump"), "*", SearchOption.AllDirectories).Length);
-        Assert.Equal(1, await command.Parse(["export-schema", "--database", "DemoDB", "--output", output]).InvokeAsync(cancellationToken: Token));
+        Assert.Equal(1, await command.Parse(["export-schema", "--database", TestConstants.QualifiedDatabaseName, "--output", output]).InvokeAsync(cancellationToken: Token));
     }
 
     [Theory]
@@ -347,7 +351,7 @@ public sealed class SchemaExportOutcomeTests
     public async Task InvalidPath_DoesNotReportAResolvedLocation(string path)
     {
         var (export, proxy) = Create([]);
-        var result = await export.ExportAsync("DemoDB", path, SchemaExportScope.All, cancellationToken: Token);
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, path, SchemaExportScope.All, cancellationToken: Token);
         Assert.Equal(SchemaExportStatus.Failed, result.Status);
         Assert.Null(result.OutputPath);
         Assert.False(result.PartialOutput);

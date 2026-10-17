@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
 using SqlToAi.Database;
+using SqlToAi.Domain;
 using SqlToAi.Metadata;
 using SqlToAi.Security;
 using SqlToAi.Tests.TestSupport;
@@ -12,7 +13,12 @@ namespace SqlToAi.Tests.Database;
 
 internal sealed class SchemaPresentationFixture : IDatabaseConnectionFactory, IMetadataProvider, IAnonymizationRuleProvider
 {
-    public DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
+    public List<DatabaseTargetContext> Targets { get; } = [];
+    public DbConnection CreateTargetConnection(DatabaseTargetContext target)
+    {
+        Targets.Add(target);
+        return CreateConnection(target.DatabaseName);
+    }
     public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
     public string? ObjectType { get; set; } = "U";
@@ -32,10 +38,10 @@ internal sealed class SchemaPresentationFixture : IDatabaseConnectionFactory, IM
     public int Connections { get; private set; }
     public int PolicyCalls { get; private set; }
 
-    public SchemaService CreateService(bool allowed = true)
+    public SchemaService CreateService(bool allowed = true, string databaseName = TestConstants.QualifiedDatabaseName)
     {
         var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
-        if (allowed) options.Databases.SchemaOnly = [TestConstants.QualifiedDatabaseName];
+        if (allowed) options.Databases.SchemaOnly = [databaseName];
         options.Anonymizer.Enabled = true;
         options.Servers[TestTargets.ServerAlias].AnonymizationRules.Enabled = true;
         var bound = Options.Create(options);

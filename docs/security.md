@@ -24,9 +24,18 @@ The shipped main template has empty access lists, so every database, including `
 
 ## Query guards and transactions
 
-`QuerySafetyValidator` checks arguments, rejects `USE` switches, verifies database access, applies access-level restrictions, invokes `ReadOnlyGuard` and enforces the single-statement boundary. The guard uses ScriptDom's `TSql150Parser`, AST fragments and token checks. It rejects mutating statements including DML, DDL, `EXEC` and `SELECT ... INTO`; it is not a regular-expression-only filter.
+Service entries resolve qualified targets before safety validation. `QuerySafetyValidator` checks query text on that resolved context, rejects `USE` switches, verifies database access, applies access-level restrictions, invokes `ReadOnlyGuard` and enforces the single-statement boundary. The guard uses ScriptDom's `TSql150Parser`, AST fragments and token checks. It rejects mutating statements including DML, DDL, `EXEC` and `SELECT ... INTO`; it is not a regular-expression-only filter.
 
 Query execution and validation resolve one immutable target from the caller's qualified `alias/database` argument at the service entry. A malformed, unqualified or unknown target fails with `SQL-AI-0001` before any validation stage or connection; a validly formed target that the grants or the owning server's exclusions deny fails with `SQL-AI-0104` before any connection. The resolved context then drives the guard checks, the primary connection, central-rule lookups, token issuance/resolution and error/log labels, and the raw database name alone reaches SqlClient. Script execution (`sql_execute_file`) resolves the same qualified target exactly once at its service entry, including the empty-script case, and carries the identical immutable context through every preflight batch check, the connection and each batch execution; batches cannot change the selected target. The report's database field and error/log labels use the canonical qualified target.
+
+Schema exports resolve one target at their entry, including empty exports, and
+reuse it for discovery, selected objects, trigger definitions and all rendered
+sections. Access checks still run before each schema operation opens a connection.
+Benchmarks carry one target through comparison and both measurements, whose
+existing safety checks and rollback behavior remain in effect. Standalone schema,
+comparison and measurement calls resolve their own target and use the same
+context-based implementations. Export overviews and benchmark database fields
+identify the canonical qualified target; SQL/DDL identifiers remain unchanged.
 
 `sql_execute_query` rolls back in read-only modes and commits in `ReadWrite`. Single-query calls support leading `DECLARE` statements followed by one main query; multiple main statements fail with `SQL-AI-0101`. `ReadWrite` bypasses mutation checks but retains `USE` and single-query restrictions.
 

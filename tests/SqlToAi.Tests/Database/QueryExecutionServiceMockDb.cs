@@ -104,8 +104,8 @@ internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
 
     /// <summary>Happy-path constructor: delegates to a real <see cref="QuerySafetyValidator"/>
     /// built from the supplied security triples. This keeps the test fake faithful to the
-    /// production pipeline (same regex, same multi-statement detector, same access-level
-    /// checks) so the service-level tests don't have to re-implement any of the 6 stages.
+    /// production pipeline (same read-only guard, same multi-statement detector, same access-level
+    /// checks) so the service-level tests don't have to re-implement any of the checks.
     /// </summary>
     public FakeQuerySafetyValidator(
         ISecurityGuard securityGuard,
@@ -117,7 +117,7 @@ internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
 
     /// <summary>Convenience overload for tests that don't care which access level the pipeline
     /// sees, only that it returns the configured success result for any input that the
-    /// pipeline stages (empty inputs, multi-statement, read-only guard) accept. Used by tests
+    /// query checks (empty query, multi-statement, read-only guard) accept. Used by tests
     /// that explicitly want to exercise the service's post-pipeline behaviour (commit/rollback,
     /// row limits, anonymization) without coupling them to access-level semantics.
     /// </summary>
@@ -153,33 +153,8 @@ internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
                 new ReadOnlyGuard());
     }
 
-    public Task<Result<QuerySafetyCheckResult>> ValidateQuerySafetyAsync(
-        string databaseName,
-        string query,
-        bool allowSchemaOnly = false,
-        CancellationToken cancellationToken = default)
-    {
-        if (_fixedFailure != null)
-        {
-            return Task.FromResult(_fixedFailure);
-        }
-        return _delegate!.ValidateQuerySafetyAsync(databaseName, query, allowSchemaOnly, cancellationToken);
-    }
-
-    public Task<Result<QuerySafetyCheckResult>> ValidateBatchSafetyAsync(
-        string databaseName,
-        string query,
-        CancellationToken cancellationToken = default)
-    {
-        if (_fixedFailure != null)
-        {
-            return Task.FromResult(_fixedFailure);
-        }
-        return _delegate!.ValidateBatchSafetyAsync(databaseName, query, cancellationToken);
-    }
-
     /// <summary>
-    /// Minimal pipeline that still runs the input-only stages (empty database name, empty query,
+    /// Minimal pipeline that still runs the input-only checks (empty query,
     /// multi-statement detection) but treats the read-only guard as a no-op, so tests that
     /// already control the success outcome via the explicit <see cref="QuerySafetyCheckResult"/>
     /// see a service-level pass for any non-structural input. The delegate is intentionally
@@ -191,18 +166,18 @@ internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
         public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetQuerySafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, bool allowSchemaOnly = false, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(target);
-            return Task.FromResult(ValidateTargetInput(query, rejectMultipleStatements: true));
+            return Task.FromResult(ValidateTargetInput(target, query, rejectMultipleStatements: true));
         }
 
         public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetBatchSafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(target);
-            return Task.FromResult(ValidateTargetInput(query, rejectMultipleStatements: false));
+            return Task.FromResult(ValidateTargetInput(target, query, rejectMultipleStatements: false));
         }
 
         /// <summary>Mirrors input validation stages for target-aware calls; the access
         /// level and whitelist outcome come from the configured result.</summary>
-        private Result<QuerySafetyCheckResult> ValidateTargetInput(string query, bool rejectMultipleStatements)
+        private Result<QuerySafetyCheckResult> ValidateTargetInput(DatabaseTargetContext target, string query, bool rejectMultipleStatements)
         {
             if (string.IsNullOrWhiteSpace(query))
             {
@@ -212,42 +187,7 @@ internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
             {
                 return SqlToAiError.MultipleStatementsForbidden();
             }
-            return Result<QuerySafetyCheckResult>.Success(result);
-        }
-
-        public Task<Result<QuerySafetyCheckResult>> ValidateQuerySafetyAsync(
-            string databaseName,
-            string query,
-            bool allowSchemaOnly = false,
-            CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult(ValidateInput(databaseName, query, rejectMultipleStatements: true));
-        }
-
-        public Task<Result<QuerySafetyCheckResult>> ValidateBatchSafetyAsync(
-            string databaseName,
-            string query,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(ValidateInput(databaseName, query, rejectMultipleStatements: false));
-
-        private Result<QuerySafetyCheckResult> ValidateInput(
-            string databaseName,
-            string query,
-            bool rejectMultipleStatements)
-        {
-            if (string.IsNullOrWhiteSpace(databaseName))
-            {
-                return SqlToAiError.InvalidParameters("Database name must not be empty.");
-            }
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                return SqlToAiError.InvalidParameters("Query must not be empty.");
-            }
-            if (rejectMultipleStatements && SqlMultiStatementDetector.ContainsMultipleStatements(query))
-            {
-                return SqlToAiError.MultipleStatementsForbidden();
-            }
-            return Result<QuerySafetyCheckResult>.Success(result);
+            return Result<QuerySafetyCheckResult>.Success(result with { Target = target });
         }
     }
 }

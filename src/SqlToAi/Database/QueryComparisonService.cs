@@ -43,22 +43,27 @@ public sealed class QueryComparisonService : IQueryComparisonService
     }
 
     /// <inheritdoc/>
-    public async Task<Result<QueryComparisonResult>> CompareQueriesAsync(
+    public Task<Result<QueryComparisonResult>> CompareQueriesAsync(
         QueryComparisonArgs args,
         CancellationToken cancellationToken = default)
     {
+        var resolved = _dependencies.TargetResolver.Resolve(args.DatabaseName);
+        return resolved.IsFailure
+            ? Task.FromResult(Result<QueryComparisonResult>.Failure(resolved.Error))
+            : CompareQueriesAsync(resolved.Value, args, cancellationToken);
+    }
+
+    public async Task<Result<QueryComparisonResult>> CompareQueriesAsync(
+        DatabaseTargetContext target, QueryComparisonArgs args,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        args = args with { DatabaseName = target.QualifiedName };
         var validationError = ValidateArgs(args);
         if (validationError != null)
         {
             return validationError;
         }
-
-        var targetResult = _dependencies.TargetResolver.Resolve(args.DatabaseName);
-        if (targetResult.IsFailure)
-        {
-            return targetResult.Error;
-        }
-        DatabaseTargetContext target = targetResult.Value;
 
         object? effectiveParamsA = args.ParametersA ?? args.SharedParameters;
         object? effectiveParamsB = args.ParametersB ?? args.SharedParameters;
@@ -86,9 +91,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
             return SqlToAiErrorMapper.MapException(ex);
         }
 
-        // 1-5. Run the shared 6-stage guardrail pipeline once per query — the pipeline is
-        // single-query, so QueryComparisonService is the only consumer that calls it twice
-        // (once for QueryA, once for QueryB) and short-circuits on the first failure.
+        // Each query must pass the shared safety checks on the same resolved target.
         var safetyResultA = await _dependencies.QuerySafetyValidator
             .ValidateTargetQuerySafetyAsync(target, args.QueryA, allowSchemaOnly: false, cancellationToken)
             .ConfigureAwait(false);
@@ -143,10 +146,6 @@ public sealed class QueryComparisonService : IQueryComparisonService
 
     private static SqlToAiError? ValidateArgs(QueryComparisonArgs args)
     {
-        if (string.IsNullOrWhiteSpace(args.DatabaseName))
-        {
-            return SqlToAiError.InvalidParameters("Database name must not be empty.");
-        }
         if (string.IsNullOrWhiteSpace(args.QueryA) || string.IsNullOrWhiteSpace(args.QueryB))
         {
             return SqlToAiError.InvalidParameters("Both Query A and Query B must be specified.");

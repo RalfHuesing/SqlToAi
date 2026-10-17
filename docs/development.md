@@ -156,6 +156,13 @@ startup as `server` and `query`; `SchemaOnly` access is sufficient. The target
 must be absent or empty, including no child directories. There are no overwrite
 or cleanup options.
 
+Both export entries resolve the qualified target once and carry the same context
+through discovery and every schema section, including when the catalog is empty.
+Direct schema-service calls retain their string entry points and share the
+context-based implementations. Optimization benchmarks use one context for their
+comparison and both measurements; access and query guards remain active in the
+nested operations.
+
 This command continues to export the entire catalog and accepts relative output
 paths, resolved against the process working directory. The shared coordinator's
 selected scope resolves every requested identity before writing, exports

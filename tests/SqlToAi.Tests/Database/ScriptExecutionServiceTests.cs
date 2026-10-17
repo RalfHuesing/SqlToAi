@@ -470,19 +470,10 @@ public sealed class ScriptExecutionServiceTests
             CancellationToken cancellationToken = default)
         {
             BatchQueries.Add(query);
-            return Task.FromResult(validator(query));
+            var result = validator(query);
+            return Task.FromResult(result.IsSuccess ? Result<QuerySafetyCheckResult>.Success(result.Value with { Target = target }) : result);
         }
 
-        public Task<Result<QuerySafetyCheckResult>> ValidateQuerySafetyAsync(
-            string databaseName,
-            string query,
-            bool allowSchemaOnly = false,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<Result<QuerySafetyCheckResult>> ValidateBatchSafetyAsync(
-            string databaseName,
-            string query,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class RecordingBatchExecutor : IQueryBatchExecutor

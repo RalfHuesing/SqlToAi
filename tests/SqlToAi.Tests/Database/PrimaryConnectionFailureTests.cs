@@ -187,12 +187,12 @@ public sealed class PrimaryConnectionFailureTests
             var performance = new PerformanceMeasurementService(dependencies, _loggers.CreateLogger<PerformanceMeasurementService>());
             var comparison = new QueryComparisonService(dependencies, _loggers.CreateLogger<QueryComparisonService>());
             var analysis = new DatabaseAnalysisServices(performance, comparison,
-                new OptimizationBenchmarkService(comparison, performance, _loggers.CreateLogger<OptimizationBenchmarkService>()),
+                new OptimizationBenchmarkService(comparison, performance, options),
                 new IndexSuggestionService(Factory, security, access, options, _loggers.CreateLogger<IndexSuggestionService>()));
             _dispatcher = new ToolDispatcher(Schema, query, Script,
                 new QueryValidationService(Factory, safety, options, _loggers.CreateLogger<QueryValidationService>()),
                 analysis, options, _loggers.CreateLogger<ToolDispatcher>(),
-                new SchemaExportService(Schema, _loggers.CreateLogger<SchemaExportService>()));
+                new SchemaExportService(Schema, options, _loggers.CreateLogger<SchemaExportService>()));
         }
 
         internal FailingOpenFactory Factory { get; }

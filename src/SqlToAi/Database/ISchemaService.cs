@@ -127,4 +127,22 @@ public interface ISchemaService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A Markdown table of parameters.</returns>
     Task<Result<string>> GetRoutineParametersAsync(string databaseName, string routineName, CancellationToken cancellationToken = default);
+
+    Task<Result<IReadOnlyList<SchemaObject>>> GetExportObjectsAsync(DatabaseTargetContext target, CancellationToken cancellationToken = default);
+
+    Task<Result<IReadOnlyList<SchemaObject>>> GetSelectedExportObjectsAsync(DatabaseTargetContext target, IReadOnlyList<string> objectNames, CancellationToken cancellationToken = default);
+
+    Task<Result<string>> GetExportTriggerDefinitionAsync(DatabaseTargetContext target, SchemaObject trigger, CancellationToken cancellationToken = default);
+
+    Task<Result<string>> GetExportSchemaAsync(DatabaseTargetContext target, SchemaRenderingContext context, CancellationToken cancellationToken = default);
+
+    Task<Result<string>> GetExportSchemaForeignKeysAsync(DatabaseTargetContext target, SchemaRenderingContext context, CancellationToken cancellationToken = default);
+
+    Task<Result<string>> GetExportObjectReferencesAsync(DatabaseTargetContext target, SchemaRenderingContext context, CancellationToken cancellationToken = default);
+
+    Task<Result<string>> GetExportSchemaIndexesAsync(DatabaseTargetContext target, SchemaRenderingContext context, CancellationToken cancellationToken = default);
+
+    Task<Result<string>> GetExportSchemaConstraintsAsync(DatabaseTargetContext target, SchemaRenderingContext context, CancellationToken cancellationToken = default);
+
+    Task<Result<string>> GetExportRoutineParametersAsync(DatabaseTargetContext target, SchemaRenderingContext context, CancellationToken cancellationToken = default);
 }

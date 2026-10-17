@@ -2,6 +2,8 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
+using SqlToAi.Domain;
+using SqlToAi.Security;
 using SqlToAi.Exploration;
 using SqlToAi.Exploration.Scenarios;
 using SqlToAi.Mcp;
@@ -102,6 +104,56 @@ public sealed class ExplorationTests
     public void Registry_DiscoversPermanentScenarioCaseInsensitively()
     {
         Assert.IsType<ExploreSqlTools>(ScenarioRegistry.All["exploresqltools"]);
+    }
+
+    [Theory]
+    [InlineData(false, "primary")]
+    [InlineData(true, "primary")]
+    [InlineData(false, "PRIMARY")]
+    [InlineData(true, "PRIMARY")]
+    public async Task BaselineManifest_UsesScenarioTargetRegardlessOfAliasOrderOrCasing(bool primaryFirst, string primaryAlias)
+    {
+        var options = new SqlToAiOptions();
+        string[] aliases = primaryFirst ? [primaryAlias, "alpha"] : ["alpha", primaryAlias];
+        foreach (string alias in aliases) options.Servers.Add(alias, new NamedServerOptions { Server = alias + "-host" });
+        options.Databases.SchemaOnly.Add("primary/DemoDB");
+        options.Databases.ReadWrite.Add("alpha/DemoDB");
+        var access = new AccessLevelProvider(Options.Create(options));
+        var baseline = await ExplorationRunner.DescribeBaselineAsync(options, access, TestContext.Current.CancellationToken);
+        Assert.Equal(ExploreSqlTools.Database, baseline.Target);
+        Assert.Equal(AccessLevel.SchemaOnly, baseline.AccessLevel);
+    }
+
+    [Fact]
+    public async Task BaselineManifest_UnconfiguredPrimaryDoesNotSelectAnotherServer()
+    {
+        var options = new SqlToAiOptions();
+        options.Servers.Add("alpha", new NamedServerOptions { Server = "alpha-host" });
+        options.Databases.ReadWrite.Add("alpha/DemoDB");
+        var baseline = await ExplorationRunner.DescribeBaselineAsync(options, new AccessLevelProvider(Options.Create(options)),
+            TestContext.Current.CancellationToken);
+        Assert.Equal(ExploreSqlTools.Database, baseline.Target);
+        Assert.Equal(AccessLevel.None, baseline.AccessLevel);
+    }
+
+    [Fact]
+    public async Task BaselineScenario_UsesItsManifestTargetForEveryDatabaseCall()
+    {
+        using var temp = TestTempDirectory.Create();
+        var calls = new List<ToolCallParams>();
+        var dispatcher = new FakeDispatcher((request, _) =>
+        {
+            calls.Add(request);
+            return Task.FromResult(ToolCallResult.Success("observed"));
+        });
+        var context = new ExplorationContext(dispatcher, temp.DirectoryPath, temp.DirectoryPath, TestContext.Current.CancellationToken);
+        await new ExploreSqlTools().RunAsync(context);
+        var targets = calls.Where(call => call.Arguments.ContainsKey(McpConstants.ArgDatabase))
+            .Select(call => Assert.IsType<JsonElement>(call.Arguments[McpConstants.ArgDatabase]).GetString()).ToArray();
+        Assert.NotEmpty(targets);
+        Assert.All(targets, target => Assert.Equal(ExploreSqlTools.Database, target));
+        Assert.All(calls.Where(call => call.Arguments.ContainsKey(McpConstants.ArgServer)), call =>
+            Assert.Equal(ExploreSqlTools.Server, Assert.IsType<JsonElement>(call.Arguments[McpConstants.ArgServer]).GetString()));
     }
 
     private sealed class FakeDispatcher(Func<ToolCallParams, CancellationToken, Task<ToolCallResult>> dispatch) : IToolDispatcher

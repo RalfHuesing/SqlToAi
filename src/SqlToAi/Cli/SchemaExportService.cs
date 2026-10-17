@@ -1,18 +1,21 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using SqlToAi.Configuration;
 using SqlToAi.Database;
 using SqlToAi.Domain;
 
 namespace SqlToAi.Cli;
 
-internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaExportService> logger)
+internal sealed class SchemaExportService(ISchemaService schema, IOptions<SqlToAiOptions> options, ILogger<SchemaExportService> logger)
 {
+    private readonly DatabaseTargetResolver _targets = new(options.Value);
     private readonly Func<string, Stream> _openFile = path =>
         new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, useAsync: true);
 
-    internal SchemaExportService(ISchemaService schema, ILogger<SchemaExportService> logger, Func<string, Stream> openFile)
-        : this(schema, logger) => _openFile = openFile;
+    internal SchemaExportService(ISchemaService schema, IOptions<SqlToAiOptions> options, ILogger<SchemaExportService> logger, Func<string, Stream> openFile)
+        : this(schema, options, logger) => _openFile = openFile;
 
     internal async Task<Result> ExportAsync(string database, string output, CancellationToken cancellationToken = default)
     {
@@ -26,6 +29,7 @@ internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaE
         JsonElement objectName = default, JsonElement objectNames = default, CancellationToken cancellationToken = default)
     {
         string? root = null;
+        string databaseLabel = database;
         bool createdOutput = false;
         SchemaExportOutcome Failure(SqlToAiError error) =>
             new(SchemaExportStatus.Failed, root, HasPartialOutput(root, createdOutput), error);
@@ -45,9 +49,13 @@ internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaE
             if (File.Exists(root) || (Directory.Exists(root) && Directory.EnumerateFileSystemEntries(root).Any()))
                 return Failure(SqlToAiError.InvalidParameters("The output directory must be absent or empty."));
             cancellationToken.ThrowIfCancellationRequested();
+            var resolved = _targets.Resolve(database);
+            if (resolved.IsFailure) return Failure(resolved.Error);
+            DatabaseTargetContext target = resolved.Value;
+            databaseLabel = target.QualifiedName;
             var discovery = scope == SchemaExportScope.All
-                ? await schema.GetExportObjectsAsync(database, cancellationToken)
-                : await schema.GetSelectedExportObjectsAsync(database, names.Value, cancellationToken);
+                ? await schema.GetExportObjectsAsync(target, cancellationToken)
+                : await schema.GetSelectedExportObjectsAsync(target, names.Value, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (discovery.IsFailure) return Failure(discovery.Error);
             var objects = discovery.Value;
@@ -60,15 +68,13 @@ internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaE
                 foreach (SchemaObject item in objects)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var document = await ComposeAsync(database, item, paths, renderingContext, cancellationToken);
+                    var document = await ComposeAsync(target, item, paths, renderingContext, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
                     if (document.IsFailure) return Failure(document.Error);
                     await WriteAsync(root, paths[item.Identity], document.Value, () => createdOutput = true, cancellationToken);
                 }
             }
-            var parsed = DatabaseTargetParser.Parse(database);
-            string overviewDatabase = parsed.IsSuccess ? $"{parsed.Value.ServerAlias}/{parsed.Value.DatabaseName}" : database;
-            var overview = new StringBuilder().Append("# Database schema: ").AppendLine(OfflineSqlNameFormatter.Text(overviewDatabase)).AppendLine();
+            var overview = new StringBuilder().Append("# Database schema: ").AppendLine(OfflineSqlNameFormatter.Text(target.QualifiedName)).AppendLine();
             foreach (var group in objects.GroupBy(item => SchemaExportPaths.DirectoryFor(item.Identity.Kind)))
             {
                 overview.Append("## ").AppendLine(group.Key).AppendLine();
@@ -90,7 +96,7 @@ internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaE
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Schema export failed for {Database} to {Output}", database, output);
+            logger.LogError(exception, "Schema export failed for {Database} to {Output}", databaseLabel, output);
             return Failure(SqlToAiError.InfrastructureError(exception.Message));
         }
     }
@@ -108,14 +114,14 @@ internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaE
         }
     }
 
-    private async Task<Result<string>> ComposeAsync(string database, SchemaObject item,
+    private async Task<Result<string>> ComposeAsync(DatabaseTargetContext target, SchemaObject item,
         IReadOnlyDictionary<SchemaObjectIdentity, string> paths, SchemaRenderingContext renderingContext, CancellationToken cancellationToken)
     {
         var identity = item.Identity;
         cancellationToken.ThrowIfCancellationRequested();
         if (identity.Kind == SchemaObjectKind.Trigger)
         {
-            var definition = await schema.GetExportTriggerDefinitionAsync(database, item, cancellationToken);
+            var definition = await schema.GetExportTriggerDefinitionAsync(target, item, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (definition.IsFailure) return definition;
             if (item.Parent is null) return Result<string>.Failure(SqlToAiError.InvalidParameters("A trigger must identify its parent."));
@@ -124,19 +130,19 @@ internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaE
             return Result<string>.Success($"# Trigger: {OfflineSqlNameFormatter.Code(identity.DisplayName)}\n\nParent: {parent}\n\n{definition.Value}");
         }
         var context = renderingContext.ForSource(identity);
-        var primary = await schema.GetExportSchemaAsync(database, context, cancellationToken);
+        var primary = await schema.GetExportSchemaAsync(target, context, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (primary.IsFailure) return primary;
         var sections = new StringBuilder(primary.Value);
         var operations = new List<Func<Task<Result<string>>>>();
         if (identity.Kind is SchemaObjectKind.Table or SchemaObjectKind.View)
         {
-            operations.Add(() => schema.GetExportSchemaForeignKeysAsync(database, context, cancellationToken));
-            operations.Add(() => schema.GetExportSchemaIndexesAsync(database, context, cancellationToken));
-            operations.Add(() => schema.GetExportSchemaConstraintsAsync(database, context, cancellationToken));
-            operations.Add(() => schema.GetExportObjectReferencesAsync(database, context, cancellationToken));
+            operations.Add(() => schema.GetExportSchemaForeignKeysAsync(target, context, cancellationToken));
+            operations.Add(() => schema.GetExportSchemaIndexesAsync(target, context, cancellationToken));
+            operations.Add(() => schema.GetExportSchemaConstraintsAsync(target, context, cancellationToken));
+            operations.Add(() => schema.GetExportObjectReferencesAsync(target, context, cancellationToken));
         }
-        else operations.Add(() => schema.GetExportRoutineParametersAsync(database, context, cancellationToken));
+        else operations.Add(() => schema.GetExportRoutineParametersAsync(target, context, cancellationToken));
         foreach (var operation in operations)
         {
             cancellationToken.ThrowIfCancellationRequested();

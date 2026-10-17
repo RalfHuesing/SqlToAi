@@ -50,11 +50,12 @@ loops, superseding the workflow's sequential-audit and one-correction defaults.
   A failed SchemaPattern probe must retain default masking; only a successful
   probe proving the column absent may use legacy schema-agnostic rules.
   Evidence: [R3 review and gates](audit.md#r3--safe-discovery-and-failed-provider-loads).
-- [ ] **R4 — Carry one target through composed services and exploration.**
+- [x] **R4 — Carry one target through composed services and exploration.**
   Resolve once at export/benchmark entry and retain the context through child
   operations. Derive exploration's manifest rights from its actual canonical
   scenario target. Remove unused parser-only guard entry points that return the
   wrong error for unknown aliases. Verify identity, denial and error paths.
+  Evidence: [R4 review and gates](audit.md#r4--one-context-through-export-benchmark-and-exploration).
 - [ ] **R5 — Test real composition and publish the qualified argument contract.**
   Exercise production rule caches/services behind connection doubles and actual
   SDK/CLI bindings; assert source loads, exemptions, tokens and same-address
@@ -64,6 +65,17 @@ loops, superseding the workflow's sequential-audit and one-correction defaults.
   run final build/tests/publish, retain unresolved compatibility findings openly,
   replace unsupported M4.3 claims and supply the missing M3.4 evidence. No
   production-grade or warning-free AOT claim is permitted while these remain open.
+  - [ ] **R6a — Remove application-owned dynamic data mapping.** Replace the
+    existing Dapper catalog/provider calls with explicit ADO.NET mappings and
+    parameters; preserve null handling, outputs, cancellation and timeouts. Use
+    independent review and the complete managed gates before committing.
+  - [ ] **R6b — Remove hidden diagnostics and execute the Native AOT gate.**
+    Remove global IL2104/IL3053 suppression, publish the actual application,
+    and distinguish application remediation from unresolved official-driver
+    compatibility. Do not introduce a maintained driver fork implicitly.
+  - [ ] **R6c — Complete independent final audit and evidence synchronization.**
+    Supply M3.4 evidence, replace M4.3 claims, verify links/line and commit
+    references, and leave any unmet Native AOT criterion explicitly open.
 
 ## Execution contract
 

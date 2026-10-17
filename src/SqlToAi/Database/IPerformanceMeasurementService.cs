@@ -28,4 +28,6 @@ public interface IPerformanceMeasurementService
         string databaseName,
         string query,
         CancellationToken cancellationToken = default);
+
+    Task<Result<PerformanceMeasurementResult>> MeasurePerformanceAsync(DatabaseTargetContext target, QueryPerformanceArgs args, CancellationToken cancellationToken = default);
 }

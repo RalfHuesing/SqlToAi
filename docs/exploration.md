@@ -33,13 +33,15 @@ Relative metadata SQL paths and configured log destinations resolve from the sam
 
 `ExploreSqlTools` is the permanent baseline. It exercises SQL tools against `primary/DemoDB` using `sql_list_servers`, server-scoped database discovery, and qualified targets: object discovery, `dbo.FakeProjects` schema and details, `dbo.spFakeSysTan` parameters, query validation, parameterized execution, a catalog query, a two-batch SQL file, differing-query comparison, performance, a benchmark, and index suggestions. It also records a missing trigger, a missing argument, an unknown tool, and invalid SELECT syntax, followed by another valid query to show continuation. It never executes the procedure, creates a trigger/index, or changes business records or schema. Query output uses constants and catalog metadata.
 
+The manifest evaluates the same `primary/DemoDB` target used by the scenario, independently of server key order or casing. If `primary` is not configured, its manifest access level is `None`; calls record the ordinary unknown-target errors.
+
 The main template denies every database. For the baseline, deliberately configure `primary/DemoDB` in an access list; the separate fictional demo example grants `ReadWrite` to `test/DemoDB`, so its SELECT-only script can report `ReadWriteAtomic` when those values are copied into the user file. There is no exploration-level mutation guard or automatic access override. Review new scenarios' inputs accordingly. The normal application access checks and guards apply; index suggestions are only read, never executed. A different DemoDB schema or permissions can produce useful error observations rather than a failed scenario.
 
 ## Artifacts
 
 Each run creates a retained, git-ignored directory under `temp/exploration/<ScenarioName>/<UTC-timestamp>/` and prints its absolute path. Retained observation artifacts use ordinary directories so agents can inspect them after the process exits; they are not managed test workspaces.
 
-- `run.json`: scenario, user configuration directory, resolved DemoDB access level and timeout; no configuration/credentials dump.
+- `run.json`: scenario, user configuration directory, canonical baseline target (`primary/DemoDB`), its resolved access level and timeout; no configuration/credentials dump.
 - `01/`, `02/`, ...: one directory per call. `request.json` contains its tool name and typed arguments; `response.json` preserves the complete result, including every content block and `isError`; `response.txt` joins all content text in order, including notices and metrics.
 - A call's `error.txt` captures a thrown dispatcher exception instead of a response. Later calls still run.
 - Root `error.txt` records a technical run failure or timeout when the artifact directory is writable. If setup or writing that file fails, stderr reports the technical failure and exit remains `1`.

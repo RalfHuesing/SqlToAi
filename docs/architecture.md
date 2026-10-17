@@ -24,6 +24,15 @@ qualified global grants, server-local raw-name exclusions and default deny.
 `CreateCatalogConnection` separately requires a configured alias and may use the
 login's default database for discovery. `PrimaryConnection.OpenTargetAsync` and
 `OpenCatalogAsync` retain safe diagnostics identifying `SqlToAi:Servers:<alias>`.
+Schema export resolves its target once at the export entry, including an empty
+catalog. Context overloads on `ISchemaService` carry that same instance through
+discovery, selection, primary rendering, trigger definitions and every detail
+section. Direct string-based schema APIs resolve and delegate to those same
+implementations. Policy checks remain in the context-based operations before SQL.
+Optimization benchmarks likewise resolve once and pass the identical context to
+comparison and both measurements; their direct string APIs share the same cores.
+The safety validator accepts resolved contexts only and does not parse targets.
+
 All tools, CLI commands, and internal services operate exclusively on qualified targets;
 obsolete single-server contracts and fallback behaviors have been completely removed.
 

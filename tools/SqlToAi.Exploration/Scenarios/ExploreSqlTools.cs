@@ -4,10 +4,13 @@ namespace SqlToAi.Exploration.Scenarios;
 
 internal sealed class ExploreSqlTools : IExplorationScenario
 {
+    internal const string Database = "primary/DemoDB";
+    internal const string Server = "primary";
+
     public async Task RunAsync(ExplorationContext context)
     {
-        const string database = "primary/DemoDB";
-        const string server = "primary";
+        const string database = Database;
+        const string server = Server;
         const string objectName = "dbo.FakeProjects";
         await context.CallAsync(McpConstants.ToolListServers, new { });
         await context.CallAsync(McpConstants.ToolListDatabases, new { server });

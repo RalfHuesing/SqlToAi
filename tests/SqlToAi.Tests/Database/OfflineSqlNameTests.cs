@@ -42,7 +42,7 @@ public sealed class OfflineSqlNameTests
             ExportDiscovery = true, ExportObjects = objects, ObjectType = kind == SchemaObjectKind.Trigger ? "U" : type,
             StructuredName = name, ReferenceSchema = "sales", ReferenceName = name, RejectEnrichment = true, Definition = sql
         };
-        var exporter = new SchemaExportService(fixture.CreateService(), NullLogger<SchemaExportService>.Instance);
+        var exporter = new SchemaExportService(fixture.CreateService(), TestTargets.BoundOptions, NullLogger<SchemaExportService>.Instance);
         string root = temp.GetPath("dump");
         var result = await exporter.ExportAsync(TestConstants.QualifiedDatabaseName, root, Token);
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
