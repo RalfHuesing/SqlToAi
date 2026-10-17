@@ -255,7 +255,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
                 {
                     string[] columnNames = GetColumnNames(reader);
                     var anonCtx = await ResolveAnonymizationContextAsync(
-                        reader, columnNames, args.Anonymize, args.Target, args.DatabaseName, cancellationToken);
+                        reader, columnNames, args.Anonymize, args.Target, cancellationToken);
 
                     while (rowCount < args.RowLimit && await reader.ReadAsync(cancellationToken))
                     {

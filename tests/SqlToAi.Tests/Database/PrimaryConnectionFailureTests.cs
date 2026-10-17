@@ -79,7 +79,7 @@ public sealed class PrimaryConnectionFailureTests
         using var harness = new FailureHarness(TlsFailure(), AccessLevel.ReadWrite);
         var report = await harness.Script.ExecuteAsync(new ScriptExecutionRequest(
             new SqlScriptFile("script.sql", "SELECT 1\nGO\nSELECT 2", "UTF-8"),
-            TestConstants.DatabaseName, UseTransaction: useTransaction), TestContext.Current.CancellationToken);
+            TestConstants.QualifiedDatabaseName, UseTransaction: useTransaction), TestContext.Current.CancellationToken);
 
         Assert.Equal(SqlToAiError.InfrastructureErrorCode, report.Error!.Code);
         AssertSafe(report.ToString(), harness);

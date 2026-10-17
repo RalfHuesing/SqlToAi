@@ -236,7 +236,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
     public async Task ExecuteFileAsync_UsesSourceOriginForAliasMaskingAndTokenization()
     {
         const string original = "DE89370400440532013000";
-        var options = AnonymizationTestHelper.BuildTokenizationOptions();
+        var options = AnonymizationTestHelper.BuildTokenizationOptions().WithNamedServers(TestTargets.ServerAlias);
         var ruleProvider = new ColumnNameRuleProvider("FullName");
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original,
             ColumnName: "FullName",
@@ -256,7 +256,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
         var result = await scriptService.ExecuteAsync(
             new ScriptExecutionRequest(
                 new SqlScriptFile("script.sql", "SELECT SSN AS FullName FROM FakeConsultants", "UTF-8"),
-                TestConstants.DatabaseName),
+                TestConstants.QualifiedDatabaseName),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(ScriptExecutionStatus.Success, result.Status);
@@ -270,7 +270,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
     public async Task ExecuteFileAsync_LeavesSourceExemptionRawThroughOutputAlias()
     {
         const string original = "DE89370400440532013000";
-        var options = AnonymizationTestHelper.BuildTokenizationOptions();
+        var options = AnonymizationTestHelper.BuildTokenizationOptions().WithNamedServers(TestTargets.ServerAlias);
         var ruleProvider = new ColumnNameRuleProvider("SSN");
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original,
             ColumnName: "FullName",
@@ -290,7 +290,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
         var result = await scriptService.ExecuteAsync(
             new ScriptExecutionRequest(
                 new SqlScriptFile("script.sql", "SELECT SSN AS FullName FROM FakeConsultants", "UTF-8"),
-                TestConstants.DatabaseName),
+                TestConstants.QualifiedDatabaseName),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(ScriptExecutionStatus.Success, result.Status);

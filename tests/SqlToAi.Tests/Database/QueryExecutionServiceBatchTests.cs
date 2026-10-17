@@ -34,11 +34,12 @@ public sealed class QueryExecutionServiceBatchTests
         var args = new QueryBatchExecutionArgs(
             connection,
             transaction,
-            TestConstants.DatabaseName,
+            TestConstants.QualifiedDatabaseName,
             "SELECT @Id",
             2,
             false,
-            new Dictionary<string, object?> { ["Id"] = 7 });
+            new Dictionary<string, object?> { ["Id"] = 7 },
+            new DatabaseTargetContext(TestTargets.ServerAlias, TestConstants.DatabaseName));
 
         var first = await executor.ExecuteBatchAsync(args, TestContext.Current.CancellationToken);
         var second = await executor.ExecuteBatchAsync(args with { Query = "SELECT @Id + 1" }, TestContext.Current.CancellationToken);
@@ -75,11 +76,12 @@ public sealed class QueryExecutionServiceBatchTests
         var args = new QueryBatchExecutionArgs(
             connection,
             null,
-            TestConstants.DatabaseName,
+            TestConstants.QualifiedDatabaseName,
             "SELECT @Id",
             2,
             false,
-            new Dictionary<string, object?> { ["Id"] = 7 });
+            new Dictionary<string, object?> { ["Id"] = 7 },
+            new DatabaseTargetContext(TestTargets.ServerAlias, TestConstants.DatabaseName));
 
         var result = await executor.ExecuteBatchAsync(args, TestContext.Current.CancellationToken);
 

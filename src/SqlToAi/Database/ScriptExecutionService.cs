@@ -18,6 +18,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly IQuerySafetyValidator _querySafetyValidator;
     private readonly IQueryBatchExecutor _batchExecutor;
+    private readonly DatabaseTargetResolver _targets;
     private readonly QueryExecutionOptions _options;
     private readonly ILogger<ScriptExecutionService> _logger;
 
@@ -31,6 +32,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
         _connectionFactory = connectionFactory;
         _querySafetyValidator = querySafetyValidator;
         _batchExecutor = batchExecutor;
+        _targets = new DatabaseTargetResolver(options.Value);
         _options = options.Value.QueryExecution;
         _logger = logger;
     }
@@ -39,36 +41,46 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
         ScriptExecutionRequest request,
         CancellationToken cancellationToken = default)
     {
+        // Resolve the caller's qualified target exactly once before any database work, including
+        // the empty-script edge: malformed, unqualified or unknown targets fail here with
+        // SQL-AI-0001 and never open a connection.
+        var targetResult = _targets.Resolve(request.DatabaseName);
+        if (targetResult.IsFailure)
+        {
+            return BuildTargetResolutionFailureReport(request, targetResult.Error);
+        }
+        DatabaseTargetContext target = targetResult.Value;
+
         IReadOnlyList<SqlBatch> batches = SqlScriptBatchSplitter.Split(request.ScriptFile.Text);
         if (batches.Count == 0)
         {
-            return BuildEmptyScriptReport(request);
+            return BuildEmptyScriptReport(request, target);
         }
 
         ScriptTransactionMode mode = ScriptTransactionMode.NotStarted;
         try
         {
             ScriptPreflightResult preflight = await PreflightAsync(
-                request.DatabaseName,
+                target,
                 batches,
                 request.UseTransaction,
                 cancellationToken).ConfigureAwait(false);
             if (preflight.Error is not null)
             {
-                return BuildPreflightFailureReport(request, batches, preflight);
+                return BuildPreflightFailureReport(request, target, batches, preflight);
             }
 
             QuerySafetyCheckResult safety = preflight.Safety!;
             mode = ResolveTransactionMode(safety, request.UseTransaction);
             ScriptExecutionOutcome outcome = mode == ScriptTransactionMode.ReadWriteProviderAutocommit
-                ? await ExecuteWithoutTransactionAsync(request, batches, safety, cancellationToken)
+                ? await ExecuteWithoutTransactionAsync(request, target, batches, safety, cancellationToken)
                     .ConfigureAwait(false)
-                : await ExecuteWithTransactionAsync(request, batches, safety, cancellationToken)
+                : await ExecuteWithTransactionAsync(request, target, batches, safety, cancellationToken)
                     .ConfigureAwait(false);
 
             return ScriptExecutionReportFactory.BuildReport(new ScriptExecutionReportInput(
                 request.ScriptFile,
-                request.DatabaseName,
+                target.QualifiedName,
                 mode,
                 outcome.Batches,
                 outcome.Error));
@@ -79,15 +91,29 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
         }
         catch (Exception ex)
         {
-            return BuildUnexpectedFailureReport(request, batches, mode, ex);
+            return BuildUnexpectedFailureReport(request, target, batches, mode, ex);
         }
     }
 
-    private static ScriptExecutionReport BuildEmptyScriptReport(ScriptExecutionRequest request)
+    private static ScriptExecutionReport BuildTargetResolutionFailureReport(
+        ScriptExecutionRequest request,
+        SqlToAiError error)
     {
         return ScriptExecutionReportFactory.BuildReport(new ScriptExecutionReportInput(
             request.ScriptFile,
             request.DatabaseName,
+            ScriptTransactionMode.NotStarted,
+            [],
+            error));
+    }
+
+    private static ScriptExecutionReport BuildEmptyScriptReport(
+        ScriptExecutionRequest request,
+        DatabaseTargetContext target)
+    {
+        return ScriptExecutionReportFactory.BuildReport(new ScriptExecutionReportInput(
+            request.ScriptFile,
+            target.QualifiedName,
             ScriptTransactionMode.NotStarted,
             [],
             SqlToAiError.InvalidParameters("SQL script must contain at least one batch.")));
@@ -95,13 +121,14 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
 
     private static ScriptExecutionReport BuildPreflightFailureReport(
         ScriptExecutionRequest request,
+        DatabaseTargetContext target,
         IReadOnlyList<SqlBatch> batches,
         ScriptPreflightResult preflight)
     {
         SqlToAiError error = preflight.Error!;
         return ScriptExecutionReportFactory.BuildReport(new ScriptExecutionReportInput(
             request.ScriptFile,
-            request.DatabaseName,
+            target.QualifiedName,
             ScriptTransactionMode.NotStarted,
             ScriptExecutionReportFactory.BuildFailureBatches(batches, preflight.FailedBatchNumber, error),
             error));
@@ -109,15 +136,16 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
 
     private ScriptExecutionReport BuildUnexpectedFailureReport(
         ScriptExecutionRequest request,
+        DatabaseTargetContext target,
         IReadOnlyList<SqlBatch> batches,
         ScriptTransactionMode mode,
         Exception exception)
     {
-        LogScriptFailed(_logger, request.DatabaseName, exception);
+        LogScriptFailed(_logger, target.QualifiedName, exception);
         SqlToAiError error = SqlToAiErrorMapper.MapException(exception);
         return ScriptExecutionReportFactory.BuildReport(new ScriptExecutionReportInput(
             request.ScriptFile,
-            request.DatabaseName,
+            target.QualifiedName,
             mode,
             ScriptExecutionReportFactory.BuildFailureBatches(batches, null, error),
             error));
@@ -125,26 +153,28 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
 
     private async Task<ScriptExecutionOutcome> ExecuteWithoutTransactionAsync(
         ScriptExecutionRequest request,
+        DatabaseTargetContext target,
         IReadOnlyList<SqlBatch> batches,
         QuerySafetyCheckResult safety,
         CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection(request.DatabaseName);
-        await PrimaryConnection.OpenAsync(connection, cancellationToken).ConfigureAwait(false);
+        await using var connection = _connectionFactory.CreateTargetConnection(target);
+        await PrimaryConnection.OpenTargetAsync(connection, target, cancellationToken).ConfigureAwait(false);
         var args = new QueryBatchExecutionArgs(
             connection,
             null,
-            request.DatabaseName,
+            target.QualifiedName,
             string.Empty,
             ResolveRowLimit(request.RequestedRowLimit),
             safety.AccessLevel == AccessLevel.ReadOnlyAnonymized,
-            request.Parameters);
+            request.Parameters,
+            target);
         var context = new ScriptTransactionContext(args, safety.IsWriteAllowed, false, 0);
         return await ExecuteBatchesAsync(batches, context, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<ScriptPreflightResult> PreflightAsync(
-        string databaseName,
+        DatabaseTargetContext target,
         IReadOnlyList<SqlBatch> batches,
         bool useTransaction,
         CancellationToken cancellationToken)
@@ -160,7 +190,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
             }
 
             var safetyResult = await _querySafetyValidator
-                .ValidateBatchSafetyAsync(databaseName, batch.Text, cancellationToken)
+                .ValidateTargetBatchSafetyAsync(target, batch.Text, cancellationToken)
                 .ConfigureAwait(false);
             if (safetyResult.IsFailure)
             {
@@ -186,12 +216,13 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
 
     private async Task<ScriptExecutionOutcome> ExecuteWithTransactionAsync(
         ScriptExecutionRequest request,
+        DatabaseTargetContext target,
         IReadOnlyList<SqlBatch> batches,
         QuerySafetyCheckResult safety,
         CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection(request.DatabaseName);
-        await PrimaryConnection.OpenAsync(connection, cancellationToken).ConfigureAwait(false);
+        await using var connection = _connectionFactory.CreateTargetConnection(target);
+        await PrimaryConnection.OpenTargetAsync(connection, target, cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection
             .BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
             .ConfigureAwait(false);
@@ -206,11 +237,12 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
             var args = new QueryBatchExecutionArgs(
                 connection,
                 transaction,
-                request.DatabaseName,
+                target.QualifiedName,
                 string.Empty,
                 ResolveRowLimit(request.RequestedRowLimit),
                 safety.AccessLevel == AccessLevel.ReadOnlyAnonymized,
-                request.Parameters);
+                request.Parameters,
+                target);
             var context = new ScriptTransactionContext(args, safety.IsWriteAllowed, true, baselineTranCount);
             outcome = await ExecuteBatchesAsync(batches, context, cancellationToken).ConfigureAwait(false);
             if (outcome.Error is not null)
@@ -241,7 +273,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
         {
             if (!rollbackAttempted)
                 await DatabaseCleanup.RollbackAsync(transaction, _options.CommandTimeoutSeconds, _logger, preservePrimaryFailure: true).ConfigureAwait(false);
-            LogScriptFailed(_logger, request.DatabaseName, ex);
+            LogScriptFailed(_logger, target.QualifiedName, ex);
             IReadOnlyList<ScriptBatchReport> reports = outcome?.Batches
                 ?? ScriptExecutionReportFactory.BuildFailureBatches(batches, null, SqlToAiError.QueryError(ex.Message));
             return new ScriptExecutionOutcome(reports, SqlToAiErrorMapper.MapException(ex));
@@ -319,7 +351,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
                     if (await HasTransactionChangedAsync(context, transaction, cancellationToken).ConfigureAwait(false))
                     {
                         var violation = await TransactionIntegrityGuard
-                            .RejectViolationAsync(_logger, args.DatabaseName, transaction, _options.CommandTimeoutSeconds)
+                            .RejectViolationAsync(_logger, args.Target.QualifiedName, transaction, _options.CommandTimeoutSeconds)
                             .ConfigureAwait(false);
                         return new BatchExecutionOutcome(executions, violation.Error);
                     }
@@ -337,7 +369,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
         catch (Exception ex)
         {
             await RollbackFailedBatchAsync(context).ConfigureAwait(false);
-            LogScriptFailed(_logger, context.ExecutionArgs.DatabaseName, ex);
+            LogScriptFailed(_logger, context.ExecutionArgs.Target.QualifiedName, ex);
             return new BatchExecutionOutcome(executions, SqlToAiErrorMapper.MapException(ex));
         }
     }

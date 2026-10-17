@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
 using SqlToAi.Database;
 using SqlToAi.Domain;
+using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Database;
 
@@ -124,11 +125,11 @@ public sealed class ScriptCleanupTests
     private static ScriptExecutionService BuildService(RollbackTestConnectionFactory factory, CallbackBatchExecutor executor,
         bool writeAllowed = false) => new(factory,
         new FakeQuerySafetyValidator(new QuerySafetyCheckResult(writeAllowed ? AccessLevel.ReadWrite : AccessLevel.ReadOnly, writeAllowed)),
-        executor, Options.Create(new SqlToAiOptions { QueryExecution = new QueryExecutionOptions { CommandTimeoutSeconds = 17 } }),
+        executor, Options.Create(new SqlToAiOptions { QueryExecution = new QueryExecutionOptions { CommandTimeoutSeconds = 17 } }.WithNamedServers(TestTargets.ServerAlias)),
         NullLogger<ScriptExecutionService>.Instance);
 
     private static ScriptExecutionRequest Request(string text) =>
-        new(new SqlScriptFile("script.sql", text, "UTF-8"), TestConstants.DatabaseName);
+        new(new SqlScriptFile("script.sql", text, "UTF-8"), TestConstants.QualifiedDatabaseName);
 
     private static QueryExecutionResult Success() => new("[]", false, [], "ScramblePattern");
 

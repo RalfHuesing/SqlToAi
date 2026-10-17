@@ -4,11 +4,10 @@ using SqlToAi.Domain;
 namespace SqlToAi.Database;
 
 /// <summary>
-/// Execution unit shared by single-query and script-batch execution. <see cref="Target"/> is the
-/// resolved immutable target context set by migrated callers; the legacy raw
-/// <see cref="DatabaseName"/> string remains the script executor's contract until M2.4 and is
-/// removed with it (M4.1). When <see cref="Target"/> is set, token and rule operations use the
-/// scoped target-aware APIs; otherwise they use the legacy unscoped paths.
+/// Execution unit shared by single-query and script-batch execution. Every caller resolves the
+/// qualified target once at its entry point and passes the immutable context here, so token and
+/// rule operations always use the scoped target-aware APIs. <see cref="DatabaseName"/> carries the
+/// canonical qualified label for diagnostics and report fields.
 /// </summary>
 internal sealed record QueryBatchExecutionArgs(
     DbConnection Connection,
@@ -18,7 +17,7 @@ internal sealed record QueryBatchExecutionArgs(
     int RowLimit,
     bool Anonymize,
     object? Parameters,
-    DatabaseTargetContext? Target = null);
+    DatabaseTargetContext Target);
 
 internal interface IQueryBatchExecutor
 {

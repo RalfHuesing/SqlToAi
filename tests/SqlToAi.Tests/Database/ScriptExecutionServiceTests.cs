@@ -444,7 +444,7 @@ public sealed class ScriptExecutionServiceTests
         RecordingSafetyValidator safety,
         RecordingBatchExecutor executor, int? commandTimeout = null)
     {
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         if (commandTimeout.HasValue) options.QueryExecution.CommandTimeoutSeconds = commandTimeout.Value;
         return new ScriptExecutionService(
             factory,
@@ -455,31 +455,34 @@ public sealed class ScriptExecutionServiceTests
     }
 
     private static ScriptExecutionRequest BuildRequest(string text) =>
-        new(new SqlScriptFile("script.sql", text, "UTF-8"), TestConstants.DatabaseName);
+        new(new SqlScriptFile("script.sql", text, "UTF-8"), TestConstants.QualifiedDatabaseName);
 
     private sealed class RecordingSafetyValidator(
         Func<string, Result<QuerySafetyCheckResult>> validator) : IQuerySafetyValidator
     {
-        public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetQuerySafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, bool allowSchemaOnly = false, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetBatchSafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Result<QuerySafetyCheckResult>> ValidateTargetQuerySafetyAsync(DatabaseTargetContext target, string query, bool allowSchemaOnly = false, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public List<string> BatchQueries { get; } = [];
 
-        public Task<Result<QuerySafetyCheckResult>> ValidateQuerySafetyAsync(
-            string databaseName,
-            string query,
-            bool allowSchemaOnly = false,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(validator(query));
-
-        public Task<Result<QuerySafetyCheckResult>> ValidateBatchSafetyAsync(
-            string databaseName,
+        public Task<Result<QuerySafetyCheckResult>> ValidateTargetBatchSafetyAsync(
+            DatabaseTargetContext target,
             string query,
             CancellationToken cancellationToken = default)
         {
             BatchQueries.Add(query);
             return Task.FromResult(validator(query));
         }
+
+        public Task<Result<QuerySafetyCheckResult>> ValidateQuerySafetyAsync(
+            string databaseName,
+            string query,
+            bool allowSchemaOnly = false,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<Result<QuerySafetyCheckResult>> ValidateBatchSafetyAsync(
+            string databaseName,
+            string query,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class RecordingBatchExecutor : IQueryBatchExecutor

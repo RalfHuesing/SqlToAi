@@ -160,7 +160,8 @@ public sealed class QueryExecutionServiceTests
         await using var conn = factory.CreateConnection();
         await conn.OpenAsync(TestContext.Current.CancellationToken);
         var args = new QueryBatchExecutionArgs(
-            conn, null, TestConstants.DatabaseName, "SELECT 'A'; SELECT 'C'", 100, false, null);
+            conn, null, TestConstants.QualifiedDatabaseName, "SELECT 'A'; SELECT 'C'", 100, false, null,
+            new DatabaseTargetContext(TestTargets.ServerAlias, TestConstants.DatabaseName));
 
         var result = await ((IQueryBatchExecutor)service).ExecuteBatchAsync(args, TestContext.Current.CancellationToken);
 
