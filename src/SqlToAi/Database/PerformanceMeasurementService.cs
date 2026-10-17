@@ -67,17 +67,20 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
             await PrimaryConnection.OpenAsync(connection, cancellationToken);
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 
+            PerformanceMeasurementResult result;
             try
             {
-                var result = await ExecuteMeasurementAsync(connection, transaction, args, cancellationToken);
-                await transaction.RollbackAsync(cancellationToken);
-                return result;
+                result = await ExecuteMeasurementAsync(connection, transaction, args, cancellationToken);
             }
             catch
             {
-                await transaction.RollbackAsync(cancellationToken);
+                await DatabaseCleanup.RollbackAsync(transaction, _dependencies.QueryExecutionOptions.CommandTimeoutSeconds,
+                    _logger, preservePrimaryFailure: true);
                 throw;
             }
+            await DatabaseCleanup.RollbackAsync(transaction, _dependencies.QueryExecutionOptions.CommandTimeoutSeconds, _logger);
+            cancellationToken.ThrowIfCancellationRequested();
+            return result;
         }
         catch (OperationCanceledException)
         {
@@ -231,9 +234,7 @@ public sealed class PerformanceMeasurementService : IPerformanceMeasurementServi
     /// <summary>
     /// Detects a SQL Server permission error by matching a known error number
     /// (e.g. 262 for SHOWPLAN) or a case-insensitive keyword in the message
-    /// (e.g. "SHOWPLAN" or "VIEW SERVER STATE"). Generalized from the
-    /// previously SHOWPLAN-specific helper so the same logic can detect
-    /// missing <c>VIEW SERVER STATE</c> for DMV-based tools.
+    /// (e.g. "SHOWPLAN" or "VIEW SERVER STATE").
     /// </summary>
     internal static bool IsPermissionError(SqlException ex, int errorNumber, string keyword) =>
         ex.Number == errorNumber || ex.Message.Contains(keyword, StringComparison.OrdinalIgnoreCase);

@@ -83,19 +83,21 @@ public sealed class QueryComparisonService : IQueryComparisonService
 
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 
+            QueryComparisonResult comparisonResult;
             try
             {
-                var comparisonResult = await PerformComparisonAsync(
+                comparisonResult = await PerformComparisonAsync(
                     connection, transaction, args, effectiveParamsA, effectiveParamsB, effectiveMaxDiff, cancellationToken);
-
-                await transaction.RollbackAsync(cancellationToken);
-                return comparisonResult;
             }
             catch
             {
-                await transaction.RollbackAsync(cancellationToken);
+                await DatabaseCleanup.RollbackAsync(transaction, _dependencies.QueryExecutionOptions.CommandTimeoutSeconds,
+                    _logger, preservePrimaryFailure: true);
                 throw;
             }
+            await DatabaseCleanup.RollbackAsync(transaction, _dependencies.QueryExecutionOptions.CommandTimeoutSeconds, _logger);
+            cancellationToken.ThrowIfCancellationRequested();
+            return comparisonResult;
         }
         catch (OperationCanceledException)
         {

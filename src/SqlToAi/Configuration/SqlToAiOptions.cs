@@ -178,8 +178,8 @@ public sealed class QueryExecutionOptions
     /// <summary>
     /// Command timeout in seconds for query/script execution, validation, comparison and
     /// performance measurement, including their SET and transaction-integrity commands.
-    /// Zero leaves ordinary commands unlimited. Single-query and validation cleanup use the
-    /// default timeout when zero is configured; cleanup has independent cancellation.
+    /// Zero leaves ordinary commands unlimited. Cleanup uses the default timeout when zero is
+    /// configured and has independent cancellation; rollback cancellation is provider-dependent.
     /// </summary>
     public int CommandTimeoutSeconds { get; set; } = 30;
 

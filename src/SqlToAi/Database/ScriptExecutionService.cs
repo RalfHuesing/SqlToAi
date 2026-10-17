@@ -188,6 +188,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
             .BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
             .ConfigureAwait(false);
         ScriptExecutionOutcome? outcome = null;
+        bool rollbackAttempted = false;
 
         try
         {
@@ -215,19 +216,23 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
             }
             else
             {
-                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                rollbackAttempted = true;
+                await DatabaseCleanup.RollbackAsync(transaction, _options.CommandTimeoutSeconds, _logger).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
             }
 
             return outcome;
         }
         catch (OperationCanceledException)
         {
-            await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            if (!rollbackAttempted)
+                await DatabaseCleanup.RollbackAsync(transaction, _options.CommandTimeoutSeconds, _logger, preservePrimaryFailure: true).ConfigureAwait(false);
             throw;
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            if (!rollbackAttempted)
+                await DatabaseCleanup.RollbackAsync(transaction, _options.CommandTimeoutSeconds, _logger, preservePrimaryFailure: true).ConfigureAwait(false);
             LogScriptFailed(_logger, request.DatabaseName, ex);
             IReadOnlyList<ScriptBatchReport> reports = outcome?.Batches
                 ?? ScriptExecutionReportFactory.BuildFailureBatches(batches, null, SqlToAiError.QueryError(ex.Message));
@@ -295,7 +300,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
                     .ConfigureAwait(false);
                 if (executionResult.IsFailure)
                 {
-                    await RollbackFailedBatchAsync(context, cancellationToken).ConfigureAwait(false);
+                    await RollbackFailedBatchAsync(context).ConfigureAwait(false);
                     return new BatchExecutionOutcome(executions, executionResult.Error);
                 }
 
@@ -323,19 +328,17 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
         }
         catch (Exception ex)
         {
-            await RollbackFailedBatchAsync(context, cancellationToken).ConfigureAwait(false);
+            await RollbackFailedBatchAsync(context).ConfigureAwait(false);
             LogScriptFailed(_logger, context.ExecutionArgs.DatabaseName, ex);
             return new BatchExecutionOutcome(executions, SqlToAiErrorMapper.MapException(ex));
         }
     }
 
-    private static async Task RollbackFailedBatchAsync(
-        ScriptTransactionContext context,
-        CancellationToken cancellationToken)
+    private async Task RollbackFailedBatchAsync(ScriptTransactionContext context)
     {
         if (context.ExecutionArgs.Transaction is { } transaction)
         {
-            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            await DatabaseCleanup.RollbackAsync(transaction, _options.CommandTimeoutSeconds, _logger, preservePrimaryFailure: true).ConfigureAwait(false);
         }
     }
 

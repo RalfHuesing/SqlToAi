@@ -167,7 +167,7 @@ The implementation source is [SqlToAiError.cs](../src/SqlToAi/Domain/SqlToAiErro
 | `SQL-AI-0103` | Object not found |
 | `SQL-AI-0104` | Database access denied, exclusion matched or `USE` rejected |
 | `SQL-AI-0105` | Connection/infrastructure failure, including primary TLS/certificate validation or handshake failure |
-| `SQL-AI-0106` | Connection, execution, or single-query/validation cleanup timeout |
+| `SQL-AI-0106` | Connection, execution, or database cleanup timeout |
 | `SQL-AI-0107` | Mutation blocked or access level does not permit data execution |
 | `SQL-AI-0108` | Object-reference lookup requires table/view |
 | `SQL-AI-0109` | Routine-parameter lookup requires procedure/function |
