@@ -14,9 +14,8 @@ user-approved acceptance boundaries in the current concept.
 
 ## Resume checkpoint
 
-M1.1 is complete (`00173b9`). M1.2 is accepted and committed; the next open
-task is **M1.3** (audit of the target and policy foundations). M2–M4 remain
-untouched.
+M1.1–M1.3 are accepted; [M1.3 audit evidence](audit.md) covers the preparation
+contracts at `070d1bb`. The next open task is **M2.1**. M2–M4 remain untouched.
 
 ## Execution contract
 
@@ -47,7 +46,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 
 ## M1 — Target identity and primary routing
 
-- [ ] **M1 — Aggregate:** M1.1–M1.3 accepted; one identity and policy contract is
+- [x] **M1 — Aggregate:** M1.1–M1.3 accepted; one identity and policy contract is
   available to all later consumers.
 
 - [x] **M1.1 — Define immutable targets and server configuration models.**
@@ -98,10 +97,11 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   errors retain `SQL-AI-0105`/`SQL-AI-0106` and identify the owning settings path
   without raw exception secrets. Parallel routing does not mutate options.
   **Completion evidence:** Accepts checkpoint `124e6bb`; no code defects found in
-  acceptance review. Unknown-alias boundary verified on every context-aware
-  boundary (resolver, guard, access policy, factory, catalog path, primary open):
-  invalid/unknown targets yield `SQL-AI-0001` before any SQL; valid denied or
-  excluded targets yield `SQL-AI-0104` before connection. `dotnet build
+  acceptance review. Resolver and catalog argument tests verify `SQL-AI-0001`
+  for invalid/unknown inputs before SQL; valid denied or excluded target safety
+  checks yield `SQL-AI-0104` without a connection dependency. Context APIs consume
+  already resolved identities; a context from another options instance is not
+  equivalent to caller input (see [audit](audit.md)). `dotnet build
   SqlToAi.slnx` succeeded with 0 warnings and 0 errors. `dotnet test SqlToAi.slnx`
   succeeded: 1,322 passed, 19 skipped (external TLS endpoints unavailable, not
   verified passes), 0 failed. `git diff --check` clean. AiNetLinter verify
@@ -109,7 +109,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   (`reason: notconfigured`); not treated as a pass. Actual assignment model /
   effort: z-ai/glm-5.3-flash / medium via openrouter.
 
-- [ ] **M1.3 — Audit target and policy foundations.**
+- [x] **M1.3 — Audit target and policy foundations.**
   **Depends on:** M1.1–M1.2.
   **Intention:** establish safe contracts before migrating stateful consumers.
   **Scope:** inspect the preceding diff and tests against concept Must 1–5, 7 and
@@ -118,6 +118,13 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   **Acceptance:** parser, casing, endpoint, exclusion and error cases above have
   actual test evidence; no context can silently select a default endpoint. Fix
   findings in their owning slice before closing M1.
+  **Completion evidence:** Independent [audit](audit.md) of `988b641..070d1bb`:
+  no blocking preparation-contract findings. Focused tests: 86 passed, 0 skipped,
+  0 failed; diff whitespace check clean. AiNetLinter semantic navigation used;
+  verify(scope=changes) incomplete (`notconfigured`), not a passed gate.
+  Corrected the overly broad M1.2 boundary-evidence claim without changing code.
+  Actual model / effort: `openai/gpt-6.1-sol` / medium via `openrouter`.
+  No correction item needed; M1 accepted, resume at M2.1.
 
 ## M2 — Provider, token and execution isolation
 
