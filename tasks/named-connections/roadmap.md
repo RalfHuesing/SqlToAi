@@ -218,7 +218,8 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   ordinal raw-database isolation incl. `App/Db` and Unicode, same-scope reuse,
   rejected foreign `Store` of an issued token, reserved future token text forces
   the next mint to skip it, same-scope store overwrite, concurrent competing
-  stores with one winner, concurrent issuance versus store with no dual owners,
+  stores with one winner, concurrent issuance versus store where every contested
+  text ends with exactly one owner (per-text winner recorded, not assumed),
   parallel issuance/resolution), `AnonymizerScopeTests`
   (scoped tokens, same-scope reuse, master-switch disabled path, nonusable
   tokenization -> hash fallback, null target rejection), `QueryTokenResolverScopeTests`
@@ -230,7 +231,16 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   asserted that a token issued for one target could be explicitly stored into
   another and resolve there. Replaced by the immutable one-owner-per-token-text
   registry above, with regression tests for the rejection, reservation, and
-  concurrency cases. Gates run in this session: `dotnet build
+  concurrency cases. Second acceptance correction (same session, same writer):
+  the concurrent issuance-versus-store test wrongly assumed all 100 stores would
+  win against 20 concurrent mints, making the outcome scheduling-dependent; it
+  now records the actual winner per contested token text (gate-synchronized start,
+  deterministic inputs, no sleeps) and asserts exactly one owner per text plus
+  correct plaintext resolution in the winning scope only. Production code was
+  unchanged in this correction. Stress evidence (own execution, not independent
+  verification): 20 targeted repeats of `dotnet test --filter
+  FullyQualifiedName~TokenVaultScopeTests` -> 20/20 passed, 0 failures captured.
+  Gates run in this session: `dotnet build
   SqlToAi.slnx` -> 0 warnings, 0 errors; `dotnet test SqlToAi.slnx` -> 1,392
   passed, 19 skipped, 0 failed (skips remain unavailable external TLS endpoints,
   unverified, not passes); focused filter over the three token test classes -> 22

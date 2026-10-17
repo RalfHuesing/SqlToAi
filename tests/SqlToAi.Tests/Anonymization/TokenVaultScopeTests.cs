@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using SqlToAi.Anonymization;
 using SqlToAi.Domain;
 
@@ -170,25 +171,66 @@ public sealed class TokenVaultScopeTests
         var test = Target("test", "AppDb");
         var prod = Target("prod", "AppDb");
         const int storeCount = 100;
+        const int mintCount = 20;
 
+        // All tasks wait on the same gate, so the operations actually overlap instead of being
+        // ordered by thread-pool scheduling; no sleeps.
+        using var gate = new ManualResetEventSlim(false);
+        var stored = new ConcurrentDictionary<int, bool>();
         var storeTasks = Enumerable.Range(1, storeCount).Select(i => Task.Run(() =>
-            vault.Store($"§§§TT{i}§§§", $"stored-{i}", prod))).ToArray();
-        var mintTasks = Enumerable.Range(0, 20).Select(_ => Task.Run(() =>
-            vault.GetOrAddToken($"minted-{Guid.NewGuid():N}", "§§§T", "§§§", test))).ToArray();
-
-        await Task.WhenAll(storeTasks.Concat(mintTasks));
-
-        string[] minted = await Task.WhenAll(mintTasks);
-        Assert.Empty(minted.Intersect(Enumerable.Range(1, storeCount).Select(i => $"§§§TT{i}§§§")));
-        foreach (string token in minted)
         {
-            Assert.True(vault.TryResolve(token, test, out _));
-            Assert.False(vault.TryResolve(token, prod, out _));
+            gate.Wait();
+            try
+            {
+                vault.Store($"§§§TT{i}§§§", $"stored-{i}", prod);
+                stored[i] = true;
+                return (Index: i, Won: true);
+            }
+            catch (InvalidOperationException)
+            {
+                // Losing a race for the token text is valid: exactly one owner must win.
+                stored[i] = false;
+                return (Index: i, Won: false);
+            }
+        })).ToArray();
+        var mintTasks = Enumerable.Range(1, mintCount).Select(i => Task.Run(() =>
+        {
+            gate.Wait();
+            return (Index: i, Token: vault.GetOrAddToken($"minted-{i}", "§§§T", "§§§", test));
+        })).ToArray();
+
+        gate.Set();
+        await Task.WhenAll(storeTasks);
+        var minted = await Task.WhenAll(mintTasks);
+        var mintedTokens = minted.Select(m => m.Token).ToHashSet();
+        var successfulStoreTexts = stored.Where(kv => kv.Value)
+            .Select(kv => $"§§§TT{kv.Key}§§§").ToHashSet();
+
+        // No token text may have two owners, and every contested text has exactly one.
+        Assert.Empty(mintedTokens.Intersect(successfulStoreTexts));
+
+        foreach (var entry in minted)
+        {
+            Assert.True(vault.TryResolve(entry.Token, test, out string? testValue));
+            Assert.Equal($"minted-{entry.Index}", testValue);
+            Assert.False(vault.TryResolve(entry.Token, prod, out _));
         }
         for (int i = 1; i <= storeCount; i++)
         {
-            Assert.True(vault.TryResolve($"§§§TT{i}§§§", prod, out _));
-            Assert.False(vault.TryResolve($"§§§TT{i}§§§", test, out _));
+            string text = $"§§§TT{i}§§§";
+            if (successfulStoreTexts.Contains(text))
+            {
+                Assert.True(vault.TryResolve(text, prod, out string? prodValue));
+                Assert.Equal($"stored-{i}", prodValue);
+                Assert.False(vault.TryResolve(text, test, out _));
+            }
+            else
+            {
+                // The store lost the race because a mint in test owns the text.
+                Assert.True(vault.TryResolve(text, test, out string? testValue));
+                Assert.StartsWith("minted-", testValue);
+                Assert.False(vault.TryResolve(text, prod, out _));
+            }
         }
     }
 
