@@ -14,27 +14,9 @@ user-approved acceptance boundaries in the current concept.
 
 ## Resume checkpoint
 
-Execution is stopped at the user's request because of usage limits. Resume only
-when a later task explicitly requests continuation, starting at **M1.2**.
-M1.1 is complete (`00173b9`). M1.2 implementation and tests are saved as a
-checkpoint, but its checkbox remains open: the agent was interrupted before its
-final acceptance review, completion evidence and milestone audit.
-
-M1.2 adds `CreateTargetConnection` / `CreateCatalogConnection`, context-aware
-access policy and safety validation, and primary connection diagnostics carrying
-the owner settings path. Existing callers still use their old APIs until their
-own slices and M4.1; the public host contract is unchanged. Test fakes explicitly
-reject context paths that have not yet been migrated. Review the unknown-alias
-boundary in particular: invalid targets must yield `SQL-AI-0001`, while valid
-denied targets yield `SQL-AI-0104`. Do not infer acceptance from the green suite.
-
-Checkpoint validation: `dotnet build SqlToAi.slnx` completed with 0 warnings and
-0 errors; `dotnet test SqlToAi.slnx` completed with 1,322 passed, 19 existing TLS
-cases skipped for unavailable endpoint profiles, and 0 failures. No Native AOT
-publish or milestone audit has run. M2–M4 are untouched. Actual assignments:
-M1.1 GPT-6-Luna / high; M1.2 GPT-6.1-Sol / high. After accepting M1.2, delegate
-M1.3 as the independent audit before advancing. No subagent should continue work
-from this stopped execution.
+M1.1 is complete (`00173b9`). M1.2 is accepted and committed; the next open
+task is **M1.3** (audit of the target and policy foundations). M2–M4 remain
+untouched.
 
 ## Execution contract
 
@@ -96,7 +78,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   effort: GPT-6-Luna / high. Host activation and legacy-contract removal remain
   for M4.1; this slice does not change current runtime routing.
 
-- [ ] **M1.2 — Route primary connections and access policy through targets.**
+- [x] **M1.2 — Route primary connections and access policy through targets.**
   **Depends on:** M1.1.
   **Intention:** make endpoint selection and authorization use the same identity.
   **Scope:** [SqlConnectionFactory](../../src/SqlToAi/Database/SqlConnectionFactory.cs),
@@ -115,6 +97,17 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   cannot infer a target for ordinary calls. Primary TLS/infrastructure and timeout
   errors retain `SQL-AI-0105`/`SQL-AI-0106` and identify the owning settings path
   without raw exception secrets. Parallel routing does not mutate options.
+  **Completion evidence:** Accepts checkpoint `124e6bb`; no code defects found in
+  acceptance review. Unknown-alias boundary verified on every context-aware
+  boundary (resolver, guard, access policy, factory, catalog path, primary open):
+  invalid/unknown targets yield `SQL-AI-0001` before any SQL; valid denied or
+  excluded targets yield `SQL-AI-0104` before connection. `dotnet build
+  SqlToAi.slnx` succeeded with 0 warnings and 0 errors. `dotnet test SqlToAi.slnx`
+  succeeded: 1,322 passed, 19 skipped (external TLS endpoints unavailable, not
+  verified passes), 0 failed. `git diff --check` clean. AiNetLinter verify
+  (scope=changes and scope=solution) unavailable: rule configuration missing
+  (`reason: notconfigured`); not treated as a pass. Actual assignment model /
+  effort: z-ai/glm-5.3-flash / medium via openrouter.
 
 - [ ] **M1.3 — Audit target and policy foundations.**
   **Depends on:** M1.1–M1.2.
