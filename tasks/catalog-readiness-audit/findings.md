@@ -1,5 +1,103 @@
 # Catalog readiness audit
 
+## Reassessment and remediation — 2026-10-17
+
+This section supersedes the original snapshot's release verdict below. The
+reassessment started at `0250868` (version **1.0.33**, clean working tree).
+F01, F02, F03 and F05 were still present; the claimed F04 and F08 fixes were
+confirmed against the current implementation. Remediation is committed as
+`746c5b2` (execution controls) and `bdad267` (masking and comparison parameters).
+The original audit remains below as historical evidence, not a description of
+the corrected source.
+
+### Current decision
+
+**The demonstrated F01–F05 blockers are addressed for the documented execution
+contract.** Proceed to release preparation with the residual limitations below
+explicitly retained. This is a product-readiness recommendation, not Registry
+acceptance, namespace verification or authorization to publish. No release,
+push, version bump or catalog submission was performed during this work.
+
+| Finding | Current status | Risk and implemented decision |
+| --- | --- | --- |
+| F01 | Fixed in `bdad267` | An alias could expose protected strings. Central exclusions now require resolved base schema, table and column and use the base column instead of the output alias. Incomplete/unavailable origins keep masking or tokenization active; genuine source exemptions still apply through aliases. |
+| F02 | Fixed in `746c5b2` | A validation call could reactivate execution. AST preflight rejects caller `NOEXEC`, `PARSEONLY` and `FMTONLY` settings, including nested and combined settings, before opening the validation connection. Normal permitted SELECT/DML validation remains supported. Live metadata now describes NOEXEC and deferred name resolution. |
+| F03 | Direct controls fixed; opaque-code limit documented in `746c5b2` | An early COMMIT could persist writes before a later failure. All batches are preflighted before execution; server-managed transactions reject explicit BEGIN/COMMIT/ROLLBACK/SAVE and IMPLICIT_TRANSACTIONS settings, including nested controls. ReadWrite autocommit remains explicit. |
+| F04 | Previously fixed in `588608b`; confirmed | The effective clamp is passed through to both difference readers; zero/negative requests retain at least one difference sample, and the configured maximum is enforced. |
+| F05 | Fixed by rejection in `bdad267` | Independent same-named parameters could cause false equivalence. Their normalized names are checked case-insensitively before safety/connection work; optional `@` prefixes do not evade detection. Overlap returns `SQL-AI-0001`, even for equal values. Distinct names and one shared fallback set remain supported. Benchmark propagates rejection before measurement. |
+| F08 | Previously fixed in `bb4d750`; confirmed | Comparison schema/count/difference commands and performance commands now use the configured command timeout. |
+
+F03 does **not** establish unconditional atomicity for procedures, dynamic SQL
+or triggers. Such code can change transactions outside the submitted AST;
+post-execution transaction-count checks cannot undo an earlier commit or detect
+every restored count. These paths remain supported in ReadWrite. The security
+contract, both tool-description surfaces and the standalone report label now
+state the server-managed-transaction scope. A stronger guarantee would require
+additional restrictions on opaque execution; it is not claimed by this fix.
+See the [security contract](../../docs/security.md#query-guards-and-transactions)
+and [tool contracts](../../docs/tools.md).
+
+### Remaining P2 decisions
+
+These findings remain open. They have no demonstrated mandatory catalog-format
+blocker, but materially affect agent correctness. Prioritize F06/F07/F09 as
+follow-up fixes; do not infer that catalog acceptance validates their behavior.
+
+| Finding | Current evidence | Consequence and smallest follow-up |
+| --- | --- | --- |
+| F06 | Query/script serialization in [QueryExecutionService.Anonymization.cs](../../src/SqlToAi/Database/QueryExecutionService.Anonymization.cs) and comparison samples in [QueryComparisonService.cs](../../src/SqlToAi/Database/QueryComparisonService.cs) still use case-insensitive dictionaries keyed by output name. | Duplicate names silently lose values. Reject ambiguous names and ask for unique SQL aliases; unique aliases are the current workaround. |
+| F07 | [SqlParameterBinder.cs](../../src/SqlToAi/Database/SqlParameterBinder.cs) still infers a JSON value before applying explicit DbType. | Date/Guid-looking identifiers can change even with an explicit string type. Resolve explicit types before inference and preserve exact string values. The F05 enumeration refactor does not fix this conversion. |
+| F09 | [QueryExecutionService.cs](../../src/SqlToAi/Database/QueryExecutionService.cs) still only upper-clamps requested row limits. | Zero can execute SQL and return successful empty data. Reject non-positive requests before execution; use positive limits until corrected. |
+| F10 | Search in [SchemaService.cs](../../src/SqlToAi/Database/SchemaService.cs) and query output in [ToolDispatcher.cs](../../src/SqlToAi/Mcp/ToolDispatcher.cs) still omit effective-limit/saturation information. | Agents can mistake partial data for complete evidence. Report effective bounds and a conservative limit-reached notice; narrow searches or count explicitly meanwhile. Saturation alone does not prove truncation. |
+| F11 | [McpConstants.cs](../../src/SqlToAi/Mcp/McpConstants.cs) and [SqlMcpToolRegistrations.cs](../../src/SqlToAi/Mcp/SqlMcpToolRegistrations.cs) still imply outgoing lineage from the incoming-reference tool. | Agents can investigate dependencies in the wrong direction. Correct live guidance to incoming references, use available definitions for source investigation and acknowledge unresolved column lineage. Canonical tools documentation already describes the incoming direction correctly. |
+
+### Verification and orchestration
+
+C# declarations were inspected with AiNetCodeNavigator, followed by bounded
+source reads. P2 conclusions are source verification, not newly executed live
+reproductions. Actual delegation used GPT-6.1-Sol / High for F02/F03 and an
+independent F01/F05 review, GPT-6-Luna / High for F01/F05 and F04 verification,
+and GPT-6-Luna / High for P2 verification and an independent F02/F03 review.
+Implementation writers ran sequentially in the shared checkout; read-only
+reviews ran independently. Both reviewed slices had no remaining P1/P2 finding
+within their assigned change scope.
+
+- F02/F03: **103 focused tests passed**, including live fictional-fixture
+  validation/script integration, metadata parity and report rendering. The
+  early-COMMIT regression verifies preflight rejection and no fictional marker
+  persisted; a separate valid runtime-error case still exercises rollback.
+- F01/F05: **66 focused tests passed**, including both alias directions,
+  incomplete/unavailable origin, tokenization, the real shared script executor,
+  dictionary/JSON/nested JSON-string containers, parameter name/type collisions,
+  shared fallback, malformed/disposed JSON error mapping, existing binder
+  behavior and benchmark error propagation.
+- Final `dotnet build SqlToAi.slnx`: **exit 0, 0 warnings, 0 errors**.
+- Final `dotnet test SqlToAi.slnx`: **exit 0; 1,247 passed, 19 skipped,
+  1,266 total, 0 failed**. The skipped cases are dedicated TLS tests without a
+  configured endpoint profile; they remain unverified. Ordinary SQL integration
+  uses the existing explicit fictional-fixture trust overlay and does not prove
+  secure-default certificate identity validation.
+- `git diff --check`: clean. Personal settings were not read or changed.
+
+### Publication handoff
+
+No new packaging-format defect was established in this bounded reassessment.
+[package.ps1](../../scripts/package.ps1) already derives
+`io.github.ralfhuesing/SqlToAi`, the versioned release download URL and the final
+MCPB hash into `server.json`; do not put a speculative hash in the template.
+The current official [MCPB publication requirements](https://github.com/modelcontextprotocol/registry/blob/main/docs/modelcontextprotocol-io/package-types.mdx)
+and [GitHub authentication rules](https://github.com/modelcontextprotocol/registry/blob/main/docs/modelcontextprotocol-io/authentication.mdx)
+were checked on 2026-10-17: MCPB metadata needs the release URL and SHA-256, and
+the GitHub namespace depends on successful publisher authentication. The
+briefing's verified-namespace claim was not independently established here.
+
+Follow the existing [release and Registry procedure](../../docs/development.md#prepare-registry-metadata-locally)
+for the eventual release: review residual P2/TLS evidence, validate the final
+package, publish the checked release deliberately, compare its publicly served
+MCPB bytes with `server.json`, then authenticate and submit the exact metadata.
+Installation, ownership, official acceptance and inclusion in GitHub/community
+catalogs remain unverified; local source/build tests do not establish them.
+
 ## Audit basis and verdict
 
 Audited on **2026-10-16 (Europe/Berlin)**, against commit
