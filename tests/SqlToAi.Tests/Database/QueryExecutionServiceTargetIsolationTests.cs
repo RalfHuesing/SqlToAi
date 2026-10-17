@@ -149,17 +149,23 @@ public sealed class QueryExecutionServiceTargetIsolationTests
     public async Task ParallelSameRawNameTargets_DoNotLeakState()
     {
         var (options, factory) = BuildIsolationEnvironment();
+        var barrier = new OwnerOverlapBarrier();
+        factory.OpenBarrier = barrier;
         var service = BuildExecutionService(options, factory);
 
-        var calls = Enumerable.Range(0, 24).Select(async i =>
+        // The connection-open boundary holds each call until at least one call per owner is
+        // genuinely in flight, so the assertions below only run after a proven overlap.
+        var calls = Enumerable.Range(0, 24).Select(i => Task.Run(async () =>
         {
             bool useTest = i % 2 == 0;
             var result = await service.ExecuteQueryAsync(
                 useTest ? TestTarget : ProdTarget, "SELECT Secret FROM T", null, TestContext.Current.CancellationToken);
             return (useTest, result);
-        }).ToList();
+        })).ToList();
 
         await Task.WhenAll(calls);
+        Assert.True(barrier.CrossOwnerOverlapReached, "the two owners were never in flight together");
+
         foreach ((bool useTest, Result<QueryExecutionResult> result) in calls.Select(call => call.Result))
         {
             Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
@@ -297,13 +303,7 @@ public sealed class QueryExecutionServiceTargetIsolationTests
     private static QuerySafetyValidator BuildSafetyValidator(SqlToAiOptions options) =>
         new(
             new SecurityGuard(Options.Create(options)),
-            new TargetAccessLevelProvider(new Dictionary<string, AccessLevel>(StringComparer.Ordinal)
-            {
-                [TestTarget] = AccessLevel.ReadOnlyAnonymized,
-                [ProdTarget] = AccessLevel.ReadOnly,
-                ["test/App/Db"] = AccessLevel.ReadOnlyAnonymized,
-                ["test/appdb"] = AccessLevel.ReadOnlyAnonymized,
-            }),
+            new GrantsAccessLevelProvider(options),
             new ReadOnlyGuard());
 
     private static string ExtractColumnValue(string jsonLinesData, string columnName)
@@ -311,76 +311,5 @@ public sealed class QueryExecutionServiceTargetIsolationTests
         string firstLine = jsonLinesData.Split('\n', StringSplitOptions.RemoveEmptyEntries)[0];
         using var doc = System.Text.Json.JsonDocument.Parse(firstLine);
         return doc.RootElement.GetProperty(columnName).GetString()!;
-    }
-
-    /// <summary>One physical row set per qualified owner: two columns, where the central rule
-    /// provider exempts ExemptValue for the test owner only.</summary>
-    private sealed record TargetRowSet(string[] Columns, object?[][] Rows);
-
-    /// <summary>Target-aware database double: one physical row set per qualified owner. The
-    /// connection's Database carries only the raw physical database name, like SqlClient.</summary>
-    private sealed class TargetRowsConnectionFactory(Dictionary<string, TargetRowSet> rowsByTarget) : IDatabaseConnectionFactory
-    {
-        public List<DatabaseTargetContext> CreatedTargets { get; } = [];
-
-        public FakeDbConnection? LastConnection { get; private set; }
-
-        public DbConnection CreateTargetConnection(DatabaseTargetContext target)
-        {
-            CreatedTargets.Add(target);
-            TargetRowSet rowSet = rowsByTarget[target.QualifiedName];
-            LastConnection = new FakeDbConnection(
-                conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(
-                    ExecuteScalar: _ => 1,
-                    ExecuteReader: cmd =>
-                    {
-                        conn.LastCommand = cmd;
-                        return new FakeDbDataReader(
-                            rowSet.Columns,
-                            rowSet.Rows,
-                            // Column 0 carries a real origin (ExemptValue), column 1 has none —
-                            // so the exemption decision only ever applies to ExemptValue.
-                            new FakeSchemaTableOrigin("T", "ExemptValue", "dbo"));
-                    },
-                    ExecuteNonQuery: _ => 0)),
-                new FakeDbConnectionOptions(
-                    Database: target.DatabaseName,
-                    DataSource: "mock",
-                    ServerVersion: "16.0",
-                    BeginTransaction: (transactionConnection, _) => new FakeDbTransaction(transactionConnection)));
-            return LastConnection;
-        }
-
-        public Result<DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
-
-        public DbConnection CreateConnection(string? databaseName = null) => throw new NotSupportedException();
-    }
-
-    /// <summary>Per-target central rule provider: exempts only the test owner's ExemptValue column
-    /// and records the owning target identity of every lookup.</summary>
-    private sealed class TargetRuleProvider : IAnonymizationRuleProvider
-    {
-        public List<string> Owners { get; } = [];
-
-        public Task<bool> IsExcludedAsync(DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
-        {
-            Owners.Add(target.QualifiedName);
-            return Task.FromResult(
-                target.QualifiedName == TestTarget
-                && string.Equals(columnName, "ExemptValue", StringComparison.OrdinalIgnoreCase));
-        }
-
-        public Task<bool> IsExcludedAsync(string databaseName, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Target-isolated execution must not fall back to the unscoped rule path.");
-    }
-
-    /// <summary>Per-target access levels, standing in for the real SQL access-level probe.</summary>
-    private sealed class TargetAccessLevelProvider(Dictionary<string, AccessLevel> levels) : IAccessLevelProvider
-    {
-        public Task<AccessLevel> GetTargetAccessLevelAsync(DatabaseTargetContext target, CancellationToken cancellationToken = default) =>
-            Task.FromResult(levels.TryGetValue(target.QualifiedName, out AccessLevel level) ? level : AccessLevel.None);
-
-        public Task<AccessLevel> GetAccessLevelAsync(string databaseName, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException("Target-isolated execution must not fall back to the unscoped access probe.");
     }
 }

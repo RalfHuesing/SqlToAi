@@ -18,7 +18,8 @@ internal sealed record FakeDbConnectionOptions(
     string DataSource = "MockServer",
     string ServerVersion = "1.0",
     Exception? OpenFailure = null,
-    Func<FakeDbConnection, IsolationLevel, FakeDbTransaction>? BeginTransaction = null);
+    Func<FakeDbConnection, IsolationLevel, FakeDbTransaction>? BeginTransaction = null,
+    Func<Task>? OpenAsyncHook = null);
 
 /// <summary>
 /// Generic <see cref="DbConnection"/> fake shared by every ADO.NET test double in this project.
@@ -69,15 +70,20 @@ internal sealed class FakeDbConnection : DbConnection
         _state = ConnectionState.Open;
     }
 
-    public override Task OpenAsync(CancellationToken cancellationToken)
+    public override async Task OpenAsync(CancellationToken cancellationToken)
     {
         OpenCount++;
         if (_options.OpenFailure is not null)
         {
-            return Task.FromException(_options.OpenFailure);
+            throw _options.OpenFailure;
+        }
+        // Optional awaited boundary lets tests hold opens open until a condition is met
+        // (e.g. cross-target overlap in isolation tests) without sleeps.
+        if (_options.OpenAsyncHook is not null)
+        {
+            await _options.OpenAsyncHook();
         }
         _state = ConnectionState.Open;
-        return Task.CompletedTask;
     }
 
     public override void Close() => _state = ConnectionState.Closed;

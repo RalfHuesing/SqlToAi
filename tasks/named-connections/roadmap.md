@@ -325,6 +325,31 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   and [tools](../../docs/tools.md) (`sql_execute_query` `database` resolution).
   Host DI/config cutover, script migration and analysis migration remain for
   M2.4/M3.x/M4.1.
+  Acceptance amendment (own execution only, this session): closed three test gaps at
+  `7adeb6a` without production-code changes. (1) The parallel test now proves real
+  cross-owner overlap: a deterministic `OwnerOverlapBarrier` holds every connection open
+  until at least one call per owner is genuinely in flight (`FakeDbConnectionOptions`
+  gained an awaited `OpenAsyncHook` in the shared test support; no sleeps, no
+  schedule-dependent assumptions), the factory and rule provider record thread-safely,
+  and access levels now come from the configured qualified grants via
+  `GrantsAccessLevelProvider` instead of a hardcoded per-target fake. (2) New
+  `QueryExecutionTargetScopeTests` drive both owners at `ReadOnlyAnonymized` with
+  identical fictional plaintext: distinct tokens per owner, own-token substitution and
+  foreign-token literal text asserted against the actually captured SQL per target, an
+  exemption contrast (same rule provider exempts only the test owner's column), and
+  ordinally case-only distinct raw databases `test/AppDb` vs `test/appdb` proving raw
+  scope distinction independent of source text; the rights-difference coverage stays in
+  its own test. (3) A composed positive `QueryValidationService` case over the real
+  guard pipeline resolves canonical targets (`PROD/DemoDB` included), creates exactly
+  one selected-owner connection with the raw physical name per call and retains the
+  always-rollback/never-commit contract; no token resolution in validation. Shared
+  target doubles live in `TargetIsolationFixture.cs`, keeping both test classes below
+  the file-size budget. Gates: `dotnet build SqlToAi.slnx` -> 0 warnings, 0 errors;
+  `dotnet test SqlToAi.slnx` -> 1,411 passed, 19 skipped, 0 failed; 10 repeated
+  `--no-build` runs of the two acceptance classes -> 10/10 passed (19 cases each);
+  `git diff --check` clean. Actual model / effort: z-ai/glm-5.3-flash / medium via
+  openrouter. AiNetLinter verify remains unavailable/notconfigured and is not counted
+  as a pass.
 
 - [ ] **M2.4 — Carry targets through script execution.**
   **Depends on:** M2.3.
