@@ -160,7 +160,7 @@ internal sealed class FakeSchemaService : ISchemaService
 
 internal sealed class FakeQueryExecutionService(
     bool fail = false, bool wasAnonymized = false, bool withSearchableTokens = false,
-    long cpuTimeMs = 0, long logicalReads = 0) : IQueryExecutionService
+    long cpuTimeMs = 0, long logicalReads = 0, bool validateTarget = false) : IQueryExecutionService
 {
     private static readonly string[] AnonymizedColumnsSample = new[] { "FirstName", "Email" };
     private static readonly string[] SearchableTokenColumnsSample = new[] { "Email" };
@@ -175,6 +175,15 @@ internal sealed class FakeQueryExecutionService(
     {
         ExecuteCalled = true;
         LastRowLimit = requestedRowLimit;
+
+        if (validateTarget)
+        {
+            var parsed = DatabaseTargetParser.Parse(db);
+            if (parsed.IsFailure)
+            {
+                return Task.FromResult<Result<QueryExecutionResult>>(parsed.Error);
+            }
+        }
 
         if (fail)
         {

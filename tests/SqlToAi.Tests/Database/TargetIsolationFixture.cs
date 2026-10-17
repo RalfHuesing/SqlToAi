@@ -19,26 +19,28 @@ internal sealed record TargetRowSet(string[] Columns, object?[][] Rows);
 
 /// <summary>Releases waiting connections only once at least one call per owner has reached the
 /// connection-open boundary, proving genuine cross-owner overlap without sleeps.</summary>
-internal sealed class OwnerOverlapBarrier
+internal sealed class OwnerOverlapBarrier(string? owner1 = null, string? owner2 = null)
 {
+    private readonly string _owner1 = owner1 ?? TestConstants.QualifiedDatabaseName;
+    private readonly string _owner2 = owner2 ?? TestConstants.AlternateQualifiedDatabaseName;
     private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly object _gate = new();
-    private bool _testArrived;
-    private bool _prodArrived;
+    private bool _owner1Arrived;
+    private bool _owner2Arrived;
 
     public Task Arrive(string ownerQualifiedName)
     {
         lock (_gate)
         {
-            if (ownerQualifiedName == TestConstants.QualifiedDatabaseName)
+            if (string.Equals(ownerQualifiedName, _owner1, StringComparison.Ordinal))
             {
-                _testArrived = true;
+                _owner1Arrived = true;
             }
-            else
+            if (string.Equals(ownerQualifiedName, _owner2, StringComparison.Ordinal))
             {
-                _prodArrived = true;
+                _owner2Arrived = true;
             }
-            if (_testArrived && _prodArrived)
+            if (_owner1Arrived && _owner2Arrived)
             {
                 _release.TrySetResult();
             }

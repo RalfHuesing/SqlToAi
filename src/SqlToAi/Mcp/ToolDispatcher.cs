@@ -347,7 +347,19 @@ internal sealed class ToolDispatcher : IToolDispatcher
     private static JsonElement GetJsonArgument(ToolCallParams call, string key)
     {
         object? value = GetObject(call, key);
-        return value is JsonElement json ? json : JsonSerializer.SerializeToElement(value, McpJsonContext.Default.Options);
+        return value switch
+        {
+            JsonElement json => json,
+            null => default,
+            string s => JsonSerializer.SerializeToElement(s, McpJsonContext.Default.String),
+            string[] array => JsonSerializer.SerializeToElement(array, McpJsonContext.Default.StringArray),
+            IReadOnlyList<string> list => JsonSerializer.SerializeToElement(list, McpJsonContext.Default.IReadOnlyListString),
+            IEnumerable<string> items => JsonSerializer.SerializeToElement(items.ToArray(), McpJsonContext.Default.StringArray),
+            int i => JsonSerializer.SerializeToElement(i, McpJsonContext.Default.Int32),
+            long l => JsonSerializer.SerializeToElement(l, McpJsonContext.Default.Int64),
+            bool b => JsonSerializer.SerializeToElement(b, McpJsonContext.Default.Boolean),
+            _ => default
+        };
     }
 
     private Task<ToolCallResult> UnknownTool(string toolName)

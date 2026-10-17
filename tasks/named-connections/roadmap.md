@@ -117,7 +117,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 - [x] [**M4.1 — Activate strict startup and remove the single-server contract**](roadmap/m4.1-activate-strict-startup-and-remove-the-single-server-contract.md)
   Make every shipped entry point accept only the approved contract.
 
-- [ ] [**M4.2 — Verify composed target isolation and Native AOT compilation**](roadmap/m4.2-verify-composed-target-isolation-and-native-aot-compilation.md)
+- [x] [**M4.2 — Verify composed target isolation and Native AOT compilation**](roadmap/m4.2-verify-composed-target-isolation-and-native-aot-compilation.md)
   Prove the composed process behaves like its unit-level contracts.
 
 - [ ] [**M4.3 — Audit the complete concept and close the roadmap**](roadmap/m4.3-audit-the-complete-concept-and-close-the-roadmap.md)
