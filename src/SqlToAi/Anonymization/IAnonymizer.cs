@@ -1,3 +1,5 @@
+using SqlToAi.Domain;
+
 namespace SqlToAi.Anonymization;
 
 /// <summary>
@@ -79,4 +81,16 @@ public interface IAnonymizer
     /// <param name="context">The resolved table/origin-column/exclusion context.</param>
     /// <returns>A token that can be resolved back to <paramref name="originalValue"/>, or the value unchanged if excluded or empty.</returns>
     string Tokenize(string originalValue, AnonymizationColumnContext context);
+
+    /// <summary>
+    /// Tokenizes within the scope of the given canonical target (see
+    /// <see cref="DatabaseTargetContext"/>): tokens issued for one target never resolve in another,
+    /// so identical plaintext in different targets yields non-interchangeable tokens. Exclusion and
+    /// fallback behavior matches <see cref="Tokenize(string, AnonymizationColumnContext)"/>.
+    /// </summary>
+    /// <param name="originalValue">The original raw value.</param>
+    /// <param name="context">The resolved table/origin-column/exclusion context.</param>
+    /// <param name="target">The resolved target owning the token scope.</param>
+    /// <returns>A token scoped to <paramref name="target"/>, or the value unchanged if excluded or empty.</returns>
+    string Tokenize(string originalValue, AnonymizationColumnContext context, DatabaseTargetContext target);
 }

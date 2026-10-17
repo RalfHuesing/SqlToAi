@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
+using SqlToAi.Domain;
 
 namespace SqlToAi.Anonymization;
 
@@ -68,6 +69,24 @@ public sealed class Anonymizer : IAnonymizer
         }
 
         return _tokenVault.GetOrAddToken(originalValue, tokenization.Prefix, tokenization.Suffix);
+    }
+
+    /// <inheritdoc/>
+    public string Tokenize(string originalValue, AnonymizationColumnContext context, DatabaseTargetContext target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        if (string.IsNullOrEmpty(originalValue) || IsColumnExcluded(context))
+        {
+            return originalValue;
+        }
+
+        var tokenization = _options.Anonymizer.Tokenization;
+        if (!tokenization.IsUsable)
+        {
+            return RunAnonymization(originalValue, _options.Anonymizer.DefaultMode);
+        }
+
+        return _tokenVault.GetOrAddToken(originalValue, tokenization.Prefix, tokenization.Suffix, target);
     }
 
     // `context` is intentionally unused here — column/table-specific exclusion decisions are made

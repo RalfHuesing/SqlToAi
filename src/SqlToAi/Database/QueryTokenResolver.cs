@@ -36,7 +36,19 @@ public sealed class QueryTokenResolver : IQueryTokenResolver
     }
 
     /// <inheritdoc/>
-    public string ResolveTokens(string query)
+    public string ResolveTokens(string query) =>
+        ResolveTokensCore(query, token =>
+            _vault.TryResolve(token, out string? realValue) ? realValue : null);
+
+    /// <inheritdoc/>
+    public string ResolveTokens(string query, Domain.DatabaseTargetContext target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return ResolveTokensCore(query, token =>
+            _vault.TryResolve(token, target, out string? realValue) ? realValue : null);
+    }
+
+    private string ResolveTokensCore(string query, Func<string, string?> resolveValue)
     {
         if (_tokenPattern is null || string.IsNullOrEmpty(query))
         {
@@ -54,18 +66,19 @@ public sealed class QueryTokenResolver : IQueryTokenResolver
         foreach ((int start, int length) in ranges)
         {
             sb.Append(query, cursor, start - cursor);
-            sb.Append(ResolveTokensInLiteral(query.Substring(start, length)));
+            sb.Append(ResolveTokensInLiteral(query.Substring(start, length), resolveValue));
             cursor = start + length;
         }
         sb.Append(query, cursor, query.Length - cursor);
         return sb.ToString();
     }
 
-    private string ResolveTokensInLiteral(string literalContent) =>
+    private string ResolveTokensInLiteral(string literalContent, Func<string, string?> resolveValue) =>
         _tokenPattern!.Replace(literalContent, match =>
-            _vault.TryResolve(match.Value, out string? realValue)
-                ? EscapeForSqlLiteral(realValue)
-                : match.Value);
+        {
+            string? realValue = resolveValue(match.Value);
+            return realValue is null ? match.Value : EscapeForSqlLiteral(realValue);
+        });
 
     private static string EscapeForSqlLiteral(string value) =>
         value.Replace("'", "''", StringComparison.Ordinal);

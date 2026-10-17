@@ -48,6 +48,8 @@ Query and script result masking applies to `ReadOnlyAnonymized` with `Anonymizer
 
 `Tokenization.Enabled=true` with non-empty delimiters replaces masking for protected strings. It follows the same source-origin exclusion decision, including default masking when the origin is incomplete. The query-execution resolver substitutes known complete tokens inside SQL string literals, escaping quotes. It leaves comments, identifiers and unknown tokens unchanged. Tokens can be reused with `=`, `IN` or `LIKE`; token fragments do not preserve the original value relationship. Unknown tokens are ordinary literal text and can match real stored text. Do not assume substitution for parameter values or every analysis tool.
 
+The context-aware token paths scope token storage, issuance and resolution by the canonical server alias plus the exact raw database name, compared ordinally. Identical plaintext in different targets yields different tokens that cannot be resolved through the other target, token identifiers never collide across scopes, and a foreign or unknown token stays literal SQL text. Within one target, the same plaintext reuses the same token.
+
 `sql_get_schema` labels columns `No`, `Yes` or `Yes (searchable)` as guidance. Query results include a notice identifying masked columns where their source is known. Labels and notices do not establish that all outputs are sanitized.
 
 Direct catalog queries through `sql_execute_query` or `sql_execute_file` use the same result-masking rules as other query results; returned catalog strings may be altered. Schema and trigger definition tools return raw schema/DDL text, as described below.

@@ -15,8 +15,8 @@ user-approved acceptance boundaries in the current concept.
 ## Resume checkpoint
 
 M1.1–M1.3 are accepted; [M1.3 audit evidence](audit.md) covers the preparation
-contracts at `070d1bb`. M2.1 is implemented (see its evidence below). The next
-open task is **M2.2**. M2.2–M2.5 and M4 remain untouched.
+contracts at `070d1bb`. M2.1 and M2.2 are implemented (see their evidence below).
+The next open task is **M2.3**. M2.3–M2.5 and M4 remain untouched.
 
 ## Execution contract
 
@@ -183,7 +183,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   provider settings and the legacy call paths stay active for unmigrated
   consumers.
 
-- [ ] **M2.2 — Scope token storage, issuance and existing resolution paths.**
+- [x] **M2.2 — Scope token storage, issuance and existing resolution paths.**
   **Depends on:** M1.
   **Intention:** prevent tokens from carrying plaintext across selected targets.
   **Scope:** [TokenVault](../../src/SqlToAi/Anonymization/TokenVault.cs), anonymizer
@@ -196,6 +196,39 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   Same-scope reuse and SQL-literal escaping still work. Foreign/unknown tokens stay
   literal text; comments and identifiers remain untouched. Verify concurrent
   issuance/resolution and both masked and exempt values without exposing plaintext.
+  **Completion evidence:** Added context-aware overloads `GetOrAddToken`/`Store`/
+  `TryResolve(DatabaseTargetContext)` to `ITokenVault`, scoped `Tokenize` to
+  `IAnonymizer`/`Anonymizer` and scoped `ResolveTokens` to `IQueryTokenResolver`/
+  `QueryTokenResolver`. `TokenVault` partitions token state per immutable
+  `DatabaseTargetContext` (canonical alias + ordinal raw database, record equality,
+  no concatenation, no ambient state) with one process-global token-ID counter and
+  a per-scope issuance lock, so parallel issuance mints exactly one token per
+  plaintext/scope and IDs never collide across scopes. Explicit scoped `Store`
+  writes only into the named scope and cannot overwrite another owner's token.
+  Legacy unscoped members remain on a separate legacy scope until M2.3/M4.1
+  migrate their consumers (QueryExecutionService still calls the unscoped
+  `ResolveTokens` at the existing call site); no consumer was migrated and no
+  legacy API was removed. New tests: `TokenVaultScopeTests` (cross-alias and
+  ordinal raw-database isolation incl. `App/Db` and Unicode, same-scope reuse,
+  adversarial explicit `Store`, parallel issuance/resolution), `AnonymizerScopeTests`
+  (scoped tokens, same-scope reuse, master-switch disabled path, nonusable
+  tokenization -> hash fallback, null target rejection), `QueryTokenResolverScopeTests`
+  (own-scope substitution, foreign token stays literal, unknown token matching real
+  SQL text stays literal, quote escaping and comment/identifier preservation,
+  parallel per-scope resolution). Gates run in this session: `dotnet build
+  SqlToAi.slnx` -> 0 warnings, 0 errors; `dotnet test SqlToAi.slnx` -> 1,387
+  passed, 19 skipped, 0 failed (skips remain unavailable external TLS endpoints,
+  unverified, not passes); focused filter over the three new test classes -> 17
+  passed, 0 failed. `git diff --check` clean. AiNetCodeNavigator semantic
+  navigation used (`ITokenVault` references: only Anonymizer, QueryTokenResolver,
+  Program DI and tests). AiNetLinter verify (scope=changes,
+  targetPath=C:/Daten/Entwicklung/Ralf/SqlToAi/SqlToAi.slnx) not executed: the
+  verify tool is not exposed in this session and `ainetlinter-rules.json` is
+  missing (reason: notconfigured); recorded honestly and not treated as a pass.
+  Assignment model / effort: z-ai/glm-5.3-flash / medium via openrouter.
+  Canonical docs updated in [security.md](../../docs/security.md) (token scope
+  paragraph). M2.3 must carry the target through query execution and validation
+  and switch the token call sites to the scoped APIs.
 
 - [ ] **M2.3 — Carry targets through query execution and validation.**
   **Depends on:** M2.1–M2.2.
