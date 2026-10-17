@@ -251,7 +251,7 @@ internal sealed class ToolDispatcher : IToolDispatcher
         if (queryResult.SearchableTokenColumns.Count > 0)
         {
             string searchableList = string.Join(", ", queryResult.SearchableTokenColumns);
-            note += $" Of these, {searchableList} are searchable tokens, not masked text: still not the real value, but reuse it verbatim (unchanged) in a later query's WHERE/JOIN/LIKE/IN/range predicate on that column — the server resolves it back to the real value before executing.";
+            note += $" Of these, {searchableList} are searchable tokens, not masked text: still not the real value, but reuse it verbatim (unchanged) on the same target in a later query's WHERE/JOIN/LIKE/IN/range predicate on that column — the server resolves it back to the real value before executing.";
         }
 
         return note;
@@ -358,7 +358,7 @@ internal sealed class ToolDispatcher : IToolDispatcher
             int i => JsonSerializer.SerializeToElement(i, McpJsonContext.Default.Int32),
             long l => JsonSerializer.SerializeToElement(l, McpJsonContext.Default.Int64),
             bool b => JsonSerializer.SerializeToElement(b, McpJsonContext.Default.Boolean),
-            _ => default
+            _ => throw new ArgumentException($"Unsupported argument type for '{key}'.")
         };
     }
 

@@ -15,7 +15,8 @@ internal sealed record FakeDbCommandHandlers(
     Func<FakeDbCommand, DbDataReader>? ExecuteReader = null,
     Func<FakeDbCommand, object?>? ExecuteScalar = null,
     Func<FakeDbCommand, int>? ExecuteNonQuery = null,
-    Func<FakeDbCommand, CancellationToken, Task<int>>? ExecuteNonQueryAsync = null);
+    Func<FakeDbCommand, CancellationToken, Task<int>>? ExecuteNonQueryAsync = null,
+    Func<FakeDbCommand, CancellationToken, Task<DbDataReader>>? ExecuteReaderAsync = null);
 
 /// <summary>
 /// Generic <see cref="DbCommand"/> fake shared by every ADO.NET test double in this project.
@@ -56,6 +57,9 @@ internal sealed class FakeDbCommand(DbConnection? connection, FakeDbCommandHandl
     protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior) =>
         _handlers.ExecuteReader?.Invoke(this)
         ?? throw new NotSupportedException("This fake command has no ExecuteReader handler configured.");
+
+    protected override Task<DbDataReader> ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken) =>
+        _handlers.ExecuteReaderAsync?.Invoke(this, cancellationToken) ?? base.ExecuteDbDataReaderAsync(behavior, cancellationToken);
 
     protected override DbParameter CreateDbParameter() => new FakeDbParameter();
 }

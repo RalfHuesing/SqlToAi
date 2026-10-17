@@ -93,7 +93,7 @@ public sealed class ToolRegistry
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
                 [McpConstants.ArgQuery]      = StringParam("The SQL query to validate."),
-                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required."),
+                [McpConstants.ArgDatabase]   = StringParam(McpConstants.DatabaseTargetDescription),
                 [McpConstants.ArgParameters] = new() { Type = "object", Description = "Optional dictionary of typed SQL parameters (e.g. {\"CustomerId\": 42} or {\"val\": {\"value\": \"123\", \"dbType\": \"AnsiString\"}})." }
             },
             Required = [McpConstants.ArgQuery, McpConstants.ArgDatabase]
@@ -113,7 +113,7 @@ public sealed class ToolRegistry
                 [McpConstants.ArgObjectType] = StringParam(
                     "Optional filter on SQL Server type_desc. Common values: 'USER_TABLE', 'VIEW', " +
                     "'SQL_STORED_PROCEDURE', 'SQL_TRIGGER', 'SQL_SCALAR_FUNCTION'. Supports LIKE wildcards (e.g. 'SQL_%')."),
-                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
+                [McpConstants.ArgDatabase]   = StringParam(McpConstants.DatabaseTargetDescription)
             },
             Required = [McpConstants.ArgSearchTerm, McpConstants.ArgDatabase]
         }
@@ -136,7 +136,7 @@ public sealed class ToolRegistry
                 [McpConstants.ArgObjectName] = NullableParameter("string", "Optional scalar name; required when object_names is absent/null."),
                 [McpConstants.ArgObjectNames] = NullableParameter("array", "Optional array of names. A supplied array selects batch mode, including [].",
                     NullableParameter("string", "Object name; null/empty/whitespace entries are ignored.")),
-                [McpConstants.ArgDatabase] = StringParam("Target database name. Required.")
+                [McpConstants.ArgDatabase] = StringParam(McpConstants.DatabaseTargetDescription)
             },
             Required = [McpConstants.ArgDatabase]
         }
@@ -161,7 +161,7 @@ public sealed class ToolRegistry
         {
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
-                [McpConstants.ArgDatabase] = StringParam("Target database name. Required."),
+                [McpConstants.ArgDatabase] = StringParam(McpConstants.DatabaseTargetDescription),
                 [McpConstants.ArgScope] = StringParam("Required explicit scope: selected or all. Never defaults to all."),
                 [McpConstants.ArgOutputPath] = StringParam("Required fully qualified Windows server directory: drive-rooted or UNC; absent or completely empty."),
                 [McpConstants.ArgObjectName] = NullableParameter("string", "Optional scalar selection name."),
@@ -198,7 +198,7 @@ public sealed class ToolRegistry
             {
                 [McpConstants.ArgObjectName]  = StringParam("The name of the parent table or view."),
                 [McpConstants.ArgTriggerName] = StringParam("The name of the trigger."),
-                [McpConstants.ArgDatabase]    = StringParam("Target database name. Required.")
+                [McpConstants.ArgDatabase]    = StringParam(McpConstants.DatabaseTargetDescription)
             },
             Required = [McpConstants.ArgObjectName, McpConstants.ArgTriggerName, McpConstants.ArgDatabase]
         }
@@ -221,7 +221,7 @@ public sealed class ToolRegistry
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
                 [McpConstants.ArgQuery]             = StringParam("The SQL query to execute."),
-                [McpConstants.ArgDatabase]          = StringParam("Target database name. Required."),
+                [McpConstants.ArgDatabase]          = StringParam(McpConstants.DatabaseTargetDescription),
                 [McpConstants.ArgRequestedRowLimit] = new() { Type = "integer", Description = "Maximum rows to return. Capped by the server's configured maximum. Optional." },
                 [McpConstants.ArgParameters]        = new() { Type = "object", Description = "Optional dictionary of typed SQL parameters (e.g. {\"CustomerId\": 42} or {\"val\": {\"value\": \"123\", \"dbType\": \"AnsiString\"}})." }
             },
@@ -238,7 +238,7 @@ public sealed class ToolRegistry
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
                 [McpConstants.ArgFilePath]           = StringParam("Local .sql file path, absolute or relative to the server working directory. Required."),
-                [McpConstants.ArgDatabase]           = StringParam("Target database name. Required."),
+                [McpConstants.ArgDatabase]           = StringParam(McpConstants.DatabaseTargetDescription),
                 [McpConstants.ArgUseTransaction]     = new() { Type = "boolean", Description = ExecutionToolDescriptions.UseTransaction },
                 [McpConstants.ArgRequestedRowLimit] = new() { Type = "integer", Description = "Maximum rows returned per SELECT batch. Capped by the server's configured maximum. Optional." },
                 [McpConstants.ArgParameters]        = new() { Type = "object", Description = "Optional dictionary of typed SQL parameters for all batches." }
@@ -255,7 +255,7 @@ public sealed class ToolRegistry
         {
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
-                [McpConstants.ArgDatabase]    = StringParam("Target database name. Required."),
+                [McpConstants.ArgDatabase]    = StringParam(McpConstants.DatabaseTargetDescription),
                 [McpConstants.ArgQueryA]       = StringParam("Baseline SQL query (Query A). Required."),
                 [McpConstants.ArgQueryB]       = StringParam("Candidate SQL query (Query B). Required."),
                 [McpConstants.ArgParametersA]  = new() { Type = "object", Description = "Optional dictionary of parameters for Query A." },
@@ -287,7 +287,7 @@ public sealed class ToolRegistry
         {
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
-                [McpConstants.ArgDatabase]             = StringParam("Target database name. Required."),
+                [McpConstants.ArgDatabase]             = StringParam(McpConstants.DatabaseTargetDescription),
                 [McpConstants.ArgQuery]                = StringParam("SQL query to measure. Required."),
                 [McpConstants.ArgParameters]           = new() { Type = "object", Description = "Optional dictionary of typed parameters for the query." },
                 [McpConstants.ArgWarmupRuns]           = new() { Type = "integer", Description = "Number of initial unmeasured warmup runs (default 1)." },
@@ -316,7 +316,7 @@ public sealed class ToolRegistry
         {
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
-                [McpConstants.ArgDatabase]     = StringParam("Target database name. Required."),
+                [McpConstants.ArgDatabase]     = StringParam(McpConstants.DatabaseTargetDescription),
                 [McpConstants.ArgQueryA]        = StringParam("Baseline SQL query (Query A). Required."),
                 [McpConstants.ArgQueryB]        = StringParam("Candidate SQL query (Query B). Required."),
                 [McpConstants.ArgParametersA]   = new() { Type = "object", Description = "Optional dictionary of parameters for Query A." },
@@ -347,7 +347,7 @@ public sealed class ToolRegistry
             {
                 Properties = new Dictionary<string, ToolParameterDefinition>
                 {
-                    [McpConstants.ArgDatabase]  = StringParam("Target database name. Required."),
+                    [McpConstants.ArgDatabase]  = StringParam(McpConstants.DatabaseTargetDescription),
                     [McpConstants.ArgTableName] = StringParam("Optional LIKE filter on the DMV 'statement' column (e.g. 'Orders' or 'dbo.%'). Case-insensitive substring match."),
                     [McpConstants.ArgMinScore]  = new() { Type = "number", Description = "Optional minimum improvement_score threshold; rows below it are excluded. Default 0 (no threshold)." },
                     [McpConstants.ArgTop]       = new() { Type = "integer", Description = "Maximum number of recommendations to return. Default 10." }
@@ -387,7 +387,7 @@ public sealed class ToolRegistry
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
                 [McpConstants.ArgObjectName] = StringParam("The name of the target object."),
-                [McpConstants.ArgDatabase]   = StringParam("Target database name. Required.")
+                [McpConstants.ArgDatabase]   = StringParam(McpConstants.DatabaseTargetDescription)
             },
             Required = [McpConstants.ArgObjectName, McpConstants.ArgDatabase]
         }

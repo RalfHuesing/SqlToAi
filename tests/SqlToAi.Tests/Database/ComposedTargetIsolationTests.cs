@@ -17,15 +17,8 @@ using SqlToAi.Tests.TestSupport;
 namespace SqlToAi.Tests.Database;
 
 /// <summary>
-/// Milestone 4.2 composed acceptance tests:
-/// 1. Alternating and parallel calls across multiple targets with the same raw database name
-///    never mix endpoints, access rights, rules, cache, or token scopes.
-/// 2. The same physical endpoint configured under distinct aliases retains independent owners.
-/// 3. Syntactically unusual raw database names (dots, spaces, dashes, brackets, unicode)
-///    flow uncorrupted through resolution, access checks, exclusions, and connections.
-/// 4. Server discovery (sql_list_servers) performs zero database or SQL probes.
-/// 5. Actual MCP SDK registration and argument binding covers all 19 tools and enforces
-///    qualified database targets.
+/// Focused execution and registration checks using target-aware rows and configured rule doubles.
+/// Real provider-cache and production connection routing are exercised by ComposedProviderIsolationTests.
 /// </summary>
 public sealed class ComposedTargetIsolationTests
 {
@@ -52,7 +45,7 @@ public sealed class ComposedTargetIsolationTests
     // =========================================================================
 
     [Fact]
-    public async Task MultiTargetParallelAndAlternating_NeverMixesEndpointsRightsRulesCacheOrTokens()
+    public async Task ParallelExecution_UsesTargetRightsConfiguredRuleDecisionsAndScopedTokens()
     {
         var options = new SqlToAiOptions();
         options.Anonymizer.Tokenization.Enabled = true;
@@ -303,7 +296,7 @@ public sealed class ComposedTargetIsolationTests
     }
 
     // =========================================================================
-    // 5. Actual MCP SDK registration and argument binding for all 19 tools
+    // 5. Tool inventory and focused SDK invocations with service doubles
     // =========================================================================
 
     [Fact]

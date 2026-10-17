@@ -2,6 +2,14 @@
 
 The server registers 19 SQL tools. Required arguments are listed below; `database` is an explicit qualified target (`alias/database`) wherever shown. Failed tool results set MCP `isError=true`; catalog errors appear as `[SQL-AI-...] message` in text content or structured `error` objects in JSON envelopes. Successful content can be Markdown or JSON, depending on the tool.
 
+Discover aliases with `sql_list_servers` and permitted qualified targets with
+`sql_list_databases`. Both discovery schemas and CLI help describe the required
+`alias/database` form, for example `test/AppDb`. Registered MCP calls with a
+missing, null, incorrectly typed, malformed or unknown `database`/`server`
+return `SQL-AI-0001` with `isError=true` before SQL work. The generated CLI retains
+required options: missing options fail during command parsing; invalid supplied
+targets return the same catalog error through the dispatcher.
+
 ## Discovery and schema
 
 | Tool | Required arguments | Optional arguments | Result |

@@ -56,10 +56,15 @@ loops, superseding the workflow's sequential-audit and one-correction defaults.
   scenario target. Remove unused parser-only guard entry points that return the
   wrong error for unknown aliases. Verify identity, denial and error paths.
   Evidence: [R4 review and gates](audit.md#r4--one-context-through-export-benchmark-and-exploration).
-- [ ] **R5 — Test real composition and publish the qualified argument contract.**
+- [x] **R5 — Test real composition and publish the qualified argument contract.**
   Exercise production rule caches/services behind connection doubles and actual
   SDK/CLI bindings; assert source loads, exemptions, tokens and same-address
   owner separation. Share explicit `alias/database` descriptions and verify help.
+  Evidence: [R5 review and gates](audit.md#r5--real-provider-composition-and-public-target-binding).
+- [ ] **R2a — Normalize obsolete environment paths at the provider boundary.**
+  Reject colon and mixed-delimiter forms of known obsolete product sections;
+  retain section boundaries so unrelated names such as SqlServerless remain valid.
+  Use safe known-prefix diagnostics and isolated child-process regressions.
 - [ ] **R6 — Verify Native AOT honestly and perform independent final audit.**
   Investigate hidden third-party AOT diagnostics without adding suppressions;
   run final build/tests/publish, retain unresolved compatibility findings openly,

@@ -26,11 +26,11 @@ internal static class McpConstants
 
         If a task needs a column marked anonymized, tell the user explicitly which `Table.Column` is affected instead of treating the scrambled value as real data. For a plain table/view column, propose to the user that they add an exclusion rule (do not attempt to modify any exclusion or rule configuration yourself). For a view, computed column, or aggregation where the underlying source is unclear, first call `sql_get_object_references` (and inspect the base table's schema) to trace the real source column before proposing anything — only suggest an exclusion once you are confident which concrete table and column it maps to.
 
-        Some anonymized columns are marked "Yes (searchable)" instead of plain "Yes" (schema) or listed separately as searchable in the `sql_execute_query` note. Their values are still not the real data, but they are stable, reusable tokens: the same underlying value always yields the same token, including across different tables/columns, so you can copy a token verbatim (unmodified, whole) into a later query's `WHERE`/`JOIN`/`LIKE`/`IN`/range predicate against that same column, and the server transparently resolves it back to the real value before executing — you still never see or need the real value to correlate rows. Never edit, truncate, concatenate, or guess a token; an unrecognized token simply matches nothing.
+        Some anonymized columns are marked "Yes (searchable)" instead of plain "Yes" (schema) or listed separately as searchable in the `sql_execute_query` note. These values are reversible tokens, not the underlying data. Identical plaintext reuses a token across tables/columns only within the same canonical server alias and exact raw database name, compared ordinally. Copy a complete token verbatim into a SQL string literal on the same target; supported query paths resolve it before execution. A token from another target, or an unknown token, remains ordinary literal SQL text and can match actual stored text. Never edit, truncate, concatenate, or guess tokens; their fragments and ordering do not preserve the underlying value relationship.
         """;
 
     // -------------------------------------------------------------------------
-    // Tool names (must match architecture-spec.md exactly)
+    // Tool names (documented in docs/tools.md)
     // -------------------------------------------------------------------------
 
     internal const string ToolListServers = "sql_list_servers";
@@ -56,6 +56,8 @@ internal static class McpConstants
     // -------------------------------------------------------------------------
     // Tool argument keys
     // -------------------------------------------------------------------------
+
+    internal const string DatabaseTargetDescription = "Required qualified target in alias/database form, for example test/AppDb. Discover aliases with sql_list_servers and permitted targets with sql_list_databases.";
 
     internal const string ArgServer = "server";
     internal const string ArgDatabase = "database";

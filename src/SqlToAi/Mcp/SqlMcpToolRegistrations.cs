@@ -20,6 +20,13 @@ public static class SqlMcpToolRegistrations
         RegisterSchemaInspectionTools(tools, dispatcher);
         RegisterQueryExecutionTools(tools, dispatcher);
         RegisterPerformanceAndAnalysisTools(tools, dispatcher);
+        var definitions = new ToolRegistry().GetAll().ToDictionary(tool => tool.Name, StringComparer.Ordinal);
+        foreach (var tool in tools)
+        {
+            // Raw target binding reaches catalog error handling; discovery still advertises required inputs.
+            tool.ProtocolTool.InputSchema = JsonSerializer.SerializeToElement(definitions[tool.ProtocolTool.Name].InputSchema,
+                McpJsonContext.Default.ToolInputSchema);
+        }
         return tools;
     }
 
@@ -37,7 +44,7 @@ public static class SqlMcpToolRegistrations
             }));
 
         tools.Add(McpServerTool.Create(
-            ([Description("The named server alias to list databases for.")] string server,
+            ([Description("The named server alias to list databases for.")] JsonElement? server = null,
              CancellationToken ct = default) =>
                 ExecuteAsync(dispatcher, McpConstants.ToolListDatabases, new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
@@ -50,8 +57,8 @@ public static class SqlMcpToolRegistrations
             }));
 
         tools.Add(McpServerTool.Create(
-            ([Description("The named server alias to search databases on.")] string server,
-             [Description("Substring to filter database names by.")] string search_term,
+            ([Description("Substring to filter database names by.")] string search_term,
+             [Description("The named server alias to search databases on.")] JsonElement? server = null,
              CancellationToken ct = default) =>
                 ExecuteAsync(dispatcher, McpConstants.ToolSearchDatabases, new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
@@ -66,7 +73,7 @@ public static class SqlMcpToolRegistrations
 
         tools.Add(McpServerTool.Create(
             ([Description("Partial object name to search for.")] string search_term,
-             [Description("Target database name. Required.")] string database,
+             [Description(McpConstants.DatabaseTargetDescription)] JsonElement? database = null,
              [Description("Maximum number of results to return. Optional.")] int? max_results = null,
              [Description("Optional filter on SQL Server type_desc.")] string? object_type = null,
              CancellationToken ct = default) =>
@@ -93,7 +100,7 @@ public static class SqlMcpToolRegistrations
     {
         ToolDefinition definition = new ToolRegistry().GetAll().Single(tool => tool.Name == McpConstants.ToolGetSchema);
         McpServerTool schemaTool = McpServerTool.Create(
-            (string database, JsonElement? object_name = null, JsonElement? object_names = null, CancellationToken ct = default) =>
+            (JsonElement? database = null, JsonElement? object_name = null, JsonElement? object_names = null, CancellationToken ct = default) =>
                 ExecuteAsync(dispatcher, McpConstants.ToolGetSchema, new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
                     [McpConstants.ArgDatabase] = database,
@@ -101,7 +108,6 @@ public static class SqlMcpToolRegistrations
                     [McpConstants.ArgObjectNames] = object_names
                 }, ct),
             new McpServerToolCreateOptions { Name = definition.Name, Description = definition.Description });
-        schemaTool.ProtocolTool.InputSchema = JsonSerializer.SerializeToElement(definition.InputSchema, McpJsonContext.Default.ToolInputSchema);
         tools.Add(schemaTool);
         ToolDefinition exportDefinition = new ToolRegistry().GetAll().Single(tool => tool.Name == McpConstants.ToolExportSchema);
         McpServerTool exportTool = McpServerTool.Create(
@@ -116,7 +122,6 @@ public static class SqlMcpToolRegistrations
                     [McpConstants.ArgObjectNames] = object_names
                 }, ct),
             new McpServerToolCreateOptions { Name = exportDefinition.Name, Description = exportDefinition.Description });
-        exportTool.ProtocolTool.InputSchema = JsonSerializer.SerializeToElement(exportDefinition.InputSchema, McpJsonContext.Default.ToolInputSchema);
         tools.Add(exportTool);
         RegisterDetailTool(tools, dispatcher, McpConstants.ToolGetSchemaForeignKeys,
             "Returns all inbound and outbound foreign keys for a table as a Markdown table.");
@@ -132,7 +137,7 @@ public static class SqlMcpToolRegistrations
         tools.Add(McpServerTool.Create(
             ([Description("The name of the parent table or view.")] string object_name,
              [Description("The name of the trigger.")] string trigger_name,
-             [Description("Target database name. Required.")] string database,
+             [Description(McpConstants.DatabaseTargetDescription)] JsonElement? database = null,
              CancellationToken ct = default) =>
                 ExecuteAsync(dispatcher, McpConstants.ToolGetTriggerDefinition, new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
@@ -155,7 +160,7 @@ public static class SqlMcpToolRegistrations
     {
         tools.Add(McpServerTool.Create(
             ([Description("The name of the database object.")] string object_name,
-             [Description("Target database name. Required.")] string database,
+             [Description(McpConstants.DatabaseTargetDescription)] JsonElement? database = null,
              CancellationToken ct = default) =>
                 ExecuteAsync(dispatcher, toolName, new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
@@ -175,7 +180,7 @@ public static class SqlMcpToolRegistrations
     {
         tools.Add(McpServerTool.Create(
             ([Description("The SQL query to validate.")] string query,
-             [Description("Target database name. Required.")] string database,
+             [Description(McpConstants.DatabaseTargetDescription)] JsonElement? database = null,
              [Description("Optional dictionary of typed SQL parameters.")] object? parameters = null,
              CancellationToken ct = default) =>
             {
@@ -195,7 +200,7 @@ public static class SqlMcpToolRegistrations
 
         tools.Add(McpServerTool.Create(
             ([Description("The SQL query to execute.")] string query,
-             [Description("Target database name. Required.")] string database,
+             [Description(McpConstants.DatabaseTargetDescription)] JsonElement? database = null,
              [Description("Maximum rows to return. Capped by the server's configured maximum. Optional.")] int? requested_row_limit = null,
              [Description("Optional dictionary of typed SQL parameters.")] object? parameters = null,
              CancellationToken ct = default) =>
@@ -226,7 +231,7 @@ public static class SqlMcpToolRegistrations
     {
         tools.Add(McpServerTool.Create(
             ([Description("Local .sql file path, absolute or relative to the server working directory. Required.")] string file_path,
-             [Description("Target database name. Required.")] string database,
+             [Description(McpConstants.DatabaseTargetDescription)] JsonElement? database = null,
              [Description(ExecutionToolDescriptions.UseTransaction)] bool? use_transaction = null,
              [Description("Maximum rows returned per SELECT batch. Capped by the server's configured maximum. Optional.")] int? requested_row_limit = null,
              [Description("Optional dictionary of typed SQL parameters for all batches.")] object? parameters = null,
@@ -264,9 +269,9 @@ public static class SqlMcpToolRegistrations
         IToolDispatcher dispatcher)
     {
         tools.Add(McpServerTool.Create(
-            ([Description("Target database name. Required.")] string database,
-             [Description("Baseline SQL query (Query A). Required.")] string query_a,
+            ([Description("Baseline SQL query (Query A). Required.")] string query_a,
              [Description("Candidate SQL query (Query B). Required.")] string query_b,
+             [Description(McpConstants.DatabaseTargetDescription)] JsonElement? database = null,
              [Description("Optional dictionary of parameters for Query A.")] object? parameters_a = null,
              [Description("Optional dictionary of parameters for Query B.")] object? parameters_b = null,
              [Description("Optional shared dictionary of parameters for both queries.")] object? parameters = null,
@@ -297,8 +302,8 @@ public static class SqlMcpToolRegistrations
         IToolDispatcher dispatcher)
     {
         tools.Add(McpServerTool.Create(
-            ([Description("Target database name. Required.")] string database,
-             [Description("SQL query to measure. Required.")] string query,
+            ([Description("SQL query to measure. Required.")] string query,
+             [Description(McpConstants.DatabaseTargetDescription)] JsonElement? database = null,
              [Description("Optional dictionary of typed parameters for the query.")] object? parameters = null,
              [Description("Number of initial unmeasured warmup runs (default 1).")] int? warmup_runs = null,
              [Description("Number of measured execution runs (default 1).")] int? execution_runs = null,
@@ -328,9 +333,9 @@ public static class SqlMcpToolRegistrations
         IToolDispatcher dispatcher)
     {
         tools.Add(McpServerTool.Create(
-            ([Description("Target database name. Required.")] string database,
-             [Description("Baseline SQL query (Query A). Required.")] string query_a,
+            ([Description("Baseline SQL query (Query A). Required.")] string query_a,
              [Description("Candidate SQL query (Query B). Required.")] string query_b,
+             [Description(McpConstants.DatabaseTargetDescription)] JsonElement? database = null,
              [Description("Optional dictionary of parameters for Query A.")] object? parameters_a = null,
              [Description("Optional dictionary of parameters for Query B.")] object? parameters_b = null,
              [Description("Optional shared dictionary of parameters for both queries.")] object? parameters = null,
@@ -363,7 +368,7 @@ public static class SqlMcpToolRegistrations
         IToolDispatcher dispatcher)
     {
         tools.Add(McpServerTool.Create(
-            ([Description("Target database name. Required.")] string database,
+            ([Description(McpConstants.DatabaseTargetDescription)] JsonElement? database = null,
              [Description("Optional LIKE filter on the DMV 'statement' column.")] string? table_name = null,
              [Description("Optional minimum improvement_score threshold. Default 0.")] double? min_score = null,
              [Description("Maximum number of recommendations to return. Default 10.")] int? top = null,

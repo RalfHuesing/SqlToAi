@@ -64,6 +64,7 @@ public sealed class ToolDispatcherExecutionTests
         Assert.Contains("Email", result.Content[0].Text);
         Assert.Contains("searchable tokens", result.Content[0].Text);
         Assert.Contains("reuse it verbatim", result.Content[0].Text);
+        Assert.Contains("on the same target", result.Content[0].Text);
     }
 
     [Fact]

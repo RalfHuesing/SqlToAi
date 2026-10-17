@@ -244,8 +244,9 @@ public sealed class ServerDiscoveryTargetIsolationTests
         factory.CatalogQueryFailure = new OperationCanceledException(cancellation.Token);
         factory.BeforeCatalogQueryFailure = () => cancellation.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             service.ListDatabasesAsync("alpha", cancellation.Token));
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
 
         Assert.True(cancellation.IsCancellationRequested);
         Assert.Equal(1, factory.LastCatalogConnection!.OpenCount);

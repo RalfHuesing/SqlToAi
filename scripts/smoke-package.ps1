@@ -242,7 +242,7 @@ try {
     if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) {
         throw 'Archive bytes changed during the smoke check.'
     }
-    Write-Host "Package smoke passed: initialization, 18 tools, protocol-only stdout, separate stderr, spaces/different CWD, unchanged settings. SHA-256 $hash"
+    Write-Host "Package smoke passed: initialization, $($expected.Count) tools, protocol-only stdout, separate stderr, spaces/different CWD, unchanged settings. SHA-256 $hash"
     if ($isBundle) { [pscustomobject]@{ McpbPath = $archive; Sha256 = $hash } }
     else { [pscustomobject]@{ ZipPath = $archive; Sha256 = $hash } }
 }

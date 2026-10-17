@@ -172,6 +172,8 @@ Locations in this subsection refer to `cab47d3`, before remediation.
 | P2 public contract | `src/SqlToAi/Mcp/ToolRegistry.cs:96` and corresponding SDK parameter descriptions still say only "Target database name. Required." The M4.2 claim of qualified descriptions has no supporting assertion. | R5 |
 | P2 transport (runtime-confirmed during R4) | Required SDK delegate parameters reject missing server/database before the dispatcher. Against `dd17ef3`, actual StartupHarness stdio `tools/call` for `sql_list_databases` with `{}` and `sql_execute_query` with only `query` both returned generic "An error occurred invoking…" without required `SQL-AI-0001`. Unknown server did return 0001. No SQL was requested; a temporary settings root was used. Runtime server instructions also incorrectly claim unknown tokens always match nothing and omit the target scope. | R5 |
 | P1 acceptance evidence | `src/SqlToAi/SqlToAi.csproj:5` globally suppresses IL2104/IL3053, added by `912701a`. An unmasked detailed AOT publish emitted 103 IL diagnostics, including 17 IL3050 dynamic-code warnings. Exit 0 with suppression is not warning-free AOT compatibility. | R6 |
+| P2 configured timeout (found during R6a preparation) | Both `MetadataProvider` commands omit `commandTimeout` despite the existing `MetadataProvider.CommandTimeoutSeconds` setting and its documented behavior in `docs/configuration.md`. The explicit ADO.NET migration must apply that setting, including zero, without changing unrelated catalog defaults. | R6a |
+| P2 source contract (confirmed after R5) | `UserConfiguration.cs:106–108` checks raw environment prefixes without provider normalization or section boundaries. Isolated StartupHarness accepts `SqlToAi:SqlServer:Password`, `SqlToAi:MetadataProvider:Password` and `SqlToAi:SqlServer__Password`, although those forms bind configuration; it incorrectly rejects `SqlToAi__SqlServerless__Password`. Existing double-underscore legacy forms fail correctly. | R2a |
 | P2 documentation | The resume checkpoint still says M3 has not started, M3.4 evidence is absent here, and historical M4.3 declares complete acceptance without line/commit evidence. | R6 |
 
 No additional cross-owner grant, rule-cache or token-vault leak was demonstrated.
@@ -315,4 +317,43 @@ returned 0 warnings/errors; full `dotnet test SqlToAi.slnx --no-build` returned
 1,646 passed, 19 skipped, 0 failed. TRX skip names exactly match the external TLS
 baseline. `git diff --check` was clean. These are managed checks; Native AOT
 acceptance remains open.
+
+## R5 — Real provider composition and public target binding
+
+Completed on 2026-10-18. Coder: GPT-6.1-Sol/high (`audit_surfaces`);
+independent reviewer: GPT-6.1-Sol/high (`audit_foundations`), read-only approval
+against `0eb44d4` (R4), including all four new test files.
+
+`src/SqlToAi/Mcp/SqlMcpToolRegistrations.cs:23–28,47–62,103–108` accepts raw nullable
+JSON target inputs into the existing dispatcher, retaining catalog errors for
+missing, null or incorrectly typed targets. Every public schema is taken from the
+canonical registry and still requires string server/database arguments. The shared
+description in `McpConstants.cs:60` explicitly states `alias/database` and discovery
+tools. Unsupported boxed schema selections now fail with 0001 rather than silently
+becoming an absent filter (`ToolDispatcher.cs:361`). Runtime instructions and
+outgoing notes explain target-scoped tokens and literal foreign tokens.
+
+`tests/SqlToAi.Tests/Database/ComposedTargetFixture.cs` composes real policy, guard,
+rule provider/cache, anonymizer, token vault, resolver and query service. Its
+connection decorator inspects unopened connections from the production factory
+before replacing only I/O. `ComposedProviderIsolationTests.cs:14–143` forces cold
+owner loads to overlap, then alternates/parallelizes warm calls; it checks physical
+settings, owner credentials, actual rule-load counts, same-address failure masking,
+raw-database cache separation, foreign tokens, cancellation/retry and denial before
+connection creation. Earlier fake-only composition tests have narrower descriptions.
+
+`Mcp/ComposedTargetBindingTests.cs:39–249` covers all target-bearing registered SDK
+tools and generated CLI arguments, including invalid input matrices, production
+routing, unusual raw names, required schemas/help and unsupported selections.
+`ManagedMcpTargetBindingTests.cs:13–57` additionally launches the real managed host
+and MCP client over stdio in an isolated temporary settings root. No live SQL server
+or personal configuration is needed for those binding failures.
+
+Parent gates after independent approval: warning-as-error build returned
+0 warnings/errors; full no-build tests returned 1,927 passed, 19 skipped, 0 failed.
+`temp/audit-gates/r5.trx` skip names exactly match the external TLS baseline.
+`git diff --check` was clean. A separate actual-host JSON-RPC probe confirmed
+19 advertised tools, nine catalog-coded failures, canonical server discovery,
+unchanged settings bytes and exit 0. These checks do not establish Native AOT or
+strict external TLS acceptance.
 
