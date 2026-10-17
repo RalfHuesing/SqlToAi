@@ -1,6 +1,7 @@
 using System.Data.Common;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.SqlServer.TransactSql.ScriptDom;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
 using SqlToAi.Database;
@@ -85,6 +86,61 @@ public sealed class QueryExecutionTargetScopeTests
         Assert.Equal(
             "SELECT * FROM T WHERE Secret = 'shared-secret'",
             await ExecuteCapturingSql(service, factory, "test/AppDb", $"SELECT * FROM T WHERE Secret = '{upperToken}'"));
+    }
+
+    [Theory]
+    [InlineData("SELECT 1 AS [a]]'§§§known§§§']")]
+    [InlineData("SELECT 1 AS \"'§§§known§§§'\"")]
+    [InlineData("SELECT 1 AS \"a\"\"'§§§known§§§'\"")]
+    [InlineData("SELECT 1 AS '§§§known§§§'")]
+    [InlineData("SELECT 1 '§§§known§§§'")]
+    [InlineData("SELECT '§§§known§§§' = 1")]
+    [InlineData("SELECT 1 AS 'a''§§§known§§§'")]
+    public async Task QueryExecution_PreservesTokenTextInIdentifierAndOutputKey(string query)
+    {
+        var options = AnonymizationTestHelper.BuildTokenizationOptions();
+        options.WithNamedServers(TestTargets.ServerAlias);
+        options.Databases.ReadOnlyAnonymized.Add(TestTarget);
+
+        var target = new DatabaseTargetContext(TestTargets.ServerAlias, TestConstants.DatabaseName);
+        var vault = new TokenVault();
+        vault.Store("§§§known§§§", "PLAINTEXT", target);
+        var resolver = new QueryTokenResolver(vault, Options.Create(options));
+        var anonymizer = new Anonymizer(Options.Create(options), vault);
+        var factory = new TargetRowsConnectionFactory(
+            new Dictionary<string, TargetRowSet>(StringComparer.Ordinal)
+            {
+                [TestTarget] = new TargetRowSet(["unused"], [[1]])
+            },
+            ExtractOutputAlias);
+        var service = new QueryExecutionService(
+            factory,
+            new QuerySafetyValidator(
+                new SecurityGuard(Options.Create(options)),
+                new GrantsAccessLevelProvider(options),
+                new ReadOnlyGuard()),
+            new AnonymizationDependencies(anonymizer, null, resolver),
+            Options.Create(options),
+            NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync(TestTarget, query, null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
+        Assert.Equal(query, factory.LastConnection!.LastCommand!.CommandText);
+        using var document = System.Text.Json.JsonDocument.Parse(result.Value.Data.Split('\n', StringSplitOptions.RemoveEmptyEntries)[0]);
+        string outputKey = Assert.Single(document.RootElement.EnumerateObject()).Name;
+        Assert.Contains("§§§known§§§", outputKey, StringComparison.Ordinal);
+        Assert.DoesNotContain("PLAINTEXT", outputKey, StringComparison.Ordinal);
+    }
+
+    private static string[] ExtractOutputAlias(string commandText)
+    {
+        var parsed = SqlScriptDomParser.ParseScript(commandText);
+        Assert.True(parsed.Success);
+        var statement = Assert.IsType<SelectStatement>(Assert.Single(Assert.Single(parsed.Script!.Batches).Statements));
+        var query = Assert.IsType<QuerySpecification>(statement.QueryExpression);
+        var column = Assert.IsType<SelectScalarExpression>(Assert.Single(query.SelectElements));
+        return [column.ColumnName.Value];
     }
 
     [Fact]

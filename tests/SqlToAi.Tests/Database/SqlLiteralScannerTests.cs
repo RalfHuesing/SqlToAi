@@ -39,6 +39,16 @@ public sealed class SqlLiteralScannerTests
         Assert.Equal(["O''Brien"], literals);
     }
 
+    [Theory]
+    [InlineData("SELECT ''''", "''")]
+    [InlineData("SELECT ''''''", "''''")]
+    [InlineData("SELECT N'O''Brien'", "O''Brien")]
+    [InlineData("SELECT n'O''Brien'", "O''Brien")]
+    public void GetLiteralContentRanges_ShouldPreserveRawQuoteEscapesAndNationalPrefixes(string sql, string expected)
+    {
+        Assert.Equal([expected], ExtractLiterals(sql));
+    }
+
     [Fact]
     public void GetLiteralContentRanges_ShouldIgnoreContentInsideLineComments()
     {
@@ -61,6 +71,60 @@ public sealed class SqlLiteralScannerTests
         var literals = ExtractLiterals("SELECT [Weird'Column] FROM T WHERE A = 'real'");
 
         Assert.Equal(["real"], literals);
+    }
+
+    [Fact]
+    public void GetLiteralContentRanges_ShouldIgnoreEscapedBracketIdentifiersAndDoubleQuotedIdentifiers()
+    {
+        var literals = ExtractLiterals("SELECT 1 AS [a]]'hidden'] , \"a\"\"'hidden'\" , 'real'");
+
+        Assert.Equal(["real"], literals);
+    }
+
+    [Fact]
+    public void GetLiteralContentRanges_ShouldIgnoreNestedBlockComments()
+    {
+        var literals = ExtractLiterals("SELECT 1 /* outer /* 'hidden' */ 'also hidden' */ WHERE A = 'real'");
+
+        Assert.Equal(["real"], literals);
+    }
+
+    [Theory]
+    [InlineData("SELECT 1 AS [unterminated 'hidden'")]
+    [InlineData("SELECT 1 AS \"unterminated 'hidden'")]
+    [InlineData("SELECT 1 /* outer /* 'hidden' */")]
+    public void GetLiteralContentRanges_ShouldIgnoreMalformedTails(string sql)
+    {
+        Assert.Empty(ExtractLiterals(sql));
+    }
+
+    [Theory]
+    [InlineData("SELECT 'real' AS 'hidden'")]
+    [InlineData("SELECT 'real' 'hidden'")]
+    [InlineData("SELECT 'hidden' = 'real'")]
+    [InlineData("SELECT N'hidden' = N'real'")]
+    public void GetLiteralContentRanges_ShouldExcludeSingleQuotedAliases(string sql)
+    {
+        Assert.Equal(["real"], ExtractLiterals(sql));
+    }
+
+    [Theory]
+    [InlineData("SELECT 1 -- 'hidden'\rWHERE A = 'real'")]
+    [InlineData("SELECT 1 -- 'hidden'\nWHERE A = 'real'")]
+    [InlineData("SELECT 1 -- 'hidden'\r\nWHERE A = 'real'")]
+    public void GetLiteralContentRanges_ShouldEndLineCommentsAtLineBreaks(string sql)
+    {
+        Assert.Equal(["real"], ExtractLiterals(sql));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("-- 'hidden'")]
+    [InlineData("SELECT 'unterminated")]
+    [InlineData("SELECT 'complete', 'unterminated")]
+    public void GetLiteralContentRanges_ShouldReturnNoRangesForEmptyOrUnparseableInput(string sql)
+    {
+        Assert.Empty(ExtractLiterals(sql));
     }
 
     [Fact]

@@ -114,6 +114,81 @@ public sealed class QueryTokenResolverTests
         Assert.Contains("§§§tok§§§", result, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("SELECT 1 AS [a]]'§§§tok§§§']")]
+    [InlineData("SELECT 1 AS \"'§§§tok§§§'\"")]
+    [InlineData("SELECT 1 AS \"a\"\"'§§§tok§§§'\"")]
+    [InlineData("SELECT 1 /* outer /* '§§§tok§§§' */ still outer */")]
+    [InlineData("SELECT 1 /* outer /* inner */ '§§§tok§§§' */")]
+    public void ResolveTokens_ShouldPreserveTokensInsideEscapedIdentifiersAndNestedComments(string query)
+    {
+        var vault = new TokenVault();
+        vault.Store("§§§tok§§§", "PLAINTEXT", Target);
+        var resolver = BuildResolver(vault);
+
+        Assert.Equal(query, resolver.ResolveTokens(query, Target));
+    }
+
+    [Theory]
+    [InlineData("SELECT 1 AS [unterminated '§§§tok§§§'")]
+    [InlineData("SELECT 1 AS \"unterminated '§§§tok§§§'")]
+    [InlineData("SELECT 1 /* outer /* '§§§tok§§§' */")]
+    [InlineData("SELECT '§§§tok§§§' AS Value /* unterminated")]
+    [InlineData("SELECT '§§§tok§§§' AS Value, 'unterminated")]
+    [InlineData("SELECT '§§§tok§§§' AS 'unterminated")]
+    [InlineData("SELECT '§§§tok§§§' AS Value FROM")]
+    public void ResolveTokens_ShouldLeaveTokensInMalformedTailsUnchanged(string query)
+    {
+        var vault = new TokenVault();
+        vault.Store("§§§tok§§§", "PLAINTEXT", Target);
+        var resolver = BuildResolver(vault);
+
+        Assert.Equal(query, resolver.ResolveTokens(query, Target));
+    }
+
+    [Theory]
+    [InlineData("1 AS '§§§tok§§§'", "1 AS '§§§tok§§§'")]
+    [InlineData("1 AS [a]]'§§§tok§§§']", "1 AS [a]]'§§§tok§§§']")]
+    [InlineData("1 AS \"a\"\"'§§§tok§§§'\"", "1 AS \"a\"\"'§§§tok§§§'\"")]
+    [InlineData("1 '§§§tok§§§'", "1 '§§§tok§§§'")]
+    [InlineData("'§§§tok§§§' = 1", "'§§§tok§§§' = 1")]
+    [InlineData("N'§§§tok§§§' = N'§§§tok§§§'", "N'§§§tok§§§' = N'O''Brien'")]
+    [InlineData("'§§§tok§§§' AS 'a''§§§tok§§§'", "'O''Brien' AS 'a''§§§tok§§§'")]
+    [InlineData("'§§§tok§§§'", "'O''Brien'")]
+    public void ResolveTokens_ShouldPreserveAliasesWhileResolvingValueExpressions(string projection, string expectedProjection)
+    {
+        var vault = new TokenVault();
+        vault.Store("§§§tok§§§", "O'Brien", Target);
+        var resolver = BuildResolver(vault);
+
+        string query = $"SELECT {projection} FROM T WHERE Name = '§§§tok§§§'";
+
+        Assert.Equal($"SELECT {expectedProjection} FROM T WHERE Name = 'O''Brien'", resolver.ResolveTokens(query, Target));
+    }
+
+    [Fact]
+    public void ResolveTokens_ShouldResolveDeclareAndNestedExpressionLiteralsInSourceOrder()
+    {
+        var vault = new TokenVault();
+        vault.Store("§§§tok§§§", "O'Brien", Target);
+        var resolver = BuildResolver(vault);
+        const string query = "DECLARE @name nvarchar(100) = N'§§§tok§§§'; SELECT CASE WHEN Name = @name THEN N'§§§tok§§§' ELSE '§§§unknown§§§' END AS '§§§tok§§§' FROM T WHERE Name IN ('§§§tok§§§', '§§§unknown§§§') ORDER BY CASE WHEN Name LIKE '%§§§tok§§§%' THEN 0 ELSE 1 END";
+        const string expected = "DECLARE @name nvarchar(100) = N'O''Brien'; SELECT CASE WHEN Name = @name THEN N'O''Brien' ELSE '§§§unknown§§§' END AS '§§§tok§§§' FROM T WHERE Name IN ('O''Brien', '§§§unknown§§§') ORDER BY CASE WHEN Name LIKE '%O''Brien%' THEN 0 ELSE 1 END";
+
+        Assert.Equal(expected, resolver.ResolveTokens(query, Target));
+    }
+
+    [Fact]
+    public void ResolveTokens_ShouldResumeValueSubstitutionAfterNestedComments()
+    {
+        var vault = new TokenVault();
+        vault.Store("§§§tok§§§", "PLAINTEXT", Target);
+        var resolver = BuildResolver(vault);
+        const string query = "SELECT 1 /* outer /* inner */ '§§§tok§§§' */ WHERE Name = '§§§tok§§§'";
+
+        Assert.Equal("SELECT 1 /* outer /* inner */ '§§§tok§§§' */ WHERE Name = 'PLAINTEXT'", resolver.ResolveTokens(query, Target));
+    }
+
     [Fact]
     public void ResolveTokens_ShouldNotAffectQueriesWithoutTokens()
     {

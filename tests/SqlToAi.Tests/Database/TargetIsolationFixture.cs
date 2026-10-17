@@ -52,7 +52,9 @@ internal sealed class OwnerOverlapBarrier(string? owner1 = null, string? owner2 
 }
 
 /// <summary>Target-aware database double. Thread-safe so parallel calls can record concurrently.</summary>
-internal sealed class TargetRowsConnectionFactory(Dictionary<string, TargetRowSet> rowsByTarget) : IDatabaseConnectionFactory
+internal sealed class TargetRowsConnectionFactory(
+    Dictionary<string, TargetRowSet> rowsByTarget,
+    Func<string, string[]>? columnsFromCommand = null) : IDatabaseConnectionFactory
 {
     private readonly object _gate = new();
     private readonly List<DatabaseTargetContext> _createdTargets = [];
@@ -74,8 +76,9 @@ internal sealed class TargetRowsConnectionFactory(Dictionary<string, TargetRowSe
             ExecuteReader: cmd =>
             {
                 conn.LastCommand = cmd;
+                string[] columns = columnsFromCommand?.Invoke(cmd.CommandText) ?? rowSet.Columns;
                 return new FakeDbDataReader(
-                    rowSet.Columns,
+                    columns,
                     rowSet.Rows,
                     // Column 0 carries a real origin (ExemptValue), column 1 has none —
                     // so the rule-provider exemption decision only ever applies to ExemptValue.

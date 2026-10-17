@@ -33,10 +33,11 @@ skips permitted), `git diff --check`, and an atomic commit. The current user req
 explicitly authorizes parallel read-only audits and repeated correction/review
 loops, superseding the workflow's sequential-audit and one-correction defaults.
 
-- [ ] **R1 — Preserve SQL identifier/comment boundaries during token resolution.**
+- [x] **R1 — Preserve SQL identifier/comment boundaries during token resolution.**
   Correct lexical handling of quoted identifiers, escaped brackets and relevant
   nested comments; retain literal substitution and foreign-token isolation. Add
   regression tests at scanner, resolver and execution boundaries.
+  Evidence: [R1 review and gates](audit.md#r1--syntax-aware-token-resolution).
 - [ ] **R2 — Validate every JSON source occurrence and both DI options paths.**
   Inspect every matching wrapper before merge; reject hidden obsolete sections
   and exact/case-only duplicate aliases. Validate resolved direct and bound options

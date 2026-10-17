@@ -194,3 +194,29 @@ positive observations do not substitute for missing composed runtime coverage.
 
 Remediation is tracked in [the roadmap](roadmap.md#deep-audit-remediation).
 
+## R1 — Syntax-aware token resolution
+
+Coder: GPT-6-luna/high; correction: GPT-6.1-Sol/high. Independent reviewer:
+GPT-6.1-Sol/high (`audit_state`), different from both coders. The first review
+rejected a lexer-only fix because single-quoted SQL aliases still leaked values.
+The second review accepted the complete nine-file diff against `7f419fd`.
+
+`src/SqlToAi/Database/SqlLiteralScanner.cs:11–46` now uses the existing ScriptDom
+parser and a static visitor: value expressions are visited while column aliases
+are excluded. Parse failures supply no substitution ranges; national literals,
+escaped quotes and source ordering are retained. The orphaned SqlCharScanner and
+its state-only tests were removed; meaningful lexical cases moved to literal and
+resolver regressions. No new token-resolution path was added.
+
+`tests/SqlToAi.Tests/Database/QueryExecutionTargetScopeTests.cs:90–149` uses real
+stored tokens and derives result keys from executed command text. It covers
+bracketed, double-quoted and all three single-quoted alias forms. Resolver and
+literal tests retain real DECLARE/WHERE/IN/LIKE/CASE substitution, foreign scopes,
+escaped delimiters, nested comments and malformed input. The security document
+describes the resulting syntax boundary.
+
+Parent gates after independent approval: `dotnet build SqlToAi.slnx --warnaserror`
+returned 0 warnings/errors; `dotnet test SqlToAi.slnx --no-build` returned 1,526
+passed, 19 skipped, 0 failed. `temp/audit-gates/r1.trx` confirmed every skip is an
+external `TlsConnectionIntegrationTests` case. `git diff --check` was clean.
+
