@@ -11,8 +11,7 @@ diagnostics remain enabled.
 
 Before installing the MCPB or starting either package, create the user settings
 file manually as described below. Keep the package's `LICENSE` and
-`THIRD-PARTY-NOTICES.txt` with the extracted files; the additional runtime notices
-are under `notices/`.
+`THIRD-PARTY-NOTICES.txt` with the extracted files.
 
 ## Create your settings manually
 

@@ -12,10 +12,16 @@ $template = Join-Path $repository 'packaging/manifest.json'
 $schema = Join-Path $repository 'packaging/mcpb-manifest-v0.3.schema.json'
 $registryTemplate = Join-Path $repository 'packaging/server.template.json'
 $registrySchema = Join-Path $repository 'packaging/registry-server-2025-12-11.schema.json'
-$required = @('SqlToAi.exe', 'appsettings.json', 'demo-profile.json', 'README.md', 'LICENSE', 'THIRD-PARTY-NOTICES.txt', 'notices/dotnet-9.0.13.txt', 'notices/dotnet-10.0.11.txt')
+# Automatically update THIRD-PARTY-NOTICES.txt before packaging
+$updateNoticesScript = Join-Path $PSScriptRoot 'update-third-party-notices.ps1'
+if (Test-Path -LiteralPath $updateNoticesScript -PathType Leaf) {
+    & $updateNoticesScript
+}
+
+$required = @('SqlToAi.exe', 'appsettings.json', 'demo-profile.json', 'README.md', 'LICENSE', 'THIRD-PARTY-NOTICES.txt')
 
 # Validate source inputs before creating output or invoking the application build.
-foreach ($path in @($project, $template, $schema, $registryTemplate, $registrySchema) + @('SETUP.md', 'LICENSE', 'THIRD-PARTY-NOTICES.txt', 'packaging/notices/dotnet-9.0.13.txt', 'packaging/notices/dotnet-10.0.11.txt', 'src/SqlToAi/appsettings.json', 'src/SqlToAi/demo-profile.json' | ForEach-Object { Join-Path $repository $_ })) {
+foreach ($path in @($project, $template, $schema, $registryTemplate, $registrySchema) + @('SETUP.md', 'LICENSE', 'THIRD-PARTY-NOTICES.txt', 'src/SqlToAi/appsettings.json', 'src/SqlToAi/demo-profile.json' | ForEach-Object { Join-Path $repository $_ })) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Required package input is missing: $path"
     }
