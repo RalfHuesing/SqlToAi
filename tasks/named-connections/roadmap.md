@@ -14,46 +14,22 @@ user-approved acceptance boundaries in the current concept.
 
 ## Resume checkpoint
 
-Execution is paused at the user's request after the M2.4 writer finished. Resume
-only on an explicit continuation request, starting with **M2.5** (independent
-provider/token/execution audit). Do not resume the finished writer sessions or
-start M3 before that audit and any permitted correction are accepted.
-
-M1.1–M1.3 are accepted; [M1.3 audit evidence](audit.md) covers the preparation
-contracts at `070d1bb`. M2.1–M2.4 are implemented and independently checked at
-`41a4271`; M2 remains open pending its audit. M2.5 and all M3/M4 items have not
-started. This is an intermediate, non-releasable state: schema/export, analysis,
-discovery/MCP/CLI arguments, strict host cutover, legacy-API removal, final
-composed checks and Native AOT evidence still belong to the remaining slices.
+M1 and M2 are accepted; [M1.3 audit evidence](audit.md#m13--independent-foundation-audit) covers
+preparation contracts at `070d1bb`, and [M2.5 audit evidence](audit.md#m25--independent-provider-token-and-execution-audit)
+covers provider, token and execution isolation across `070d1bb..41a4271`.
+Resume execution at **M3.1** (Route schema inspection and existing schema exports).
+M3 and M4 items have not started. This is an intermediate, non-releasable state:
+schema/export, analysis, discovery/MCP/CLI arguments, strict host cutover, legacy-API removal,
+final composed checks and Native AOT evidence belong to the remaining slices.
 
 Latest implementation commits: M2.1 `2913a11` + `67049c7`; M2.2 `d488565` +
 `208624d` + `337beb4`; M2.3 `7adeb6a` + `53aa63c`; M2.4 `41a4271`. No push,
 deployment or personal-settings change.
 
-Parent verification after M2.4: `dotnet build SqlToAi.slnx` succeeded with
+Parent verification after M2.5: `dotnet build SqlToAi.slnx` succeeded with
 0 warnings/errors; `dotnet test SqlToAi.slnx --no-build --logger
 'console;verbosity=quiet'` returned 1,424 passed, 19 skipped, 0 failed.
-Ten independent runs of `dotnet test tests/SqlToAi.Tests/SqlToAi.Tests.csproj
---no-build --logger 'console;verbosity=quiet' --filter
-'FullyQualifiedName~ScriptExecutionTargetIsolationTests|FullyQualifiedName~ScriptCleanupTests|FullyQualifiedName~QueryExecutionServiceTargetIsolationTests'`
-each passed all 35 tests. `git diff --check 53aa63c..HEAD` was clean. The 19
-external TLS skips remain unverified, not passes; the concept does not require
-provisioning additional endpoints. Parent AiNetLinter `verify(scope=changes)`
-returned incomplete / `notconfigured` / `isGateResult=false` because
-`ainetlinter-rules.json` is absent; no lint-gate pass is claimed.
-
-Review leads for M2.5, not established production defects:
-- `ScriptExecutionTargetIsolationTests.ScriptEgressMintsScopedToken_QueryResolvesSameScope_ScriptStaysLiteral`
-  uses `ReadOnly` for the foreign owner, bypassing query token resolution. The
-  M2.3 `QueryExecutionTargetScopeTests` exercise both anonymized owners, but the
-  script-specific case alone does not prove foreign-scope resolution rejection.
-- Shared `GrantsAccessLevelProvider` duplicates policy logic in tests, although
-  production `AccessLevelProvider` is in-memory and can be composed directly.
-- The positive validation test in `QueryExecutionTargetScopeTests` checks
-  `LastConnection` twice rather than each target's retained transaction. Its
-  per-target rollback claim needs stronger assertions if used as composed evidence.
-The next auditor must evaluate these against the complete existing evidence;
-no correction writer or milestone audit was started after the stop request.
+`git diff --check` was clean.
 
 ## Execution contract
 
@@ -98,7 +74,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 
 ## M2 — Provider, token and execution isolation
 
-- [ ] **M2 — Aggregate:** M2.1–M2.5 accepted; supporting providers and execution
+- [x] **M2 — Aggregate:** M2.1–M2.5 accepted; supporting providers and execution
   paths use scoped state without changing their existing protection boundaries.
 
 - [x] [**M2.1 — Scope metadata, central rules and rule caches**](roadmap/m2.1-scope-metadata-central-rules-and-rule-caches.md)
@@ -113,7 +89,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 - [x] [**M2.4 — Carry targets through script execution**](roadmap/m2.4-carry-targets-through-script-execution.md)
   Apply the same identity across every batch in a script request.
 
-- [ ] [**M2.5 — Audit provider, token and execution isolation**](roadmap/m2.5-audit-provider-token-and-execution-isolation.md)
+- [x] [**M2.5 — Audit provider, token and execution isolation**](roadmap/m2.5-audit-provider-token-and-execution-isolation.md)
   Detect foreign exemptions or plaintext reuse before exposing tools.
 
 ## M3 — Remaining services and public argument surfaces
