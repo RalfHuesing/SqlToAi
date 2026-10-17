@@ -133,7 +133,7 @@ Parameterize values with names such as `@CustomerId`. Choose explicit types wher
 
 ### Comparison
 
-Compares column names/types, exact row counts (`COUNT_BIG`) and both set differences (`EXCEPT`). Results include `is_equal`, `schema_match`, `count_match`, `row_count_a`, `row_count_b`, `schema_differences`, `rows_in_a_not_in_b` and `rows_in_b_not_in_a`. Sample counts are capped by `MaxRowLimit`.
+Compares column names/types, exact row counts (`COUNT_BIG`) and both set differences (`EXCEPT`). Results include `is_equal`, `schema_match`, `count_match`, `row_count_a`, `row_count_b`, `schema_differences`, `rows_in_a_not_in_b` and `rows_in_b_not_in_a`. `max_diff_rows` is clamped to the inclusive range `1` through `QueryExecution.MaxRowLimit` for each difference direction. Zero and negative values therefore retain one example row when differences exist; values above the configured limit cannot increase the sample cap.
 
 `EXCEPT` removes duplicates. Equal total counts plus empty differences do not prove equal duplicate multiplicities or row ordering. Comparisons run several queries under ReadCommitted; changing data between checks can affect results. Difference samples are raw values, including for `ReadOnlyAnonymized` databases.
 

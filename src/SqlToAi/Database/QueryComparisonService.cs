@@ -150,7 +150,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         }
 
         var (rowsInANotB, rowsInBNotA) = await ExecuteExceptDiffsAsync(
-            connection, transaction, args, paramsA, paramsB, ct);
+            connection, transaction, args, paramsA, paramsB, maxDiffRows, ct);
 
         bool isEqual = countMatch && rowsInANotB == "[]" && rowsInBNotA == "[]";
 
@@ -258,6 +258,7 @@ public sealed class QueryComparisonService : IQueryComparisonService
         QueryComparisonArgs args,
         object? paramsA,
         object? paramsB,
+        int maxDiffRows,
         CancellationToken ct)
     {
         var dA = QueryDeconstructor.Deconstruct(args.QueryA);
@@ -280,8 +281,8 @@ public sealed class QueryComparisonService : IQueryComparisonService
         string sqlExceptAnotB = $"{prefix}SELECT * FROM ({dA.MainSelect}) AS QA EXCEPT SELECT * FROM ({dB.MainSelect}) AS QB";
         string sqlExceptBnotA = $"{prefix}SELECT * FROM ({dB.MainSelect}) AS QB EXCEPT SELECT * FROM ({dA.MainSelect}) AS QA";
 
-        string diffAnotB = await ExecuteDiffQueryAsync(connection, transaction, sqlExceptAnotB, paramsA, paramsB, args.MaxDiffRows, ct);
-        string diffBnotA = await ExecuteDiffQueryAsync(connection, transaction, sqlExceptBnotA, paramsB, paramsA, args.MaxDiffRows, ct);
+        string diffAnotB = await ExecuteDiffQueryAsync(connection, transaction, sqlExceptAnotB, paramsA, paramsB, maxDiffRows, ct);
+        string diffBnotA = await ExecuteDiffQueryAsync(connection, transaction, sqlExceptBnotA, paramsB, paramsA, maxDiffRows, ct);
 
         return (diffAnotB, diffBnotA);
     }
