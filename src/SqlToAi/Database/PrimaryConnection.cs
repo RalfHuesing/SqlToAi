@@ -5,9 +5,6 @@ namespace SqlToAi.Database;
 
 internal static class PrimaryConnection
 {
-    internal static Task OpenAsync(DbConnection connection, CancellationToken cancellationToken) =>
-        OpenCoreAsync(connection, "SqlServer", cancellationToken);
-
     internal static Task OpenTargetAsync(DbConnection connection, DatabaseTargetContext target, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(target);

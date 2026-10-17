@@ -111,7 +111,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 
 ## M4 — Hard cut, operating documentation and final evidence
 
-- [ ] **M4 — Aggregate:** M4.1–M4.3 accepted; every concept acceptance criterion
+- [x] **M4 — Aggregate:** M4.1–M4.3 accepted; every concept acceptance criterion
   is verified and the final contract contains no compatibility behavior.
 
 - [x] [**M4.1 — Activate strict startup and remove the single-server contract**](roadmap/m4.1-activate-strict-startup-and-remove-the-single-server-contract.md)
@@ -120,5 +120,5 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 - [x] [**M4.2 — Verify composed target isolation and Native AOT compilation**](roadmap/m4.2-verify-composed-target-isolation-and-native-aot-compilation.md)
   Prove the composed process behaves like its unit-level contracts.
 
-- [ ] [**M4.3 — Audit the complete concept and close the roadmap**](roadmap/m4.3-audit-the-complete-concept-and-close-the-roadmap.md)
+- [x] [**M4.3 — Audit the complete concept and close the roadmap**](roadmap/m4.3-audit-the-complete-concept-and-close-the-roadmap.md)
   Verify the finished contract without relying on milestone claims.

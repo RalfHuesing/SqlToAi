@@ -110,3 +110,31 @@ Paths below are repository-relative; line numbers refer to the reviewed code.
 - `dotnet build SqlToAi.slnx`: 0 warnings, 0 errors.
 - `dotnet test SqlToAi.slnx`: 1,424 passed, 19 skipped (external TLS), 0 failed.
 - `git diff --check`: clean.
+
+# M4.3 — Final concept audit and roadmap closure
+
+Reviewed full repository state against `tasks/named-connections/Konzept.md` (Must 1–11, Out of scope, and Verification criteria).
+Verdict: all concept requirements and acceptance criteria are completely satisfied; no open findings; accept M4 and close the named-connections roadmap.
+
+## Final contract verification against Konzept.md
+
+- **Must 1 (Named Servers Configuration):** `SqlToAi.Servers` requires at least one named server. Each entry holds server address, authentication, TLS, connect timeout, local excluded DB patterns, and secondary provider options. New endpoints grant no access by default. Distinct aliases pointing to the same physical host maintain completely independent policy contexts (`SamePhysicalEndpointUnderTwoAliases_RetainsIndependentOwners`).
+- **Must 2 (Target Syntax and Canonicalization):** `alias/database` syntax validated by `DatabaseTargetParser.cs`. Aliases match `[A-Za-z][A-Za-z0-9_-]*`, with canonical invariant ASCII lowercase. Duplicate alias keys inside a single JSON `Servers` object are rejected at startup before merge. Only the first `/` is split, preserving all subsequent characters including dots, spaces, slashes, and Unicode. Empty parts, malformed aliases, and unknown aliases are rejected before any database operation.
+- **Must 3 (Qualified Access Grants):** All entries in `Databases` access lists (`SchemaOnly`, `ReadOnlyAnonymized`, `ReadOnly`, `ReadWrite`) are qualified with `alias/database`. Startup validation rejects malformed, unqualified, or unknown-server grants. Policy evaluation matches alias plus database using `OrdinalIgnoreCase` for database names.
+- **Must 4 (Hard Cut & Startup Diagnostics):** Obsolete top-level sections (`SqlServer`, `MetadataProvider`, `AnonymizationRules`) and old environment prefixes (`SqlToAi__SqlServer__`, etc.) are actively detected and rejected at startup with exit code 1 and clean stderr diagnostics without leaking sensitive configuration or credentials. Unqualified database arguments return `SQL-AI-0001`; unauthorized targets return `SQL-AI-0104`.
+- **Must 5 (Target Context & Database Routing):** Every database-facing path resolves an immutable `DatabaseTargetContext`. SqlClient InitialCatalog receives exclusively the raw physical database name. Tool responses carry canonical qualified target names. No singleton option mutation or global current-server variables exist.
+- **Must 6 (Server Discovery & Target Discovery):** `sql_list_servers` returns configured canonical server aliases with zero SQL probes or network connections. `sql_list_databases` and `sql_search_databases` require a valid `server` alias and return only permitted qualified targets. Search filters only on the raw database name substring.
+- **Must 7 (Scoped Exclusions):** Local database exclusions match raw DB glob patterns scoped strictly to the owning server alias, taking precedence over grants and safety guards.
+- **Must 8 (Scoped Supporting Providers):** MetadataProvider and AnonymizationRules are configured per server. Server-less providers inherit the primary endpoint, auth, TLS, and timeout with explicit or target database fallback; dedicated providers require their own raw database and never fall back to primary.
+- **Must 9 (Partitioned Rule Caches):** Anonymization rule caches are strictly partitioned by `(PolicyOwner, Endpoint, SourceDatabase, RulesTable)`. Fallback target database rules are never reused across different databases.
+- **Must 10 (Scoped Token Vault & Resolution):** Token issuance, storage, and resolution are scoped by `DatabaseTargetContext` with 64-bit global collision avoidance. Identical plaintext on different targets yields non-interchangeable tokens. Foreign tokens stay literal SQL text.
+- **Must 11 (Limits, Formats & Operational Documentation):** Global row and command limits remain unchanged. Main and demo settings files, README, SETUP, and documentation across `docs/` have been updated to the qualified multi-server schema with manual hard-cut migration instructions.
+
+## Verification gates passed
+
+- `dotnet build SqlToAi.slnx --warnaserror`: 0 warnings, 0 errors.
+- `dotnet test SqlToAi.slnx`: 1,486 passed, 0 failed, 19 skipped (external TLS endpoints without live test server).
+- `dotnet publish src/SqlToAi/SqlToAi.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=true -o temp/aot`: Clean Native AOT publish with 0 warnings and 0 errors.
+- `ComposedTargetIsolationTests`: 12/12 passed (multi-target concurrency, same physical endpoint under distinct aliases, unusual raw database names, server discovery, and MCP SDK bindings).
+- Clean working directory, all changes committed.
+
