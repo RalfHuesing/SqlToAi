@@ -202,8 +202,10 @@ not `test/AppDb`.
 
 ## Verification
 
-- Configure same-name databases on test and production with different records and
-  rights; alternate and parallelize calls in one process without target/state leaks.
+- Exercise same-name targets with different records and rights through
+  deterministic target-aware database doubles; alternate and parallelize calls
+  in one process without target/state leaks. Retain available single-endpoint
+  SQL integration coverage; additional live SQL endpoints are not required.
   `TEST/AppDb` resolves to canonical `test/AppDb`; `test/App/Db` resolves with raw
   database name `App/Db` and SqlClient receives exactly that InitialCatalog.
 - All database-facing tools and CLI/exploration paths, including existing schema
@@ -241,4 +243,7 @@ not `test/AppDb`.
   TLS exceptions apply only to the selected primary/secondary endpoint.
 - New main/demo JSON and documented environment examples load with the intended
   new contract; the main template still denies all databases. Native AOT and
-  registered MCP/CLI binding cover the changed argument/configuration surface.
+  automated registered MCP/CLI binding cover the changed argument/configuration
+  surface. Verify managed host startup through the existing temporary-root
+  StartupHarness. Running a published executable in a separate Windows profile
+  is not a required acceptance check.

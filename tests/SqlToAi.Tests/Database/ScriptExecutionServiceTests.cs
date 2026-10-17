@@ -460,6 +460,9 @@ public sealed class ScriptExecutionServiceTests
     private sealed class RecordingSafetyValidator(
         Func<string, Result<QuerySafetyCheckResult>> validator) : IQuerySafetyValidator
     {
+        public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetQuerySafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, bool allowSchemaOnly = false, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetBatchSafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public List<string> BatchQueries { get; } = [];
 
         public Task<Result<QuerySafetyCheckResult>> ValidateQuerySafetyAsync(

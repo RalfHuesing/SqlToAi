@@ -202,6 +202,9 @@ public sealed class QueryCleanupTests
 
     private sealed class CleanupConnectionFactory : IDatabaseConnectionFactory
     {
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
+
         internal Exception? MainFailure { get; init; }
         internal Exception? ScalarFailure { get; init; }
         internal Exception? ResetFailure { get; init; }

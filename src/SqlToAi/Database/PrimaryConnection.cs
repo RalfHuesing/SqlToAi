@@ -5,7 +5,19 @@ namespace SqlToAi.Database;
 
 internal static class PrimaryConnection
 {
-    internal static async Task OpenAsync(DbConnection connection, CancellationToken cancellationToken)
+    internal static Task OpenAsync(DbConnection connection, CancellationToken cancellationToken) =>
+        OpenCoreAsync(connection, "SqlServer", cancellationToken);
+
+    internal static Task OpenTargetAsync(DbConnection connection, DatabaseTargetContext target, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return OpenCoreAsync(connection, $"SqlToAi:Servers:{target.ServerAlias}", cancellationToken);
+    }
+
+    internal static Task OpenCatalogAsync(DbConnection connection, string serverAlias, CancellationToken cancellationToken) =>
+        OpenCoreAsync(connection, $"SqlToAi:Servers:{DatabaseTargetParser.CanonicalizeAlias(serverAlias)}", cancellationToken);
+
+    private static async Task OpenCoreAsync(DbConnection connection, string settingsPath, CancellationToken cancellationToken)
     {
         try
         {
@@ -22,11 +34,14 @@ internal static class PrimaryConnection
             var error = SqlToAiErrorMapper.MapException(exception);
             bool isTlsFailure = error.Code != SqlToAiError.TimeoutCode && SqlToAiErrorMapper.IsTlsException(exception);
             string message = error.Code == SqlToAiError.TimeoutCode
-                ? "SqlServer connection attempt exceeded the configured time limit."
+                ? $"{settingsPath} connection attempt exceeded the configured time limit. Check {settingsPath}:ConnectTimeoutSeconds."
                 : isTlsFailure
-                ? SqlToAiErrorMapper.PrimaryTlsFailureMessage
-                : "SqlServer connection failed. Check endpoint, authentication and encrypted transport settings.";
-            throw new PrimaryConnectionException(error with { Message = message }, isTlsFailure);
+                ? $"{settingsPath} TLS/certificate validation or handshake failed. Check the server certificate trust, validity and name, and the encrypted transport configuration."
+                : $"{settingsPath} connection failed. Check endpoint, authentication and encrypted transport settings.";
+            string code = error.Code == SqlToAiError.TimeoutCode
+                ? SqlToAiError.TimeoutCode
+                : SqlToAiError.InfrastructureErrorCode;
+            throw new PrimaryConnectionException(new SqlToAiError(code, message), isTlsFailure);
         }
     }
 }

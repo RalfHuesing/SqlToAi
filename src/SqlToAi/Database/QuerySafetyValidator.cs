@@ -10,7 +10,11 @@ namespace SqlToAi.Database;
 /// "is this query read-only safe?" decision also needs to know which access level that decision
 /// was based on (e.g. to drive anonymization for <see cref="AccessLevel.ReadOnlyAnonymized"/>).
 /// </summary>
-public sealed record QuerySafetyCheckResult(AccessLevel AccessLevel, bool IsWriteAllowed);
+public sealed record QuerySafetyCheckResult(AccessLevel AccessLevel, bool IsWriteAllowed)
+{
+    // Target-aware calls retain their resolved context for downstream operations.
+    public DatabaseTargetContext? Target { get; init; }
+}
 
 /// <summary>
 /// Single source of truth for the 6-stage guardrail pipeline that used to be duplicated across the
@@ -21,6 +25,13 @@ public sealed record QuerySafetyCheckResult(AccessLevel AccessLevel, bool IsWrit
 /// </summary>
 public interface IQuerySafetyValidator
 {
+    Task<Result<QuerySafetyCheckResult>> ValidateTargetQuerySafetyAsync(
+        DatabaseTargetContext target, string query, bool allowSchemaOnly = false,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<QuerySafetyCheckResult>> ValidateTargetBatchSafetyAsync(
+        DatabaseTargetContext target, string query, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Runs the full 6-stage check (empty parameters, whitelist, access level, read-only guard,
     /// single-statement) and returns either the resolved safety outcome or the first error
@@ -68,6 +79,23 @@ internal sealed class QuerySafetyValidator : IQuerySafetyValidator
         _readOnlyGuard = readOnlyGuard;
     }
 
+    public Task<Result<QuerySafetyCheckResult>> ValidateTargetQuerySafetyAsync(
+        DatabaseTargetContext target, string query, bool allowSchemaOnly = false,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return ValidateAsync(target.QualifiedName, query, allowSchemaOnly,
+            rejectMultipleStatements: true, cancellationToken, target);
+    }
+
+    public Task<Result<QuerySafetyCheckResult>> ValidateTargetBatchSafetyAsync(
+        DatabaseTargetContext target, string query, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return ValidateAsync(target.QualifiedName, query, allowSchemaOnly: false,
+            rejectMultipleStatements: false, cancellationToken, target);
+    }
+
     /// <inheritdoc/>
     public async Task<Result<QuerySafetyCheckResult>> ValidateQuerySafetyAsync(
         string databaseName,
@@ -96,7 +124,8 @@ internal sealed class QuerySafetyValidator : IQuerySafetyValidator
         string query,
         bool allowSchemaOnly,
         bool rejectMultipleStatements,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        DatabaseTargetContext? target = null)
     {
         // Stage 1: database name must be present.
         if (string.IsNullOrWhiteSpace(databaseName))
@@ -117,15 +146,15 @@ internal sealed class QuerySafetyValidator : IQuerySafetyValidator
         }
 
         // Stage 3: static whitelist check (configured allow/deny patterns).
-        if (!_securityGuard.IsDatabaseAllowed(databaseName))
+        if (!(target is null ? _securityGuard.IsDatabaseAllowed(databaseName) : _securityGuard.IsTargetAllowed(target)))
         {
             return SqlToAiError.SafetyCheckFailed(databaseName);
         }
 
         // Stage 4: dynamic access level probe (cached inside the provider).
-        var accessLevel = await _accessLevelProvider
-            .GetAccessLevelAsync(databaseName, cancellationToken)
-            .ConfigureAwait(false);
+        var accessLevel = await (target is null
+            ? _accessLevelProvider.GetAccessLevelAsync(databaseName, cancellationToken)
+            : _accessLevelProvider.GetTargetAccessLevelAsync(target, cancellationToken)).ConfigureAwait(false);
 
         if (accessLevel == AccessLevel.None
             || (!allowSchemaOnly && accessLevel == AccessLevel.SchemaOnly))
@@ -150,6 +179,6 @@ internal sealed class QuerySafetyValidator : IQuerySafetyValidator
             return SqlToAiError.MultipleStatementsForbidden();
         }
 
-        return new QuerySafetyCheckResult(accessLevel, writeAllowed);
+        return new QuerySafetyCheckResult(accessLevel, writeAllowed) { Target = target };
     }
 }

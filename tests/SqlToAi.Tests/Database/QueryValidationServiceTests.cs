@@ -259,6 +259,9 @@ public sealed class QueryValidationServiceTests
 
 internal sealed class ValidationMockConnectionFactory(Exception? throwOnExecute = null) : IDatabaseConnectionFactory
 {
+    public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+    public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
+
     /// <summary>The most recently created connection — lets tests inspect its transaction.</summary>
     public FakeDbConnection? LastConnection { get; private set; }
 

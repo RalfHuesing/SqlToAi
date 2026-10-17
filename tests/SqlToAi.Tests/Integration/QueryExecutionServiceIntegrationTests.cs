@@ -231,6 +231,8 @@ public sealed class QueryExecutionServiceIntegrationTests
 
     private sealed class FakeAccessLevelProvider(AccessLevel level) : IAccessLevelProvider
     {
+        public Task<SqlToAi.Domain.AccessLevel> GetTargetAccessLevelAsync(SqlToAi.Domain.DatabaseTargetContext target, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<AccessLevel> GetAccessLevelAsync(string databaseName, CancellationToken cancellationToken = default)
             => Task.FromResult(level);
     }

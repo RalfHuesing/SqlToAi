@@ -61,4 +61,17 @@ public sealed class DatabaseTargetResolver
         string canonicalAlias = DatabaseTargetParser.CanonicalizeAlias(serverAlias);
         return _serversByAlias.TryGetValue(canonicalAlias, out serverOptions);
     }
+
+    public Result<string> ResolveServerAlias(string? serverAlias)
+    {
+        if (!DatabaseTargetParser.IsValidAlias(serverAlias))
+        {
+            return SqlToAiError.InvalidParameters("server must be a configured alias matching [A-Za-z][A-Za-z0-9_-]*.");
+        }
+
+        string canonicalAlias = DatabaseTargetParser.CanonicalizeAlias(serverAlias!);
+        return _serversByAlias.ContainsKey(canonicalAlias)
+            ? canonicalAlias
+            : SqlToAiError.InvalidParameters($"unknown server alias '{canonicalAlias}'.");
+    }
 }

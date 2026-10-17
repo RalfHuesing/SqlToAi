@@ -7,6 +7,8 @@ namespace SqlToAi.Security;
 /// </summary>
 public interface IAccessLevelProvider
 {
+    Task<AccessLevel> GetTargetAccessLevelAsync(DatabaseTargetContext target, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Gets the access level allowed for the specified database, utilizing cache when valid.
     /// </summary>

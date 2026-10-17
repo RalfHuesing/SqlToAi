@@ -72,6 +72,9 @@ internal sealed class CapturingLogger<T> : ILogger<T>
 /// </summary>
 internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
 {
+    public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetQuerySafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, bool allowSchemaOnly = false, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetBatchSafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
     private readonly Result<QuerySafetyCheckResult>? _fixedFailure;
     private readonly IQuerySafetyValidator? _delegate;
 
@@ -161,6 +164,9 @@ internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
     /// </summary>
     private sealed class BypassReadOnlyGuardValidator(QuerySafetyCheckResult result) : IQuerySafetyValidator
     {
+        public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetQuerySafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, bool allowSchemaOnly = false, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetBatchSafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<Result<QuerySafetyCheckResult>> ValidateQuerySafetyAsync(
             string databaseName,
             string query,
@@ -242,6 +248,9 @@ internal sealed class MockTranCountSequence(params int[] values)
 
 internal sealed class MockQueryConnectionFactory(MockQueryRowConfig? config = null) : IDatabaseConnectionFactory
 {
+    public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+    public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
+
     private readonly MockQueryRowConfig _config = config ?? new MockQueryRowConfig();
 
     /// <summary>The most recently created connection â€” lets tests inspect its transaction.</summary>

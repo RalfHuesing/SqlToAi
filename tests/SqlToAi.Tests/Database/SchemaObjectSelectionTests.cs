@@ -230,6 +230,9 @@ public sealed class SchemaObjectSelectionTests
 
     internal sealed class CatalogFactory(IReadOnlyList<CatalogObject> objects, bool caseSensitive = true) : IDatabaseConnectionFactory
     {
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
+
         public List<string> Commands { get; } = [];
         public List<string> Names { get; } = [];
         public int ConnectionCount { get; private set; }

@@ -133,6 +133,9 @@ public sealed class SecondaryConnectionBuilderTests
 
     private sealed class FakeConnectionFactory : IDatabaseConnectionFactory
     {
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
+
         public int ConnectionCreatedCount { get; private set; }
         public string? LastDatabaseName { get; private set; }
         public DbConnection ReturnedConnection { get; } = new SqlConnection();

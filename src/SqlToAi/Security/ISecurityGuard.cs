@@ -1,3 +1,5 @@
+using SqlToAi.Domain;
+
 namespace SqlToAi.Security;
 
 /// <summary>
@@ -5,6 +7,8 @@ namespace SqlToAi.Security;
 /// </summary>
 public interface ISecurityGuard
 {
+    bool IsTargetAllowed(DatabaseTargetContext target);
+
     /// <summary>
     /// Checks if a database name is allowed by checking it against configured allowed and blocked patterns.
     /// </summary>

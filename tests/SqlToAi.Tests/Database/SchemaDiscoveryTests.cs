@@ -322,6 +322,9 @@ public sealed class SchemaDiscoveryTests
 
     private sealed class ReaderConnectionFactory(Func<FakeDbCommand, DbDataReader> reader) : IDatabaseConnectionFactory
     {
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
+
         public int ConnectionCount { get; private set; }
         public int CommandCount { get; private set; }
 

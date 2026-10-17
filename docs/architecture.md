@@ -14,6 +14,20 @@ The selected user root follows configuration through direct options, DI post-con
 
 Query services share `QuerySafetyValidator`. It combines database policy, access-level selection, read-only parsing and statement-count restrictions. Execution and script services control transactions and result serialization. The protection limits are in [security.md](security.md); argument/result contracts are in [tools.md](tools.md).
 
+The named-server preparation contracts resolve `alias/database` through
+`DatabaseTargetResolver` into an immutable `DatabaseTargetContext`. The factory's
+`CreateTargetConnection` uses that alias's endpoint and the exact raw database as
+InitialCatalog. `IsTargetAllowed`, `GetTargetAccessLevelAsync` and the validator's
+`ValidateTargetQuerySafetyAsync` / `ValidateTargetBatchSafetyAsync` evaluate the
+same context; successful safety results retain it in `Target`. These paths use
+qualified global grants, server-local raw-name exclusions and default deny.
+`CreateCatalogConnection` separately requires a configured alias and may use the
+login's default database for discovery. `PrimaryConnection.OpenTargetAsync` and
+`OpenCatalogAsync` retain safe diagnostics identifying `SqlToAi:Servers:<alias>`.
+The host and existing service callers still use the single-server contracts while
+the remaining [named-server slices](../tasks/named-connections/roadmap.md) migrate
+them; these preparation APIs do not activate the public named-server feature.
+
 ## Source map
 
 | Location | Responsibility |

@@ -10,6 +10,9 @@ namespace SqlToAi.Tests.Database;
 
 internal sealed class SchemaBatchTestFactory : IDatabaseConnectionFactory
 {
+    public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+    public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
+
     internal SqlToAiOptions Options { get; } = new() { Databases = new DatabasesOptions { SchemaOnly = ["DemoDB"] } };
     internal List<string> SchemaFetches { get; } = [];
     internal List<string> Commands { get; } = [];

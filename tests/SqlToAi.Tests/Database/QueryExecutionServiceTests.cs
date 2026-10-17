@@ -173,6 +173,9 @@ public sealed class QueryExecutionServiceTests
 
     private sealed class CustomReaderConnectionFactory(DbDataReader reader) : IDatabaseConnectionFactory
     {
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
+
         public DbConnection CreateConnection(string? databaseName) =>
             new FakeDbConnection(
                 conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(

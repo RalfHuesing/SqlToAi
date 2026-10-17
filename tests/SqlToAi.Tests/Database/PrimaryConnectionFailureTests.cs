@@ -228,6 +228,9 @@ public sealed class PrimaryConnectionFailureTests
 
     private sealed class FailingOpenFactory(Exception failure) : IDatabaseConnectionFactory
     {
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
+
         internal int OpenCount { get; private set; }
         public DbConnection CreateConnection(string? databaseName = null) => new FailingConnection(this, failure);
         private sealed class FailingConnection(FailingOpenFactory owner, Exception failure) : DbConnection

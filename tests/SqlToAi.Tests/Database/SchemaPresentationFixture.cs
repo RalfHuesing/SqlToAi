@@ -12,6 +12,9 @@ namespace SqlToAi.Tests.Database;
 
 internal sealed class SchemaPresentationFixture : IDatabaseConnectionFactory, IMetadataProvider, IAnonymizationRuleProvider
 {
+    public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+    public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
+
     public string? ObjectType { get; set; } = "U";
     public string? Definition { get; set; } = "-- SQL comment: run sql_get_schema\nCREATE VIEW sales.Overview AS SELECT Email FROM sales.Customers;";
     public bool FailQuery { get; set; }

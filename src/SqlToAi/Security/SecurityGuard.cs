@@ -13,6 +13,7 @@ namespace SqlToAi.Security;
 public sealed class SecurityGuard : ISecurityGuard
 {
     private readonly SqlToAiOptions _options;
+    private readonly TargetAccessPolicy _targetPolicy;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SecurityGuard"/> class.
@@ -21,7 +22,11 @@ public sealed class SecurityGuard : ISecurityGuard
     public SecurityGuard(IOptions<SqlToAiOptions> options)
     {
         _options = options.Value;
+        _targetPolicy = new TargetAccessPolicy(_options);
     }
+
+    public bool IsTargetAllowed(DatabaseTargetContext target) =>
+        _targetPolicy.GetAccessLevel(target) != AccessLevel.None;
 
     /// <summary>
     /// Checks if a database name is allowed by checking global exclusions and ensuring it is listed in an access level list.

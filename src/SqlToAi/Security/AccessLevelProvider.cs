@@ -16,6 +16,7 @@ namespace SqlToAi.Security;
 public sealed class AccessLevelProvider : IAccessLevelProvider
 {
     private readonly SqlToAiOptions _options;
+    private readonly TargetAccessPolicy _targetPolicy;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AccessLevelProvider"/> class.
@@ -24,6 +25,13 @@ public sealed class AccessLevelProvider : IAccessLevelProvider
     public AccessLevelProvider(IOptions<SqlToAiOptions> options)
     {
         _options = options.Value;
+        _targetPolicy = new TargetAccessPolicy(_options);
+    }
+
+    public Task<AccessLevel> GetTargetAccessLevelAsync(DatabaseTargetContext target, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(_targetPolicy.GetAccessLevel(target));
     }
 
     /// <summary>

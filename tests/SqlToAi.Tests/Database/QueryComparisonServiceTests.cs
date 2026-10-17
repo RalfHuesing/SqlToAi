@@ -331,6 +331,9 @@ public sealed class QueryComparisonServiceTests
     private sealed class ComparisonConnectionFactory(
         bool hasDifferences = true, int failingDirection = 0, Exception? failure = null) : IDatabaseConnectionFactory
     {
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
+
         public FakeDbConnection? Connection { get; private set; }
         public int DifferenceCalls { get; private set; }
         public List<FakeDbCommand> Commands { get; } = [];

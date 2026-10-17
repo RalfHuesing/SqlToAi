@@ -6,16 +6,37 @@ Implement the approved [concept](Konzept.md) (`status: ready`). Its Must items
 and Verification section define the contract; this roadmap assigns implementation
 and evidence to ordered slices. It does not change scope or authorize publishing.
 
-**User-directed verification exception:** The user explicitly requested skipping
-the live proof with two SQL endpoints containing same-name databases and the
-published executable test in a disposable Windows profile because these
-environments cannot currently be provided. Do not provision them or claim those
-checks passed. Replace the dual-endpoint live proof with deterministic automated
-isolation coverage and retain available single-endpoint integration tests. Still
-run the Native AOT publish and in-memory/managed registered-MCP binding checks.
-M4.2 and M4.3 may close when all non-waived criteria pass and the two omitted
-checks are explicitly recorded as not run at the user's request. This exception
-overrides only the corresponding infrastructure-dependent acceptance below.
+Verification uses deterministic automated multi-target isolation coverage,
+available single-endpoint SQL integration tests, the Native AOT publish, and
+automated registered-MCP/CLI binding plus managed host startup checks. No
+additional SQL endpoint or separate Windows profile is required. These are the
+user-approved acceptance boundaries in the current concept.
+
+## Resume checkpoint
+
+Execution is stopped at the user's request because of usage limits. Resume only
+when a later task explicitly requests continuation, starting at **M1.2**.
+M1.1 is complete (`00173b9`). M1.2 implementation and tests are saved as a
+checkpoint, but its checkbox remains open: the agent was interrupted before its
+final acceptance review, completion evidence and milestone audit.
+
+M1.2 adds `CreateTargetConnection` / `CreateCatalogConnection`, context-aware
+access policy and safety validation, and primary connection diagnostics carrying
+the owner settings path. Existing callers still use their old APIs until their
+own slices and M4.1; the public host contract is unchanged. Test fakes explicitly
+reject context paths that have not yet been migrated. Review the unknown-alias
+boundary in particular: invalid targets must yield `SQL-AI-0001`, while valid
+denied targets yield `SQL-AI-0104`. Do not infer acceptance from the green suite.
+
+Checkpoint validation: `dotnet build SqlToAi.slnx` completed with 0 warnings and
+0 errors; `dotnet test SqlToAi.slnx` completed with 1,322 passed, 19 existing TLS
+cases skipped for unavailable endpoint profiles, and 0 failures. No Native AOT
+publish or milestone audit has run. M2–M4 are untouched. Actual assignments:
+M1.1 GPT-6-Luna / high; M1.2 GPT-6.1-Sol / high. After accepting M1.2, delegate
+M1.3 as the independent audit before advancing. No subagent should continue work
+from this stopped execution.
+
+## Execution contract
 
 Execute the first open task in order. Each task includes inspecting its current
 consumers, updating affected tests and canonical documentation, running the
@@ -278,32 +299,32 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   Public setup/update guidance includes a complete new example and manual hard-cut
   instructions. No runtime consumer can still bind or infer the old contract.
 
-- [ ] **M4.2 — Verify cross-target behavior through the real host and Native AOT.**
+- [ ] **M4.2 — Verify composed target isolation and Native AOT compilation.**
   **Depends on:** M4.1.
   **Intention:** prove the composed process behaves like its unit-level contracts.
-  **Scope:** add focused multi-target integration coverage and finalize exploration
-  fixtures; use two configured SQL endpoints with same-name databases, deliberately
-  distinct fictional rows/rights/rules and explicit test authentication settings.
+  **Scope:** add focused deterministic multi-target tests and finalize exploration
+  fixtures; use target-aware database doubles with same-name targets and distinct
+  fictional rows/rights/rules. Retain available single-endpoint SQL integration
+  coverage and explicit test authentication settings.
   Run the documented build/test commands. Separately validate Native AOT with
   `dotnet publish src/SqlToAi/SqlToAi.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=true -o <fresh-temporary-directory>`.
   The existing packaging/deploy route is not Native AOT; do not silently replace it.
-  Exercise published stdio registration/arguments, not only dispatcher calls,
-  using an already disposable Windows profile when the production executable
-  needs user settings. The normal profile must remain untouched; the existing
-  temporary-root StartupHarness can verify managed host startup separately.
+  Exercise actual SDK registration/argument binding, not only dispatcher calls.
+  Use the existing temporary-root StartupHarness for managed host startup;
+  personal settings must remain untouched.
   **Exclusions:** remote provisioning, personal configuration changes, release
   creation, deployment, pushing and unrequested benchmark/coverage projects.
   **Acceptance:** alternating and parallel calls in one process never mix endpoint,
   rights, rules, cache or tokens. Same physical endpoint under two aliases still
-  has independent owners. Service tests and real-host checks cover query/script,
+  has independent owners. Service tests and managed host checks cover query/script,
   validation, schema/details/export, analysis and discovery with qualified targets.
   Startup failures precede database work; server listing performs no SQL probes;
-  SQL/TLS failures and per-endpoint trust remain safe. Distinguish offline checks
-  for syntactically unusual raw database names from live same-name database tests.
-  Native AOT publishes without warnings/errors; published MCP discovery exposes
-  19 tools and actual binding accepts/rejects the changed arguments correctly.
+  SQL/TLS failures and per-endpoint trust remain safe. Cover syntactically unusual
+  raw database names through offline tests. Native AOT publishes without
+  warnings/errors; registered MCP discovery exposes 19 tools and actual SDK/CLI
+  binding accepts/rejects the changed arguments correctly.
   Record commands, outcomes and any unavailable infrastructure under this item;
-  unresolved required live/AOT evidence keeps it open.
+  unresolved required automated or AOT evidence keeps it open.
 
 - [ ] **M4.3 — Audit the complete concept and close the roadmap.**
   **Depends on:** M4.1–M4.2 and all preceding milestone acceptance.
