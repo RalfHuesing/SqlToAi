@@ -278,7 +278,7 @@ public sealed class SchemaExportTests
         using var temp = TestTempDirectory.Create();
         var fixture = new SchemaPresentationFixture { ObjectType = type, RejectEnrichment = true, ExportDiscovery = true };
         var exporter = new SchemaExportService(fixture.CreateService(), NullLogger<SchemaExportService>.Instance);
-        var result = await exporter.ExportAsync("DemoDB", temp.GetPath("dump"), Token);
+        var result = await exporter.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), Token);
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         string text = await File.ReadAllTextAsync(temp.GetPath($"dump/{directory}/sales.Exported.md"), Token);
         if (type != "U") Assert.Contains(fixture.Definition!, text);

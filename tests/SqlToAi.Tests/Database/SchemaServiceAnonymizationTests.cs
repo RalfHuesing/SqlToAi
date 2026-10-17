@@ -5,6 +5,7 @@ using SqlToAi.Configuration;
 using SqlToAi.Database;
 using SqlToAi.Metadata;
 using SqlToAi.Security;
+using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Database;
 
@@ -17,8 +18,8 @@ public sealed class SchemaServiceAnonymizationTests
     public async Task GetSchemaAsync_PropagatesRequestedCancellationFromCentralRules()
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var options = new SqlToAiOptions();
-        options.Databases.SchemaOnly = [TestConstants.DatabaseName];
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+        options.Databases.SchemaOnly = [TestConstants.QualifiedDatabaseName];
         options.MetadataProvider.Enabled = false;
         options.Anonymizer.Enabled = true;
         options.AnonymizationRules.Enabled = true;
@@ -41,7 +42,7 @@ public sealed class SchemaServiceAnonymizationTests
             new AnonymizationPolicyResolver(bound, rules), bound, NullLogger<SchemaService>.Instance);
 
         var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.Customers", cancellation.Token));
+            service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "dbo.Customers", cancellation.Token));
 
         Assert.Equal(cancellation.Token, exception.CancellationToken);
         Assert.Equal(1, ruleFactory.ConnectionCreatedCount);
@@ -51,8 +52,8 @@ public sealed class SchemaServiceAnonymizationTests
     public async Task GetSchemaAsync_ShouldAnnotateAnonymizedColumn_UsingPolicyResolver()
     {
         // Arrange — mock schema returns CustomerId (int, PK/Identity) and Email (varchar, nullable).
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = [TestConstants.DatabaseName];
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+        options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -63,7 +64,7 @@ public sealed class SchemaServiceAnonymizationTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -80,8 +81,8 @@ public sealed class SchemaServiceAnonymizationTests
     {
         // Arrange — same mock schema (CustomerId int, Email varchar), but the resolver now flags
         // Email as both anonymized AND searchable-token (reversible), not just masked.
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = [TestConstants.DatabaseName];
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+        options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -92,7 +93,7 @@ public sealed class SchemaServiceAnonymizationTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);

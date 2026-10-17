@@ -97,7 +97,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 - [ ] **M3 — Aggregate:** M3.1–M3.4 accepted; every database-facing surface has a
   target-aware implementation ready for host cutover.
 
-- [ ] [**M3.1 — Route schema inspection and existing schema exports**](roadmap/m3.1-route-schema-inspection-and-existing-schema-exports.md)
+- [x] [**M3.1 — Route schema inspection and existing schema exports**](roadmap/m3.1-route-schema-inspection-and-existing-schema-exports.md)
   Preserve database identity through metadata and export composition.
 
 - [ ] [**M3.2 — Route comparison, measurements, benchmarks and indexes**](roadmap/m3.2-route-comparison-measurements-benchmarks-and-indexes.md)

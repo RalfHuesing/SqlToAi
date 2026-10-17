@@ -49,9 +49,9 @@ public sealed class SchemaDiscoveryTests
                 export ? catalog : catalog.Take(100).ToList());
         });
         var service = BuildService(factory);
-        var before = await service.SearchObjectsAsync("DemoDB", "", cancellationToken: TestContext.Current.CancellationToken);
-        var result = await service.GetExportObjectsAsync("DemoDB", TestContext.Current.CancellationToken);
-        var after = await service.SearchObjectsAsync("DemoDB", "", cancellationToken: TestContext.Current.CancellationToken);
+        var before = await service.SearchObjectsAsync(TestConstants.QualifiedDatabaseName, "", cancellationToken: TestContext.Current.CancellationToken);
+        var result = await service.GetExportObjectsAsync(TestConstants.QualifiedDatabaseName, TestContext.Current.CancellationToken);
+        var after = await service.SearchObjectsAsync(TestConstants.QualifiedDatabaseName, "", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(132, result.Value.Count);
@@ -71,11 +71,11 @@ public sealed class SchemaDiscoveryTests
     {
         var factory = new ReaderConnectionFactory(_ => throw new InvalidOperationException("fixed discovery failure"));
         var deniedService = BuildService(factory, allowed: false);
-        var denied = await deniedService.GetExportObjectsAsync("DemoDB", TestContext.Current.CancellationToken);
-        Assert.Equal(SqlToAiError.SafetyCheckFailed("Database 'DemoDB' is blocked by security policies (static whitelist)."), denied.Error);
+        var denied = await deniedService.GetExportObjectsAsync(TestConstants.QualifiedDatabaseName, TestContext.Current.CancellationToken);
+        Assert.Equal(SqlToAiError.SafetyCheckFailed($"Database '{TestConstants.QualifiedDatabaseName}' is blocked by security policies (static whitelist)."), denied.Error);
         Assert.Equal(0, factory.ConnectionCount);
 
-        var failed = await BuildService(factory).GetExportObjectsAsync("DemoDB", TestContext.Current.CancellationToken);
+        var failed = await BuildService(factory).GetExportObjectsAsync(TestConstants.QualifiedDatabaseName, TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.QueryError("fixed discovery failure"), failed.Error);
     }
 
@@ -108,7 +108,7 @@ public sealed class SchemaDiscoveryTests
             }
             return new FakeDbDataReader(["definition"], [[definition]]);
         });
-        var result = await BuildService(factory).GetExportTriggerDefinitionAsync("DemoDB", trigger, TestContext.Current.CancellationToken);
+        var result = await BuildService(factory).GetExportTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, trigger, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.Equal($"# Trigger Definition: `{schema}.Changed` (on table `{schema}.Orders`)\n\n```sql\n{definition}\n```", result.Value);
         Assert.Equal(2, factory.CommandCount);
@@ -125,7 +125,7 @@ public sealed class SchemaDiscoveryTests
         });
         var trigger = new SchemaObject(new SchemaObjectIdentity(301, "sales", "Changed", SchemaObjectKind.Trigger),
             new SchemaObjectIdentity(999, "sales", "WrongParent", SchemaObjectKind.Table));
-        var result = await BuildService(factory).GetExportTriggerDefinitionAsync("DemoDB", trigger, TestContext.Current.CancellationToken);
+        var result = await BuildService(factory).GetExportTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, trigger, TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.ObjectNotFound("sales.Changed"), result.Error);
         Assert.Equal(1, factory.CommandCount);
     }
@@ -140,7 +140,7 @@ public sealed class SchemaDiscoveryTests
         var factory = new ReaderConnectionFactory(command => command.CommandText.Contains("sys.triggers", StringComparison.Ordinal)
             ? new FakeDbDataReader(["object_id"], [[301]])
             : new FakeDbDataReader(["definition"], [[definition]]));
-        var result = await BuildService(factory).GetExportTriggerDefinitionAsync("DemoDB", trigger, TestContext.Current.CancellationToken);
+        var result = await BuildService(factory).GetExportTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, trigger, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.Equal("*Definition for trigger `sales.Changed` not available.* *Definition not available — either the object is encrypted, or the configured login lacks VIEW DEFINITION permission on it.*", result.Value);
     }
@@ -151,15 +151,15 @@ public sealed class SchemaDiscoveryTests
         var factory = new ReaderConnectionFactory(_ => throw new InvalidOperationException("fixed trigger failure"));
         var trigger = new SchemaObject(new SchemaObjectIdentity(301, "sales", "Changed", SchemaObjectKind.Trigger));
         var service = BuildService(factory);
-        var invalid = await service.GetExportTriggerDefinitionAsync("DemoDB", trigger, TestContext.Current.CancellationToken);
+        var invalid = await service.GetExportTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, trigger, TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.InvalidParameters("Export trigger identity requires a table or view parent."), invalid.Error);
         Assert.Equal(0, factory.CommandCount);
 
         trigger = trigger with { Parent = new SchemaObjectIdentity(1, "sales", "Orders", SchemaObjectKind.Table) };
-        var denied = await BuildService(factory, allowed: false).GetExportTriggerDefinitionAsync("DemoDB", trigger, TestContext.Current.CancellationToken);
-        Assert.Equal(SqlToAiError.SafetyCheckFailed("Database 'DemoDB' is blocked by security policies (static whitelist)."), denied.Error);
+        var denied = await BuildService(factory, allowed: false).GetExportTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, trigger, TestContext.Current.CancellationToken);
+        Assert.Equal(SqlToAiError.SafetyCheckFailed($"Database '{TestConstants.QualifiedDatabaseName}' is blocked by security policies (static whitelist)."), denied.Error);
         Assert.Equal(0, factory.CommandCount);
-        var failed = await service.GetExportTriggerDefinitionAsync("DemoDB", trigger, TestContext.Current.CancellationToken);
+        var failed = await service.GetExportTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, trigger, TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.QueryError("fixed trigger failure"), failed.Error);
     }
 
@@ -179,7 +179,7 @@ public sealed class SchemaDiscoveryTests
         var factory = new ReaderConnectionFactory(command => command.CommandText.Contains("sys.triggers", StringComparison.Ordinal)
             ? new FakeDbDataReader(["object_id"], [[301]])
             : throw new InvalidOperationException("fixed definition failure"));
-        var result = await BuildService(factory).GetExportTriggerDefinitionAsync("DemoDB", trigger, TestContext.Current.CancellationToken);
+        var result = await BuildService(factory).GetExportTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, trigger, TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.QueryError("fixed definition failure"), result.Error);
         Assert.Equal(2, factory.CommandCount);
     }
@@ -205,10 +205,10 @@ public sealed class SchemaDiscoveryTests
                 : "CREATE TRIGGER dbo.Changed AS SELECT 0;"]]);
         });
         var service = BuildService(factory);
-        var before = await service.GetTriggerDefinitionAsync("DemoDB", "sales.Orders", "Changed", TestContext.Current.CancellationToken);
-        var sales = await service.GetExportTriggerDefinitionAsync("DemoDB", salesTrigger, TestContext.Current.CancellationToken);
-        var audit = await service.GetExportTriggerDefinitionAsync("DemoDB", auditTrigger, TestContext.Current.CancellationToken);
-        var after = await service.GetTriggerDefinitionAsync("DemoDB", "sales.Orders", "Changed", TestContext.Current.CancellationToken);
+        var before = await service.GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, "sales.Orders", "Changed", TestContext.Current.CancellationToken);
+        var sales = await service.GetExportTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, salesTrigger, TestContext.Current.CancellationToken);
+        var audit = await service.GetExportTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, auditTrigger, TestContext.Current.CancellationToken);
+        var after = await service.GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, "sales.Orders", "Changed", TestContext.Current.CancellationToken);
 
         Assert.Equal("# Trigger Definition: `Changed` (on table `sales.Orders`)\n\n```sql\nCREATE TRIGGER dbo.Changed AS SELECT 0;\n```", before.Value);
         Assert.Equal("# Trigger Definition: `sales.Changed` (on table `sales.Orders`)\n\n```sql\nCREATE TRIGGER sales.Changed AS SELECT 1;\n```", sales.Value);
@@ -228,7 +228,7 @@ public sealed class SchemaDiscoveryTests
             return new FakeDbDataReader(["SchemaName", "ObjectName", "TypeDescription"],
                 [["sales", "Customers", "USER_TABLE"], ["sales", "CustomerView", "VIEW"]]);
         });
-        var result = await BuildService(factory).SearchObjectsAsync("DemoDB", "cust", 7, "%TABLE%", TestContext.Current.CancellationToken);
+        var result = await BuildService(factory).SearchObjectsAsync(TestConstants.QualifiedDatabaseName, "cust", 7, "%TABLE%", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("| Schema | Name | Type |\n| --- | --- | --- |\n| sales | Customers | USER_TABLE |\n| sales | CustomerView | VIEW |\n".Replace("\n", Environment.NewLine, StringComparison.Ordinal), result.Value);
@@ -238,16 +238,16 @@ public sealed class SchemaDiscoveryTests
     public async Task SearchObjects_PreservesEmptyNote()
     {
         var factory = new ReaderConnectionFactory(_ => new FakeDbDataReader(["SchemaName", "ObjectName", "TypeDescription"], []));
-        var result = await BuildService(factory).SearchObjectsAsync("DemoDB", "missing", cancellationToken: TestContext.Current.CancellationToken);
+        var result = await BuildService(factory).SearchObjectsAsync(TestConstants.QualifiedDatabaseName, "missing", cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
-        Assert.Equal("No objects found matching 'missing' in database 'DemoDB'.", result.Value);
+        Assert.Equal($"No objects found matching 'missing' in database '{TestConstants.QualifiedDatabaseName}'.", result.Value);
     }
 
     [Fact]
     public async Task SearchObjects_PreservesQueryFailure()
     {
         var factory = new ReaderConnectionFactory(_ => throw new InvalidOperationException("fixed discovery failure"));
-        var result = await BuildService(factory).SearchObjectsAsync("DemoDB", "cust", cancellationToken: TestContext.Current.CancellationToken);
+        var result = await BuildService(factory).SearchObjectsAsync(TestConstants.QualifiedDatabaseName, "cust", cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.QueryError("fixed discovery failure"), result.Error);
     }
 
@@ -271,7 +271,7 @@ public sealed class SchemaDiscoveryTests
             Assert.Equal("SELECT definition FROM sys.sql_modules WHERE object_id = OBJECT_ID(@TriggerName)", command.CommandText);
             return new FakeDbDataReader(["definition"], [[definition]]);
         });
-        var result = await BuildService(factory).GetTriggerDefinitionAsync("DemoDB", "sales.Customers", "Audit", TestContext.Current.CancellationToken);
+        var result = await BuildService(factory).GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", "Audit", TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.Equal(expected, result.Value);
     }
@@ -280,7 +280,7 @@ public sealed class SchemaDiscoveryTests
     public async Task LegacyTrigger_PreservesNotFoundFailure()
     {
         var factory = new ReaderConnectionFactory(_ => new FakeDbDataReader(["name"], []));
-        var result = await BuildService(factory).GetTriggerDefinitionAsync("DemoDB", "sales.Customers", "missing", TestContext.Current.CancellationToken);
+        var result = await BuildService(factory).GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", "missing", TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.ObjectNotFound("missing"), result.Error);
         Assert.Equal(1, factory.CommandCount);
     }
@@ -289,7 +289,7 @@ public sealed class SchemaDiscoveryTests
     public async Task LegacyTrigger_PreservesQueryFailure()
     {
         var factory = new ReaderConnectionFactory(_ => throw new InvalidOperationException("fixed trigger failure"));
-        var result = await BuildService(factory).GetTriggerDefinitionAsync("DemoDB", "sales.Customers", "Audit", TestContext.Current.CancellationToken);
+        var result = await BuildService(factory).GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", "Audit", TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.QueryError("fixed trigger failure"), result.Error);
     }
 
@@ -298,9 +298,9 @@ public sealed class SchemaDiscoveryTests
     {
         var factory = new ReaderConnectionFactory(_ => throw new InvalidOperationException("Must not query"));
         var service = BuildService(factory, allowed: false);
-        var search = await service.SearchObjectsAsync("DemoDB", "cust", cancellationToken: TestContext.Current.CancellationToken);
-        var trigger = await service.GetTriggerDefinitionAsync("DemoDB", "sales.Customers", "Audit", TestContext.Current.CancellationToken);
-        var expected = SqlToAiError.SafetyCheckFailed("Database 'DemoDB' is blocked by security policies (static whitelist).");
+        var search = await service.SearchObjectsAsync(TestConstants.QualifiedDatabaseName, "cust", cancellationToken: TestContext.Current.CancellationToken);
+        var trigger = await service.GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", "Audit", TestContext.Current.CancellationToken);
+        var expected = SqlToAiError.SafetyCheckFailed($"Database '{TestConstants.QualifiedDatabaseName}' is blocked by security policies (static whitelist).");
         Assert.Equal(expected, search.Error);
         Assert.Equal(expected, trigger.Error);
         Assert.Equal(0, factory.ConnectionCount);
@@ -308,11 +308,11 @@ public sealed class SchemaDiscoveryTests
 
     private static SchemaService BuildService(ReaderConnectionFactory factory, bool allowed = true)
     {
-        var options = new SqlToAiOptions();
-        if (allowed) options.Databases.SchemaOnly = ["DemoDB"];
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+        if (allowed) options.Databases.SchemaOnly = [TestConstants.QualifiedDatabaseName];
         var boundOptions = Options.Create(options);
         return new SchemaService(factory, new SecurityGuard(boundOptions),
-            new AccessLevelProvider(factory, boundOptions, NullLogger<AccessLevelProvider>.Instance),
+            new AccessLevelProvider(boundOptions),
             new MetadataProvider(factory, boundOptions, NullLogger<MetadataProvider>.Instance),
             new AlwaysAllowPolicyResolver(), boundOptions, NullLogger<SchemaService>.Instance);
     }
@@ -322,7 +322,7 @@ public sealed class SchemaDiscoveryTests
 
     private sealed class ReaderConnectionFactory(Func<FakeDbCommand, DbDataReader> reader) : IDatabaseConnectionFactory
     {
-        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
         public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
         public int ConnectionCount { get; private set; }

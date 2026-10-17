@@ -60,7 +60,7 @@ public sealed class SchemaObjectSelectionTests
     {
         var factory = new CatalogFactory([new CatalogObject(1, "sales", "Orders")]);
         string[] inputs = ["Orders", "Orders", "[sales].[Orders]", "\"sales\".\"Orders\"", "sales.Orders"];
-        var result = await factory.Service().ResolveObjectsAsync("DemoDB", inputs, false, TestContext.Current.CancellationToken);
+        var result = await factory.Service().ResolveObjectsAsync(TestConstants.QualifiedDatabaseName, inputs, false, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(inputs, result.Value.Select(entry => entry.ObjectName));
@@ -88,7 +88,7 @@ public sealed class SchemaObjectSelectionTests
     public async Task Resolve_ParsesSqlQuotingAndTreatsWildcardsAndSqlAsLiteralNames(string input, string schema, string name)
     {
         var factory = new CatalogFactory([new CatalogObject(5, schema, name)]);
-        var result = await factory.Service().ResolveObjectsAsync("DemoDB", [input], true, TestContext.Current.CancellationToken);
+        var result = await factory.Service().ResolveObjectsAsync(TestConstants.QualifiedDatabaseName, [input], true, TestContext.Current.CancellationToken);
         Assert.Equal(name, Assert.Single(result.Value).Object.Value.Identity.ObjectName);
         Assert.Equal(name, Assert.Single(factory.Names));
     }
@@ -106,7 +106,7 @@ public sealed class SchemaObjectSelectionTests
     public async Task Resolve_RejectsInvalidOrCrossDatabaseIdentifiersWithoutCatalogQueries(string input)
     {
         var factory = new CatalogFactory([]);
-        var result = await factory.Service().ResolveObjectsAsync("DemoDB", [input], true, TestContext.Current.CancellationToken);
+        var result = await factory.Service().ResolveObjectsAsync(TestConstants.QualifiedDatabaseName, [input], true, TestContext.Current.CancellationToken);
         var entry = Assert.Single(result.Value);
         Assert.Equal(SqlToAiError.InvalidParametersCode, entry.Object.Error.Code);
         Assert.Contains(input, entry.Object.Error.Message);
@@ -120,7 +120,7 @@ public sealed class SchemaObjectSelectionTests
             new CatalogObject(1, "dbo", "Orders"), new CatalogObject(2, "sales", "Orders"),
             new CatalogObject(3, "dbo", "CheckOrders", "CHECK_CONSTRAINT")]);
         string[] inputs = ["Orders", "missing", "dbo.CheckOrders", "sales.Orders", "[missing]"];
-        var result = await factory.Service().ResolveObjectsAsync("DemoDB", inputs, true, TestContext.Current.CancellationToken);
+        var result = await factory.Service().ResolveObjectsAsync(TestConstants.QualifiedDatabaseName, inputs, true, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(inputs, result.Value.Select(entry => entry.ObjectName));
@@ -145,7 +145,7 @@ public sealed class SchemaObjectSelectionTests
     public async Task Resolve_PrimarySchemaAcceptsSupportedKinds(string type)
     {
         var factory = new CatalogFactory([new CatalogObject(1, "dbo", "Object", type)]);
-        var result = await factory.Service().ResolveObjectsAsync("DemoDB", ["dbo.Object"], false, TestContext.Current.CancellationToken);
+        var result = await factory.Service().ResolveObjectsAsync(TestConstants.QualifiedDatabaseName, ["dbo.Object"], false, TestContext.Current.CancellationToken);
         Assert.True(Assert.Single(result.Value).Object.IsSuccess);
     }
 
@@ -156,8 +156,8 @@ public sealed class SchemaObjectSelectionTests
     public async Task Resolve_OnlyExportAcceptsTableAndViewTriggers(string parentType, bool supportedExport)
     {
         var factory = new CatalogFactory([new CatalogObject(1, "sales", "Changed", "SQL_TRIGGER", parentType)]);
-        var primary = await factory.Service().ResolveObjectsAsync("DemoDB", ["Changed"], false, TestContext.Current.CancellationToken);
-        var export = await factory.Service().ResolveObjectsAsync("DemoDB", ["Changed"], true, TestContext.Current.CancellationToken);
+        var primary = await factory.Service().ResolveObjectsAsync(TestConstants.QualifiedDatabaseName, ["Changed"], false, TestContext.Current.CancellationToken);
+        var export = await factory.Service().ResolveObjectsAsync(TestConstants.QualifiedDatabaseName, ["Changed"], true, TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.InvalidParametersCode, Assert.Single(primary.Value).Object.Error.Code);
         Assert.Equal(supportedExport, Assert.Single(export.Value).Object.IsSuccess);
         if (supportedExport) Assert.Equal("sales.Parent", Assert.Single(export.Value).Object.Value.Parent!.DisplayName);
@@ -171,7 +171,7 @@ public sealed class SchemaObjectSelectionTests
         var factory = new CatalogFactory([
             new CatalogObject(1, "dbo", "Orders"),
             new CatalogObject(2, "DBO", "orders")], caseSensitive);
-        var result = await factory.Service().ResolveObjectsAsync("DemoDB", ["dbo.Orders", "DBO.orders"], false, TestContext.Current.CancellationToken);
+        var result = await factory.Service().ResolveObjectsAsync(TestConstants.QualifiedDatabaseName, ["dbo.Orders", "DBO.orders"], false, TestContext.Current.CancellationToken);
         Assert.Equal(2, factory.Commands.Count);
         if (caseSensitive)
         {
@@ -188,7 +188,7 @@ public sealed class SchemaObjectSelectionTests
     public async Task Resolve_CaseInsensitiveDatabaseAliasesShareObjectIdentityAfterSeparateLookups()
     {
         var factory = new CatalogFactory([new CatalogObject(1, "dbo", "Orders")], false);
-        var result = await factory.Service().ResolveObjectsAsync("DemoDB", ["dbo.Orders", "DBO.orders"], false, TestContext.Current.CancellationToken);
+        var result = await factory.Service().ResolveObjectsAsync(TestConstants.QualifiedDatabaseName, ["dbo.Orders", "DBO.orders"], false, TestContext.Current.CancellationToken);
         Assert.Equal(2, factory.Commands.Count);
         Assert.Same(result.Value[0].Object.Value, result.Value[1].Object.Value);
     }
@@ -200,7 +200,7 @@ public sealed class SchemaObjectSelectionTests
     {
         var factory = new CatalogFactory([new CatalogObject(1, "dbo", "Orders")]);
         var result = await factory.Service(allowed: excluded, excluded: excluded)
-            .ResolveObjectsAsync("DemoDB", ["Orders"], false, TestContext.Current.CancellationToken);
+            .ResolveObjectsAsync(TestConstants.QualifiedDatabaseName, ["Orders"], false, TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
         Assert.Equal(0, factory.ConnectionCount);
     }
@@ -209,7 +209,7 @@ public sealed class SchemaObjectSelectionTests
     public async Task Resolve_PreservesRequestWideQueryFailures()
     {
         var factory = new CatalogFactory([]) { FailQuery = true };
-        var result = await factory.Service().ResolveObjectsAsync("DemoDB", ["Orders"], false, TestContext.Current.CancellationToken);
+        var result = await factory.Service().ResolveObjectsAsync(TestConstants.QualifiedDatabaseName, ["Orders"], false, TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.QueryError("fixed selection failure"), result.Error);
     }
 
@@ -220,7 +220,7 @@ public sealed class SchemaObjectSelectionTests
         using var cancelled = new CancellationTokenSource();
         await cancelled.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => factory.Service()
-            .ResolveObjectsAsync("DemoDB", ["Orders"], false, cancelled.Token));
+            .ResolveObjectsAsync(TestConstants.QualifiedDatabaseName, ["Orders"], false, cancelled.Token));
         Assert.Empty(factory.Commands);
     }
 
@@ -230,7 +230,7 @@ public sealed class SchemaObjectSelectionTests
 
     internal sealed class CatalogFactory(IReadOnlyList<CatalogObject> objects, bool caseSensitive = true) : IDatabaseConnectionFactory
     {
-        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
         public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
         public List<string> Commands { get; } = [];
@@ -240,9 +240,9 @@ public sealed class SchemaObjectSelectionTests
 
         public SchemaService Service(bool allowed = true, bool excluded = false)
         {
-            var options = new SqlToAiOptions();
-            if (allowed) options.Databases.SchemaOnly = ["DemoDB"];
-            if (excluded) options.SqlServer.ExcludedDatabases = ["DemoDB"];
+            var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+            if (allowed) options.Databases.SchemaOnly = [TestConstants.QualifiedDatabaseName];
+            if (excluded) options.Servers[TestTargets.ServerAlias].ExcludedDatabases = ["DemoDB"];
             var bound = Options.Create(options);
             return new SchemaService(this, new SecurityGuard(bound),
                 new AccessLevelProvider(this, bound, NullLogger<AccessLevelProvider>.Instance),

@@ -12,7 +12,7 @@ namespace SqlToAi.Tests.Database;
 
 internal sealed class SchemaPresentationFixture : IDatabaseConnectionFactory, IMetadataProvider, IAnonymizationRuleProvider
 {
-    public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+    public DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
     public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
     public string? ObjectType { get; set; } = "U";
@@ -34,8 +34,8 @@ internal sealed class SchemaPresentationFixture : IDatabaseConnectionFactory, IM
 
     public SchemaService CreateService(bool allowed = true)
     {
-        var options = new SqlToAiOptions();
-        if (allowed) options.Databases.SchemaOnly = ["DemoDB"];
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+        if (allowed) options.Databases.SchemaOnly = [TestConstants.QualifiedDatabaseName];
         options.Anonymizer.Enabled = true;
         options.AnonymizationRules.Enabled = true;
         var bound = Options.Create(options);
@@ -122,11 +122,17 @@ internal sealed class SchemaPresentationFixture : IDatabaseConnectionFactory, IM
         return Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>(StringComparer.Ordinal) { ["Email"] = "Fixed column description" });
     }
 
+    public Task<string?> GetTableDescriptionAsync(SqlToAi.Domain.DatabaseTargetContext target, string tableName, CancellationToken cancellationToken = default)
+        => GetTableDescriptionAsync(target.DatabaseName, tableName, cancellationToken);
+
+    public Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(SqlToAi.Domain.DatabaseTargetContext target, string tableName, CancellationToken cancellationToken = default)
+        => GetColumnDescriptionsAsync(target.DatabaseName, tableName, cancellationToken);
+
     public Task<string?> GetTableDescriptionAsync(SqlToAi.Domain.DatabaseTargetContext target, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
+        => GetTableDescriptionAsync(target, identity.DisplayName, cancellationToken);
 
     public Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(SqlToAi.Domain.DatabaseTargetContext target, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
+        => GetColumnDescriptionsAsync(target, identity.DisplayName, cancellationToken);
 
     public Task<bool> IsExcludedAsync(string databaseName, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
     {
@@ -136,7 +142,7 @@ internal sealed class SchemaPresentationFixture : IDatabaseConnectionFactory, IM
     }
 
     public Task<bool> IsExcludedAsync(SqlToAi.Domain.DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
+        => IsExcludedAsync(target.DatabaseName, schemaName, tableName, columnName, cancellationToken);
 
     private sealed class TrackingPolicy(SchemaPresentationFixture fixture, IAnonymizationPolicyResolver inner) : IAnonymizationPolicyResolver
     {
@@ -157,6 +163,17 @@ internal sealed class SchemaPresentationFixture : IDatabaseConnectionFactory, IM
         }
 
         public Task<bool> WillAnonymizeAsync(SqlToAi.Domain.DatabaseTargetContext target, string tableName, string columnName, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+        {
+            fixture.PolicyCalls++;
+            if (fixture.RejectEnrichment) throw new InvalidOperationException("Policy must not be called");
+            return inner.WillAnonymizeAsync(target, tableName, columnName, cancellationToken);
+        }
+
+        public Task<bool> WillAnonymizeAsync(SqlToAi.Domain.DatabaseTargetContext target, SchemaObjectIdentity identity, string columnName, CancellationToken cancellationToken = default)
+        {
+            fixture.PolicyCalls++;
+            if (fixture.RejectEnrichment) throw new InvalidOperationException("Policy must not be called");
+            return inner.WillAnonymizeAsync(target, identity, columnName, cancellationToken);
+        }
     }
 }

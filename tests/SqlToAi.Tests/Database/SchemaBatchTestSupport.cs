@@ -10,10 +10,10 @@ namespace SqlToAi.Tests.Database;
 
 internal sealed class SchemaBatchTestFactory : IDatabaseConnectionFactory
 {
-    public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+    public DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
     public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
-    internal SqlToAiOptions Options { get; } = new() { Databases = new DatabasesOptions { SchemaOnly = ["DemoDB"] } };
+    internal SqlToAiOptions Options { get; } = new SqlToAiOptions { Databases = new DatabasesOptions { SchemaOnly = [TestConstants.QualifiedDatabaseName] } }.WithNamedServers(TestTargets.ServerAlias);
     internal List<string> SchemaFetches { get; } = [];
     internal List<string> Commands { get; } = [];
     internal int ConnectionCount { get; private set; }
@@ -100,10 +100,16 @@ internal sealed class SchemaBatchTestFactory : IDatabaseConnectionFactory
         public Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(string databaseName, string tableName, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string> { ["Secret"] = "enriched column description" });
 
+        public Task<string?> GetTableDescriptionAsync(SqlToAi.Domain.DatabaseTargetContext target, string tableName, CancellationToken cancellationToken = default)
+            => GetTableDescriptionAsync(target.DatabaseName, tableName, cancellationToken);
+
+        public Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(SqlToAi.Domain.DatabaseTargetContext target, string tableName, CancellationToken cancellationToken = default)
+            => GetColumnDescriptionsAsync(target.DatabaseName, tableName, cancellationToken);
+
         public Task<string?> GetTableDescriptionAsync(SqlToAi.Domain.DatabaseTargetContext target, SqlToAi.Database.SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+            => GetTableDescriptionAsync(target, identity.DisplayName, cancellationToken);
 
         public Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(SqlToAi.Domain.DatabaseTargetContext target, SqlToAi.Database.SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+            => GetColumnDescriptionsAsync(target, identity.DisplayName, cancellationToken);
     }
 }

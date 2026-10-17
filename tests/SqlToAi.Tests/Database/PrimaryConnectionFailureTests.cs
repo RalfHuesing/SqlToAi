@@ -42,7 +42,11 @@ public sealed class PrimaryConnectionFailureTests
         Assert.Contains(SqlToAiError.InfrastructureErrorCode, text);
         // Migrated target-aware tools identify the owning named-server settings path;
         // not-yet-migrated tools keep the legacy SqlServer section name.
-        string expectedSettingsPath = tool is McpConstants.ToolExecuteQuery or McpConstants.ToolValidateQuery
+        string expectedSettingsPath = tool is McpConstants.ToolExecuteQuery
+            or McpConstants.ToolValidateQuery
+            or McpConstants.ToolSearchObjects
+            or McpConstants.ToolGetSchema
+            or McpConstants.ToolGetSchemaForeignKeys
             ? "SqlToAi:Servers"
             : "SqlServer";
         Assert.Contains(expectedSettingsPath, text);
@@ -96,9 +100,9 @@ public sealed class PrimaryConnectionFailureTests
         var token = TestContext.Current.CancellationToken;
         SqlToAiError error = operation switch
         {
-            "objects" => (await harness.Schema.GetExportObjectsAsync(TestConstants.DatabaseName, token)).Error,
-            "schema" => (await harness.Schema.GetSchemaAsync(TestConstants.DatabaseName, "dbo.Table", token)).Error,
-            _ => (await harness.Schema.GetSchemaIndexesAsync(TestConstants.DatabaseName, "dbo.Table", token)).Error
+            "objects" => (await harness.Schema.GetExportObjectsAsync(TestConstants.QualifiedDatabaseName, token)).Error,
+            "schema" => (await harness.Schema.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "dbo.Table", token)).Error,
+            _ => (await harness.Schema.GetSchemaIndexesAsync(TestConstants.QualifiedDatabaseName, "dbo.Table", token)).Error
         };
         Assert.Equal(SqlToAiError.InfrastructureErrorCode, error.Code);
         AssertSafe(error.Message, harness);

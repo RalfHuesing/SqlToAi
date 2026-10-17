@@ -23,7 +23,9 @@ internal static class TestTargets
             options.Servers[alias] = new NamedServerOptions
             {
                 Server = ".\\SQLTEST",
-                IntegratedSecurity = true
+                IntegratedSecurity = true,
+                MetadataProvider = options.MetadataProvider,
+                AnonymizationRules = options.AnonymizationRules
             };
         }
         return options;

@@ -1,5 +1,6 @@
 using SqlToAi.Database;
 using SqlToAi.Domain;
+using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Database;
 
@@ -32,7 +33,7 @@ public sealed class SchemaPresentationRegressionTests
     public async Task McpTableAndView_PreserveEntireEnrichedOutput(string type)
     {
         var fixture = new SchemaPresentationFixture { ObjectType = type };
-        var result = await fixture.CreateService().GetSchemaAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
+        var result = await fixture.CreateService().GetSchemaAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
         string expected = Lines(TableOutput);
         if (type == "V") expected += Lines("## View Definition\n```sql") + fixture.Definition + Environment.NewLine + Lines("```");
         Assert.True(result.IsSuccess);
@@ -50,7 +51,7 @@ public sealed class SchemaPresentationRegressionTests
     public async Task McpRoutine_PreservesEntireDefinitionAndDiscovery(string type)
     {
         var fixture = new SchemaPresentationFixture { ObjectType = type };
-        var result = await fixture.CreateService().GetSchemaAsync("DemoDB", "sales.Routine", TestContext.Current.CancellationToken);
+        var result = await fixture.CreateService().GetSchemaAsync(TestConstants.QualifiedDatabaseName, "sales.Routine", TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.Equal(Lines("# DDL Definition for Stored Procedure/Function: `sales.Routine`\n\n*Discovery:* This routine accepts `2` parameter(s). Run `sql_get_routine_parameters` to view them.\n\n```sql") + fixture.Definition + Environment.NewLine + Lines("```"), result.Value);
     }
@@ -62,10 +63,10 @@ public sealed class SchemaPresentationRegressionTests
     {
         var fixture = new SchemaPresentationFixture { ObjectType = "V", Definition = definition };
         var service = fixture.CreateService();
-        var view = await service.GetSchemaAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
+        var view = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
         Assert.Equal(Lines(TableOutput) + Lines("## View Definition\n" + DetailSchemaRenderer.DdlUnavailableNote), view.Value);
         fixture.ObjectType = "P";
-        var routine = await service.GetSchemaAsync("DemoDB", "sales.Routine", TestContext.Current.CancellationToken);
+        var routine = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "sales.Routine", TestContext.Current.CancellationToken);
         Assert.Equal(Lines("# DDL Definition for Stored Procedure/Function: `sales.Routine`\n\n*Discovery:* This routine accepts `2` parameter(s). Run `sql_get_routine_parameters` to view them.\n\n" + DetailSchemaRenderer.DdlUnavailableNote), routine.Value);
     }
 
@@ -73,15 +74,15 @@ public sealed class SchemaPresentationRegressionTests
     public async Task McpSchema_PreservesExactFailures()
     {
         var fixture = new SchemaPresentationFixture();
-        var denied = await fixture.CreateService(false).GetSchemaAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
-        Assert.Equal(SqlToAiError.SafetyCheckFailed("Database 'DemoDB' is blocked by security policies (static whitelist)."), denied.Error);
+        var denied = await fixture.CreateService(false).GetSchemaAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
+        Assert.Equal(SqlToAiError.SafetyCheckFailed($"Database '{TestConstants.QualifiedDatabaseName}' is blocked by security policies (static whitelist)."), denied.Error);
         Assert.Equal(0, fixture.Connections);
         var service = fixture.CreateService();
         fixture.ObjectType = null;
-        var missing = await service.GetSchemaAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
+        var missing = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.ObjectNotFound("sales.Customers"), missing.Error);
         fixture.FailQuery = true;
-        var failure = await service.GetSchemaAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
+        var failure = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.QueryError("fixed schema failure"), failure.Error);
     }
 
@@ -89,9 +90,9 @@ public sealed class SchemaPresentationRegressionTests
     public async Task McpDetailNavigation_PreservesEntireTables()
     {
         var service = new SchemaPresentationFixture().CreateService();
-        var fk = await service.GetSchemaForeignKeysAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
+        var fk = await service.GetSchemaForeignKeysAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
         Assert.Equal("# Foreign Keys for `sales.Customers`\n\n" + Lines("| FK Name | Source Column | Dir | Reference Column |\n| --- | --- | --- | --- |\n| FK_Customer | sales.Orders.CustomerId | → | sales.Customers.Id |"), fk.Value);
-        var refs = await service.GetObjectReferencesAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
+        var refs = await service.GetObjectReferencesAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
         Assert.Equal("# Referencing Entities for `sales.Customers`\n\n" + Lines("| Schema | Entity Name | Type |\n| --- | --- | --- |\n| sales | Overview | OBJECT_OR_COLUMN |"), refs.Value);
     }
 

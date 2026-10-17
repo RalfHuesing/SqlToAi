@@ -11,7 +11,7 @@ internal sealed record MockConnectionFlags(bool ThrowException = false, bool Has
 
 internal sealed class DummyConnectionFactory : IDatabaseConnectionFactory
 {
-    public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+    public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
     public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
     public DbConnection? ConnectionToReturn { get; set; }

@@ -46,8 +46,8 @@ public sealed class SchemaServiceTests
     public async Task SearchObjectsAsync_ShouldReturnSecurityError_WhenDbBlocked()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = ["SalesDb"];
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+        options.Databases.ReadWrite = ["test/SalesDb"];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -58,7 +58,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.SearchObjectsAsync("BlockedDb", "cust", null, null, TestContext.Current.CancellationToken);
+        var result = await service.SearchObjectsAsync("test/BlockedDb", "cust", null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsFailure);
@@ -69,8 +69,8 @@ public sealed class SchemaServiceTests
     public async Task SearchObjectsAsync_ShouldReturnMarkdownTable_WhenSucceeds()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = [TestConstants.DatabaseName];
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+        options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -81,7 +81,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.SearchObjectsAsync(TestConstants.DatabaseName, "cust", null, null, TestContext.Current.CancellationToken);
+        var result = await service.SearchObjectsAsync(TestConstants.QualifiedDatabaseName, "cust", null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -93,8 +93,8 @@ public sealed class SchemaServiceTests
     public async Task GetSchemaAsync_ShouldReturnTableSchema_WhenObjectIsTable()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = [TestConstants.DatabaseName];
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+        options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -105,7 +105,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "dbo.Customers", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -119,8 +119,8 @@ public sealed class SchemaServiceTests
     public async Task GetSchemaAsync_ShouldReturnRoutineSchema_WhenObjectIsProcedure()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = [TestConstants.DatabaseName];
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+        options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
         
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -131,7 +131,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "dbo.GetCustomersProc", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -143,8 +143,8 @@ public sealed class SchemaServiceTests
     public async Task GetSchemaAsync_ShouldIncludeViewDefinition_WhenObjectIsView()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = [TestConstants.DatabaseName];
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+        options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -155,7 +155,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act
-        var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.CustomersView", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "dbo.CustomersView", TestContext.Current.CancellationToken);
 
         // Assert — views get both the column list (like tables) and their SQL body (like routines).
         Assert.True(result.IsSuccess);
@@ -171,8 +171,8 @@ public sealed class SchemaServiceTests
     public async Task SearchObjectsAsync_WithNullObjectType_ShouldReturnAllMatchingObjects()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = [TestConstants.DatabaseName];
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+        options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -183,7 +183,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act — no objectType filter; all types should be returned
-        var result = await service.SearchObjectsAsync(TestConstants.DatabaseName, "cust", null, null, TestContext.Current.CancellationToken);
+        var result = await service.SearchObjectsAsync(TestConstants.QualifiedDatabaseName, "cust", null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -194,8 +194,8 @@ public sealed class SchemaServiceTests
     public async Task SearchObjectsAsync_WithObjectTypeFilter_ShouldPassFilterToQuery()
     {
         // Arrange
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = [TestConstants.DatabaseName];
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+        options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -207,7 +207,7 @@ public sealed class SchemaServiceTests
 
         // Act — pass "USER_TABLE" as objectType; mock DB returns Customers (USER_TABLE),
         // so we verify the call succeeds (SQL filter correctness is tested by the mock SQL).
-        var result = await service.SearchObjectsAsync(TestConstants.DatabaseName, "cust", null, "USER_TABLE", TestContext.Current.CancellationToken);
+        var result = await service.SearchObjectsAsync(TestConstants.QualifiedDatabaseName, "cust", null, "USER_TABLE", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -221,8 +221,8 @@ public sealed class SchemaServiceTests
     {
         // Arrange — verifies there is no hidden column-count limit anywhere in the
         // rendering pipeline; sys.columns itself has no TOP/limit in its query.
-        var options = new SqlToAiOptions();
-        options.Databases.ReadWrite = [TestConstants.DatabaseName];
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
+        options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -233,7 +233,7 @@ public sealed class SchemaServiceTests
         var service = new SchemaService(mockFactory, securityGuard, accessLevelProvider, metadataProvider, policyResolver, Options.Create(options), NullLogger<SchemaService>.Instance);
 
         // Act — the mock returns 250 columns for any table named "WideTable"
-        var result = await service.GetSchemaAsync(TestConstants.DatabaseName, "dbo.WideTable", TestContext.Current.CancellationToken);
+        var result = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "dbo.WideTable", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(result.IsSuccess);

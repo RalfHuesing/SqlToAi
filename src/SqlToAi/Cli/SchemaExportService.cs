@@ -66,7 +66,9 @@ internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaE
                     await WriteAsync(root, paths[item.Identity], document.Value, () => createdOutput = true, cancellationToken);
                 }
             }
-            var overview = new StringBuilder().Append("# Database schema: ").AppendLine(OfflineSqlNameFormatter.Text(database)).AppendLine();
+            var parsed = DatabaseTargetParser.Parse(database);
+            string overviewDatabase = parsed.IsSuccess ? $"{parsed.Value.ServerAlias}/{parsed.Value.DatabaseName}" : database;
+            var overview = new StringBuilder().Append("# Database schema: ").AppendLine(OfflineSqlNameFormatter.Text(overviewDatabase)).AppendLine();
             foreach (var group in objects.GroupBy(item => SchemaExportPaths.DirectoryFor(item.Identity.Kind)))
             {
                 overview.Append("## ").AppendLine(group.Key).AppendLine();

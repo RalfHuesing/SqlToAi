@@ -22,6 +22,7 @@ public sealed class SchemaService : ISchemaService
     private readonly ISecurityGuard _securityGuard;
     private readonly IAccessLevelProvider _accessLevelProvider;
     private readonly SqlToAiOptions _options;
+    private readonly DatabaseTargetResolver _targets;
     private readonly ILogger<SchemaService> _logger;
     private readonly TableSchemaRenderer _tableSchemaRenderer;
 
@@ -41,27 +42,35 @@ public sealed class SchemaService : ISchemaService
         _securityGuard = securityGuard;
         _accessLevelProvider = accessLevelProvider;
         _options = options.Value;
+        _targets = new DatabaseTargetResolver(_options);
         _logger = logger;
         _tableSchemaRenderer = new TableSchemaRenderer(metadataProvider, policyResolver);
     }
 
     /// <summary>
-    /// Checks static whitelisting and dynamic access level checks for the database.
+    /// Resolves the caller's qualified target and verifies static whitelisting and dynamic access level.
     /// </summary>
-    private async Task<Result> VerifyDatabaseAccessAsync(string databaseName, CancellationToken cancellationToken)
+    private async Task<Result<DatabaseTargetContext>> ResolveAndVerifyTargetAsync(string databaseName, CancellationToken cancellationToken)
     {
-        if (!_securityGuard.IsDatabaseAllowed(databaseName))
+        var targetResult = _targets.Resolve(databaseName);
+        if (targetResult.IsFailure)
         {
-            return SqlToAiError.SafetyCheckFailed($"Database '{databaseName}' is blocked by security policies (static whitelist).");
+            return targetResult.Error;
         }
 
-        var accessLevel = await _accessLevelProvider.GetAccessLevelAsync(databaseName, cancellationToken);
+        var target = targetResult.Value;
+        if (!_securityGuard.IsTargetAllowed(target))
+        {
+            return SqlToAiError.SafetyCheckFailed($"Database '{target.QualifiedName}' is blocked by security policies (static whitelist).");
+        }
+
+        var accessLevel = await _accessLevelProvider.GetTargetAccessLevelAsync(target, cancellationToken);
         if (accessLevel == AccessLevel.None)
         {
-            return SqlToAiError.SafetyCheckFailed($"Database '{databaseName}' access was denied (AccessLevel: None).");
+            return SqlToAiError.SafetyCheckFailed($"Database '{target.QualifiedName}' access was denied (AccessLevel: None).");
         }
 
-        return Result.Success();
+        return target;
     }
 
     public async Task<Result<IReadOnlyList<string>>> ListDatabasesAsync(CancellationToken cancellationToken = default)
@@ -118,17 +127,18 @@ public sealed class SchemaService : ISchemaService
 
     public async Task<Result<string>> SearchObjectsAsync(string databaseName, string searchTerm, int? maxResults = null, string? objectType = null, CancellationToken cancellationToken = default)
     {
-        var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
-        if (accessCheck.IsFailure)
+        var targetCheck = await ResolveAndVerifyTargetAsync(databaseName, cancellationToken);
+        if (targetCheck.IsFailure)
         {
-            return accessCheck.Error;
+            return targetCheck.Error;
         }
+        var target = targetCheck.Value;
 
         int limit = maxResults ?? 100;
         try
         {
-            await using var connection = _connectionFactory.CreateConnection(databaseName);
-            await PrimaryConnection.OpenAsync(connection, cancellationToken);
+            await using var connection = _connectionFactory.CreateTargetConnection(target);
+            await PrimaryConnection.OpenTargetAsync(connection, target, cancellationToken);
 
             var rows = await SchemaObjectDiscovery.QueryAsync(connection, $"%{searchTerm}%", objectType, limit, false, cancellationToken);
 
@@ -140,43 +150,44 @@ public sealed class SchemaService : ISchemaService
 
             if (renderedRows.Count == 0)
             {
-                return $"No objects found matching '{searchTerm}' in database '{databaseName}'.";
+                return $"No objects found matching '{searchTerm}' in database '{target.QualifiedName}'.";
             }
 
             return MarkdownTableRenderer.Render(["Schema", "Name", "Type"], renderedRows);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to search objects in database {DatabaseName}.", databaseName);
+            _logger.LogError(ex, "Failed to search objects in database {DatabaseName}.", target.QualifiedName);
             return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
         }
     }
 
     public async Task<Result<IReadOnlyList<SchemaObject>>> GetExportObjectsAsync(string databaseName, CancellationToken cancellationToken = default)
     {
-        var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
-        if (accessCheck.IsFailure)
+        var targetCheck = await ResolveAndVerifyTargetAsync(databaseName, cancellationToken);
+        if (targetCheck.IsFailure)
         {
-            return accessCheck.Error;
+            return targetCheck.Error;
         }
+        var target = targetCheck.Value;
 
         try
         {
-            await using var connection = _connectionFactory.CreateConnection(databaseName);
-            await PrimaryConnection.OpenAsync(connection, cancellationToken);
+            await using var connection = _connectionFactory.CreateTargetConnection(target);
+            await PrimaryConnection.OpenTargetAsync(connection, target, cancellationToken);
             var rows = await SchemaObjectDiscovery.QueryAsync(connection, "%", null, null, true, cancellationToken);
             return rows.Select(row => row.ToSchemaObject()).ToArray();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to discover export objects in database {DatabaseName}.", databaseName);
+            _logger.LogError(ex, "Failed to discover export objects in database {DatabaseName}.", target.QualifiedName);
             return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
         }
     }
 
     public Task<Result<string>> GetExportTriggerDefinitionAsync(string databaseName, SchemaObject trigger, CancellationToken cancellationToken = default)
         => ExecuteDetailQueryAsync(databaseName, trigger.Identity.DisplayName, "export trigger definition",
-            (connection, ct) => DetailSchemaRenderer.GetExportTriggerDefinitionAsync(connection, trigger, ct), cancellationToken);
+            (connection, _, ct) => DetailSchemaRenderer.GetExportTriggerDefinitionAsync(connection, trigger, ct), cancellationToken);
 
     public async Task<Result<IReadOnlyList<SchemaObject>>> GetSelectedExportObjectsAsync(
         string databaseName, IReadOnlyList<string> objectNames, CancellationToken cancellationToken = default)
@@ -198,15 +209,17 @@ public sealed class SchemaService : ISchemaService
     internal async Task<Result<IReadOnlyList<SchemaObjectSelectionEntry>>> ResolveObjectsAsync(
         string databaseName, IReadOnlyList<string> names, bool forExport, CancellationToken cancellationToken = default)
     {
-        var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
-        if (accessCheck.IsFailure)
+        var targetCheck = await ResolveAndVerifyTargetAsync(databaseName, cancellationToken);
+        if (targetCheck.IsFailure)
         {
-            return accessCheck.Error;
+            return targetCheck.Error;
         }
+        var target = targetCheck.Value;
+
         try
         {
-            await using var connection = _connectionFactory.CreateConnection(databaseName);
-            await PrimaryConnection.OpenAsync(connection, cancellationToken);
+            await using var connection = _connectionFactory.CreateTargetConnection(target);
+            await PrimaryConnection.OpenTargetAsync(connection, target, cancellationToken);
             return Result<IReadOnlyList<SchemaObjectSelectionEntry>>.Success(
                 await SchemaObjectSelection.ResolveAsync(connection, names, forExport, cancellationToken));
         }
@@ -216,7 +229,7 @@ public sealed class SchemaService : ISchemaService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to resolve selected objects in database {DatabaseName}.", databaseName);
+            _logger.LogError(ex, "Failed to resolve selected objects in database {DatabaseName}.", target.QualifiedName);
             return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
         }
     }
@@ -227,20 +240,19 @@ public sealed class SchemaService : ISchemaService
     public async Task<Result<SchemaBatchResponse>> GetSchemaBatchAsync(
         string databaseName, JsonElement objectName = default, JsonElement objectNames = default, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(databaseName))
-            return SqlToAiError.InvalidParameters("database is required.");
         var normalized = SchemaObjectSelection.Normalize(objectName, objectNames);
         if (normalized.IsFailure) return normalized.Error;
         var preflight = SchemaBatchComposer.ValidateRequest(normalized.Value, _options.SchemaBatch);
         if (preflight.IsFailure) return preflight.Error;
-        var access = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
-        if (access.IsFailure) return access.Error;
+        var targetCheck = await ResolveAndVerifyTargetAsync(databaseName, cancellationToken);
+        if (targetCheck.IsFailure) return targetCheck.Error;
+        var target = targetCheck.Value;
 
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await using var connection = _connectionFactory.CreateConnection(databaseName);
-            await PrimaryConnection.OpenAsync(connection, cancellationToken);
+            await using var connection = _connectionFactory.CreateTargetConnection(target);
+            await PrimaryConnection.OpenTargetAsync(connection, target, cancellationToken);
             var selected = await SchemaObjectSelection.ResolveAsync(connection, normalized.Value, false, cancellationToken);
             return await SchemaBatchComposer.ComposeAsync(selected, _options.SchemaBatch.MaxResponseBytes,
                 async (item, ct) =>
@@ -248,12 +260,12 @@ public sealed class SchemaService : ISchemaService
                     try
                     {
                         string type = item.Identity.Kind switch { SchemaObjectKind.Table => "U", SchemaObjectKind.View => "V", _ => "P" };
-                        return Result<string>.Success(await RenderPrimarySchemaAsync(connection, databaseName, item.Identity.QualifiedName, type, null, ct, item.Identity));
+                        return Result<string>.Success(await RenderPrimarySchemaAsync(connection, target, item.Identity.QualifiedName, type, null, ct, item.Identity));
                     }
                     catch (OperationCanceledException) { throw; }
                     catch (Exception ex) when (ex is not PrimaryConnectionException)
                     {
-                        _logger.LogError(ex, "Failed to retrieve batch schema for {ObjectName} in database {DatabaseName}.", item.Identity.DisplayName, databaseName);
+                        _logger.LogError(ex, "Failed to retrieve batch schema for {ObjectName} in database {DatabaseName}.", item.Identity.DisplayName, target.QualifiedName);
                         return SqlToAiError.QueryError(ex.Message);
                     }
                 }, cancellationToken);
@@ -261,7 +273,7 @@ public sealed class SchemaService : ISchemaService
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve schema batch in database {DatabaseName}.", databaseName);
+            _logger.LogError(ex, "Failed to retrieve schema batch in database {DatabaseName}.", target.QualifiedName);
             return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
         }
     }
@@ -271,16 +283,17 @@ public sealed class SchemaService : ISchemaService
 
     private async Task<Result<string>> GetSchemaCoreAsync(string databaseName, string objectName, SchemaRenderingContext? context, CancellationToken cancellationToken)
     {
-        var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
-        if (accessCheck.IsFailure)
+        var targetCheck = await ResolveAndVerifyTargetAsync(databaseName, cancellationToken);
+        if (targetCheck.IsFailure)
         {
-            return accessCheck.Error;
+            return targetCheck.Error;
         }
+        var target = targetCheck.Value;
 
         try
         {
-            await using var connection = _connectionFactory.CreateConnection(databaseName);
-            await PrimaryConnection.OpenAsync(connection, cancellationToken);
+            await using var connection = _connectionFactory.CreateTargetConnection(target);
+            await PrimaryConnection.OpenTargetAsync(connection, target, cancellationToken);
 
             // 1. Identify object type
             var typeCode = await connection.QueryFirstOrDefaultAsync<string>(
@@ -291,7 +304,7 @@ public sealed class SchemaService : ISchemaService
                 return SqlToAiError.ObjectNotFound(objectName);
             }
 
-            return await RenderPrimarySchemaAsync(connection, databaseName, objectName, typeCode, context, cancellationToken);
+            return await RenderPrimarySchemaAsync(connection, target, objectName, typeCode, context, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -299,19 +312,19 @@ public sealed class SchemaService : ISchemaService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve schema for {ObjectName} in database {DatabaseName}.", objectName, databaseName);
+            _logger.LogError(ex, "Failed to retrieve schema for {ObjectName} in database {DatabaseName}.", objectName, target.QualifiedName);
             return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
         }
     }
 
-    private async Task<string> RenderPrimarySchemaAsync(DbConnection connection, string databaseName, string objectName,
+    private async Task<string> RenderPrimarySchemaAsync(DbConnection connection, DatabaseTargetContext target, string objectName,
         string typeCode, SchemaRenderingContext? context, CancellationToken cancellationToken, SchemaObjectIdentity? interactiveIdentity = null)
     {
         if (typeCode == "U")
-            return await _tableSchemaRenderer.GetTableSchemaMarkdownAsync(connection, databaseName, objectName, cancellationToken, context, interactiveIdentity);
+            return await _tableSchemaRenderer.GetTableSchemaMarkdownAsync(connection, target, objectName, cancellationToken, context, interactiveIdentity);
         if (typeCode == "V")
         {
-            string table = await _tableSchemaRenderer.GetTableSchemaMarkdownAsync(connection, databaseName, objectName, cancellationToken, context, interactiveIdentity);
+            string table = await _tableSchemaRenderer.GetTableSchemaMarkdownAsync(connection, target, objectName, cancellationToken, context, interactiveIdentity);
             return table + await TableSchemaRenderer.GetViewDefinitionMarkdownAsync(connection, objectName, cancellationToken);
         }
         return await TableSchemaRenderer.GetRoutineSchemaMarkdownAsync(connection, objectName, cancellationToken, context);
@@ -319,52 +332,52 @@ public sealed class SchemaService : ISchemaService
 
     public Task<Result<string>> GetSchemaForeignKeysAsync(string databaseName, string tableName, CancellationToken cancellationToken = default) =>
         ExecuteDetailQueryAsync(databaseName, tableName, "foreign keys",
-            (connection, ct) => DetailSchemaRenderer.GetSchemaForeignKeysAsync(connection, tableName, databaseName, ct),
+            (connection, target, ct) => DetailSchemaRenderer.GetSchemaForeignKeysAsync(connection, tableName, target.QualifiedName, ct),
             cancellationToken);
 
     public Task<Result<string>> GetSchemaIndexesAsync(string databaseName, string tableName, CancellationToken cancellationToken = default) =>
         ExecuteDetailQueryAsync(databaseName, tableName, "indexes",
-            (connection, ct) => DetailSchemaRenderer.GetSchemaIndexesAsync(connection, tableName, databaseName, ct),
+            (connection, target, ct) => DetailSchemaRenderer.GetSchemaIndexesAsync(connection, tableName, target.QualifiedName, ct),
             cancellationToken);
 
     public Task<Result<string>> GetExportSchemaForeignKeysAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
         => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "foreign keys",
-            (connection, ct) => DetailSchemaRenderer.GetSchemaForeignKeysAsync(connection, context.Source.QualifiedName, databaseName, ct, context), cancellationToken);
+            (connection, target, ct) => DetailSchemaRenderer.GetSchemaForeignKeysAsync(connection, context.Source.QualifiedName, target.QualifiedName, ct, context), cancellationToken);
 
     public Task<Result<string>> GetExportObjectReferencesAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
         => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "referencing entities",
-            (connection, ct) => DetailSchemaRenderer.GetObjectReferencesAsync(connection, context.Source.QualifiedName, databaseName, ct, context), cancellationToken);
+            (connection, target, ct) => DetailSchemaRenderer.GetObjectReferencesAsync(connection, context.Source.QualifiedName, target.QualifiedName, ct, context), cancellationToken);
 
     public Task<Result<string>> GetExportSchemaIndexesAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
         => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "indexes",
-            (connection, ct) => DetailSchemaRenderer.GetSchemaIndexesAsync(connection, context.Source.QualifiedName, databaseName, ct, context), cancellationToken);
+            (connection, target, ct) => DetailSchemaRenderer.GetSchemaIndexesAsync(connection, context.Source.QualifiedName, target.QualifiedName, ct, context), cancellationToken);
 
     public Task<Result<string>> GetExportSchemaConstraintsAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
         => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "constraints",
-            (connection, ct) => DetailSchemaRenderer.GetSchemaConstraintsAsync(connection, context.Source.QualifiedName, databaseName, ct, context), cancellationToken);
+            (connection, target, ct) => DetailSchemaRenderer.GetSchemaConstraintsAsync(connection, context.Source.QualifiedName, target.QualifiedName, ct, context), cancellationToken);
 
     public Task<Result<string>> GetExportRoutineParametersAsync(string databaseName, SchemaRenderingContext context, CancellationToken cancellationToken = default)
         => ExecuteDetailQueryAsync(databaseName, context.Source.DisplayName, "routine parameters",
-            (connection, ct) => DetailSchemaRenderer.GetRoutineParametersAsync(connection, context.Source.QualifiedName, databaseName, ct, context), cancellationToken);
+            (connection, target, ct) => DetailSchemaRenderer.GetRoutineParametersAsync(connection, context.Source.QualifiedName, target.QualifiedName, ct, context), cancellationToken);
 
     public Task<Result<string>> GetSchemaConstraintsAsync(string databaseName, string tableName, CancellationToken cancellationToken = default) =>
         ExecuteDetailQueryAsync(databaseName, tableName, "constraints",
-            (connection, ct) => DetailSchemaRenderer.GetSchemaConstraintsAsync(connection, tableName, databaseName, ct),
+            (connection, target, ct) => DetailSchemaRenderer.GetSchemaConstraintsAsync(connection, tableName, target.QualifiedName, ct),
             cancellationToken);
 
     public Task<Result<string>> GetTriggerDefinitionAsync(string databaseName, string tableName, string triggerName, CancellationToken cancellationToken = default) =>
         ExecuteDetailQueryAsync(databaseName, triggerName, "trigger DDL",
-            (connection, ct) => DetailSchemaRenderer.GetTriggerDefinitionAsync(connection, tableName, triggerName, databaseName, ct),
+            (connection, target, ct) => DetailSchemaRenderer.GetTriggerDefinitionAsync(connection, tableName, triggerName, target.QualifiedName, ct),
             cancellationToken);
 
     public Task<Result<string>> GetObjectReferencesAsync(string databaseName, string objectName, CancellationToken cancellationToken = default) =>
         ExecuteDetailQueryAsync(databaseName, objectName, "referencing entities",
-            (connection, ct) => DetailSchemaRenderer.GetObjectReferencesAsync(connection, objectName, databaseName, ct),
+            (connection, target, ct) => DetailSchemaRenderer.GetObjectReferencesAsync(connection, objectName, target.QualifiedName, ct),
             cancellationToken);
 
     public Task<Result<string>> GetRoutineParametersAsync(string databaseName, string routineName, CancellationToken cancellationToken = default) =>
         ExecuteDetailQueryAsync(databaseName, routineName, "routine parameters",
-            (connection, ct) => DetailSchemaRenderer.GetRoutineParametersAsync(connection, routineName, databaseName, ct),
+            (connection, target, ct) => DetailSchemaRenderer.GetRoutineParametersAsync(connection, routineName, target.QualifiedName, ct),
             cancellationToken);
 
     /// <summary>
@@ -376,24 +389,25 @@ public sealed class SchemaService : ISchemaService
         string databaseName,
         string objectName,
         string operationName,
-        Func<DbConnection, CancellationToken, Task<Result<string>>> query,
+        Func<DbConnection, DatabaseTargetContext, CancellationToken, Task<Result<string>>> query,
         CancellationToken cancellationToken)
     {
-        var accessCheck = await VerifyDatabaseAccessAsync(databaseName, cancellationToken);
-        if (accessCheck.IsFailure)
+        var targetCheck = await ResolveAndVerifyTargetAsync(databaseName, cancellationToken);
+        if (targetCheck.IsFailure)
         {
-            return accessCheck.Error;
+            return targetCheck.Error;
         }
+        var target = targetCheck.Value;
 
         try
         {
-            await using var connection = _connectionFactory.CreateConnection(databaseName);
-            await PrimaryConnection.OpenAsync(connection, cancellationToken);
-            return await query(connection, cancellationToken);
+            await using var connection = _connectionFactory.CreateTargetConnection(target);
+            await PrimaryConnection.OpenTargetAsync(connection, target, cancellationToken);
+            return await query(connection, target, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve {Operation} for {ObjectName} in database {DatabaseName}.", operationName, objectName, databaseName);
+            _logger.LogError(ex, "Failed to retrieve {Operation} for {ObjectName} in database {DatabaseName}.", operationName, objectName, target.QualifiedName);
             return ex is PrimaryConnectionException ? SqlToAiErrorMapper.MapException(ex) : SqlToAiError.QueryError(ex.Message);
         }
     }

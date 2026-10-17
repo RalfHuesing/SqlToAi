@@ -41,9 +41,9 @@ public sealed class SchemaExportOutcomeTests
         var trigger = new SchemaObject(new SchemaObjectIdentity(4, "dbo", "Changed", SchemaObjectKind.Trigger),
             new SchemaObjectIdentity(123, "dbo", "Parent", SchemaObjectKind.View));
         var (export, proxy) = Create([selectedTable, otherTable, routine, trigger]);
-        proxy.ResolveSelected = (names, token) => catalog.Service().GetSelectedExportObjectsAsync("DemoDB", names, token);
+        proxy.ResolveSelected = (names, token) => catalog.Service().GetSelectedExportObjectsAsync(TestConstants.QualifiedDatabaseName, names, token);
         string root = temp.GetPath("dump");
-        var result = await export.ExportAsync("DemoDB", root, SchemaExportScope.Selected,
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, root, SchemaExportScope.Selected,
             Json("\" dbo.Name \""), Json("[null,\" \",\"[dbo].[Name]\",\"dbo.Changed\",\"Routine\",\"dbo.Name\"]"), Token);
 
         Assert.Equal(SchemaExportStatus.Completed, result.Status);
@@ -77,7 +77,7 @@ public sealed class SchemaExportOutcomeTests
             new(6, "dbo", "ServerTrigger", "SQL_TRIGGER")]);
         var exporter = new SchemaExportService(catalog.Service(), NullLogger<SchemaExportService>.Instance);
         string root = temp.GetPath("dump");
-        var result = await exporter.ExportAsync("DemoDB", root, SchemaExportScope.Selected,
+        var result = await exporter.ExportAsync(TestConstants.QualifiedDatabaseName, root, SchemaExportScope.Selected,
             objectNames: JsonSerializer.SerializeToElement(new[] { "dbo.Good", invalid, "dbo.Last" }), cancellationToken: Token);
         Assert.Equal(SchemaExportStatus.Failed, result.Status);
         Assert.Equal(code, result.Error!.Code);
@@ -100,12 +100,12 @@ public sealed class SchemaExportOutcomeTests
         var (export, proxy) = Create([]);
         proxy.ResolveSelected = async (names, token) =>
         {
-            var resolved = await catalog.Service().GetSelectedExportObjectsAsync("DemoDB", names, token);
+            var resolved = await catalog.Service().GetSelectedExportObjectsAsync(TestConstants.QualifiedDatabaseName, names, token);
             if (resolved.IsSuccess) proxy.Objects = resolved.Value;
             return resolved;
         };
         string[] names = ["TableOne", "ViewOne", "ProcedureOne", "ScalarOne", "InlineOne", "ValuedOne", "TableChanged", "ViewChanged"];
-        var result = await export.ExportAsync("DemoDB", temp.GetPath("dump"), SchemaExportScope.Selected,
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), SchemaExportScope.Selected,
             objectNames: JsonSerializer.SerializeToElement(names.Concat(names).ToArray()), cancellationToken: Token);
         Assert.Equal(SchemaExportStatus.Completed, result.Status);
         Assert.False(result.PartialOutput);
@@ -174,7 +174,7 @@ public sealed class SchemaExportOutcomeTests
         using var temp = TestTempDirectory.Create();
         var catalog = new CatalogFactory([new(1, "dbo", "Good")]);
         var exporter = new SchemaExportService(catalog.Service(allowed: excluded, excluded: excluded), NullLogger<SchemaExportService>.Instance);
-        var result = await exporter.ExportAsync("DemoDB", temp.GetPath("dump"), SchemaExportScope.Selected,
+        var result = await exporter.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), SchemaExportScope.Selected,
             Json("\"Good\""), cancellationToken: Token);
         Assert.Equal(SchemaExportStatus.Failed, result.Status);
         Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error!.Code);
@@ -189,7 +189,7 @@ public sealed class SchemaExportOutcomeTests
         using var temp = TestTempDirectory.Create();
         var fixture = new SchemaPresentationFixture { ExportDiscovery = true, RejectEnrichment = true };
         var export = new SchemaExportService(fixture.CreateService(), NullLogger<SchemaExportService>.Instance);
-        var result = await export.ExportAsync("DemoDB", temp.GetPath("dump"), SchemaExportScope.Selected,
+        var result = await export.ExportAsync(TestConstants.QualifiedDatabaseName, temp.GetPath("dump"), SchemaExportScope.Selected,
             Json("\"sales.Exported\""), cancellationToken: Token);
         Assert.Equal(SchemaExportStatus.Completed, result.Status);
         string text = await File.ReadAllTextAsync(temp.GetPath("dump/tables/sales.Exported.md"), Token);

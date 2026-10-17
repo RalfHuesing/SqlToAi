@@ -7,7 +7,7 @@ namespace SqlToAi.Tests.Database;
 
 internal sealed class DummyConnectionFactory : IDatabaseConnectionFactory
 {
-    public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+    public DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
     public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
     public int ConnectionCreatedCount { get; private set; }
@@ -102,7 +102,7 @@ internal sealed class AlwaysAllowPolicyResolver : IAnonymizationPolicyResolver
         => Task.FromResult(false);
 
     public Task<bool> WillAnonymizeAsync(SqlToAi.Domain.DatabaseTargetContext target, string tableName, string columnName, CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
+        => Task.FromResult(false);
 
     public bool IsTokenizationActive => false;
 }
@@ -114,7 +114,7 @@ internal sealed class SelectiveAnonymizePolicyResolver(string anonymizedColumnNa
         => Task.FromResult(string.Equals(columnName, anonymizedColumnName, StringComparison.OrdinalIgnoreCase));
 
     public Task<bool> WillAnonymizeAsync(SqlToAi.Domain.DatabaseTargetContext target, string tableName, string columnName, CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
+        => Task.FromResult(string.Equals(columnName, anonymizedColumnName, StringComparison.OrdinalIgnoreCase));
 
     public bool IsTokenizationActive => false;
 }
@@ -126,7 +126,7 @@ internal sealed class SearchableAnonymizePolicyResolver(string searchableColumnN
         => Task.FromResult(string.Equals(columnName, searchableColumnName, StringComparison.OrdinalIgnoreCase));
 
     public Task<bool> WillAnonymizeAsync(SqlToAi.Domain.DatabaseTargetContext target, string tableName, string columnName, CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
+        => Task.FromResult(string.Equals(columnName, searchableColumnName, StringComparison.OrdinalIgnoreCase));
 
     public bool IsTokenizationActive => true;
 }

@@ -1,5 +1,6 @@
 using SqlToAi.Database;
 using SqlToAi.Domain;
+using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Database;
 
@@ -17,7 +18,7 @@ public sealed class OfflineSchemaPresentationTests
     {
         var fixture = new SchemaPresentationFixture { ObjectType = type, RejectEnrichment = true };
         var context = Context(Customers);
-        var result = await fixture.CreateService().GetExportSchemaAsync("DemoDB", context, TestContext.Current.CancellationToken);
+        var result = await fixture.CreateService().GetExportSchemaAsync(TestConstants.QualifiedDatabaseName, context, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         string expected = SchemaPresentationRegressionTests.Lines("""
             # Schema for Table/View: `sales.Customers`
@@ -51,7 +52,7 @@ public sealed class OfflineSchemaPresentationTests
     {
         var source = new SchemaObjectIdentity(501, "sales", "Routine", kind);
         var fixture = new SchemaPresentationFixture { ObjectType = type, RejectEnrichment = true };
-        var result = await fixture.CreateService().GetExportSchemaAsync("DemoDB", Context(source), TestContext.Current.CancellationToken);
+        var result = await fixture.CreateService().GetExportSchemaAsync(TestConstants.QualifiedDatabaseName, Context(source), TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.Equal(SchemaPresentationRegressionTests.Lines("# DDL Definition for Stored Procedure/Function: `sales.Routine`\n\n*Parameters:* This routine accepts `2` parameter(s).\n\n```sql")
             + fixture.Definition + Environment.NewLine + SchemaPresentationRegressionTests.Lines("```"), result.Value);
@@ -68,7 +69,7 @@ public sealed class OfflineSchemaPresentationTests
     public async Task OfflineDefinitions_RetainSuccessfulUnavailableNotes(string type, string? definition)
     {
         var fixture = new SchemaPresentationFixture { ObjectType = type, Definition = definition, RejectEnrichment = true };
-        var result = await fixture.CreateService().GetExportSchemaAsync("DemoDB", Context(Customers), TestContext.Current.CancellationToken);
+        var result = await fixture.CreateService().GetExportSchemaAsync(TestConstants.QualifiedDatabaseName, Context(Customers), TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.EndsWith(SchemaPresentationRegressionTests.Lines(DetailSchemaRenderer.DdlUnavailableNote), result.Value);
         Assert.DoesNotContain("sql_get_", result.Value);
@@ -80,12 +81,12 @@ public sealed class OfflineSchemaPresentationTests
         var fixture = new SchemaPresentationFixture { RejectEnrichment = true };
         var service = fixture.CreateService();
         var context = Context(Customers);
-        var fk = await service.GetExportSchemaForeignKeysAsync("DemoDB", context, TestContext.Current.CancellationToken);
+        var fk = await service.GetExportSchemaForeignKeysAsync(TestConstants.QualifiedDatabaseName, context, TestContext.Current.CancellationToken);
         Assert.Equal("# Foreign Keys for `sales.Customers`\n\n" + SchemaPresentationRegressionTests.Lines("| FK Name | Source Column | Dir | Reference Column |\n| --- | --- | --- | --- |\n| FK\\_Customer | [sales.Orders.CustomerId](sales.Orders.md) | → | [sales.Customers.Id](sales.Customers.md) |"), fk.Value);
-        var refs = await service.GetExportObjectReferencesAsync("DemoDB", context, TestContext.Current.CancellationToken);
+        var refs = await service.GetExportObjectReferencesAsync(TestConstants.QualifiedDatabaseName, context, TestContext.Current.CancellationToken);
         Assert.Equal("# Referencing Entities for `sales.Customers`\n\n" + SchemaPresentationRegressionTests.Lines("| Schema | Entity Name | Type |\n| --- | --- | --- |\n| sales | [Overview](../views/sales.Overview.md) | OBJECT_OR_COLUMN |"), refs.Value);
         var missing = new SchemaRenderingContext(Customers, new Dictionary<SchemaObjectIdentity, string> { [Customers] = "tables/sales.Customers.md" });
-        var unlinked = await service.GetExportObjectReferencesAsync("DemoDB", missing, TestContext.Current.CancellationToken);
+        var unlinked = await service.GetExportObjectReferencesAsync(TestConstants.QualifiedDatabaseName, missing, TestContext.Current.CancellationToken);
         Assert.Contains("| sales | Overview | OBJECT_OR_COLUMN |", unlinked.Value);
         Assert.Equal(0, fixture.MetadataCalls + fixture.PolicyCalls + fixture.RuleCalls);
     }
@@ -97,9 +98,9 @@ public sealed class OfflineSchemaPresentationTests
         var fixture = new SchemaPresentationFixture { ReferenceSchema = target.SchemaName, ReferenceName = target.ObjectName };
         var service = fixture.CreateService();
         var context = Context(Customers, target);
-        var offline = await service.GetExportSchemaForeignKeysAsync("DemoDB", context, TestContext.Current.CancellationToken);
+        var offline = await service.GetExportSchemaForeignKeysAsync(TestConstants.QualifiedDatabaseName, context, TestContext.Current.CancellationToken);
         Assert.Contains("[archive.Customers.v2.Id](sales.Extra.md)", offline.Value);
-        var mcp = await service.GetSchemaForeignKeysAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
+        var mcp = await service.GetSchemaForeignKeysAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
         Assert.Contains("| sales.Customers.Id |", mcp.Value);
     }
 
@@ -111,28 +112,28 @@ public sealed class OfflineSchemaPresentationTests
         foreach (string type in new[] { "U", "V", "P", "FN", "IF", "TF" })
         {
             fixture.ObjectType = type;
-            var before = await service.GetSchemaAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
+            var before = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
             int metadata = fixture.MetadataCalls, policy = fixture.PolicyCalls, rules = fixture.RuleCalls;
             fixture.RejectEnrichment = true;
-            var offline = await service.GetExportSchemaAsync("DemoDB", Context(Customers), TestContext.Current.CancellationToken);
+            var offline = await service.GetExportSchemaAsync(TestConstants.QualifiedDatabaseName, Context(Customers), TestContext.Current.CancellationToken);
             Assert.True(offline.IsSuccess);
             Assert.Equal(metadata, fixture.MetadataCalls);
             Assert.Equal(policy, fixture.PolicyCalls);
             Assert.Equal(rules, fixture.RuleCalls);
             fixture.RejectEnrichment = false;
-            var after = await service.GetSchemaAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
+            var after = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
             Assert.Equal(before.Value, after.Value);
         }
         fixture.Definition = null;
         fixture.ObjectType = "P";
-        var noteBefore = await service.GetSchemaAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
-        await service.GetExportSchemaAsync("DemoDB", Context(Customers), TestContext.Current.CancellationToken);
-        var noteAfter = await service.GetSchemaAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
+        var noteBefore = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
+        await service.GetExportSchemaAsync(TestConstants.QualifiedDatabaseName, Context(Customers), TestContext.Current.CancellationToken);
+        var noteAfter = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
         Assert.Equal(noteBefore.Value, noteAfter.Value);
         fixture.FailQuery = true;
-        var errorBefore = await service.GetSchemaAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
-        var offlineError = await service.GetExportSchemaAsync("DemoDB", Context(Customers), TestContext.Current.CancellationToken);
-        var errorAfter = await service.GetSchemaAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
+        var errorBefore = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
+        var offlineError = await service.GetExportSchemaAsync(TestConstants.QualifiedDatabaseName, Context(Customers), TestContext.Current.CancellationToken);
+        var errorAfter = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
         Assert.Equal(errorBefore.Error, offlineError.Error);
         Assert.Equal(errorBefore.Error, errorAfter.Error);
     }
@@ -141,12 +142,12 @@ public sealed class OfflineSchemaPresentationTests
     public async Task InterleavedOfflineNavigation_LeavesFullMcpTablesUnchanged()
     {
         var service = new SchemaPresentationFixture().CreateService();
-        var fkBefore = await service.GetSchemaForeignKeysAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
-        var refsBefore = await service.GetObjectReferencesAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
-        await service.GetExportSchemaForeignKeysAsync("DemoDB", Context(Customers), TestContext.Current.CancellationToken);
-        await service.GetExportObjectReferencesAsync("DemoDB", Context(Customers), TestContext.Current.CancellationToken);
-        var fkAfter = await service.GetSchemaForeignKeysAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
-        var refsAfter = await service.GetObjectReferencesAsync("DemoDB", "sales.Customers", TestContext.Current.CancellationToken);
+        var fkBefore = await service.GetSchemaForeignKeysAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
+        var refsBefore = await service.GetObjectReferencesAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
+        await service.GetExportSchemaForeignKeysAsync(TestConstants.QualifiedDatabaseName, Context(Customers), TestContext.Current.CancellationToken);
+        await service.GetExportObjectReferencesAsync(TestConstants.QualifiedDatabaseName, Context(Customers), TestContext.Current.CancellationToken);
+        var fkAfter = await service.GetSchemaForeignKeysAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
+        var refsAfter = await service.GetObjectReferencesAsync(TestConstants.QualifiedDatabaseName, "sales.Customers", TestContext.Current.CancellationToken);
         Assert.Equal(fkBefore.Value, fkAfter.Value);
         Assert.Equal(refsBefore.Value, refsAfter.Value);
     }
@@ -172,7 +173,7 @@ public sealed class OfflineSchemaPresentationTests
     public async Task OfflineQueryFailures_AbortWithoutEnrichment(string query)
     {
         var fixture = new SchemaPresentationFixture { FailQueryTerm = query, RejectEnrichment = true, ObjectType = query == "sys.parameters" ? "P" : "V" };
-        var result = await fixture.CreateService().GetExportSchemaAsync("DemoDB", Context(Customers), TestContext.Current.CancellationToken);
+        var result = await fixture.CreateService().GetExportSchemaAsync(TestConstants.QualifiedDatabaseName, Context(Customers), TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.QueryError("fixed schema failure"), result.Error);
         Assert.Equal(0, fixture.MetadataCalls + fixture.PolicyCalls + fixture.RuleCalls);
     }
@@ -183,26 +184,26 @@ public sealed class OfflineSchemaPresentationTests
         var fixture = new SchemaPresentationFixture { RejectEnrichment = true };
         var deniedService = fixture.CreateService(false);
         var context = Context(Customers);
-        var deniedSchema = await deniedService.GetExportSchemaAsync("DemoDB", context, TestContext.Current.CancellationToken);
-        var deniedFk = await deniedService.GetExportSchemaForeignKeysAsync("DemoDB", context, TestContext.Current.CancellationToken);
-        var deniedRefs = await deniedService.GetExportObjectReferencesAsync("DemoDB", context, TestContext.Current.CancellationToken);
-        var error = SqlToAiError.SafetyCheckFailed("Database 'DemoDB' is blocked by security policies (static whitelist).");
+        var deniedSchema = await deniedService.GetExportSchemaAsync(TestConstants.QualifiedDatabaseName, context, TestContext.Current.CancellationToken);
+        var deniedFk = await deniedService.GetExportSchemaForeignKeysAsync(TestConstants.QualifiedDatabaseName, context, TestContext.Current.CancellationToken);
+        var deniedRefs = await deniedService.GetExportObjectReferencesAsync(TestConstants.QualifiedDatabaseName, context, TestContext.Current.CancellationToken);
+        var error = SqlToAiError.SafetyCheckFailed($"Database '{TestConstants.QualifiedDatabaseName}' is blocked by security policies (static whitelist).");
         Assert.Equal(error, deniedSchema.Error);
         Assert.Equal(error, deniedFk.Error);
         Assert.Equal(error, deniedRefs.Error);
         Assert.Equal(0, fixture.Connections);
         var service = fixture.CreateService();
         fixture.ObjectType = "P";
-        var badFk = await service.GetExportSchemaForeignKeysAsync("DemoDB", context, TestContext.Current.CancellationToken);
-        var badRefs = await service.GetExportObjectReferencesAsync("DemoDB", context, TestContext.Current.CancellationToken);
+        var badFk = await service.GetExportSchemaForeignKeysAsync(TestConstants.QualifiedDatabaseName, context, TestContext.Current.CancellationToken);
+        var badRefs = await service.GetExportObjectReferencesAsync(TestConstants.QualifiedDatabaseName, context, TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.InvalidDetailQueryType(Customers.QualifiedName), badFk.Error);
         Assert.Equal(SqlToAiError.InvalidReferenceType(Customers.QualifiedName), badRefs.Error);
         fixture.FailQueryTerm = "sys.foreign_keys";
         fixture.ObjectType = "U";
-        var fkFailure = await service.GetExportSchemaForeignKeysAsync("DemoDB", context, TestContext.Current.CancellationToken);
+        var fkFailure = await service.GetExportSchemaForeignKeysAsync(TestConstants.QualifiedDatabaseName, context, TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.QueryError("fixed schema failure"), fkFailure.Error);
         fixture.FailQueryTerm = "sys.dm_sql_referencing_entities";
-        var refsFailure = await service.GetExportObjectReferencesAsync("DemoDB", context, TestContext.Current.CancellationToken);
+        var refsFailure = await service.GetExportObjectReferencesAsync(TestConstants.QualifiedDatabaseName, context, TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.QueryError("fixed schema failure"), refsFailure.Error);
     }
 

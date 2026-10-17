@@ -57,7 +57,14 @@ public sealed class MetadataProvider : IMetadataProvider
     }
 
     /// <inheritdoc/>
-    public async Task<string?> GetTableDescriptionAsync(DatabaseTargetContext target, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
+    public Task<string?> GetTableDescriptionAsync(DatabaseTargetContext target, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
+        => GetTableDescriptionCoreAsync(target, identity.QualifiedName, identity.ObjectName, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<string?> GetTableDescriptionAsync(DatabaseTargetContext target, string tableName, CancellationToken cancellationToken = default)
+        => GetTableDescriptionCoreAsync(target, tableName, null, cancellationToken);
+
+    private async Task<string?> GetTableDescriptionCoreAsync(DatabaseTargetContext target, string tableName, string? resolvedName, CancellationToken cancellationToken)
     {
         if (!TryGetOwnerOptions(target.ServerAlias, out NamedServerOptions? ownerServer, out MetadataProviderOptions? metadata))
         {
@@ -65,12 +72,12 @@ public sealed class MetadataProvider : IMetadataProvider
             return null;
         }
 
-        if (!metadata.Enabled || string.IsNullOrWhiteSpace(identity.QualifiedName))
+        if (!metadata.Enabled || string.IsNullOrWhiteSpace(tableName))
         {
             return null;
         }
 
-        (string sql, string queryTableName) = BuildTableQuery(metadata, identity.QualifiedName, identity.ObjectName);
+        (string sql, string queryTableName) = BuildTableQuery(metadata, tableName, resolvedName);
 
         try
         {
@@ -95,7 +102,14 @@ public sealed class MetadataProvider : IMetadataProvider
     }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(DatabaseTargetContext target, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(DatabaseTargetContext target, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
+        => GetColumnDescriptionsCoreAsync(target, identity.QualifiedName, identity.ObjectName, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(DatabaseTargetContext target, string tableName, CancellationToken cancellationToken = default)
+        => GetColumnDescriptionsCoreAsync(target, tableName, null, cancellationToken);
+
+    private async Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsCoreAsync(DatabaseTargetContext target, string tableName, string? resolvedName, CancellationToken cancellationToken)
     {
         var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -105,12 +119,12 @@ public sealed class MetadataProvider : IMetadataProvider
             return dict;
         }
 
-        if (!metadata.Enabled || string.IsNullOrWhiteSpace(identity.QualifiedName))
+        if (!metadata.Enabled || string.IsNullOrWhiteSpace(tableName))
         {
             return dict;
         }
 
-        (string sql, string queryTableName) = BuildColumnQuery(metadata, identity.QualifiedName, identity.ObjectName);
+        (string sql, string queryTableName) = BuildColumnQuery(metadata, tableName, resolvedName);
 
         try
         {

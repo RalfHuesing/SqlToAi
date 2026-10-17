@@ -44,7 +44,7 @@ public sealed class OfflineSqlNameTests
         };
         var exporter = new SchemaExportService(fixture.CreateService(), NullLogger<SchemaExportService>.Instance);
         string root = temp.GetPath("dump");
-        var result = await exporter.ExportAsync("DemoDB", root, Token);
+        var result = await exporter.ExportAsync(TestConstants.QualifiedDatabaseName, root, Token);
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         var paths = SchemaExportPaths.Create(objects);
         string document = await File.ReadAllTextAsync(Path.Combine(root, paths[identity]), Token);
@@ -96,19 +96,19 @@ public sealed class OfflineSqlNameTests
         var service = fixture.CreateService();
         Func<Task<Result<string>>>[] mcp =
         [
-            () => service.GetSchemaIndexesAsync("DemoDB", identity.QualifiedName, Token),
-            () => service.GetSchemaConstraintsAsync("DemoDB", identity.QualifiedName, Token),
-            () => service.GetRoutineParametersAsync("DemoDB", identity.QualifiedName, Token),
-            () => service.GetSchemaForeignKeysAsync("DemoDB", identity.QualifiedName, Token),
-            () => service.GetObjectReferencesAsync("DemoDB", identity.QualifiedName, Token)
+            () => service.GetSchemaIndexesAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, Token),
+            () => service.GetSchemaConstraintsAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, Token),
+            () => service.GetRoutineParametersAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, Token),
+            () => service.GetSchemaForeignKeysAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, Token),
+            () => service.GetObjectReferencesAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, Token)
         ];
         Func<Task<Result<string>>>[] offline =
         [
-            () => service.GetExportSchemaIndexesAsync("DemoDB", context, Token),
-            () => service.GetExportSchemaConstraintsAsync("DemoDB", context, Token),
-            () => service.GetExportRoutineParametersAsync("DemoDB", context, Token),
-            () => service.GetExportSchemaForeignKeysAsync("DemoDB", context, Token),
-            () => service.GetExportObjectReferencesAsync("DemoDB", context, Token)
+            () => service.GetExportSchemaIndexesAsync(TestConstants.QualifiedDatabaseName, context, Token),
+            () => service.GetExportSchemaConstraintsAsync(TestConstants.QualifiedDatabaseName, context, Token),
+            () => service.GetExportRoutineParametersAsync(TestConstants.QualifiedDatabaseName, context, Token),
+            () => service.GetExportSchemaForeignKeysAsync(TestConstants.QualifiedDatabaseName, context, Token),
+            () => service.GetExportObjectReferencesAsync(TestConstants.QualifiedDatabaseName, context, Token)
         ];
         string[] expected =
         [
@@ -143,14 +143,14 @@ public sealed class OfflineSqlNameTests
             fixture.FailQuery = false;
         }
         var denied = fixture.CreateService(false);
-        Assert.Equal(SqlToAiError.SafetyCheckFailed("Database 'DemoDB' is blocked by security policies (static whitelist)."), (await denied.GetExportSchemaIndexesAsync("DemoDB", context, Token)).Error);
-        Assert.True((await denied.GetExportSchemaConstraintsAsync("DemoDB", context, Token)).IsFailure);
-        Assert.True((await denied.GetExportRoutineParametersAsync("DemoDB", context, Token)).IsFailure);
+        Assert.Equal(SqlToAiError.SafetyCheckFailed($"Database '{TestConstants.QualifiedDatabaseName}' is blocked by security policies (static whitelist)."), (await denied.GetExportSchemaIndexesAsync(TestConstants.QualifiedDatabaseName, context, Token)).Error);
+        Assert.True((await denied.GetExportSchemaConstraintsAsync(TestConstants.QualifiedDatabaseName, context, Token)).IsFailure);
+        Assert.True((await denied.GetExportRoutineParametersAsync(TestConstants.QualifiedDatabaseName, context, Token)).IsFailure);
         fixture.ObjectType = "P";
-        Assert.Equal(SqlToAiError.InvalidDetailQueryType(identity.QualifiedName), (await service.GetExportSchemaIndexesAsync("DemoDB", context, Token)).Error);
-        Assert.Equal(SqlToAiError.InvalidDetailQueryType(identity.QualifiedName), (await service.GetExportSchemaConstraintsAsync("DemoDB", context, Token)).Error);
+        Assert.Equal(SqlToAiError.InvalidDetailQueryType(identity.QualifiedName), (await service.GetExportSchemaIndexesAsync(TestConstants.QualifiedDatabaseName, context, Token)).Error);
+        Assert.Equal(SqlToAiError.InvalidDetailQueryType(identity.QualifiedName), (await service.GetExportSchemaConstraintsAsync(TestConstants.QualifiedDatabaseName, context, Token)).Error);
         fixture.ObjectType = "U";
-        Assert.Equal(SqlToAiError.InvalidParameterType(identity.QualifiedName), (await service.GetExportRoutineParametersAsync("DemoDB", context, Token)).Error);
+        Assert.Equal(SqlToAiError.InvalidParameterType(identity.QualifiedName), (await service.GetExportRoutineParametersAsync(TestConstants.QualifiedDatabaseName, context, Token)).Error);
     }
 
     [Theory]
@@ -164,25 +164,25 @@ public sealed class OfflineSqlNameTests
         var service = fixture.CreateService();
         string tableExpected = SchemaPresentationRegressionTests.Lines(SchemaPresentationRegressionTests.TableOutput)
             .Replace("`sales.Customers`", $"`{identity.QualifiedName}`", StringComparison.Ordinal);
-        Assert.Equal(tableExpected, (await service.GetSchemaAsync("DemoDB", identity.QualifiedName, Token)).Value);
-        Assert.StartsWith("# Schema for Table/View: " + codeName, (await service.GetExportSchemaAsync("DemoDB", context, Token)).Value);
-        Assert.Equal(tableExpected, (await service.GetSchemaAsync("DemoDB", identity.QualifiedName, Token)).Value);
+        Assert.Equal(tableExpected, (await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, Token)).Value);
+        Assert.StartsWith("# Schema for Table/View: " + codeName, (await service.GetExportSchemaAsync(TestConstants.QualifiedDatabaseName, context, Token)).Value);
+        Assert.Equal(tableExpected, (await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, Token)).Value);
         fixture.ObjectType = "P";
         string routineExpected = $"# DDL Definition for Stored Procedure/Function: `{identity.QualifiedName}`{Environment.NewLine}{Environment.NewLine}"
             + SchemaPresentationRegressionTests.Lines("*Discovery:* This routine accepts `2` parameter(s). Run `sql_get_routine_parameters` to view them.\n\n```sql")
             + fixture.Definition + Environment.NewLine + SchemaPresentationRegressionTests.Lines("```");
-        Assert.Equal(routineExpected, (await service.GetSchemaAsync("DemoDB", identity.QualifiedName, Token)).Value);
-        Assert.StartsWith("# DDL Definition for Stored Procedure/Function: " + codeName, (await service.GetExportSchemaAsync("DemoDB", context, Token)).Value);
-        Assert.Equal(routineExpected, (await service.GetSchemaAsync("DemoDB", identity.QualifiedName, Token)).Value);
+        Assert.Equal(routineExpected, (await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, Token)).Value);
+        Assert.StartsWith("# DDL Definition for Stored Procedure/Function: " + codeName, (await service.GetExportSchemaAsync(TestConstants.QualifiedDatabaseName, context, Token)).Value);
+        Assert.Equal(routineExpected, (await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, Token)).Value);
         string triggerExpected = $"# Trigger Definition: `{name}` (on table `{identity.QualifiedName}`)\n\n```sql\n{fixture.Definition}\n```";
-        Assert.Equal(triggerExpected, (await service.GetTriggerDefinitionAsync("DemoDB", identity.QualifiedName, name, Token)).Value);
-        Assert.StartsWith($"# Trigger Definition: {codeName} (on table {codeName})", (await service.GetExportTriggerDefinitionAsync("DemoDB", trigger, Token)).Value);
-        Assert.Equal(triggerExpected, (await service.GetTriggerDefinitionAsync("DemoDB", identity.QualifiedName, name, Token)).Value);
+        Assert.Equal(triggerExpected, (await service.GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, name, Token)).Value);
+        Assert.StartsWith($"# Trigger Definition: {codeName} (on table {codeName})", (await service.GetExportTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, trigger, Token)).Value);
+        Assert.Equal(triggerExpected, (await service.GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, name, Token)).Value);
         fixture.Definition = null;
         string legacyNote = $"*Definition for trigger '{name}' not available.* {DetailSchemaRenderer.DdlUnavailableNote}";
-        Assert.Equal(legacyNote, (await service.GetTriggerDefinitionAsync("DemoDB", identity.QualifiedName, name, Token)).Value);
-        Assert.Equal($"*Definition for trigger {codeName} not available.* {DetailSchemaRenderer.DdlUnavailableNote}", (await service.GetExportTriggerDefinitionAsync("DemoDB", trigger, Token)).Value);
-        Assert.Equal(legacyNote, (await service.GetTriggerDefinitionAsync("DemoDB", identity.QualifiedName, name, Token)).Value);
+        Assert.Equal(legacyNote, (await service.GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, name, Token)).Value);
+        Assert.Equal($"*Definition for trigger {codeName} not available.* {DetailSchemaRenderer.DdlUnavailableNote}", (await service.GetExportTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, trigger, Token)).Value);
+        Assert.Equal(legacyNote, (await service.GetTriggerDefinitionAsync(TestConstants.QualifiedDatabaseName, identity.QualifiedName, name, Token)).Value);
         // Missing local targets use the same literal label formatting as navigation links.
         Assert.Equal(textName, context.TriggerLink(999, name));
         Assert.Equal(textName, context.ObjectLink("missing", name, name));

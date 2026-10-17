@@ -6,6 +6,7 @@ using ModelContextProtocol.Server;
 using SqlToAi.Cli;
 using SqlToAi.Mcp;
 using SqlToAi.Tests.Database;
+using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Mcp;
 
@@ -22,7 +23,7 @@ public sealed class SchemaToolSurfaceTests
         }, serviceProvider: new ServiceCollection().BuildServiceProvider());
         var tool = SqlMcpToolRegistrations.BuildToolCollection(dispatcher).Single(t => t.ProtocolTool.Name == McpConstants.ToolGetSchema);
         var arguments = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(selection)!;
-        arguments["database"] = JsonSerializer.SerializeToElement("DemoDB");
+        arguments["database"] = JsonSerializer.SerializeToElement(TestConstants.QualifiedDatabaseName);
         var parameters = new CallToolRequestParams { Name = McpConstants.ToolGetSchema, Arguments = arguments };
         var context = new RequestContext<CallToolRequestParams>(server,
             new JsonRpcRequest { Id = new RequestId(1), Method = "tools/call" }, parameters);
@@ -39,7 +40,7 @@ public sealed class SchemaToolSurfaceTests
         Assert.False(result.IsError);
         string markdown = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
         Assert.StartsWith("#", markdown);
-        var scalar = await factory.Service().GetSchemaAsync("DemoDB", "Orders", Token);
+        var scalar = await factory.Service().GetSchemaAsync(TestConstants.QualifiedDatabaseName, "Orders", Token);
         Assert.Equal(scalar.Value, markdown);
     }
 
@@ -126,7 +127,7 @@ public sealed class SchemaToolSurfaceTests
         var result = await ToolDispatcherTestHelper.BuildDispatcher(schema: factory.Service()).DispatchAsync(new ToolCallParams
         {
             Name = McpConstants.ToolGetSchema,
-            Arguments = new() { ["database"] = "DemoDB", ["object_names"] = new[] { "Orders" } }
+            Arguments = new() { ["database"] = TestConstants.QualifiedDatabaseName, ["object_names"] = new[] { "Orders" } }
         }, Token);
         Assert.False(result.IsError);
         using var json = JsonDocument.Parse(Assert.Single(result.Content).Text!);
@@ -169,7 +170,7 @@ public sealed class SchemaToolSurfaceTests
         });
         var root = new RootCommand();
         root.Add(query);
-        var tokens = new List<string> { "query", "sql_get_schema", "--database", "DemoDB" };
+        var tokens = new List<string> { "query", "sql_get_schema", "--database", TestConstants.QualifiedDatabaseName };
         if (scalar is not null) tokens.AddRange(["--object_name", scalar]);
         if (array is not null) tokens.AddRange(["--object_names", array]);
         var parsed = root.Parse(tokens.ToArray());

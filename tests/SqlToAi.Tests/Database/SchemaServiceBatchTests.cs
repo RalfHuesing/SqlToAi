@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Database;
 using SqlToAi.Metadata;
+using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Database;
 
@@ -14,7 +15,7 @@ public sealed class SchemaServiceBatchTests
     public async Task Batch_NormalizesInputsRetainsOrderAndReusesResolvedAliasesWithInteractiveEnrichment()
     {
         var factory = new SchemaBatchTestFactory();
-        var response = await factory.Service().GetSchemaBatchAsync("DemoDB", Json("\" Orders \""),
+        var response = await factory.Service().GetSchemaBatchAsync(TestConstants.QualifiedDatabaseName, Json("\" Orders \""),
             Json("[null,\"\",\"  \",\"[dbo].[Orders]\",\"dbo.Orders\",\"Orders\"]"), TestContext.Current.CancellationToken);
         Assert.True(response.Value.Complete);
         var results = Results(response.Value.Json);
@@ -43,7 +44,7 @@ public sealed class SchemaServiceBatchTests
     public async Task Batch_RendersPrimarySupportedKinds(string name, string expected)
     {
         var factory = new SchemaBatchTestFactory();
-        var result = await factory.Service().GetSchemaBatchAsync("DemoDB", objectNames: Json(JsonSerializer.Serialize(new[] { name })),
+        var result = await factory.Service().GetSchemaBatchAsync(TestConstants.QualifiedDatabaseName, objectNames: Json(JsonSerializer.Serialize(new[] { name })),
             cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.Value.Complete);
         Assert.Contains(expected, Assert.Single(Results(result.Value.Json)).GetProperty("markdown").GetString());
@@ -54,7 +55,7 @@ public sealed class SchemaServiceBatchTests
     public async Task Batch_ContinuesAfterMissingAmbiguousUnsupportedAndFetchFailures()
     {
         var factory = new SchemaBatchTestFactory { FailingSchema = "[dbo].[Broken]" };
-        var result = await factory.Service().GetSchemaBatchAsync("DemoDB", objectNames: Json("[\"missing\",\"Ambiguous\",\"Unsupported\",\"Broken\",\"Orders\"]"),
+        var result = await factory.Service().GetSchemaBatchAsync(TestConstants.QualifiedDatabaseName, objectNames: Json("[\"missing\",\"Ambiguous\",\"Unsupported\",\"Broken\",\"Orders\"]"),
             cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.False(result.Value.Complete);
@@ -71,11 +72,11 @@ public sealed class SchemaServiceBatchTests
     {
         var factory = new SchemaBatchTestFactory();
         factory.Options.SchemaBatch.MaxInputCount = 2;
-        var result = await factory.Service().GetSchemaBatchAsync("DemoDB", Json("\"Orders\""), Json("[\"Orders\",null,\" \",\"Orders\"]"),
+        var result = await factory.Service().GetSchemaBatchAsync(TestConstants.QualifiedDatabaseName, Json("\"Orders\""), Json("[\"Orders\",null,\" \",\"Orders\"]"),
             TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
         Assert.Equal(0, factory.ConnectionCount);
-        var atLimit = await factory.Service().GetSchemaBatchAsync("DemoDB", Json("\"Orders\""), Json("[null,\" \",\"Orders\"]"),
+        var atLimit = await factory.Service().GetSchemaBatchAsync(TestConstants.QualifiedDatabaseName, Json("\"Orders\""), Json("[null,\" \",\"Orders\"]"),
             TestContext.Current.CancellationToken);
         Assert.True(atLimit.Value.Complete);
         Assert.Equal(2, Results(atLimit.Value.Json).Length);
@@ -90,7 +91,7 @@ public sealed class SchemaServiceBatchTests
     public async Task Batch_InvalidInputsFailBeforeDatabaseWork(string scalar, string list)
     {
         var factory = new SchemaBatchTestFactory();
-        var result = await factory.Service().GetSchemaBatchAsync("DemoDB", Json(scalar), Json(list), TestContext.Current.CancellationToken);
+        var result = await factory.Service().GetSchemaBatchAsync(TestConstants.QualifiedDatabaseName, Json(scalar), Json(list), TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
         Assert.Equal(0, factory.ConnectionCount);
     }
@@ -100,7 +101,7 @@ public sealed class SchemaServiceBatchTests
     {
         var factory = new SchemaBatchTestFactory();
         factory.Options.SchemaBatch.MaxResponseBytes = 200;
-        var result = await factory.Service().GetSchemaBatchAsync("DemoDB", Json(JsonSerializer.Serialize(new string('名', 100))),
+        var result = await factory.Service().GetSchemaBatchAsync(TestConstants.QualifiedDatabaseName, Json(JsonSerializer.Serialize(new string('名', 100))),
             cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
         Assert.Equal(0, factory.ConnectionCount);
@@ -112,9 +113,9 @@ public sealed class SchemaServiceBatchTests
     public async Task Batch_DatabaseDenialFailsWholeCallBeforeCatalogExposure(bool excluded)
     {
         var factory = new SchemaBatchTestFactory();
-        if (excluded) factory.Options.SqlServer.ExcludedDatabases = ["DemoDB"];
+        if (excluded) factory.Options.Servers[TestTargets.ServerAlias].ExcludedDatabases = ["DemoDB"];
         else factory.Options.Databases.SchemaOnly.Clear();
-        var result = await factory.Service().GetSchemaBatchAsync("DemoDB", Json("\"Orders\""), cancellationToken: TestContext.Current.CancellationToken);
+        var result = await factory.Service().GetSchemaBatchAsync(TestConstants.QualifiedDatabaseName, Json("\"Orders\""), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
         Assert.Equal(0, factory.ConnectionCount);
     }
@@ -123,7 +124,7 @@ public sealed class SchemaServiceBatchTests
     public async Task Batch_CatalogFailureFailsWholeCallWithoutSchemas()
     {
         var factory = new SchemaBatchTestFactory { FailCatalog = true };
-        var result = await factory.Service().GetSchemaBatchAsync("DemoDB", Json("\"Orders\""), cancellationToken: TestContext.Current.CancellationToken);
+        var result = await factory.Service().GetSchemaBatchAsync(TestConstants.QualifiedDatabaseName, Json("\"Orders\""), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.QueryError("fixed catalog failure"), result.Error);
         Assert.Empty(factory.SchemaFetches);
     }
@@ -143,7 +144,7 @@ public sealed class SchemaServiceBatchTests
     public async Task Batch_ConnectionTimeoutPreservesRequestWideCatalogError()
     {
         var factory = new SchemaBatchTestFactory { OpenFailure = new TimeoutException("sensitive provider details") };
-        var result = await factory.Service().GetSchemaBatchAsync("DemoDB", Json("\"Orders\""), cancellationToken: TestContext.Current.CancellationToken);
+        var result = await factory.Service().GetSchemaBatchAsync(TestConstants.QualifiedDatabaseName, Json("\"Orders\""), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.TimeoutCode, result.Error.Code);
         Assert.DoesNotContain("sensitive", result.Error.Message);
         Assert.Empty(factory.Commands);
@@ -155,7 +156,7 @@ public sealed class SchemaServiceBatchTests
         var factory = new SchemaBatchTestFactory();
         using var cancelled = new CancellationTokenSource();
         await cancelled.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => factory.Service().GetSchemaBatchAsync("DemoDB", Json("\"Orders\""), cancellationToken: cancelled.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => factory.Service().GetSchemaBatchAsync(TestConstants.QualifiedDatabaseName, Json("\"Orders\""), cancellationToken: cancelled.Token));
         Assert.Equal(0, factory.ConnectionCount);
     }
 
@@ -164,7 +165,7 @@ public sealed class SchemaServiceBatchTests
     {
         var factory = new SchemaBatchTestFactory();
         factory.Options.SchemaBatch.MaxResponseBytes = 1;
-        var result = await factory.Service().GetSchemaAsync("DemoDB", "dbo.Orders", TestContext.Current.CancellationToken);
+        var result = await factory.Service().GetSchemaAsync(TestConstants.QualifiedDatabaseName, "dbo.Orders", TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.StartsWith("# Schema for Table/View: `dbo.Orders`", result.Value);
         Assert.Contains("Discovery Index", result.Value);
@@ -189,7 +190,7 @@ public sealed class SchemaServiceBatchTests
         var rule = new ExactUnmaskedRule(schema, name);
         var metadata = new MetadataProvider(factory, bound, NullLogger<MetadataProvider>.Instance);
         var policy = new AnonymizationPolicyResolver(bound, rule);
-        var response = await factory.Service(metadata, policy).GetSchemaBatchAsync("DemoDB",
+        var response = await factory.Service(metadata, policy).GetSchemaBatchAsync(TestConstants.QualifiedDatabaseName,
             Json(JsonSerializer.Serialize(identity.QualifiedName)), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(response.Value.Complete);
@@ -210,8 +211,8 @@ public sealed class SchemaServiceBatchTests
         factory.Options.MetadataProvider.ColumnMetadataQuery = "CUSTOM_COLUMN_DESCRIPTION";
         var metadata = new MetadataProvider(factory, Options.Create(factory.Options), NullLogger<MetadataProvider>.Instance);
         var service = factory.Service(metadata);
-        var scalar = await service.GetSchemaAsync("DemoDB", "dbo.Orders", TestContext.Current.CancellationToken);
-        var batch = await service.GetSchemaBatchAsync("DemoDB", Json("\"[dbo].[Orders]\""), cancellationToken: TestContext.Current.CancellationToken);
+        var scalar = await service.GetSchemaAsync(TestConstants.QualifiedDatabaseName, "dbo.Orders", TestContext.Current.CancellationToken);
+        var batch = await service.GetSchemaBatchAsync(TestConstants.QualifiedDatabaseName, Json("\"[dbo].[Orders]\""), cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(scalar.IsSuccess);
         Assert.True(batch.Value.Complete);
         string markdown = Assert.Single(Results(batch.Value.Json)).GetProperty("markdown").GetString()!;
@@ -236,7 +237,14 @@ public sealed class SchemaServiceBatchTests
         }
 
         public Task<bool> IsExcludedAsync(SqlToAi.Domain.DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+        {
+            Assert.Equal(TestConstants.DatabaseName, target.DatabaseName);
+            Assert.Equal(TestTargets.ServerAlias, target.ServerAlias);
+            Assert.Equal(expectedSchema, schemaName);
+            Assert.Equal(expectedTable, tableName);
+            Columns.Add(columnName);
+            return Task.FromResult(columnName == "Exempt");
+        }
     }
 
     private static JsonElement Json(string json) => JsonSerializer.Deserialize<JsonElement>(json);

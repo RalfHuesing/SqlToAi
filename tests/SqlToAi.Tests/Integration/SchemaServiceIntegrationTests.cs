@@ -12,11 +12,13 @@ public sealed class SchemaServiceIntegrationTests
 {
     private readonly SqlServerFixture _fx;
     private readonly string _db;
+    private readonly string _target;
 
     public SchemaServiceIntegrationTests(SqlServerFixture fx)
     {
         _fx = fx;
         _db = TestConstants.DatabaseName;
+        _target = TestConstants.QualifiedDatabaseName;
     }
 
     [Fact]
@@ -43,7 +45,7 @@ public sealed class SchemaServiceIntegrationTests
     [Fact]
     public async Task SearchObjectsAsync_ShouldFindKnownTable()
     {
-        var result = await _fx.SchemaService.SearchObjectsAsync(_db, "FakeProjects", null, null, TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.SearchObjectsAsync(_target, "FakeProjects", null, null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value);
@@ -53,7 +55,7 @@ public sealed class SchemaServiceIntegrationTests
     [Fact]
     public async Task GetExportObjectsAsync_ShouldReturnTypedCatalog()
     {
-        var result = await _fx.SchemaService.GetExportObjectsAsync(_db, TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.GetExportObjectsAsync(_target, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.Contains(result.Value, item => item.Identity.SchemaName == "dbo"
             && item.Identity.ObjectName == "FakeProjects" && item.Identity.Kind == SchemaObjectKind.Table);
@@ -63,7 +65,7 @@ public sealed class SchemaServiceIntegrationTests
 
         var table = Assert.Single(result.Value, item => item.Identity.SchemaName == "dbo" && item.Identity.ObjectName == "FakeProjects");
         var invalidTrigger = new SchemaObject(table.Identity with { Kind = SchemaObjectKind.Trigger }, table.Identity);
-        var definition = await _fx.SchemaService.GetExportTriggerDefinitionAsync(_db, invalidTrigger, TestContext.Current.CancellationToken);
+        var definition = await _fx.SchemaService.GetExportTriggerDefinitionAsync(_target, invalidTrigger, TestContext.Current.CancellationToken);
         Assert.Equal(SqlToAiError.ObjectNotFound(table.Identity.DisplayName), definition.Error);
     }
 
@@ -71,7 +73,7 @@ public sealed class SchemaServiceIntegrationTests
     public async Task SelectedObjects_ResolveQuotedAliasesAndFollowDatabaseCatalogComparison()
     {
         string[] names = ["dbo.FakeProjects", "[dbo].[FakeProjects]", "\"dbo\".\"FakeProjects\"", "DBO.FAKEPROJECTS"];
-        var result = await _fx.SchemaService.ResolveObjectsAsync(_db, names, false, TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.ResolveObjectsAsync(_target, names, false, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.Equal(names, result.Value.Select(entry => entry.ObjectName));
         var first = result.Value[0].Object.Value;
@@ -102,7 +104,7 @@ public sealed class SchemaServiceIntegrationTests
     [Fact]
     public async Task GetSchemaAsync_ShouldReturnMarkdown_ForKnownTable()
     {
-        var result = await _fx.SchemaService.GetSchemaAsync(_db, "dbo.FakeProjects", TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.GetSchemaAsync(_target, "dbo.FakeProjects", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value);
@@ -115,7 +117,7 @@ public sealed class SchemaServiceIntegrationTests
     public async Task SchemaBatch_RetainsInteractiveScalarMarkdownAliasesAndSuccessfulSiblings()
     {
         string[] names = ["[dbo].[FakeProjects]", "dbo.FakeProjects", "DoesNotExist_Batch_ZZZZ", "[dbo].[vewFakeProjectList]"];
-        var batch = await _fx.SchemaService.GetSchemaBatchAsync(_db,
+        var batch = await _fx.SchemaService.GetSchemaBatchAsync(_target,
             objectNames: JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(names)), cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(batch.IsSuccess, IntegrationAssertions.FormatFailure(batch));
         Assert.False(batch.Value.Complete);
@@ -124,7 +126,7 @@ public sealed class SchemaServiceIntegrationTests
         Assert.Equal(names, entries.Select(item => item.GetProperty("object_name").GetString()));
         Assert.Equal(["ok", "ok", "error", "ok"], entries.Select(item => item.GetProperty("status").GetString()));
         Assert.Equal(entries[0].GetProperty("markdown").GetString(), entries[1].GetProperty("markdown").GetString());
-        var scalar = await _fx.SchemaService.GetSchemaAsync(_db, names[0], TestContext.Current.CancellationToken);
+        var scalar = await _fx.SchemaService.GetSchemaAsync(_target, names[0], TestContext.Current.CancellationToken);
         Assert.True(scalar.IsSuccess, IntegrationAssertions.FormatFailure(scalar));
         Assert.Equal(scalar.Value, entries[0].GetProperty("markdown").GetString());
         Assert.Contains("Anonymized", scalar.Value);
@@ -137,7 +139,7 @@ public sealed class SchemaServiceIntegrationTests
     [Fact]
     public async Task GetSchemaAsync_ShouldReturnMarkdown_ForKnownView()
     {
-        var result = await _fx.SchemaService.GetSchemaAsync(_db, "dbo.vewFakeProjectList", TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.GetSchemaAsync(_target, "dbo.vewFakeProjectList", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value);
@@ -146,7 +148,7 @@ public sealed class SchemaServiceIntegrationTests
     [Fact]
     public async Task GetSchemaAsync_ShouldFailCleanly_ForNonExistentObject()
     {
-        var result = await _fx.SchemaService.GetSchemaAsync(_db, "dbo.DoesNotExist_ZZZZ", TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.GetSchemaAsync(_target, "dbo.DoesNotExist_ZZZZ", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.ObjectNotFoundCode, result.Error.Code);

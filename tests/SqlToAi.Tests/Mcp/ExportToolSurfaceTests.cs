@@ -23,7 +23,7 @@ public sealed class ExportToolSurfaceTests
         var proxy = (SchemaExportTests.ExportSchemaProxy)schema;
         proxy.Objects = [new(new(1, "dbo", "Orders", SchemaObjectKind.Table)), new(new(2, "dbo", "Customers", SchemaObjectKind.Table))];
         var catalog = new CatalogFactory([new(1, "dbo", "Orders"), new(2, "dbo", "Customers")]);
-        proxy.ResolveSelected = (names, ct) => catalog.Service().GetSelectedExportObjectsAsync("DemoDB", names, ct);
+        proxy.ResolveSelected = (names, ct) => catalog.Service().GetSelectedExportObjectsAsync(TestConstants.QualifiedDatabaseName, names, ct);
         var export = open is null ? new SchemaExportService(schema, NullLogger<SchemaExportService>.Instance)
             : new SchemaExportService(schema, NullLogger<SchemaExportService>.Instance, open);
         return (ToolDispatcherTestHelper.BuildDispatcher(schema: schema, export: export), proxy);
@@ -35,7 +35,7 @@ public sealed class ExportToolSurfaceTests
         var arguments = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(selection)!;
         if (addRequired)
         {
-            arguments["database"] = JsonSerializer.SerializeToElement("DemoDB");
+            arguments["database"] = JsonSerializer.SerializeToElement(TestConstants.QualifiedDatabaseName);
             arguments["output_path"] = JsonSerializer.SerializeToElement(output);
         }
         if (route == "sdk")

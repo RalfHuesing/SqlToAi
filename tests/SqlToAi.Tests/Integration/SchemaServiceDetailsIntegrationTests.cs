@@ -7,18 +7,18 @@ namespace SqlToAi.Tests.Integration;
 public sealed class SchemaServiceDetailsIntegrationTests
 {
     private readonly SqlServerFixture _fx;
-    private readonly string _db;
+    private readonly string _target;
 
     public SchemaServiceDetailsIntegrationTests(SqlServerFixture fx)
     {
         _fx = fx;
-        _db = TestConstants.DatabaseName;
+        _target = TestConstants.QualifiedDatabaseName;
     }
 
     [Fact]
     public async Task GetSchemaForeignKeysAsync_ShouldReturnResult_ForTable()
     {
-        var result = await _fx.SchemaService.GetSchemaForeignKeysAsync(_db, "dbo.FakeProjects", TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.GetSchemaForeignKeysAsync(_target, "dbo.FakeProjects", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotNull(result.Value);
@@ -27,7 +27,7 @@ public sealed class SchemaServiceDetailsIntegrationTests
     [Fact]
     public async Task GetSchemaForeignKeysAsync_ShouldMergeCompositeKeyColumns_IntoSingleRow()
     {
-        var result = await _fx.SchemaService.GetSchemaForeignKeysAsync(_db, "dbo.FakeAddressCommunications", TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.GetSchemaForeignKeysAsync(_target, "dbo.FakeAddressCommunications", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
 
@@ -43,7 +43,7 @@ public sealed class SchemaServiceDetailsIntegrationTests
     [Fact]
     public async Task GetSchemaIndexesAsync_ShouldReturnAtLeastOneIndex()
     {
-        var result = await _fx.SchemaService.GetSchemaIndexesAsync(_db, "dbo.FakeProjects", TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.GetSchemaIndexesAsync(_target, "dbo.FakeProjects", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value);
@@ -52,7 +52,7 @@ public sealed class SchemaServiceDetailsIntegrationTests
     [Fact]
     public async Task GetSchemaConstraintsAsync_ShouldNotFail()
     {
-        var result = await _fx.SchemaService.GetSchemaConstraintsAsync(_db, "dbo.FakeProjects", TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.GetSchemaConstraintsAsync(_target, "dbo.FakeProjects", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotNull(result.Value);
@@ -61,7 +61,7 @@ public sealed class SchemaServiceDetailsIntegrationTests
     [Fact]
     public async Task GetRoutineParametersAsync_ShouldReturnParameters_ForKnownProcedure()
     {
-        var result = await _fx.SchemaService.GetRoutineParametersAsync(_db, "dbo.spFakeSysTan", TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.GetRoutineParametersAsync(_target, "dbo.spFakeSysTan", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value);
@@ -70,7 +70,7 @@ public sealed class SchemaServiceDetailsIntegrationTests
     [Fact]
     public async Task GetObjectReferencesAsync_ShouldReturnResult_ForKnownTable()
     {
-        var result = await _fx.SchemaService.GetObjectReferencesAsync(_db, "dbo.FakeProjects", TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.GetObjectReferencesAsync(_target, "dbo.FakeProjects", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotNull(result.Value);
@@ -79,7 +79,7 @@ public sealed class SchemaServiceDetailsIntegrationTests
     [Fact]
     public async Task GetSchemaForeignKeysAsync_ShouldFail_WhenObjectIsRoutine()
     {
-        var result = await _fx.SchemaService.GetSchemaForeignKeysAsync(_db, "dbo.spFakeSysTan", TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.GetSchemaForeignKeysAsync(_target, "dbo.spFakeSysTan", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.InvalidDetailQueryTypeCode, result.Error.Code);
@@ -88,7 +88,7 @@ public sealed class SchemaServiceDetailsIntegrationTests
     [Fact]
     public async Task GetSchemaIndexesAsync_ShouldFail_WhenObjectIsRoutine()
     {
-        var result = await _fx.SchemaService.GetSchemaIndexesAsync(_db, "dbo.spFakeSysTan", TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.GetSchemaIndexesAsync(_target, "dbo.spFakeSysTan", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.InvalidDetailQueryTypeCode, result.Error.Code);
@@ -97,7 +97,7 @@ public sealed class SchemaServiceDetailsIntegrationTests
     [Fact]
     public async Task GetSchemaConstraintsAsync_ShouldFail_WhenObjectIsRoutine()
     {
-        var result = await _fx.SchemaService.GetSchemaConstraintsAsync(_db, "dbo.spFakeSysTan", TestContext.Current.CancellationToken);
+        var result = await _fx.SchemaService.GetSchemaConstraintsAsync(_target, "dbo.spFakeSysTan", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.InvalidDetailQueryTypeCode, result.Error.Code);

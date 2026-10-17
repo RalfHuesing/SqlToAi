@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Text;
 using Dapper;
 using SqlToAi.Anonymization;
+using SqlToAi.Domain;
 using SqlToAi.Metadata;
 
 namespace SqlToAi.Database;
@@ -23,12 +24,103 @@ internal sealed class TableSchemaRenderer
         _policyResolver = policyResolver;
     }
 
-    public async Task<string> GetTableSchemaMarkdownAsync(DbConnection connection, string databaseName, string tableName, CancellationToken cancellationToken,
-        SchemaRenderingContext? context = null, SchemaObjectIdentity? interactiveIdentity = null)
+    public async Task<string> GetTableSchemaMarkdownAsync(
+        DbConnection connection,
+        DatabaseTargetContext target,
+        string tableName,
+        CancellationToken cancellationToken,
+        SchemaRenderingContext? context = null,
+        SchemaObjectIdentity? interactiveIdentity = null)
     {
         // Query columns list
         string columnsSql = """
             SELECT 
+                c.name AS ColumnName,
+                t.name AS DataType,
+                c.max_length AS MaxLength,
+                c.precision AS Precision,
+                c.scale AS Scale,
+                c.is_nullable AS IsNullable,
+                c.is_identity AS IsIdentity,
+                ISNULL(pk.is_primary_key, 0) AS IsPrimaryKey
+            FROM sys.columns c
+            INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+            LEFT JOIN (
+                SELECT ic.object_id, ic.column_id, 1 AS is_primary_key
+                FROM sys.index_columns ic
+                INNER JOIN sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+                WHERE i.is_primary_key = 1
+            ) pk ON c.object_id = pk.object_id AND c.column_id = pk.column_id
+            WHERE c.object_id = OBJECT_ID(@TableName)
+            ORDER BY c.column_id
+            """;
+
+        var columns = await connection.QueryAsync<ColumnRow>(
+            new CommandDefinition(columnsSql, new { TableName = tableName }, cancellationToken: cancellationToken));
+
+        string? tableDesc = null;
+        IReadOnlyDictionary<string, string>? columnDescs = null;
+        IReadOnlyDictionary<string, ColumnAnonymizationState>? anonymizedFlags = null;
+        if (context is null)
+        {
+            tableDesc = interactiveIdentity is null
+                ? await _metadataProvider.GetTableDescriptionAsync(target, tableName, cancellationToken)
+                : await _metadataProvider.GetTableDescriptionAsync(target, interactiveIdentity, cancellationToken);
+            columnDescs = interactiveIdentity is null
+                ? await _metadataProvider.GetColumnDescriptionsAsync(target, tableName, cancellationToken)
+                : await _metadataProvider.GetColumnDescriptionsAsync(target, interactiveIdentity, cancellationToken);
+            anonymizedFlags = await ResolveAnonymizedFlagsAsync(target, tableName, columns, cancellationToken, interactiveIdentity);
+        }
+
+        var triggers = (await QueryTriggersAsync(connection, tableName, cancellationToken)).ToList();
+
+        var sb = new StringBuilder();
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"# Schema for Table/View: {(context is null ? $"`{tableName}`" : OfflineSqlNameFormatter.Code(context.Source.DisplayName))}");
+        if (!string.IsNullOrWhiteSpace(tableDesc))
+        {
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"*Description:* {tableDesc}").AppendLine();
+        }
+
+        AppendColumnsTable(sb, columns, columnDescs, anonymizedFlags);
+        AppendTriggersTable(sb, triggers, context);
+        if (context is null) await AppendDiscoveryIndexAsync(sb, connection, tableName, triggers, cancellationToken);
+
+        return sb.ToString();
+    }
+
+    public Task<string> GetTableSchemaMarkdownAsync(
+        DbConnection connection,
+        string databaseName,
+        string tableName,
+        CancellationToken cancellationToken,
+        SchemaRenderingContext? context = null,
+        SchemaObjectIdentity? interactiveIdentity = null)
+    {
+        var parsed = DatabaseTargetParser.Parse(databaseName);
+        if (parsed.IsSuccess)
+        {
+            return GetTableSchemaMarkdownAsync(
+                connection,
+                new DatabaseTargetContext(parsed.Value.ServerAlias, parsed.Value.DatabaseName),
+                tableName,
+                cancellationToken,
+                context,
+                interactiveIdentity);
+        }
+
+        return GetTableSchemaMarkdownLegacyAsync(connection, databaseName, tableName, cancellationToken, context, interactiveIdentity);
+    }
+
+    private async Task<string> GetTableSchemaMarkdownLegacyAsync(
+        DbConnection connection,
+        string databaseName,
+        string tableName,
+        CancellationToken cancellationToken,
+        SchemaRenderingContext? context,
+        SchemaObjectIdentity? interactiveIdentity)
+    {
+        string columnsSql = """
+            SELECT
                 c.name AS ColumnName,
                 t.name AS DataType,
                 c.max_length AS MaxLength,
@@ -63,7 +155,7 @@ internal sealed class TableSchemaRenderer
             columnDescs = interactiveIdentity is null
                 ? await _metadataProvider.GetColumnDescriptionsAsync(databaseName, tableName, cancellationToken)
                 : await _metadataProvider.GetColumnDescriptionsAsync(databaseName, interactiveIdentity, cancellationToken);
-            anonymizedFlags = await ResolveAnonymizedFlagsAsync(databaseName, tableName, columns, cancellationToken, interactiveIdentity);
+            anonymizedFlags = await ResolveAnonymizedFlagsLegacyAsync(databaseName, tableName, columns, cancellationToken, interactiveIdentity);
         }
 
         var triggers = (await QueryTriggersAsync(connection, tableName, cancellationToken)).ToList();
@@ -95,24 +187,50 @@ internal sealed class TableSchemaRenderer
         SearchableToken
     }
 
+    private async Task<IReadOnlyDictionary<string, ColumnAnonymizationState>> ResolveAnonymizedFlagsAsync(
+        DatabaseTargetContext target, string tableName, IEnumerable<ColumnRow> columns, CancellationToken cancellationToken, SchemaObjectIdentity? identity)
+    {
+        var flags = new Dictionary<string, ColumnAnonymizationState>(StringComparer.OrdinalIgnoreCase);
+        foreach (var col in columns)
+        {
+            flags[col.ColumnName] = await ResolveColumnStateAsync(target, tableName, col, cancellationToken, identity);
+        }
+        return flags;
+    }
+
+    private async Task<ColumnAnonymizationState> ResolveColumnStateAsync(
+        DatabaseTargetContext target, string tableName, ColumnRow col, CancellationToken cancellationToken, SchemaObjectIdentity? identity)
+    {
+        bool willAnonymize = AnonymizableSqlTypes.Contains(col.DataType)
+            && (identity is null
+                ? await _policyResolver.WillAnonymizeAsync(target, tableName, col.ColumnName, cancellationToken)
+                : await _policyResolver.WillAnonymizeAsync(target, identity, col.ColumnName, cancellationToken));
+        if (!willAnonymize)
+        {
+            return ColumnAnonymizationState.None;
+        }
+
+        return _policyResolver.IsTokenizationActive ? ColumnAnonymizationState.SearchableToken : ColumnAnonymizationState.Masked;
+    }
+
     /// <summary>
     /// Resolves, once per column, whether its string values would currently be anonymized —
     /// so the schema markdown can tell the caller upfront, before any query is written. Columns
     /// whose SQL type is never read as a string (e.g. int, bit) are never anonymized regardless
     /// of configuration, so they are reported as "No" without even asking the policy resolver.
     /// </summary>
-    private async Task<IReadOnlyDictionary<string, ColumnAnonymizationState>> ResolveAnonymizedFlagsAsync(
+    private async Task<IReadOnlyDictionary<string, ColumnAnonymizationState>> ResolveAnonymizedFlagsLegacyAsync(
         string databaseName, string tableName, IEnumerable<ColumnRow> columns, CancellationToken cancellationToken, SchemaObjectIdentity? identity)
     {
         var flags = new Dictionary<string, ColumnAnonymizationState>(StringComparer.OrdinalIgnoreCase);
         foreach (var col in columns)
         {
-            flags[col.ColumnName] = await ResolveColumnStateAsync(databaseName, tableName, col, cancellationToken, identity);
+            flags[col.ColumnName] = await ResolveColumnStateLegacyAsync(databaseName, tableName, col, cancellationToken, identity);
         }
         return flags;
     }
 
-    private async Task<ColumnAnonymizationState> ResolveColumnStateAsync(
+    private async Task<ColumnAnonymizationState> ResolveColumnStateLegacyAsync(
         string databaseName, string tableName, ColumnRow col, CancellationToken cancellationToken, SchemaObjectIdentity? identity)
     {
         bool willAnonymize = AnonymizableSqlTypes.Contains(col.DataType)
