@@ -38,8 +38,8 @@ public sealed class SchemaServiceTests
         // Assert
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value.Count);
-        Assert.Contains(TestConstants.DatabaseName, result.Value);
-        Assert.Contains("SalesDb", result.Value);
+        Assert.Contains(TestConstants.QualifiedDatabaseName, result.Value);
+        Assert.Contains($"{TestTargets.ServerAlias}/SalesDb", result.Value);
     }
 
     [Fact]

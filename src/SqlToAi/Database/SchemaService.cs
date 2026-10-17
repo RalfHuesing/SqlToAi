@@ -107,6 +107,7 @@ public sealed class SchemaService : ISchemaService
 
             var allowedDbs = databases
                 .Where(db => _securityGuard.IsTargetAllowed(new DatabaseTargetContext(canonicalServer, db)))
+                .Select(db => $"{canonicalServer}/{db}")
                 .OrderBy(db => db, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -145,7 +146,7 @@ public sealed class SchemaService : ISchemaService
                 var target = new DatabaseTargetContext(canonicalServer, parsed.Value.DatabaseName);
                 if (_securityGuard.IsTargetAllowed(target))
                 {
-                    dbNames.Add(parsed.Value.DatabaseName);
+                    dbNames.Add(target.QualifiedName);
                 }
             }
         }
@@ -167,7 +168,12 @@ public sealed class SchemaService : ISchemaService
         }
 
         var filtered = dbsResult.Value
-            .Where(db => db.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+            .Where(qualified =>
+            {
+                var parsed = DatabaseTargetParser.Parse(qualified);
+                string rawDb = parsed.IsSuccess ? parsed.Value.DatabaseName : qualified;
+                return rawDb.Contains(searchTerm, StringComparison.OrdinalIgnoreCase);
+            })
             .ToList();
 
         return filtered;

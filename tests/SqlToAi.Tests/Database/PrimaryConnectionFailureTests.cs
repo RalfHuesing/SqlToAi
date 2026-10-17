@@ -120,7 +120,7 @@ public sealed class PrimaryConnectionFailureTests
         using var harness = new FailureHarness(new InvalidOperationException(RawMarker));
         var result = await harness.Schema.ListDatabasesAsync(TestTargets.ServerAlias, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
-        Assert.Contains(TestConstants.DatabaseName, result.Value);
+        Assert.Contains(TestConstants.QualifiedDatabaseName, result.Value);
         AssertSafe(string.Join(",", result.Value), harness);
     }
 

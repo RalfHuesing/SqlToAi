@@ -123,16 +123,16 @@ public sealed class ServerDiscoveryTargetIsolationTests
         var resultAlpha = await service.ListDatabasesAsync("alpha", TestContext.Current.CancellationToken);
         Assert.True(resultAlpha.IsSuccess);
         Assert.Equal(2, resultAlpha.Value.Count);
-        Assert.Contains("CustomersDb", resultAlpha.Value);
-        Assert.Contains("OrdersDb", resultAlpha.Value);
-        Assert.DoesNotContain("FinanceDb", resultAlpha.Value);
+        Assert.Contains("alpha/CustomersDb", resultAlpha.Value);
+        Assert.Contains("alpha/OrdersDb", resultAlpha.Value);
+        Assert.DoesNotContain("beta/FinanceDb", resultAlpha.Value);
 
         var resultBeta = await service.ListDatabasesAsync("beta", TestContext.Current.CancellationToken);
         Assert.True(resultBeta.IsSuccess);
         Assert.Single(resultBeta.Value);
-        Assert.Contains("FinanceDb", resultBeta.Value);
-        Assert.DoesNotContain("CustomersDb", resultBeta.Value);
-        Assert.DoesNotContain("OrdersDb", resultBeta.Value);
+        Assert.Contains("beta/FinanceDb", resultBeta.Value);
+        Assert.DoesNotContain("alpha/CustomersDb", resultBeta.Value);
+        Assert.DoesNotContain("alpha/OrdersDb", resultBeta.Value);
 
         Assert.Equal(2, factory.CatalogConnectionCount);
         Assert.Equal(["alpha", "beta"], factory.OpenedCatalogServers);
@@ -147,15 +147,15 @@ public sealed class ServerDiscoveryTargetIsolationTests
         var resultAlpha = await service.ListDatabasesAsync("alpha", TestContext.Current.CancellationToken);
         Assert.True(resultAlpha.IsSuccess);
         Assert.Equal(2, resultAlpha.Value.Count);
-        Assert.Contains("CustomersDb", resultAlpha.Value);
-        Assert.Contains("OrdersDb", resultAlpha.Value);
-        Assert.DoesNotContain("FinanceDb", resultAlpha.Value);
+        Assert.Contains("alpha/CustomersDb", resultAlpha.Value);
+        Assert.Contains("alpha/OrdersDb", resultAlpha.Value);
+        Assert.DoesNotContain("beta/FinanceDb", resultAlpha.Value);
 
         var resultBeta = await service.ListDatabasesAsync("beta", TestContext.Current.CancellationToken);
         Assert.True(resultBeta.IsSuccess);
         Assert.Single(resultBeta.Value);
-        Assert.Contains("FinanceDb", resultBeta.Value);
-        Assert.DoesNotContain("CustomersDb", resultBeta.Value);
+        Assert.Contains("beta/FinanceDb", resultBeta.Value);
+        Assert.DoesNotContain("alpha/CustomersDb", resultBeta.Value);
     }
 
     [Theory]
@@ -180,16 +180,21 @@ public sealed class ServerDiscoveryTargetIsolationTests
         var matchOrders = await service.SearchDatabasesAsync("alpha", "ord", TestContext.Current.CancellationToken);
         Assert.True(matchOrders.IsSuccess);
         Assert.Single(matchOrders.Value);
-        Assert.Equal("OrdersDb", matchOrders.Value[0]);
+        Assert.Equal("alpha/OrdersDb", matchOrders.Value[0]);
 
         var matchAll = await service.SearchDatabasesAsync("alpha", "db", TestContext.Current.CancellationToken);
         Assert.True(matchAll.IsSuccess);
         Assert.Equal(2, matchAll.Value.Count);
-        Assert.Contains("CustomersDb", matchAll.Value);
-        Assert.Contains("OrdersDb", matchAll.Value);
+        Assert.Contains("alpha/CustomersDb", matchAll.Value);
+        Assert.Contains("alpha/OrdersDb", matchAll.Value);
 
         var matchNone = await service.SearchDatabasesAsync("alpha", "Finance", TestContext.Current.CancellationToken);
         Assert.True(matchNone.IsSuccess);
         Assert.Empty(matchNone.Value);
+
+        // Searching for server alias does not match because search operates on raw DB name only
+        var matchAlias = await service.SearchDatabasesAsync("alpha", "alpha", TestContext.Current.CancellationToken);
+        Assert.True(matchAlias.IsSuccess);
+        Assert.Empty(matchAlias.Value);
     }
 }

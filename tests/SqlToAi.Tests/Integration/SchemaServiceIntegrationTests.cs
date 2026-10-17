@@ -30,7 +30,7 @@ public sealed class SchemaServiceIntegrationTests
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value);
-        Assert.Contains(_db, result.Value);
+        Assert.Contains(_target, result.Value);
     }
 
     [Fact]
@@ -42,6 +42,7 @@ public sealed class SchemaServiceIntegrationTests
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value);
+        Assert.Contains(_target, result.Value);
     }
 
     [Fact]
