@@ -47,6 +47,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
     private readonly QueryExecutionOptions _options;
     private readonly string _anonymizationMode;
     private readonly TokenizationOptions _tokenizationOptions;
+    private readonly DatabaseTargetResolver _targets;
     private readonly ILogger<QueryExecutionService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="QueryExecutionService"/>.</summary>
@@ -65,6 +66,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
         _options = options.Value.QueryExecution;
         _anonymizationMode = options.Value.Anonymizer.DefaultMode;
         _tokenizationOptions = options.Value.Anonymizer.Tokenization;
+        _targets = new DatabaseTargetResolver(options.Value);
         _logger = logger;
     }
 
@@ -86,9 +88,18 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
         object? parameters,
         CancellationToken cancellationToken = default)
     {
+        // Resolve the caller's qualified target once; malformed, unqualified or unknown targets
+        // are rejected with SQL-AI-0001 before any validation or database work.
+        var targetResult = _targets.Resolve(databaseName);
+        if (targetResult.IsFailure)
+        {
+            return targetResult.Error;
+        }
+        DatabaseTargetContext target = targetResult.Value;
+
         // 1-5. Run the shared 6-stage guardrail pipeline (single source of truth).
         var safetyResult = await _querySafetyValidator
-            .ValidateQuerySafetyAsync(databaseName, query, allowSchemaOnly: false, cancellationToken)
+            .ValidateTargetQuerySafetyAsync(target, query, allowSchemaOnly: false, cancellationToken)
             .ConfigureAwait(false);
         if (safetyResult.IsFailure)
         {
@@ -106,17 +117,18 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
 
         // Detokenization runs only for anonymized databases (the only place tokens are ever
         // issued) and after the safety/multi-statement checks above, so it substitutes literal
-        // values only — it never changes the query's structure.
+        // values only — it never changes the query's structure. Resolution is scoped to the
+        // resolved target, so foreign tokens stay literal SQL text.
         string effectiveQuery = anonymize && _queryTokenResolver != null
-            ? _queryTokenResolver.ResolveTokens(query)
+            ? _queryTokenResolver.ResolveTokens(query, target)
             : query;
 
         return await ExecuteQueryInTransactionAsync(
-            databaseName, effectiveQuery, effectiveLimit, anonymize, writeAllowed, parameters, cancellationToken);
+            target, effectiveQuery, effectiveLimit, anonymize, writeAllowed, parameters, cancellationToken);
     }
 
     private async Task<Result<QueryExecutionResult>> ExecuteQueryInTransactionAsync(
-        string databaseName,
+        DatabaseTargetContext target,
         string query,
         int effectiveLimit,
         bool anonymize,
@@ -126,8 +138,8 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
     {
         try
         {
-            await using var connection = _connectionFactory.CreateConnection(databaseName);
-            await PrimaryConnection.OpenAsync(connection, cancellationToken);
+            await using var connection = _connectionFactory.CreateTargetConnection(target);
+            await PrimaryConnection.OpenTargetAsync(connection, target, cancellationToken);
 
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 
@@ -138,7 +150,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
             {
                 baselineTranCount = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, _options.CommandTimeoutSeconds, cancellationToken);
                 var execArgs = new QueryBatchExecutionArgs(
-                    connection, transaction, databaseName, query, effectiveLimit, anonymize, parameters);
+                    connection, transaction, target.QualifiedName, query, effectiveLimit, anonymize, parameters, target);
                 result = await ((IQueryBatchExecutor)this).ExecuteBatchAsync(execArgs, cancellationToken);
                 int tranCountAfterExecution = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, _options.CommandTimeoutSeconds, cancellationToken);
                 tranCountChanged = tranCountAfterExecution != baselineTranCount;
@@ -151,7 +163,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
 
             if (!writeAllowed && tranCountChanged)
             {
-                return await TransactionIntegrityGuard.RejectViolationAsync(_logger, databaseName, transaction, _options.CommandTimeoutSeconds);
+                return await TransactionIntegrityGuard.RejectViolationAsync(_logger, target.QualifiedName, transaction, _options.CommandTimeoutSeconds);
             }
 
             if (writeAllowed)
@@ -175,7 +187,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
         }
         catch (Exception ex)
         {
-            LogQueryFailed(_logger, databaseName, query, ex);
+            LogQueryFailed(_logger, target.QualifiedName, query, ex);
             string? anonymizedMessage = anonymize ? BuildAnonymizedQueryErrorMessage(ex) : null;
             return SqlToAiErrorMapper.MapException(ex, anonymizedMessage);
         }
@@ -242,7 +254,8 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
                 do
                 {
                     string[] columnNames = GetColumnNames(reader);
-                    var anonCtx = await ResolveAnonymizationContextAsync(reader, columnNames, args.Anonymize, args.DatabaseName, cancellationToken);
+                    var anonCtx = await ResolveAnonymizationContextAsync(
+                        reader, columnNames, args.Anonymize, args.Target, args.DatabaseName, cancellationToken);
 
                     while (rowCount < args.RowLimit && await reader.ReadAsync(cancellationToken))
                     {

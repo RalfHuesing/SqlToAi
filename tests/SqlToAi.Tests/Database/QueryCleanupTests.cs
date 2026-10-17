@@ -185,24 +185,24 @@ public sealed class QueryCleanupTests
         var options = Options.Create(new SqlToAiOptions
         {
             QueryExecution = new QueryExecutionOptions { CommandTimeoutSeconds = commandTimeout }
-        });
+        }.WithNamedServers(TestTargets.ServerAlias));
         var safety = new FakeQuerySafetyValidator(new QuerySafetyCheckResult(AccessLevel.ReadOnly, false));
         if (validation)
         {
             var service = new QueryValidationService(factory, safety, options, NullLogger<QueryValidationService>.Instance);
-            var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "SELECT 1", cancellationToken);
+            var result = await service.ValidateQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT 1", cancellationToken);
             return result.IsFailure ? result.Error : null;
         }
         var execution = new QueryExecutionService(factory, safety,
             new AnonymizationDependencies(new Anonymizer(options, new TokenVault())),
             options, NullLogger<QueryExecutionService>.Instance);
-        var queryResult = await execution.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, cancellationToken);
+        var queryResult = await execution.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT 1", null, cancellationToken);
         return queryResult.IsFailure ? queryResult.Error : null;
     }
 
     private sealed class CleanupConnectionFactory : IDatabaseConnectionFactory
     {
-        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
         public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
         internal Exception? MainFailure { get; init; }

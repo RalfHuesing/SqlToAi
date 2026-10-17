@@ -28,7 +28,7 @@ public sealed class QueryValidationServiceTests
         var factory = new ValidationMockConnectionFactory();
         var service = BuildService(factory: factory, accessLevel: AccessLevel.ReadWrite);
 
-        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, sql, TestContext.Current.CancellationToken);
+        var result = await service.ValidateQueryAsync(TestConstants.QualifiedDatabaseName, sql, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error.Code);
@@ -44,7 +44,7 @@ public sealed class QueryValidationServiceTests
     {
         var factory = new ValidationMockConnectionFactory();
         var result = await BuildService(factory: factory, accessLevel: AccessLevel.ReadWrite)
-            .ValidateQueryAsync(TestConstants.DatabaseName, sql, TestContext.Current.CancellationToken);
+            .ValidateQueryAsync(TestConstants.QualifiedDatabaseName, sql, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
         Assert.NotNull(factory.LastConnection);
@@ -56,7 +56,7 @@ public sealed class QueryValidationServiceTests
     {
         var factory = new ValidationMockConnectionFactory();
         var result = await BuildService(factory: factory, accessLevel: AccessLevel.ReadWrite)
-            .ValidateQueryAsync(TestConstants.DatabaseName, "SELECT FROM", TestContext.Current.CancellationToken);
+            .ValidateQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT FROM", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
@@ -70,7 +70,7 @@ public sealed class QueryValidationServiceTests
         SqlToAiOptions? options = null,
         SqlToAiError? error = null)
     {
-        options ??= new SqlToAiOptions();
+        options ??= new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         factory ??= new ValidationMockConnectionFactory();
 
         IQuerySafetyValidator safetyValidator = error != null
@@ -96,7 +96,7 @@ public sealed class QueryValidationServiceTests
             accessLevel: AccessLevel.ReadOnly,
             error: SqlToAiError.WriteOperationBlocked("The query contains mutating SQL keywords and was rejected."));
 
-        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "DELETE FROM Foo", TestContext.Current.CancellationToken);
+        var result = await service.ValidateQueryAsync(TestConstants.QualifiedDatabaseName, "DELETE FROM Foo", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
@@ -111,7 +111,7 @@ public sealed class QueryValidationServiceTests
         var factory = new ValidationMockConnectionFactory();
         var service = BuildService(factory: factory, accessLevel: AccessLevel.ReadWrite);
 
-        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "DELETE FROM Foo", TestContext.Current.CancellationToken);
+        var result = await service.ValidateQueryAsync(TestConstants.QualifiedDatabaseName, "DELETE FROM Foo", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
         Assert.NotNull(factory.LastConnection);
@@ -136,7 +136,7 @@ public sealed class QueryValidationServiceTests
             accessLevel: AccessLevel.ReadOnly,
             error: SqlToAiError.WriteOperationBlocked("The query contains mutating SQL keywords and was rejected."));
 
-        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, query, TestContext.Current.CancellationToken);
+        var result = await service.ValidateQueryAsync(TestConstants.QualifiedDatabaseName, query, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
@@ -158,7 +158,7 @@ public sealed class QueryValidationServiceTests
             accessLevel: accessLevel,
             error: SqlToAiError.MultipleStatementsForbidden());
 
-        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "SELECT 1; SELECT 2", TestContext.Current.CancellationToken);
+        var result = await service.ValidateQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT 1; SELECT 2", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, result.Error.Code);
@@ -175,7 +175,7 @@ public sealed class QueryValidationServiceTests
         var factory = new ValidationMockConnectionFactory();
         var service = BuildService(factory: factory);
 
-        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
+        var result = await service.ValidateQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);
@@ -189,7 +189,7 @@ public sealed class QueryValidationServiceTests
         var factory = new ValidationMockConnectionFactory(throwOnExecute: executionException);
         var service = BuildService(factory: factory);
 
-        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
+        var result = await service.ValidateQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
@@ -204,7 +204,7 @@ public sealed class QueryValidationServiceTests
         var factory = new ValidationMockConnectionFactory(throwOnExecute: timeoutException);
         var service = BuildService(factory: factory);
 
-        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
+        var result = await service.ValidateQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.TimeoutCode, result.Error.Code);
@@ -217,7 +217,7 @@ public sealed class QueryValidationServiceTests
         var factory = new ValidationMockConnectionFactory(throwOnExecute: socketException);
         var service = BuildService(factory: factory);
 
-        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
+        var result = await service.ValidateQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.InfrastructureErrorCode, result.Error.Code);
@@ -238,11 +238,11 @@ public sealed class QueryValidationServiceTests
         {
             SqlServer = new SqlServerOptions { ConnectTimeoutSeconds = 99 },
             QueryExecution = new QueryExecutionOptions { CommandTimeoutSeconds = 42 },
-        };
+        }.WithNamedServers(TestTargets.ServerAlias);
         var factory = new ValidationMockConnectionFactory();
         var service = BuildService(factory: factory, options: options);
 
-        var result = await service.ValidateQueryAsync(TestConstants.DatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
+        var result = await service.ValidateQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT 1", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
         Assert.Equal(3, factory.ObservedCommandTimeouts.Count);
@@ -259,7 +259,7 @@ public sealed class QueryValidationServiceTests
 
 internal sealed class ValidationMockConnectionFactory(Exception? throwOnExecute = null) : IDatabaseConnectionFactory
 {
-    public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+    public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
     public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
     /// <summary>The most recently created connection — lets tests inspect its transaction.</summary>

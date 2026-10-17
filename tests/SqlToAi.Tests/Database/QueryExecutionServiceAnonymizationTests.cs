@@ -21,7 +21,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldAnonymizeStrings_WhenReadOnlyAnonymized()
     {
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         options.Anonymizer.Enabled = true;
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("Ralf Huesing"));
         var service = new QueryExecutionService(
@@ -33,7 +33,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.DoesNotContain("Ralf Huesing", result.Value.Data, StringComparison.OrdinalIgnoreCase);
         Assert.True(result.Value.WasAnonymized);
@@ -43,7 +43,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldAnonymizeStrings_WhenQueryContainsDeclare()
     {
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         options.Anonymizer.Enabled = true;
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("Ralf Huesing"));
         var service = new QueryExecutionService(
@@ -56,7 +56,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         const string declareQuery = "DECLARE @Id int = 1; SELECT Name FROM Customers WHERE Id = @Id";
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, declareQuery, null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, declareQuery, null, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.DoesNotContain("Ralf Huesing", result.Value.Data, StringComparison.OrdinalIgnoreCase);
         Assert.True(result.Value.WasAnonymized);
@@ -67,7 +67,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
     public async Task ExecuteQueryAsync_ShouldNotAnonymize_WhenReadOnly()
     {
         const string original = "Ralf Huesing";
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         options.Anonymizer.Enabled = true;
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original));
         var service = new QueryExecutionService(
@@ -79,7 +79,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
         Assert.True(result.IsSuccess);
         Assert.Contains(original, result.Value.Data, StringComparison.OrdinalIgnoreCase);
         Assert.False(result.Value.WasAnonymized);
@@ -91,7 +91,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldQualifyAnonymizedColumns_WithResolvedTableName()
     {
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         options.Anonymizer.Enabled = true;
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("Ralf Huesing", Origin: new MockSchemaOrigin(BaseTableName: "FakeConsultants")));
         var service = new QueryExecutionService(
@@ -103,7 +103,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM FakeConsultants", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT Name FROM FakeConsultants", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.True(result.Value.WasAnonymized);
@@ -114,7 +114,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
     public async Task ExecuteQueryAsync_ShouldNotAnonymize_WhenCentralRuleProviderExcludesColumn()
     {
         const string original = "Ralf Huesing";
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         options.Anonymizer.Enabled = true;
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original, Origin: new MockSchemaOrigin(
             BaseTableName: "FakeConsultants", BaseColumnName: "Name", BaseSchemaName: "dbo")));
@@ -127,7 +127,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault()), RuleProvider: new AlwaysExcludeRuleProvider()),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM FakeConsultants", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT Name FROM FakeConsultants", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Contains(original, result.Value.Data, StringComparison.OrdinalIgnoreCase);
@@ -141,7 +141,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
     public async Task ExecuteQueryAsync_CentralExclusionUsesSourceColumnInsteadOfAlias(string excludedColumn, bool expectedRaw)
     {
         const string original = "synthetic-secret-123";
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         options.Anonymizer.Enabled = true;
         var ruleProvider = new ColumnNameRuleProvider(excludedColumn);
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original,
@@ -157,7 +157,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(
-            TestConstants.DatabaseName, "SELECT SSN AS FullName FROM FakeConsultants", null, TestContext.Current.CancellationToken);
+            TestConstants.QualifiedDatabaseName, "SELECT SSN AS FullName FROM FakeConsultants", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(expectedRaw, result.Value.Data.Contains(original, StringComparison.Ordinal));
@@ -179,7 +179,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
         const string original = "synthetic-secret-123";
         var options = tokenizationEnabled
             ? AnonymizationTestHelper.BuildTokenizationOptions()
-            : new SqlToAiOptions();
+            : new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         options.Anonymizer.Enabled = true;
         var ruleProvider = new ColumnNameRuleProvider("FullName");
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original,
@@ -195,7 +195,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(
-            TestConstants.DatabaseName, "SELECT SSN AS FullName FROM FakeConsultants", null, TestContext.Current.CancellationToken);
+            TestConstants.QualifiedDatabaseName, "SELECT SSN AS FullName FROM FakeConsultants", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.DoesNotContain(original, result.Value.Data, StringComparison.Ordinal);
@@ -210,7 +210,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
     public async Task ExecuteQueryAsync_KeepsDefaultMaskingWhenSchemaTableIsUnavailable()
     {
         const string original = "synthetic-secret-123";
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         options.Anonymizer.Enabled = true;
         var ruleProvider = new ColumnNameRuleProvider("FullName");
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original,
@@ -225,7 +225,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(
-            TestConstants.DatabaseName, "SELECT SSN AS FullName FROM FakeConsultants", null, TestContext.Current.CancellationToken);
+            TestConstants.QualifiedDatabaseName, "SELECT SSN AS FullName FROM FakeConsultants", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.DoesNotContain(original, result.Value.Data, StringComparison.Ordinal);
@@ -348,7 +348,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
         var options = AnonymizationTestHelper.BuildTokenizationOptions();
         var (service, _, vault) = BuildTokenizingService(options, realValue, columnName: "SomeArbitraryColumn");
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT SomeArbitraryColumn FROM Whatever", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT SomeArbitraryColumn FROM Whatever", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.DoesNotContain(realValue, result.Value.Data, StringComparison.Ordinal);
@@ -356,7 +356,8 @@ public sealed class QueryExecutionServiceAnonymizationTests
 
         string token = ExtractColumnValue(result.Value.Data, "SomeArbitraryColumn");
         Assert.StartsWith(options.Anonymizer.Tokenization.Prefix, token, StringComparison.Ordinal);
-        Assert.True(vault.TryResolve(token, out string? resolved));
+        var target = TestTargets.ResolveTarget(options, TestConstants.QualifiedDatabaseName);
+        Assert.True(vault.TryResolve(token, target, out string? resolved));
         Assert.Equal(realValue, resolved);
 
         Assert.Contains("SomeArbitraryColumn", result.Value.SearchableTokenColumns);
@@ -370,7 +371,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
         var options = AnonymizationTestHelper.BuildTokenizationOptions(enabled: false);
         var (service, _, _) = BuildTokenizingService(options, original, columnName: "Name");
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT Name FROM Customers", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.DoesNotContain("§§§", result.Value.Data, StringComparison.Ordinal);
@@ -384,10 +385,11 @@ public sealed class QueryExecutionServiceAnonymizationTests
     {
         var options = AnonymizationTestHelper.BuildTokenizationOptions();
         var (service, factory, vault) = BuildTokenizingService(options, "unused");
-        vault.Store("§§§preissued§§§", "DE89370400440532013000");
+        var target = TestTargets.ResolveTarget(options, TestConstants.QualifiedDatabaseName);
+        vault.Store("§§§preissued§§§", "DE89370400440532013000", target);
 
         var result = await service.ExecuteQueryAsync(
-            TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE IBAN = '§§§preissued§§§'", null, TestContext.Current.CancellationToken);
+            TestConstants.QualifiedDatabaseName, "SELECT * FROM Accounts WHERE IBAN = '§§§preissued§§§'", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(
@@ -402,7 +404,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
         var (service, factory, _) = BuildTokenizingService(options, "unused");
 
         await service.ExecuteQueryAsync(
-            TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE IBAN = '§§§forged§§§'", null, TestContext.Current.CancellationToken);
+            TestConstants.QualifiedDatabaseName, "SELECT * FROM Accounts WHERE IBAN = '§§§forged§§§'", null, TestContext.Current.CancellationToken);
 
         Assert.Equal(
             "SELECT * FROM Accounts WHERE IBAN = '§§§forged§§§'",
@@ -414,7 +416,8 @@ public sealed class QueryExecutionServiceAnonymizationTests
     {
         var options = AnonymizationTestHelper.BuildTokenizationOptions();
         var vault = new TokenVault();
-        vault.Store("§§§preissued§§§", "DE89370400440532013000");
+        var target = TestTargets.ResolveTarget(options, TestConstants.QualifiedDatabaseName);
+        vault.Store("§§§preissued§§§", "DE89370400440532013000", target);
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig("unused"));
         var anonymizer = new Anonymizer(Options.Create(options), vault);
         var resolver = new QueryTokenResolver(vault, Options.Create(options));
@@ -428,7 +431,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
         await service.ExecuteQueryAsync(
-            TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE IBAN = '§§§preissued§§§'", null, TestContext.Current.CancellationToken);
+            TestConstants.QualifiedDatabaseName, "SELECT * FROM Accounts WHERE IBAN = '§§§preissued§§§'", null, TestContext.Current.CancellationToken);
 
         Assert.Equal(
             "SELECT * FROM Accounts WHERE IBAN = '§§§preissued§§§'",
@@ -443,12 +446,12 @@ public sealed class QueryExecutionServiceAnonymizationTests
         var (service, factory, _) = BuildTokenizingService(options, iban);
 
         // 1. Egress: a first query hands the AI a token instead of the real IBAN.
-        var first = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT IBAN FROM Accounts", null, TestContext.Current.CancellationToken);
+        var first = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT IBAN FROM Accounts", null, TestContext.Current.CancellationToken);
         string token = ExtractColumnValue(first.Value.Data, "IBAN");
 
         // 2. Ingress: the AI reuses that exact token in a follow-up query.
         await service.ExecuteQueryAsync(
-            TestConstants.DatabaseName, $"SELECT * FROM Accounts WHERE IBAN = '{token}'", null, TestContext.Current.CancellationToken);
+            TestConstants.QualifiedDatabaseName, $"SELECT * FROM Accounts WHERE IBAN = '{token}'", null, TestContext.Current.CancellationToken);
 
         Assert.Equal(
             $"SELECT * FROM Accounts WHERE IBAN = '{iban}'",
@@ -472,7 +475,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldNotLeakRawExceptionMessage_ToAi_WhenAnonymizedAndExecutionThrows()
     {
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(ThrowOnExecute: BuildSensitiveException()));
         var service = new QueryExecutionService(
             factory,
@@ -483,7 +486,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE AccountRef = '1'", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT * FROM Accounts WHERE AccountRef = '1'", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
@@ -495,7 +498,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
     [InlineData(AccessLevel.ReadWrite)]
     public async Task ExecuteQueryAsync_ShouldKeepRawExceptionMessage_ToAi_WhenNotAnonymizedAndExecutionThrows(AccessLevel accessLevel)
     {
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(ThrowOnExecute: BuildSensitiveException()));
         var service = new QueryExecutionService(
             factory,
@@ -506,7 +509,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE AccountRef = '1'", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT * FROM Accounts WHERE AccountRef = '1'", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
@@ -518,7 +521,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
     {
         // The owner's explicit, deliberate decision: the log file path is unchanged and must
         // keep receiving the full, untouched exception — only the AI-facing message is filtered.
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         var sensitiveException = BuildSensitiveException();
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(ThrowOnExecute: sensitiveException));
         var logger = new CapturingLogger<QueryExecutionService>();
@@ -531,7 +534,7 @@ public sealed class QueryExecutionServiceAnonymizationTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), logger);
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT * FROM Accounts WHERE AccountRef = '1'", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT * FROM Accounts WHERE AccountRef = '1'", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.DoesNotContain(SensitiveMarker, result.Error.Message, StringComparison.Ordinal);

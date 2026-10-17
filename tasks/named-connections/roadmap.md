@@ -15,8 +15,8 @@ user-approved acceptance boundaries in the current concept.
 ## Resume checkpoint
 
 M1.1–M1.3 are accepted; [M1.3 audit evidence](audit.md) covers the preparation
-contracts at `070d1bb`. M2.1 and M2.2 are implemented (see their evidence below).
-The next open task is **M2.3**. M2.3–M2.5 and M4 remain untouched.
+contracts at `070d1bb`. M2.1, M2.2 and M2.3 are implemented (see their evidence
+below). The next open task is **M2.4**. M2.4, M2.5 and M4 remain untouched.
 
 ## Execution contract
 
@@ -255,7 +255,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   paragraph). M2.3 must carry the target through query execution and validation
   and switch the token call sites to the scoped APIs.
 
-- [ ] **M2.3 — Carry targets through query execution and validation.**
+- [x] **M2.3 — Carry targets through query execution and validation.**
   **Depends on:** M2.1–M2.2.
   **Intention:** connect authorization, token processing and query work to one target.
   **Scope:** query execution, anonymization partials, query validation and
@@ -268,6 +268,63 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   targets too. Existing target fields/headers are canonical, while rows, catalog
   hints, limits, `NOEXEC` safeguards, read-only rollback, ReadWrite commit and
   cancellation-independent cleanup retain their behavior and error contracts.
+  **Completion evidence:** Both `ExecuteQueryAsync` entrypoints and both
+  `ValidateQueryAsync` entrypoints now resolve the caller argument once through the
+  existing `DatabaseTargetResolver` and return `SQL-AI-0001` for malformed,
+  unqualified or unknown targets before the validator or any connection
+  (`QueryExecutionService`, `QueryValidationService`). The resolved immutable
+  context drives `ValidateTargetQuerySafetyAsync`, scoped
+  `IQueryTokenResolver.ResolveTokens`, `CreateTargetConnection`,
+  `PrimaryConnection.OpenTargetAsync`, the target-aware
+  `IAnonymizationRuleProvider.IsExcludedAsync` and scoped
+  `IAnonymizer.Tokenize`; error/log labels and transaction-integrity rejection use
+  the canonical `alias/rawDb` qualified name. No ambient options or current-target
+  mutation; the legacy public string APIs remain the only service surface (no
+  parallel API, no compatibility mode). Shared batch infrastructure gained an
+  explicit `QueryBatchExecutionArgs.Target`; when absent (still-unmigrated script
+  executor, removal owned by M2.4/M4.1) the executor keeps the legacy unscoped
+  rule/token paths so script behavior and tests stay valid without migrating
+  scripts or analysis. `QueryExecutionDependencies` now exposes a shared
+  `DatabaseTargetResolver` for the M3.2 analysis services. New acceptance tests in
+  `QueryExecutionServiceTargetIsolationTests` (15 cases): composed real
+  guard pipeline (real `QuerySafetyValidator` + `SecurityGuard` grants/exclusions) plus
+  real `TokenVault`/`Anonymizer`/`QueryTokenResolver` over a target-aware DB double with
+  distinct rows per owner: 0001 for invalid/unknown/unqualified direct calls with zero
+  factory calls; 0104 for a valid denied target and a server-excluded target before any
+  connection; `TEST/DemoDB` canonicalizes to `test/DemoDB` with the raw physical name only
+  reaching the factory; alternating and 24-call parallel same-raw-name `test/DemoDB` vs
+  `prod/DemoDB` keep access level, rows, masking and rule-owner identity separate; own
+  token substitutes in the supported literal path only, the foreign owner keeps it
+  literal; rule-exempt column stays raw while the other column tokenizes; raw `App/Db`
+  reaches the factory exactly and ordinally distinct `test/App/Db` vs `test/appdb`
+  scopes do not resolve each other's tokens. Existing regression fixtures were migrated
+  coherently: `FakeSecurityGuard`/`FakeAccessLevelProvider` implement their target
+  members, `FakeQuerySafetyValidator` delegates target calls through the real pipeline,
+  rule-provider fakes answer target-aware lookups, mock factories implement
+  `CreateTargetConnection` recording the target and exposing the raw physical database,
+  and the integration fixture composes the demo profile's named-server view plus
+  qualified grants without touching the shipped `demo-profile.json`. Existing tests for
+  transaction integrity, cancellation-independent cleanup, limits, `NOEXEC`,
+  rollback/commit and primary-failure contracts remain green; primary-failure tests now
+  assert the migrated `SqlToAi:Servers:<alias>` diagnostic path for query/validation
+  tools and the legacy `SqlServer` path for the remaining tools. Gates run in this
+  session: `dotnet build SqlToAi.slnx` -> 0 warnings, 0 errors; `dotnet test
+  SqlToAi.slnx` -> 1,407 passed, 19 skipped, 0 failed (skips remain the unavailable
+  external TLS endpoints, unverified, not passes); focused filter over the new
+  isolation class -> 15 passed, 0 failed. `git diff --check` clean (only autocrlf
+  notices). AiNetCodeNavigator semantic navigation used
+  (`QueryBatchExecutionArgs` references: executor interface, `QueryExecutionService`,
+  both `ScriptExecutionService` construction sites, and test doubles — matching the
+  transitional design). AiNetLinter verify (scope=changes,
+  targetPath=C:/Daten/Entwicklung/Ralf/SqlToAi/SqlToAi.slnx) not executed: the
+  verify tool is not exposed in this session and `ainetlinter-rules.json` is missing
+  (reason: notconfigured); recorded honestly and not treated as a pass. Assignment
+  model / effort: z-ai/glm-5.3-flash / medium via openrouter. Canonical docs updated
+  in [security](../../docs/security.md) (target resolution at service entry, scoped
+  query-literal token substitution, `SqlToAi:Servers:<alias>` failure diagnostics)
+  and [tools](../../docs/tools.md) (`sql_execute_query` `database` resolution).
+  Host DI/config cutover, script migration and analysis migration remain for
+  M2.4/M3.x/M4.1.
 
 - [ ] **M2.4 — Carry targets through script execution.**
   **Depends on:** M2.3.

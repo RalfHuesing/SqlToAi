@@ -42,6 +42,39 @@ public sealed class SqlServerFixture
 
         Options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
         ConfigurationResolver.Resolve(Options);
+        ComposeNamedServerView();
+
+        void ComposeNamedServerView()
+        {
+            // The demo profile is the pre-cutover single-server contract (M4.1 cuts it over).
+            // For migrated target-aware services this fixture composes the equivalent named
+            // server entry and qualifies the grants, while keeping the raw grant entries for
+            // legacy consumers until their owning slices migrate.
+            Options.Servers["test"] = new NamedServerOptions
+            {
+                Server = Options.SqlServer.Server,
+                UserId = Options.SqlServer.UserId,
+                Password = Options.SqlServer.Password,
+                IntegratedSecurity = Options.SqlServer.IntegratedSecurity,
+                TrustServerCertificate = Options.SqlServer.TrustServerCertificate,
+                ConnectTimeoutSeconds = Options.SqlServer.ConnectTimeoutSeconds
+            };
+            QualifyGrants(Options.Databases.ReadWrite);
+            QualifyGrants(Options.Databases.ReadOnly);
+            QualifyGrants(Options.Databases.ReadOnlyAnonymized);
+            QualifyGrants(Options.Databases.SchemaOnly);
+
+            static void QualifyGrants(List<string> grants)
+            {
+                for (int i = grants.Count - 1; i >= 0; i--)
+                {
+                    if (!grants[i].Contains('/'))
+                    {
+                        grants.Insert(i + 1, $"test/{grants[i]}");
+                    }
+                }
+            }
+        }
 
         var optionsWrapper = Microsoft.Extensions.Options.Options.Create(Options);
         ConnectionFactory   = new SqlConnectionFactory(optionsWrapper);

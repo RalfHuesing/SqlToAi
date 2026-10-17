@@ -117,7 +117,17 @@ public sealed class TlsConnectionIntegrationTests(ITestOutputHelper output)
     public async Task PrimaryDefault_RealCertificateFailureReachesServiceError(string endpoint)
     {
         var (options, database) = LoadEndpoint(endpoint);
-        options.Databases.ReadWrite = [database];
+        // Migrated services resolve qualified targets; compose the named-server view of this
+        // single-endpoint TLS profile the same way the other integration fixtures do.
+        options.Servers["test"] = new NamedServerOptions
+        {
+            Server = options.SqlServer.Server,
+            UserId = options.SqlServer.UserId,
+            Password = options.SqlServer.Password,
+            IntegratedSecurity = options.SqlServer.IntegratedSecurity,
+            ConnectTimeoutSeconds = options.SqlServer.ConnectTimeoutSeconds
+        };
+        options.Databases.ReadWrite = [$"test/{database}"];
         var wrapped = Options.Create(options);
         var factory = new CountingFactory(new SqlConnectionFactory(wrapped));
         var accessLog = new TestLogger<AccessLevelProvider>();
@@ -125,7 +135,7 @@ public sealed class TlsConnectionIntegrationTests(ITestOutputHelper output)
         var safety = new QuerySafetyValidator(new SecurityGuard(wrapped),
             new AccessLevelProvider(factory, wrapped, accessLog), new ReadOnlyGuard());
         var service = new QueryValidationService(factory, safety, wrapped, serviceLog);
-        var result = await service.ValidateQueryAsync(database, "SELECT 1", TestContext.Current.CancellationToken);
+        var result = await service.ValidateQueryAsync($"test/{database}", "SELECT 1", TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal("SQL-AI-0105", result.Error.Code);
         Assert.Contains("SqlServer", result.Error.Message);
@@ -229,7 +239,12 @@ public sealed class TlsConnectionIntegrationTests(ITestOutputHelper output)
 
     private sealed class CountingFactory(IDatabaseConnectionFactory inner) : IDatabaseConnectionFactory
     {
-        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target)
+        {
+            Count++;
+            return inner.CreateTargetConnection(target);
+        }
+
         public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
         public int Count { get; private set; }

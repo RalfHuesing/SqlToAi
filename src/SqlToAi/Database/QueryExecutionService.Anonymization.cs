@@ -3,6 +3,7 @@ using System.Data.Common;
 using System.Text;
 using System.Text.Json;
 using SqlToAi.Anonymization;
+using SqlToAi.Domain;
 using SqlToAi.Mcp;
 
 namespace SqlToAi.Database;
@@ -43,18 +44,24 @@ public sealed partial class QueryExecutionService
     /// </summary>
     private sealed record ColumnOrigin(string? TableName, string? ColumnName, string? SchemaName);
 
-    /// <summary>Bundles per-query anonymization context for passing between internal helpers.</summary>
+    /// <summary>
+    /// Bundles per-query anonymization context for passing between internal helpers.
+    /// <see cref="Target"/> is the resolved execution target; null only on the legacy script-batch
+    /// path until M2.4 migrates it (M4.1 removes the fallback).
+    /// </summary>
     private sealed record AnonymizationContext(
         bool Anonymize,
         ColumnOrigin?[]? ColumnOrigins,
         bool[]? CentralExclusions,
-        bool UseTokenization);
+        bool UseTokenization,
+        DatabaseTargetContext? Target = null);
 
     private async Task<AnonymizationContext> ResolveAnonymizationContextAsync(
         DbDataReader reader,
         string[] columnNames,
         bool anonymize,
-        string databaseName,
+        DatabaseTargetContext? target,
+        string legacyDatabaseName,
         CancellationToken cancellationToken)
     {
         if (!anonymize)
@@ -64,10 +71,10 @@ public sealed partial class QueryExecutionService
 
         var columnOrigins = GetColumnOrigins(reader);
         bool[]? centralExclusions = _anonymizationRuleProvider != null
-            ? await ResolveCentralExclusionsAsync(databaseName, columnNames, columnOrigins, cancellationToken)
+            ? await ResolveCentralExclusionsAsync(target, legacyDatabaseName, columnNames, columnOrigins, cancellationToken)
             : null;
 
-        return new AnonymizationContext(true, columnOrigins, centralExclusions, _tokenizationOptions.IsUsable);
+        return new AnonymizationContext(true, columnOrigins, centralExclusions, _tokenizationOptions.IsUsable, target);
     }
 
     /// <summary>
@@ -77,7 +84,7 @@ public sealed partial class QueryExecutionService
     /// never inherits a rule scoped to another schema.
     /// </summary>
     private async Task<bool[]> ResolveCentralExclusionsAsync(
-        string databaseName, string[] columnNames, ColumnOrigin?[] columnOrigins, CancellationToken cancellationToken)
+        DatabaseTargetContext? target, string legacyDatabaseName, string[] columnNames, ColumnOrigin?[] columnOrigins, CancellationToken cancellationToken)
     {
         var result = new bool[columnNames.Length];
         for (int i = 0; i < columnNames.Length; i++)
@@ -91,8 +98,11 @@ public sealed partial class QueryExecutionService
                 continue;
             }
 
-            result[i] = await _anonymizationRuleProvider!.IsExcludedAsync(
-                databaseName, origin.SchemaName, origin.TableName, origin.ColumnName, cancellationToken);
+            result[i] = target is not null
+                ? await _anonymizationRuleProvider!.IsExcludedAsync(
+                    target, origin.SchemaName, origin.TableName, origin.ColumnName, cancellationToken)
+                : await _anonymizationRuleProvider!.IsExcludedAsync(
+                    legacyDatabaseName, origin.SchemaName, origin.TableName, origin.ColumnName, cancellationToken);
         }
         return result;
     }
@@ -137,7 +147,9 @@ public sealed partial class QueryExecutionService
         string? tableName = origin?.TableName;
         var columnContext = new AnonymizationColumnContext(tableName, origin?.ColumnName, origin?.SchemaName);
         string anonymizedValue = anonCtx.UseTokenization
-            ? _anonymizer.Tokenize(strVal, columnContext)
+            ? anonCtx.Target is not null
+                ? _anonymizer.Tokenize(strVal, columnContext, anonCtx.Target)
+                : _anonymizer.Tokenize(strVal, columnContext)
             : _anonymizer.Anonymize(strVal, columnContext);
 
         if (anonymizedValue != strVal)

@@ -40,7 +40,12 @@ public sealed class PrimaryConnectionFailureTests
         Assert.True(result.IsError);
         string text = string.Join("\n", result.Content.Select(content => content.Text));
         Assert.Contains(SqlToAiError.InfrastructureErrorCode, text);
-        Assert.Contains("SqlServer", text);
+        // Migrated target-aware tools identify the owning named-server settings path;
+        // not-yet-migrated tools keep the legacy SqlServer section name.
+        string expectedSettingsPath = tool is McpConstants.ToolExecuteQuery or McpConstants.ToolValidateQuery
+            ? "SqlToAi:Servers"
+            : "SqlServer";
+        Assert.Contains(expectedSettingsPath, text);
         Assert.Contains("TLS/certificate", text);
         AssertSafe(text, harness);
     }
@@ -156,7 +161,9 @@ public sealed class PrimaryConnectionFailureTests
         {
             Assert.DoesNotContain("marker", message);
             Assert.NotNull(exception);
-            Assert.Contains("SqlServer", exception.Message);
+            // "SqlServer" covers both the legacy section name and the "SqlToAi:Servers:<alias>"
+            // settings path used by migrated target-aware callers.
+            Assert.Contains("Server", exception.Message);
             Assert.DoesNotContain("marker", exception.ToString());
             Assert.Null(exception.InnerException);
         }
@@ -171,7 +178,7 @@ public sealed class PrimaryConnectionFailureTests
         {
             Factory = new FailingOpenFactory(failure);
             _loggers = LoggerFactory.Create(builder => builder.AddProvider(Log));
-            var configuration = new SqlToAiOptions();
+            var configuration = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
             configuration.Databases.ReadWrite = [TestConstants.DatabaseName];
             var options = Options.Create(configuration);
             var safety = new FakeQuerySafetyValidator(new QuerySafetyCheckResult(level, level == AccessLevel.ReadWrite));
@@ -204,7 +211,7 @@ public sealed class PrimaryConnectionFailureTests
             Name = tool,
             Arguments = new Dictionary<string, object?>
             {
-                [McpConstants.ArgDatabase] = TestConstants.DatabaseName,
+                [McpConstants.ArgDatabase] = TestConstants.QualifiedDatabaseName,
                 [McpConstants.ArgQuery] = "SELECT 1",
                 [McpConstants.ArgQueryA] = "SELECT 1",
                 [McpConstants.ArgQueryB] = "SELECT 1",
@@ -228,7 +235,7 @@ public sealed class PrimaryConnectionFailureTests
 
     private sealed class FailingOpenFactory(Exception failure) : IDatabaseConnectionFactory
     {
-        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
         public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
         internal int OpenCount { get; private set; }

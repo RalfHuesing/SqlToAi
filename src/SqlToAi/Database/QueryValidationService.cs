@@ -22,6 +22,7 @@ public sealed class QueryValidationService : IQueryValidationService
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly IQuerySafetyValidator _querySafetyValidator;
     private readonly QueryExecutionOptions _queryExecutionOptions;
+    private readonly DatabaseTargetResolver _targets;
     private readonly ILogger<QueryValidationService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="QueryValidationService"/>.</summary>
@@ -34,6 +35,7 @@ public sealed class QueryValidationService : IQueryValidationService
         _connectionFactory = connectionFactory;
         _querySafetyValidator = querySafetyValidator;
         _queryExecutionOptions = options.Value.QueryExecution;
+        _targets = new DatabaseTargetResolver(options.Value);
         _logger = logger;
     }
 
@@ -53,11 +55,20 @@ public sealed class QueryValidationService : IQueryValidationService
         object? parameters,
         CancellationToken cancellationToken = default)
     {
+        // Resolve the caller's qualified target once; malformed, unqualified or unknown targets
+        // are rejected with SQL-AI-0001 before any validation or database work.
+        var targetResult = _targets.Resolve(databaseName);
+        if (targetResult.IsFailure)
+        {
+            return targetResult.Error;
+        }
+        DatabaseTargetContext target = targetResult.Value;
+
         // 1-5. Run the shared 6-stage guardrail pipeline. QueryValidationService is the only
         // service that allows SchemaOnly access — it is meant to validate schema queries
         // without ever touching data.
         var safetyResult = await _querySafetyValidator
-            .ValidateQuerySafetyAsync(databaseName, query, allowSchemaOnly: true, cancellationToken)
+            .ValidateTargetQuerySafetyAsync(target, query, allowSchemaOnly: true, cancellationToken)
             .ConfigureAwait(false);
         if (safetyResult.IsFailure)
         {
@@ -71,8 +82,8 @@ public sealed class QueryValidationService : IQueryValidationService
 
         try
         {
-            await using var connection = _connectionFactory.CreateConnection(databaseName);
-            await PrimaryConnection.OpenAsync(connection, cancellationToken);
+            await using var connection = _connectionFactory.CreateTargetConnection(target);
+            await PrimaryConnection.OpenTargetAsync(connection, target, cancellationToken);
 
             await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
             bool validationFailed = false;
@@ -98,7 +109,7 @@ public sealed class QueryValidationService : IQueryValidationService
         }
         catch (Exception ex)
         {
-            LogValidationFailed(_logger, databaseName, query, ex);
+            LogValidationFailed(_logger, target.QualifiedName, query, ex);
             return SqlToAiErrorMapper.MapException(ex);
         }
     }

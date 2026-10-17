@@ -9,19 +9,19 @@ namespace SqlToAi.Tests.Integration;
 public sealed class QueryValidationServiceIntegrationTests
 {
     private readonly SqlServerFixture _fx;
-    private readonly string _db;
+    private readonly string _target;
 
     public QueryValidationServiceIntegrationTests(SqlServerFixture fx)
     {
         _fx = fx;
-        _db = TestConstants.DatabaseName;
+        _target = TestConstants.QualifiedDatabaseName;
     }
 
     [Fact]
     public async Task ValidateQueryAsync_RejectsNoexecBypassForReadWrite()
     {
         var result = await _fx.QueryValidationService.ValidateQueryAsync(
-            _db, "SET NOEXEC OFF; THROW 51000, 'fictional-validation-executed', 1;",
+            _target, "SET NOEXEC OFF; THROW 51000, 'fictional-validation-executed', 1;",
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
@@ -32,7 +32,7 @@ public sealed class QueryValidationServiceIntegrationTests
     [Fact]
     public async Task ValidateQueryAsync_ShouldSucceed_ForValidQuery()
     {
-        var result = await _fx.QueryValidationService.ValidateQueryAsync(_db, "SELECT 1 AS One", TestContext.Current.CancellationToken);
+        var result = await _fx.QueryValidationService.ValidateQueryAsync(_target, "SELECT 1 AS One", TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
     }
@@ -41,7 +41,7 @@ public sealed class QueryValidationServiceIntegrationTests
     public async Task ValidateQueryAsync_ShouldSucceed_ForValidQueryAgainstKnownTable()
     {
         var result = await _fx.QueryValidationService.ValidateQueryAsync(
-            _db,
+            _target,
             "SELECT TOP 1 * FROM dbo.FakeProjects",
             TestContext.Current.CancellationToken);
 
@@ -52,7 +52,7 @@ public sealed class QueryValidationServiceIntegrationTests
     public async Task ValidateQueryAsync_ShouldFail_ForInvalidSyntax()
     {
         var result = await _fx.QueryValidationService.ValidateQueryAsync(
-            _db,
+            _target,
             "SELECT FROM",
             TestContext.Current.CancellationToken);
 
@@ -65,7 +65,7 @@ public sealed class QueryValidationServiceIntegrationTests
     {
         // ReadWrite permits DDL validation; NOEXEC compiles it without executing the DROP.
         var result = await _fx.QueryValidationService.ValidateQueryAsync(
-            _db,
+            _target,
             "DROP TABLE dbo.SomeTable",
             TestContext.Current.CancellationToken);
 
@@ -85,7 +85,7 @@ public sealed class QueryValidationServiceIntegrationTests
             Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryValidationService>.Instance);
 
         var result = await service.ValidateQueryAsync(
-            _db,
+            _target,
             "sp_executesql N'DELETE FROM dbo.FakeProjects; COMMIT'",
             TestContext.Current.CancellationToken);
 
@@ -95,7 +95,8 @@ public sealed class QueryValidationServiceIntegrationTests
 
     private sealed class FakeAccessLevelProvider(AccessLevel level) : IAccessLevelProvider
     {
-        public Task<SqlToAi.Domain.AccessLevel> GetTargetAccessLevelAsync(SqlToAi.Domain.DatabaseTargetContext target, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<SqlToAi.Domain.AccessLevel> GetTargetAccessLevelAsync(SqlToAi.Domain.DatabaseTargetContext target, CancellationToken cancellationToken = default)
+            => Task.FromResult(level);
 
         public Task<AccessLevel> GetAccessLevelAsync(string databaseName, CancellationToken cancellationToken = default)
             => Task.FromResult(level);

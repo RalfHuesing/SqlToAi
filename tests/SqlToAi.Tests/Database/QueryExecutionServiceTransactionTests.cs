@@ -27,7 +27,7 @@ public sealed class QueryExecutionServiceTransactionTests
     [InlineData("sys.sp_executesql N'DELETE FROM Customers'")]
     public async Task ExecuteQueryAsync_ShouldReject_SpExecuteSql_BeforeTouchingDatabase(string query)
     {
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         var factory = new MockQueryConnectionFactory();
         var service = new QueryExecutionService(
             factory,
@@ -36,7 +36,7 @@ public sealed class QueryExecutionServiceTransactionTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, query, null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, query, null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.WriteOperationBlockedCode, result.Error.Code);
@@ -54,7 +54,7 @@ public sealed class QueryExecutionServiceTransactionTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldRejectResult_WhenTransactionStateChangedDuringExecution()
     {
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(TranCountSequence: new MockTranCountSequence(1, 0)));
         var service = new QueryExecutionService(
             factory,
@@ -62,7 +62,7 @@ public sealed class QueryExecutionServiceTransactionTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
@@ -76,7 +76,7 @@ public sealed class QueryExecutionServiceTransactionTests
         // The defensive rollback after a detected violation can itself fail (the underlying
         // transaction is often already gone by then) â€” this must not crash or replace the
         // violation error with a confusing "no transaction" exception.
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(
             TranCountSequence: new MockTranCountSequence(1, 0), ThrowOnRollback: true));
         var service = new QueryExecutionService(
@@ -85,7 +85,7 @@ public sealed class QueryExecutionServiceTransactionTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
@@ -101,7 +101,7 @@ public sealed class QueryExecutionServiceTransactionTests
         // Regression guard for layer 2 in isolation: when the trancount probe reports the same
         // value before and after execution (the normal case), behavior must be identical to
         // before this change â€” success, with a plain rollback for a non-write-allowed database.
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(TranCountSequence: new MockTranCountSequence(1, 1)));
         var service = new QueryExecutionService(
             factory,
@@ -109,7 +109,7 @@ public sealed class QueryExecutionServiceTransactionTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.RollbackCount);

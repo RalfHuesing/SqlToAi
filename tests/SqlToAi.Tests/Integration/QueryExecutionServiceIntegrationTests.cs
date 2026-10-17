@@ -13,17 +13,19 @@ public sealed class QueryExecutionServiceIntegrationTests
 {
     private readonly SqlServerFixture _fx;
     private readonly string _db;
+    private readonly string _target;
 
     public QueryExecutionServiceIntegrationTests(SqlServerFixture fx)
     {
         _fx = fx;
         _db = TestConstants.DatabaseName;
+        _target = TestConstants.QualifiedDatabaseName;
     }
 
     [Fact]
     public async Task ExecuteQueryAsync_ShouldReturnJsonLines_ForSimpleSelect()
     {
-        var result = await _fx.QueryExecutionService.ExecuteQueryAsync(_db, "SELECT 1 AS One, 'Hello' AS Status", null, TestContext.Current.CancellationToken);
+        var result = await _fx.QueryExecutionService.ExecuteQueryAsync(_target, "SELECT 1 AS One, 'Hello' AS Status", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
         Assert.NotEmpty(result.Value.Data);
@@ -37,7 +39,7 @@ public sealed class QueryExecutionServiceIntegrationTests
     {
         // Fictional project table is more controlled
         var result = await _fx.QueryExecutionService.ExecuteQueryAsync(
-            _db,
+            _target,
             "SELECT TOP 5 Mandant FROM dbo.FakeProjects",
             null,
             TestContext.Current.CancellationToken);
@@ -62,7 +64,7 @@ public sealed class QueryExecutionServiceIntegrationTests
             Microsoft.Extensions.Logging.Abstractions.NullLogger<QueryExecutionService>.Instance);
 
         var result = await service.ExecuteQueryAsync(
-            _db,
+            _target,
             "DELETE FROM dbo.FakeProjects",
             null,
             TestContext.Current.CancellationToken);
@@ -94,7 +96,7 @@ public sealed class QueryExecutionServiceIntegrationTests
         long countBefore = await CountFakeProjectsAsync();
 
         var result = await service.ExecuteQueryAsync(
-            _db,
+            _target,
             "sp_executesql N'DELETE FROM dbo.FakeProjects; COMMIT'",
             null,
             TestContext.Current.CancellationToken);
@@ -117,7 +119,7 @@ public sealed class QueryExecutionServiceIntegrationTests
     public async Task ExecuteQueryAsync_ShouldBlock_MultiStatement()
     {
         var result = await _fx.QueryExecutionService.ExecuteQueryAsync(
-            _db,
+            _target,
             "SELECT 1; SELECT 2",
             null,
             TestContext.Current.CancellationToken);
@@ -135,7 +137,7 @@ public sealed class QueryExecutionServiceIntegrationTests
         var service = BuildExecutionServiceWithOptions(options);
 
         var result = await service.ExecuteQueryAsync(
-            _db,
+            _target,
             "SELECT TOP 1000 1 AS X FROM sys.objects",
             1000,
             TestContext.Current.CancellationToken);
@@ -153,7 +155,7 @@ public sealed class QueryExecutionServiceIntegrationTests
         var service = BuildExecutionServiceWithOptions(options);
 
         var result = await service.ExecuteQueryAsync(
-            _db,
+            _target,
             "SELECT TOP 100 1 AS X FROM sys.objects",
             null,
             TestContext.Current.CancellationToken);
@@ -169,7 +171,7 @@ public sealed class QueryExecutionServiceIntegrationTests
         // Pick a table with a varchar column likely to contain real values. We do not assert
         // specific content â€” only that the call succeeds and the output is well-formed JSON.
         var result = await _fx.QueryExecutionService.ExecuteQueryAsync(
-            _db,
+            _target,
             "SELECT TOP 1 Ausfuehrer FROM dbo.FakeContacts",
             null,
             TestContext.Current.CancellationToken);
@@ -185,7 +187,7 @@ public sealed class QueryExecutionServiceIntegrationTests
     public async Task ExecuteQueryAsync_ShouldFail_WithInvalidQuery()
     {
         var result = await _fx.QueryExecutionService.ExecuteQueryAsync(
-            _db,
+            _target,
             "SELECT FROM NONSENSE",
             null,
             TestContext.Current.CancellationToken);
@@ -201,6 +203,7 @@ public sealed class QueryExecutionServiceIntegrationTests
     private SqlToAi.Configuration.SqlToAiOptions CloneOptions() => new()
     {
         SqlServer = _fx.Options.SqlServer,
+        Servers = _fx.Options.Servers,
         Databases = _fx.Options.Databases,
         Anonymizer = _fx.Options.Anonymizer,
         MetadataProvider = _fx.Options.MetadataProvider,
@@ -231,7 +234,8 @@ public sealed class QueryExecutionServiceIntegrationTests
 
     private sealed class FakeAccessLevelProvider(AccessLevel level) : IAccessLevelProvider
     {
-        public Task<SqlToAi.Domain.AccessLevel> GetTargetAccessLevelAsync(SqlToAi.Domain.DatabaseTargetContext target, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<SqlToAi.Domain.AccessLevel> GetTargetAccessLevelAsync(SqlToAi.Domain.DatabaseTargetContext target, CancellationToken cancellationToken = default)
+            => Task.FromResult(level);
 
         public Task<AccessLevel> GetAccessLevelAsync(string databaseName, CancellationToken cancellationToken = default)
             => Task.FromResult(level);

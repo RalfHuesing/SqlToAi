@@ -14,7 +14,7 @@ internal sealed class AlwaysExcludeRuleProvider : IAnonymizationRuleProvider
         => Task.FromResult(true);
 
     public Task<bool> IsExcludedAsync(SqlToAi.Domain.DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
+        => Task.FromResult(true);
 }
 
 internal sealed class ColumnNameRuleProvider(string excludedColumn) : IAnonymizationRuleProvider
@@ -28,7 +28,10 @@ internal sealed class ColumnNameRuleProvider(string excludedColumn) : IAnonymiza
     }
 
     public Task<bool> IsExcludedAsync(SqlToAi.Domain.DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
+    {
+        Lookups.Add((schemaName, tableName, columnName));
+        return Task.FromResult(string.Equals(columnName, excludedColumn, StringComparison.OrdinalIgnoreCase));
+    }
 }
 
 /// <summary>
@@ -45,7 +48,7 @@ internal sealed class SchemaScopedRuleProvider(string excludedSchema) : IAnonymi
         => Task.FromResult(string.Equals(schemaName, excludedSchema, StringComparison.OrdinalIgnoreCase));
 
     public Task<bool> IsExcludedAsync(SqlToAi.Domain.DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
+        => Task.FromResult(string.Equals(schemaName, excludedSchema, StringComparison.OrdinalIgnoreCase));
 }
 
 
@@ -81,8 +84,23 @@ internal sealed class CapturingLogger<T> : ILogger<T>
 /// </summary>
 internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
 {
-    public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetQuerySafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, bool allowSchemaOnly = false, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-    public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetBatchSafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetQuerySafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, bool allowSchemaOnly = false, CancellationToken cancellationToken = default)
+    {
+        if (_fixedFailure != null)
+        {
+            return Task.FromResult(_fixedFailure);
+        }
+        return _delegate!.ValidateTargetQuerySafetyAsync(target, query, allowSchemaOnly, cancellationToken);
+    }
+
+    public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetBatchSafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, CancellationToken cancellationToken = default)
+    {
+        if (_fixedFailure != null)
+        {
+            return Task.FromResult(_fixedFailure);
+        }
+        return _delegate!.ValidateTargetBatchSafetyAsync(target, query, cancellationToken);
+    }
 
     private readonly Result<QuerySafetyCheckResult>? _fixedFailure;
     private readonly IQuerySafetyValidator? _delegate;
@@ -173,8 +191,33 @@ internal sealed class FakeQuerySafetyValidator : IQuerySafetyValidator
     /// </summary>
     private sealed class BypassReadOnlyGuardValidator(QuerySafetyCheckResult result) : IQuerySafetyValidator
     {
-        public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetQuerySafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, bool allowSchemaOnly = false, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetBatchSafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetQuerySafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, bool allowSchemaOnly = false, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(target);
+            return Task.FromResult(ValidateTargetInput(query, rejectMultipleStatements: true));
+        }
+
+        public Task<SqlToAi.Domain.Result<QuerySafetyCheckResult>> ValidateTargetBatchSafetyAsync(SqlToAi.Domain.DatabaseTargetContext target, string query, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(target);
+            return Task.FromResult(ValidateTargetInput(query, rejectMultipleStatements: false));
+        }
+
+        /// <summary>Mirrors the string-based input stages for target-aware calls; the access
+        /// level and whitelist outcome come from the configured result, exactly as with the
+        /// legacy string path.</summary>
+        private Result<QuerySafetyCheckResult> ValidateTargetInput(string query, bool rejectMultipleStatements)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return SqlToAiError.InvalidParameters("Query must not be empty.");
+            }
+            if (rejectMultipleStatements && SqlMultiStatementDetector.ContainsMultipleStatements(query))
+            {
+                return SqlToAiError.MultipleStatementsForbidden();
+            }
+            return Result<QuerySafetyCheckResult>.Success(result);
+        }
 
         public Task<Result<QuerySafetyCheckResult>> ValidateQuerySafetyAsync(
             string databaseName,
@@ -257,12 +300,25 @@ internal sealed class MockTranCountSequence(params int[] values)
 
 internal sealed class MockQueryConnectionFactory(MockQueryRowConfig? config = null) : IDatabaseConnectionFactory
 {
-    public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
-    public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
-
     private readonly MockQueryRowConfig _config = config ?? new MockQueryRowConfig();
 
-    /// <summary>The most recently created connection â€” lets tests inspect its transaction.</summary>
+    /// <summary>The target contexts this factory was asked to connect to, in order.</summary>
+    public List<SqlToAi.Domain.DatabaseTargetContext> CreatedTargets { get; } = [];
+
+    public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target)
+    {
+        CreatedTargets.Add(target);
+        // The mock emulates the physical endpoint: the connection's Database is the raw
+        // physical database name, never the qualified caller target.
+        LastConnection = BuildConnection(_config, target.DatabaseName);
+        return LastConnection;
+    }
+
+    public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias)
+        => SqlToAi.Domain.Result<System.Data.Common.DbConnection>.Failure(
+            SqlToAiError.InvalidParameters("Catalog connections are not supported by this mock."));
+
+    /// <summary>The most recently created connection — lets tests inspect its transaction.</summary>
     public FakeDbConnection? LastConnection { get; private set; }
 
     /// <summary>
@@ -279,20 +335,20 @@ internal sealed class MockQueryConnectionFactory(MockQueryRowConfig? config = nu
 
     public DbConnection CreateConnection(string? databaseName)
     {
-        LastConnection = BuildConnection(_config);
+        LastConnection = BuildConnection(_config, databaseName ?? TestConstants.DatabaseName);
         return LastConnection;
     }
 
     public DbConnection CreateConnection() => CreateConnection((string?)null);
 
-    private FakeDbConnection BuildConnection(MockQueryRowConfig config) =>
+    private FakeDbConnection BuildConnection(MockQueryRowConfig config, string physicalDatabase) =>
         new(
             conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(
                 ExecuteScalar: cmd => ExecuteScalar(cmd, config),
                 ExecuteReader: cmd => ExecuteReader(cmd, conn, config),
                 ExecuteNonQuery: cmd => RecordNonQuery(cmd))),
             new FakeDbConnectionOptions(
-                Database: TestConstants.DatabaseName,
+                Database: physicalDatabase,
                 DataSource: "mock",
                 ServerVersion: "16.0",
                 BeginTransaction: (transactionConnection, _) => new FakeDbTransaction(

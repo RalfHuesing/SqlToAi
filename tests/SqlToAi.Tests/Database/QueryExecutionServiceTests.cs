@@ -51,7 +51,7 @@ public sealed class QueryExecutionServiceTests
         SqlToAiOptions? options = null,
         SqlToAiError? error = null)
     {
-        options ??= new SqlToAiOptions();
+        options ??= new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(mockData ?? "Col1\tVal1"));
         var safetyValidator = BuildSafetyValidator(accessLevel, isAllowed, readOnlySafe, error);
         var anonymizer = new Anonymizer(Options.Create(options), new TokenVault());
@@ -72,7 +72,7 @@ public sealed class QueryExecutionServiceTests
     public async Task ExecuteQueryAsync_ShouldSucceed_WhenSingleStatement(string query)
     {
         var service = BuildService();
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, query, null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, query, null, TestContext.Current.CancellationToken);
         // We only verify the multi-statement check passes; actual query execution may return stub data
         Assert.True(result.IsSuccess || result.Error.Code == SqlToAiError.QueryErrorCode);
     }
@@ -84,7 +84,7 @@ public sealed class QueryExecutionServiceTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldAllowMutatingQuery_AndCommit_WhenReadWrite()
     {
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         var factory = new MockQueryConnectionFactory();
         var service = new QueryExecutionService(
             factory,
@@ -95,7 +95,7 @@ public sealed class QueryExecutionServiceTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "UPDATE Customers SET Name = 'X'", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "UPDATE Customers SET Name = 'X'", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.CommitCount);
@@ -105,7 +105,7 @@ public sealed class QueryExecutionServiceTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldStillRollBack_WhenAccessLevelIsNotReadWrite()
     {
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         var factory = new MockQueryConnectionFactory();
         var service = new QueryExecutionService(
             factory,
@@ -116,7 +116,7 @@ public sealed class QueryExecutionServiceTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "SELECT 1", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(0, factory.LastConnection?.LastTransaction?.CommitCount);
@@ -126,7 +126,7 @@ public sealed class QueryExecutionServiceTests
     [Fact]
     public async Task ExecuteQueryAsync_ShouldStillForbidMultipleStatements_WhenWriteAllowed()
     {
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         var service = new QueryExecutionService(
             new MockQueryConnectionFactory(),
             new FakeQuerySafetyValidator(
@@ -136,7 +136,7 @@ public sealed class QueryExecutionServiceTests
             new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault())),
             Options.Create(options), NullLogger<QueryExecutionService>.Instance);
 
-        var result = await service.ExecuteQueryAsync(TestConstants.DatabaseName, "UPDATE Foo SET X=1; UPDATE Bar SET Y=2", null, TestContext.Current.CancellationToken);
+        var result = await service.ExecuteQueryAsync(TestConstants.QualifiedDatabaseName, "UPDATE Foo SET X=1; UPDATE Bar SET Y=2", null, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.MultipleStatementsForbiddenCode, result.Error.Code);
@@ -145,7 +145,7 @@ public sealed class QueryExecutionServiceTests
     [Fact]
     public async Task ExecuteBatchAsync_ShouldReadMultipleResultSets_AndSerializeAllRows()
     {
-        var options = new SqlToAiOptions();
+        var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
         await using var reader = new FakeDbDataReader([
             new FakeDbResultSet(["Col1"], [["A"], ["B"]]),
             new FakeDbResultSet(["Col2"], [["C"]])
@@ -173,7 +173,7 @@ public sealed class QueryExecutionServiceTests
 
     private sealed class CustomReaderConnectionFactory(DbDataReader reader) : IDatabaseConnectionFactory
     {
-        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => throw new NotSupportedException();
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) => CreateConnection(target.DatabaseName);
         public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();
 
         public DbConnection CreateConnection(string? databaseName) =>
