@@ -22,6 +22,18 @@ public sealed class SchemaRenderingContext
 
     public SchemaObjectIdentity Source { get; }
 
+    private SchemaRenderingContext(SchemaObjectIdentity source, SchemaRenderingContext context)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (!context._paths.ContainsKey(source)) throw new ArgumentException("The source object must have a document path.", nameof(source));
+        Source = source;
+        _paths = context._paths;
+        _objects = context._objects;
+        _triggers = context._triggers;
+    }
+
+    internal SchemaRenderingContext ForSource(SchemaObjectIdentity source) => new(source, this);
+
     internal string ObjectLink(string schemaName, string objectName, string label)
         => _objects.TryGetValue((schemaName, objectName), out var identity) ? ObjectLink(identity, label) : OfflineSqlNameFormatter.Text(label);
 

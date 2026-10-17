@@ -218,6 +218,31 @@ public sealed class OfflineSchemaPresentationTests
         Assert.Throws<ArgumentException>(() => new SchemaRenderingContext(Overview, paths));
     }
 
+    [Fact]
+    public void RenderingContext_ForSourceSharesSnapshotWithSourceRelativeLinks()
+    {
+        var paths = new Dictionary<SchemaObjectIdentity, string>
+        {
+            [Customers] = "tables/sales.Customers.md", [Overview] = "views/sales.Overview.md",
+            [Trigger] = "triggers/audit.Changed #1.md"
+        };
+        var context = new SchemaRenderingContext(Customers, paths);
+        var overviewContext = context.ForSource(Overview);
+        paths.Clear();
+        var triggerContext = overviewContext.ForSource(Trigger);
+
+        Assert.Equal(Customers, context.Source);
+        Assert.Equal(Overview, overviewContext.Source);
+        Assert.Equal(Trigger, triggerContext.Source);
+        Assert.Equal("[Overview](../views/sales.Overview.md)", context.ObjectLink(Overview, "Overview"));
+        Assert.Equal("[Overview](sales.Overview.md)", overviewContext.ObjectLink(Overview, "Overview"));
+        Assert.Equal("[Customers](../tables/sales.Customers.md)", overviewContext.ObjectLink("sales", "Customers", "Customers"));
+        Assert.Equal("[Changed](../triggers/audit.Changed%20%231.md)", overviewContext.TriggerLink(301, "Changed"));
+        Assert.Equal("[Changed](audit.Changed%20%231.md)", triggerContext.TriggerLink(301, "Changed"));
+        Assert.Throws<ArgumentException>(() => context.ForSource(Orders));
+        Assert.Throws<ArgumentNullException>(() => context.ForSource(null!));
+    }
+
     private static SchemaRenderingContext Context(SchemaObjectIdentity source, SchemaObjectIdentity? extra = null)
     {
         var paths = new Dictionary<SchemaObjectIdentity, string>

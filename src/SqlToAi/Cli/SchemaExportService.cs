@@ -54,13 +54,17 @@ internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaE
             var paths = SchemaExportPaths.Create(objects);
             cancellationToken.ThrowIfCancellationRequested();
             Directory.CreateDirectory(root);
-            foreach (SchemaObject item in objects)
+            if (objects.Count > 0)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var document = await ComposeAsync(database, item, paths, cancellationToken);
-                cancellationToken.ThrowIfCancellationRequested();
-                if (document.IsFailure) return Failure(document.Error);
-                await WriteAsync(root, paths[item.Identity], document.Value, () => createdOutput = true, cancellationToken);
+                var renderingContext = new SchemaRenderingContext(objects[0].Identity, paths);
+                foreach (SchemaObject item in objects)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var document = await ComposeAsync(database, item, paths, renderingContext, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (document.IsFailure) return Failure(document.Error);
+                    await WriteAsync(root, paths[item.Identity], document.Value, () => createdOutput = true, cancellationToken);
+                }
             }
             var overview = new StringBuilder().Append("# Database schema: ").AppendLine(OfflineSqlNameFormatter.Text(database)).AppendLine();
             foreach (var group in objects.GroupBy(item => SchemaExportPaths.DirectoryFor(item.Identity.Kind)))
@@ -103,11 +107,10 @@ internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaE
     }
 
     private async Task<Result<string>> ComposeAsync(string database, SchemaObject item,
-        IReadOnlyDictionary<SchemaObjectIdentity, string> paths, CancellationToken cancellationToken)
+        IReadOnlyDictionary<SchemaObjectIdentity, string> paths, SchemaRenderingContext renderingContext, CancellationToken cancellationToken)
     {
         var identity = item.Identity;
         cancellationToken.ThrowIfCancellationRequested();
-        var context = new SchemaRenderingContext(identity, paths);
         if (identity.Kind == SchemaObjectKind.Trigger)
         {
             var definition = await schema.GetExportTriggerDefinitionAsync(database, item, cancellationToken);
@@ -118,6 +121,7 @@ internal sealed class SchemaExportService(ISchemaService schema, ILogger<SchemaE
                 ? SchemaRenderingContext.RelativeLink(paths[identity], parentPath, item.Parent.DisplayName) : OfflineSqlNameFormatter.Text(item.Parent.DisplayName);
             return Result<string>.Success($"# Trigger: {OfflineSqlNameFormatter.Code(identity.DisplayName)}\n\nParent: {parent}\n\n{definition.Value}");
         }
+        var context = renderingContext.ForSource(identity);
         var primary = await schema.GetExportSchemaAsync(database, context, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (primary.IsFailure) return primary;

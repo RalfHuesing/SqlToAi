@@ -148,6 +148,24 @@ public sealed class SchemaExportOutcomeTests
         Assert.Equal("README.md", Path.GetFileName(Assert.Single(Directory.GetFiles(result.OutputPath!))));
     }
 
+    [Fact]
+    public async Task All_TriggerOnlyCatalog_WritesDefinitionWithoutPrimarySchemaCalls()
+    {
+        using var temp = TestTempDirectory.Create();
+        var parent = new SchemaObjectIdentity(1, "sales", "Orders", SchemaObjectKind.Table);
+        var trigger = new SchemaObject(new SchemaObjectIdentity(2, "audit", "Changed", SchemaObjectKind.Trigger), parent);
+        var (export, proxy) = Create([trigger]);
+        string root = temp.GetPath("dump");
+
+        var result = await export.ExportAsync("DemoDB", root, SchemaExportScope.All, cancellationToken: Token);
+
+        Assert.Equal(SchemaExportStatus.Completed, result.Status);
+        Assert.Equal(["GetExportObjectsAsync", "GetExportTriggerDefinitionAsync"], proxy.Calls);
+        Assert.Equal("# Trigger: `audit.Changed`\n\nParent: sales.Orders\n\ntrigger 2",
+            await File.ReadAllTextAsync(Path.Combine(root, "triggers/audit.Changed.md"), Token));
+        Assert.Equal(2, Directory.GetFiles(root, "*", SearchOption.AllDirectories).Length);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
