@@ -32,6 +32,7 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly SqlToAiOptions _options;
     private readonly ILogger<AnonymizationRuleProvider> _logger;
+    private readonly Func<DbConnection>? _dedicatedConnectionFactory;
     private readonly TtlCache<RuleCacheKey, IReadOnlyList<AnonymizationRule>> _cache = new();
     private DatabaseTargetResolver? _targets;
 
@@ -40,10 +41,25 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
         IDatabaseConnectionFactory connectionFactory,
         IOptions<SqlToAiOptions> options,
         ILogger<AnonymizationRuleProvider> logger)
+        : this(connectionFactory, options, logger, dedicatedConnectionFactory: null)
+    {
+    }
+
+    /// <summary>
+    /// Test seam: <paramref name="dedicatedConnectionFactory"/> substitutes the physical connection
+    /// for dedicated secondary sources so owner-scoped loads can be verified offline. The fallback
+    /// path through <see cref="IDatabaseConnectionFactory"/> is unaffected.
+    /// </summary>
+    internal AnonymizationRuleProvider(
+        IDatabaseConnectionFactory connectionFactory,
+        IOptions<SqlToAiOptions> options,
+        ILogger<AnonymizationRuleProvider> logger,
+        Func<DbConnection>? dedicatedConnectionFactory)
     {
         _connectionFactory = connectionFactory;
         _options = options.Value;
         _logger = logger;
+        _dedicatedConnectionFactory = dedicatedConnectionFactory;
     }
 
     /// <inheritdoc/>
@@ -99,7 +115,7 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
         }
 
         Func<DbConnection> createConnection = () => SecondaryConnectionBuilder.CreateForOwner(
-            target, ownerServer, rules, SecondaryConnectionBuilder.AnonymizationRulesApplicationName, _connectionFactory);
+            target, ownerServer, rules, SecondaryConnectionBuilder.AnonymizationRulesApplicationName, _connectionFactory, _dedicatedConnectionFactory);
 
         IReadOnlyList<AnonymizationRule> activeRules = await _cache.GetOrLoadAsync(
             cacheKey,

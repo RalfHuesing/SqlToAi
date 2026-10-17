@@ -51,10 +51,6 @@ public sealed class SecondaryConnectionBuilderOwnerTests
         public static DbConnection Create() => new SqlConnection("Server=mock;Integrated Security=true;");
     }
 
-    // -------------------------------------------------------------------------
-    // ResolveSource
-    // -------------------------------------------------------------------------
-
     [Fact]
     public void ResolveSource_WithoutSecondaryServer_UsesOwnerEndpointAndTargetDatabase()
     {
@@ -106,9 +102,60 @@ public sealed class SecondaryConnectionBuilderOwnerTests
         Assert.Equal("RulesDb", source.SourceDatabase);
     }
 
-    // -------------------------------------------------------------------------
-    // CreateForOwner — fallback path
-    // -------------------------------------------------------------------------
+    [Fact]
+    public void ResolveSource_WithWhitespaceProviderDatabase_PreservesRawNameOnOwnerEndpoint()
+    {
+        var owner = BuildOwner("primary-host");
+        var provider = new MetadataProviderOptions { Database = " " };
+
+        var source = SecondaryConnectionBuilder.ResolveSource(owner, provider, "AppDb", SecondaryConnectionBuilder.MetadataApplicationName);
+
+        Assert.False(source.IsDedicated);
+        Assert.Equal("primary-host", source.Endpoint);
+        Assert.Equal(" ", source.SourceDatabase); // significant whitespace is a real raw database name
+    }
+
+    [Theory]
+    [InlineData(" ")]
+    [InlineData("ä/Db")]
+    public void ResolveSource_WithExplicitRawDatabaseOnOwnerEndpoint_PreservesItExactly(string rawDatabaseName)
+    {
+        var owner = BuildOwner("primary-host");
+        var provider = new MetadataProviderOptions { Database = rawDatabaseName };
+
+        var source = SecondaryConnectionBuilder.ResolveSource(owner, provider, "AppDb", SecondaryConnectionBuilder.MetadataApplicationName);
+
+        Assert.False(source.IsDedicated);
+        Assert.Equal("primary-host", source.Endpoint);
+        Assert.Equal(rawDatabaseName, source.SourceDatabase);
+    }
+
+    [Theory]
+    [InlineData(" ")]
+    [InlineData("ä/Db")]
+    public void ResolveSource_WithDedicatedServerAndExplicitRawDatabase_PreservesItExactly(string rawDatabaseName)
+    {
+        var owner = BuildOwner();
+        var provider = new AnonymizationRulesOptions { Server = "rules-host", Database = rawDatabaseName };
+
+        var source = SecondaryConnectionBuilder.ResolveSource(owner, provider, "AppDb", SecondaryConnectionBuilder.AnonymizationRulesApplicationName);
+
+        Assert.True(source.IsDedicated);
+        Assert.Equal("rules-host", source.Endpoint);
+        Assert.Equal(rawDatabaseName, source.SourceDatabase);
+    }
+
+    [Fact]
+    public void ResolveSource_WithDedicatedServerAndEmptyDatabase_RequiresExplicitDatabase()
+    {
+        var owner = BuildOwner();
+        var provider = new AnonymizationRulesOptions { Server = "rules-host", Database = "" };
+
+        var exception = Assert.Throws<InvalidOperationException>(() => SecondaryConnectionBuilder.ResolveSource(
+            owner, provider, "AppDb", SecondaryConnectionBuilder.AnonymizationRulesApplicationName));
+
+        Assert.Contains("requires an explicitly configured database", exception.Message);
+    }
 
     [Fact]
     public void CreateForOwner_WithoutSecondaryServer_ContactsTargetDatabaseOnOwnerEndpoint()
@@ -138,10 +185,6 @@ public sealed class SecondaryConnectionBuilderOwnerTests
         Assert.Equal(["test"], fallback.TargetAliases);
     }
 
-    // -------------------------------------------------------------------------
-    // CreateForOwner — dedicated path
-    // -------------------------------------------------------------------------
-
     [Fact]
     public void CreateForOwner_WithDedicatedServer_BuildsStandaloneConnectionAndNeverUsesPrimary()
     {
@@ -170,6 +213,22 @@ public sealed class SecondaryConnectionBuilderOwnerTests
         Assert.True(builder.TrustServerCertificate);
         Assert.Equal(15, builder.ConnectTimeout);
         Assert.Empty(fallback.TargetDatabases);
+    }
+
+    [Theory]
+    [InlineData(" ")]
+    [InlineData("ä/Db")]
+    public void CreateForOwner_WithExplicitRawProviderDatabase_ContactsItUnchangedOnOwnerEndpoint(string rawDatabaseName)
+    {
+        var owner = BuildOwner();
+        var provider = new MetadataProviderOptions { Database = rawDatabaseName };
+        var fallback = new CountingFallbackFactory();
+
+        using var connection = SecondaryConnectionBuilder.CreateForOwner(
+            Target("AppDb"), owner, provider, SecondaryConnectionBuilder.MetadataApplicationName, fallback);
+
+        Assert.Equal([rawDatabaseName], fallback.TargetDatabases);
+        Assert.Equal(["test"], fallback.TargetAliases);
     }
 
     [Fact]
@@ -204,6 +263,29 @@ public sealed class SecondaryConnectionBuilderOwnerTests
         Assert.Throws<InvalidOperationException>(() => SecondaryConnectionBuilder.CreateForOwner(
             Target("AppDb"), owner, provider, SecondaryConnectionBuilder.AnonymizationRulesApplicationName, fallback));
 
+        Assert.Empty(fallback.TargetDatabases);
+    }
+
+    [Theory]
+    [InlineData(" ")]
+    [InlineData("ä/Db")]
+    public void CreateForOwner_WithDedicatedServerAndExplicitRawDatabase_PreservesInitialCatalog(string rawDatabaseName)
+    {
+        var owner = BuildOwner();
+        var provider = new AnonymizationRulesOptions
+        {
+            Server = "rules-host",
+            Database = rawDatabaseName,
+            IntegratedSecurity = true
+        };
+        var fallback = new CountingFallbackFactory();
+
+        using DbConnection connection = SecondaryConnectionBuilder.CreateForOwner(
+            Target("AppDb"), owner, provider, SecondaryConnectionBuilder.AnonymizationRulesApplicationName, fallback);
+
+        var builder = new SqlConnectionStringBuilder(((SqlConnection)connection).ConnectionString);
+        Assert.Equal("rules-host", builder.DataSource);
+        Assert.Equal(rawDatabaseName, builder.InitialCatalog);
         Assert.Empty(fallback.TargetDatabases);
     }
 

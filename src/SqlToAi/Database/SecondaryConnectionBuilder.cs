@@ -50,7 +50,9 @@ internal static class SecondaryConnectionBuilder
         string fallbackDatabaseName,
         IDatabaseConnectionFactory fallbackConnectionFactory)
     {
-        string targetDb = !string.IsNullOrWhiteSpace(settings.Database) ? settings.Database! : fallbackDatabaseName;
+        // Raw database names are preserved exactly, including significant whitespace (" " is a real
+        // raw name); only null or empty means the database was omitted and the fallback name applies.
+        string targetDb = !string.IsNullOrEmpty(settings.Database) ? settings.Database! : fallbackDatabaseName;
 
         if (string.IsNullOrWhiteSpace(settings.Server))
         {
@@ -72,21 +74,25 @@ internal static class SecondaryConnectionBuilder
         string targetDatabaseName,
         string applicationName)
     {
+        // An explicit provider Database is a raw database name and is preserved exactly, including
+        // significant whitespace (" " is a real raw name); only null or empty means it was omitted.
+        // A supplied name is never silently rerouted to another source, and on a dedicated server
+        // any non-empty explicit database satisfies the dedicated requirement (concept Must 8).
+        bool hasExplicitDatabase = !string.IsNullOrEmpty(provider.Database);
+
         if (string.IsNullOrWhiteSpace(provider.Server))
         {
-            string sourceDatabase = !string.IsNullOrWhiteSpace(provider.Database)
-                ? provider.Database!
-                : targetDatabaseName;
+            string sourceDatabase = hasExplicitDatabase ? provider.Database! : targetDatabaseName;
             return new ProviderSourceResolution(ownerServer.Server, sourceDatabase, IsDedicated: false);
         }
 
-        if (string.IsNullOrWhiteSpace(provider.Database))
+        if (!hasExplicitDatabase)
         {
             throw new InvalidOperationException(
                 $"{applicationName} SQL connection error: a dedicated secondary server requires an explicitly configured database.");
         }
 
-        return new ProviderSourceResolution(provider.Server, provider.Database, IsDedicated: true);
+        return new ProviderSourceResolution(provider.Server, provider.Database!, IsDedicated: true);
     }
 
     /// <summary>
@@ -101,7 +107,8 @@ internal static class SecondaryConnectionBuilder
         NamedServerOptions ownerServer,
         IProviderConnectionOptions provider,
         string applicationName,
-        IDatabaseConnectionFactory fallbackConnectionFactory)
+        IDatabaseConnectionFactory fallbackConnectionFactory,
+        Func<DbConnection>? dedicatedConnectionFactory = null)
     {
         ProviderSourceResolution source = ResolveSource(ownerServer, provider, target.DatabaseName, applicationName);
 
@@ -110,6 +117,13 @@ internal static class SecondaryConnectionBuilder
             return string.Equals(source.SourceDatabase, target.DatabaseName, StringComparison.Ordinal)
                 ? fallbackConnectionFactory.CreateTargetConnection(target)
                 : fallbackConnectionFactory.CreateTargetConnection(new DatabaseTargetContext(target.ServerAlias, source.SourceDatabase));
+        }
+
+        // Offline-test seam: substitutes only the physical dedicated connection; the dedicated vs.
+        // fallback decision still runs through ResolveSource. Production code passes null.
+        if (dedicatedConnectionFactory is not null)
+        {
+            return dedicatedConnectionFactory();
         }
 
         var settings = new SecondaryConnectionSettings(
@@ -132,7 +146,7 @@ internal static class SecondaryConnectionBuilder
         var builder = new SqlConnectionStringBuilder
         {
             DataSource = settings.Server,
-            InitialCatalog = !string.IsNullOrWhiteSpace(targetDb)
+            InitialCatalog = !string.IsNullOrEmpty(targetDb)
                 ? targetDb
                 : throw new InvalidOperationException($"{applicationName} SQL connection error: Database name must be explicitly specified."),
             ApplicationName = applicationName,

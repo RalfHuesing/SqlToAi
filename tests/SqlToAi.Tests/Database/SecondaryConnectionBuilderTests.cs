@@ -69,6 +69,17 @@ public sealed class SecondaryConnectionBuilderTests
     }
 
     [Fact]
+    public void Create_ShouldPreserveWhitespaceDatabase_AsRawName()
+    {
+        var settings = new SecondaryConnectionSettings(null, " ", null, null, false, true, 30);
+        var fallback = new FakeConnectionFactory();
+
+        using var connection = SecondaryConnectionBuilder.Create(settings, "SqlToAi-Test", "FallbackDb", fallback);
+
+        Assert.Equal(" ", fallback.LastDatabaseName);
+    }
+
+    [Fact]
     public void Create_ShouldThrow_WhenServerConfiguredButNoDatabaseAndNoFallback()
     {
         var settings = new SecondaryConnectionSettings("my-server", null, "user", "pass", false, false, 15);

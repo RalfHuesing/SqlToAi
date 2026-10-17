@@ -160,18 +160,28 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   per-server settings and resolves per-server provider SQL files. New tests:
   `SecondaryConnectionBuilderOwnerTests`, `AnonymizationRuleProviderOwnerTests`
   (disabled/no-connection, same endpoint different aliases, per-target fallback
-  partitioning, shared dedicated source per owner, raw-database rule patterns,
-  failure->masking, cancellation without caching), `MetadataProviderOwnerTests`,
-  `ConfigurationResolverServerTests`. `dotnet build SqlToAi.slnx` succeeded with
-  0 warnings and 0 errors. `dotnet test SqlToAi.slnx` succeeded: 1,356 passed,
-  19 skipped, 0 failed; skipped cases remain unavailable external TLS endpoints
-  and are unverified, not passes. `git diff --check` clean. AiNetLinter verify
+  partitioning with contrasting rules, shared dedicated source per owner,
+  raw-database rule patterns, failure->masking, cancellation without caching),
+  `MetadataProviderOwnerTests`, `ConfigurationResolverServerTests`.
+  Amendment (own execution only, this session): explicit raw provider Database
+  is preserved exactly, including whitespace-only names (concept Must 8); a
+  dedicated-connection test seam makes owner-scoped dedicated loads verifiable
+  offline, including a failed-open case that proves no fallback to the primary;
+  owner-isolation tests use contrasting per-target rules and thread-safe fakes
+  so borrowed cache entries would flip results. Gates run in this session:
+  focused `dotnet test tests/SqlToAi.Tests/SqlToAi.Tests.csproj --filter
+  "FullyQualifiedName~SecondaryConnectionBuilderOwnerTests|FullyQualifiedName~SecondaryConnectionBuilderTests|FullyQualifiedName~AnonymizationRuleProviderOwnerTests"`
+  -> 47 passed, 0 failed; `dotnet build SqlToAi.slnx` -> 0 warnings, 0 errors;
+  `dotnet test SqlToAi.slnx` -> 1,370 passed, 19 skipped, 0 failed; skipped
+  cases remain unavailable external TLS endpoints and are unverified, not
+  passes. `git diff --check` clean. AiNetLinter verify
   (scope=changes, targetPath=C:/Daten/Entwicklung/Ralf/SqlToAi/SqlToAi.slnx)
-  unavailable: `reason: notconfigured` because `ainetlinter-rules.json` is
-  missing; recorded honestly and not treated as a pass. Assignment model /
-  effort: z-ai/glm-5.3-flash / medium via openrouter. Host activation and legacy
-  setting removal remain for M4.1; legacy top-level provider settings and the
-  legacy call paths stay active for unmigrated consumers.
+  not executed: the verify tool is not exposed in this session and
+  `ainetlinter-rules.json` is missing; recorded honestly and not treated as a
+  pass. Assignment model / effort: z-ai/glm-5.3-flash / medium via openrouter.
+  Host activation and legacy setting removal remain for M4.1; legacy top-level
+  provider settings and the legacy call paths stay active for unmigrated
+  consumers.
 
 - [ ] **M2.2 — Scope token storage, issuance and existing resolution paths.**
   **Depends on:** M1.
