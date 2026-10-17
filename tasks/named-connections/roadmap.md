@@ -94,7 +94,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 
 ## M3 — Remaining services and public argument surfaces
 
-- [ ] **M3 — Aggregate:** M3.1–M3.4 accepted; every database-facing surface has a
+- [x] **M3 — Aggregate:** M3.1–M3.4 accepted; every database-facing surface has a
   target-aware implementation ready for host cutover.
 
 - [x] [**M3.1 — Route schema inspection and existing schema exports**](roadmap/m3.1-route-schema-inspection-and-existing-schema-exports.md)
@@ -106,7 +106,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 - [x] [**M3.3 — Expose server discovery and qualified MCP/CLI arguments**](roadmap/m3.3-expose-server-discovery-and-qualified-mcp-cli-arguments.md)
   Let callers discover aliases and address only explicit targets.
 
-- [ ] [**M3.4 — Audit service and transport coverage**](roadmap/m3.4-audit-service-and-transport-coverage.md)
+- [x] [**M3.4 — Audit service and transport coverage**](roadmap/m3.4-audit-service-and-transport-coverage.md)
   Rule out a forgotten path before activating the hard cut.
 
 ## M4 — Hard cut, operating documentation and final evidence
