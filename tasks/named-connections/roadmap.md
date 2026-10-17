@@ -88,508 +88,62 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 - [x] **M1 — Aggregate:** M1.1–M1.3 accepted; one identity and policy contract is
   available to all later consumers.
 
-- [x] **M1.1 — Define immutable targets and server configuration models.**
-  **Depends on:** approved concept.
-  **Intention:** separate caller target identity, policy comparison and physical
-  database names before any consumer selects an endpoint.
-  **Scope:** shared parser/resolver, immutable target context and per-server options
-  in the existing Configuration/Domain/Database boundaries; prepare named-server
-  binding for M4.1. Inspect [options](../../src/SqlToAi/Configuration/SqlToAiOptions.cs)
-  and the [connection contract](../../src/SqlToAi/Database/IDatabaseConnectionFactory.cs).
-  **Exclusions:** activating the new host configuration, migration, hot reload,
-  connection probes and changes to SQL object-name parsing.
-  **Acceptance:** `TEST/AppDb` canonicalizes to `test/AppDb`; `test/App/Db` retains
-  `App/Db`; Unicode and significant database characters survive unchanged.
-  Missing/empty/malformed/unqualified targets and unknown aliases map to
-  `SQL-AI-0001`. Alias identity uses invariant ASCII lowercase, policy database
-  comparison uses `OrdinalIgnoreCase`, and raw database identity remains ordinal.
-  Explicit `default` and two aliases for one physical endpoint gain no special
-  behavior. Contexts contain no mutable current-server state.
-  **Completion evidence:** Added `DatabaseTargetParser`, `DatabaseTargetResolver`,
-  immutable `DatabaseTargetContext`, and `NamedServerOptions` under
-  `SqlToAi.Servers`. Focused tests cover parsing, alias canonicalization and
-  validation, unknown aliases, policy versus raw identity, explicit `default`,
-  duplicate endpoints, and per-server option binding. `dotnet build SqlToAi.slnx`
-  succeeded with 0 warnings and 0 errors. `dotnet test SqlToAi.slnx` succeeded:
-  1,281 passed, 19 skipped, 0 failed; skipped cases are TLS integration cases
-  whose external test endpoints are unavailable in this run. Assignment model /
-  effort: GPT-6-Luna / high. Host activation and legacy-contract removal remain
-  for M4.1; this slice does not change current runtime routing.
+- [x] [**M1.1 — Define immutable targets and server configuration models**](roadmap/m1.1-define-immutable-targets-and-server-configuration-models.md)
+  Separate caller target identity, policy comparison and physical database names before any consumer selects an endpoint.
 
-- [x] **M1.2 — Route primary connections and access policy through targets.**
-  **Depends on:** M1.1.
-  **Intention:** make endpoint selection and authorization use the same identity.
-  **Scope:** [SqlConnectionFactory](../../src/SqlToAi/Database/SqlConnectionFactory.cs),
-  [SecurityGuard](../../src/SqlToAi/Security/SecurityGuard.cs),
-  [AccessLevelProvider](../../src/SqlToAi/Security/AccessLevelProvider.cs),
-  [QuerySafetyValidator](../../src/SqlToAi/Database/QuerySafetyValidator.cs), primary
-  connection diagnostics and directly affected dependencies/fakes. Provide an
-  explicit selected-server catalog-connection path for M3.3, distinct from a
-  database target. Preserve a resolved context through downstream calls.
-  **Exclusions:** discovery formatting, secondary-provider policy and changes to
-  SQL guards, login permissions, transaction semantics or global query limits.
-  **Acceptance:** independent same-name grants, restrictive overlapping levels,
-  default deny and server-local raw-name exclusions are verified. Valid denied or
-  excluded targets return `SQL-AI-0104` before SQL; SqlClient receives only the raw
-  InitialCatalog and selected endpoint/auth/TLS/connect timeout. Catalog access
-  cannot infer a target for ordinary calls. Primary TLS/infrastructure and timeout
-  errors retain `SQL-AI-0105`/`SQL-AI-0106` and identify the owning settings path
-  without raw exception secrets. Parallel routing does not mutate options.
-  **Completion evidence:** Accepts checkpoint `124e6bb`; no code defects found in
-  acceptance review. Resolver and catalog argument tests verify `SQL-AI-0001`
-  for invalid/unknown inputs before SQL; valid denied or excluded target safety
-  checks yield `SQL-AI-0104` without a connection dependency. Context APIs consume
-  already resolved identities; a context from another options instance is not
-  equivalent to caller input (see [audit](audit.md)). `dotnet build
-  SqlToAi.slnx` succeeded with 0 warnings and 0 errors. `dotnet test SqlToAi.slnx`
-  succeeded: 1,322 passed, 19 skipped (external TLS endpoints unavailable, not
-  verified passes), 0 failed. `git diff --check` clean. AiNetLinter verify
-  (scope=changes and scope=solution) unavailable: rule configuration missing
-  (`reason: notconfigured`); not treated as a pass. Actual assignment model /
-  effort: z-ai/glm-5.3-flash / medium via openrouter.
+- [x] [**M1.2 — Route primary connections and access policy through targets**](roadmap/m1.2-route-primary-connections-and-access-policy-through-targets.md)
+  Make endpoint selection and authorization use the same identity.
 
-- [x] **M1.3 — Audit target and policy foundations.**
-  **Depends on:** M1.1–M1.2.
-  **Intention:** establish safe contracts before migrating stateful consumers.
-  **Scope:** inspect the preceding diff and tests against concept Must 1–5, 7 and
-  11 as applicable; verify reusable context APIs and primary error handling.
-  **Exclusions:** declaring public startup/discovery or the whole feature complete.
-  **Acceptance:** parser, casing, endpoint, exclusion and error cases above have
-  actual test evidence; no context can silently select a default endpoint. Fix
-  findings in their owning slice before closing M1.
-  **Completion evidence:** Independent [audit](audit.md) of `988b641..070d1bb`:
-  no blocking preparation-contract findings. Focused tests: 86 passed, 0 skipped,
-  0 failed; diff whitespace check clean. AiNetLinter semantic navigation used;
-  verify(scope=changes) incomplete (`notconfigured`), not a passed gate.
-  Corrected the overly broad M1.2 boundary-evidence claim without changing code.
-  Actual model / effort: `openai/gpt-6.1-sol` / medium via `openrouter`.
-  No correction item needed; M1 accepted, resume at M2.1.
+- [x] [**M1.3 — Audit target and policy foundations**](roadmap/m1.3-audit-target-and-policy-foundations.md)
+  Establish safe contracts before migrating stateful consumers.
 
 ## M2 — Provider, token and execution isolation
 
 - [ ] **M2 — Aggregate:** M2.1–M2.5 accepted; supporting providers and execution
   paths use scoped state without changing their existing protection boundaries.
 
-- [x] **M2.1 — Scope metadata, central rules and rule caches.**
-  **Depends on:** M1.
-  **Intention:** keep descriptions and masking exemptions with their policy owner.
-  **Scope:** [MetadataProvider](../../src/SqlToAi/Metadata/MetadataProvider.cs),
-  [SecondaryConnectionBuilder](../../src/SqlToAi/Database/SecondaryConnectionBuilder.cs),
-  [AnonymizationRuleProvider](../../src/SqlToAi/Anonymization/AnonymizationRuleProvider.cs)
-  and policy resolution; use each owner's provider settings and effective source
-  identity. Extend environment expansion and provider SQL-file resolution to
-  per-server settings, preserving the user-root path base.
-  **Exclusions:** provider aliases, new inheritance rules, failover and changing
-  rule specificity, matching or timeout semantics.
-  **Acceptance:** disabled providers make no connection; defaults retain native
-  descriptions and no central-rule exemptions. No secondary Server/Database uses
-  the selected target database; an explicit raw provider Database on the same
-  server uses primary auth/TLS/connect timeout. A dedicated server requires its
-  own raw database/auth/TLS and never retries on primary. Cache keys distinguish
-  owner and effective source, including physical database and rules table; test
-  both shared dedicated sources and per-target fallback sources. Failed loads
-  retain default masking; cancellation propagates without caching a fallback.
-  Masked and explicitly exempt values remain correct under parallel requests.
-  **Completion evidence:** Added `IProviderConnectionOptions`,
-  `SecondaryConnectionBuilder.ResolveSource`/`CreateForOwner`,
-  `ProviderSourceResolution`, target-aware `IMetadataProvider`,
-  `IAnonymizationRuleProvider` and `IAnonymizationPolicyResolver` overloads with
-  per-owner rule cache keys and shared loaders; `ConfigurationResolver` expands
-  per-server settings and resolves per-server provider SQL files. New tests:
-  `SecondaryConnectionBuilderOwnerTests`, `AnonymizationRuleProviderOwnerTests`
-  (disabled/no-connection, same endpoint different aliases, per-target fallback
-  partitioning with contrasting rules, shared dedicated source per owner,
-  raw-database rule patterns, failure->masking, cancellation without caching),
-  `MetadataProviderOwnerTests`, `ConfigurationResolverServerTests`.
-  Amendment (own execution only, this session): explicit raw provider Database
-  is preserved exactly, including whitespace-only names (concept Must 8); a
-  dedicated-connection test seam makes owner-scoped dedicated loads verifiable
-  offline, including a failed-open case that proves no fallback to the primary;
-  owner-isolation tests use contrasting per-target rules and thread-safe fakes
-  so borrowed cache entries would flip results. Gates run in this session:
-  focused `dotnet test tests/SqlToAi.Tests/SqlToAi.Tests.csproj --filter
-  "FullyQualifiedName~SecondaryConnectionBuilderOwnerTests|FullyQualifiedName~SecondaryConnectionBuilderTests|FullyQualifiedName~AnonymizationRuleProviderOwnerTests"`
-  -> 47 passed, 0 failed; `dotnet build SqlToAi.slnx` -> 0 warnings, 0 errors;
-  `dotnet test SqlToAi.slnx` -> 1,370 passed, 19 skipped, 0 failed; skipped
-  cases remain unavailable external TLS endpoints and are unverified, not
-  passes. `git diff --check` clean. AiNetLinter verify
-  (scope=changes, targetPath=C:/Daten/Entwicklung/Ralf/SqlToAi/SqlToAi.slnx)
-  not executed: the verify tool is not exposed in this session and
-  `ainetlinter-rules.json` is missing; recorded honestly and not treated as a
-  pass. Assignment model / effort: z-ai/glm-5.3-flash / medium via openrouter.
-  Host activation and legacy setting removal remain for M4.1; legacy top-level
-  provider settings and the legacy call paths stay active for unmigrated
-  consumers.
+- [x] [**M2.1 — Scope metadata, central rules and rule caches**](roadmap/m2.1-scope-metadata-central-rules-and-rule-caches.md)
+  Keep descriptions and masking exemptions with their policy owner.
 
-- [x] **M2.2 — Scope token storage, issuance and existing resolution paths.**
-  **Depends on:** M1.
-  **Intention:** prevent tokens from carrying plaintext across selected targets.
-  **Scope:** [TokenVault](../../src/SqlToAi/Anonymization/TokenVault.cs), anonymizer
-  contracts, [QueryTokenResolver](../../src/SqlToAi/Database/QueryTokenResolver.cs)
-  and affected callers; pass the target explicitly rather than ambient state.
-  **Exclusions:** parameter substitution, resolution in additional tools, changes
-  to process-local lifetime, masking algorithms or output envelopes.
-  **Acceptance:** token IDs cannot collide across scopes; identical plaintext in
-  different aliases or ordinally distinct raw database names is not interchangeable.
-  Same-scope reuse and SQL-literal escaping still work. Foreign/unknown tokens stay
-  literal text; comments and identifiers remain untouched. Verify concurrent
-  issuance/resolution and both masked and exempt values without exposing plaintext.
-  **Completion evidence:** Added context-aware overloads `GetOrAddToken`/`Store`/
-  `TryResolve(DatabaseTargetContext)` to `ITokenVault`, scoped `Tokenize` to
-  `IAnonymizer`/`Anonymizer` and scoped `ResolveTokens` to `IQueryTokenResolver`/
-  `QueryTokenResolver`. `TokenVault` partitions token state per immutable
-  `DatabaseTargetContext` (canonical alias + ordinal raw database, record equality,
-  no concatenation, no ambient state) with one process-global 64-bit token-ID
-  counter and a per-scope issuance lock, so parallel issuance mints exactly one
-  token per plaintext/scope. A shared ownership registry gives every token text
-  exactly one immutable owner scope for the vault's lifetime — minted and
-  explicitly stored tokens alike, with legacy state as its own isolated owner
-  until M4.1: a `Store` that tries to bind a foreign-owned token to another scope
-  throws `InvalidOperationException` (no silent rebind, so a foreign token can
-  never resolve through the vault), and minting skips counter IDs whose text was
-  already reserved by a `Store`, preventing cross-scope collisions in both
-  directions. Re-storing within the owning scope overwrites the remembered value.
-  Legacy unscoped members remain on a separate legacy scope until M2.3/M4.1
-  migrate their consumers (QueryExecutionService still calls the unscoped
-  `ResolveTokens` at the existing call site); no consumer was migrated and no
-  legacy API was removed. Tests: `TokenVaultScopeTests` (cross-alias and
-  ordinal raw-database isolation incl. `App/Db` and Unicode, same-scope reuse,
-  rejected foreign `Store` of an issued token, reserved future token text forces
-  the next mint to skip it, same-scope store overwrite, concurrent competing
-  stores with one winner, concurrent issuance versus store where every contested
-  text ends with exactly one owner (per-text winner recorded, not assumed),
-  parallel issuance/resolution), `AnonymizerScopeTests`
-  (scoped tokens, same-scope reuse, master-switch disabled path, nonusable
-  tokenization -> hash fallback, null target rejection), `QueryTokenResolverScopeTests`
-  (own-scope substitution, foreign token stays literal, unknown token matching real
-  SQL text stays literal, quote escaping and comment/identifier preservation,
-  parallel per-scope resolution, issued token stays literal after a rejected
-  foreign store). Correction in the same session (own execution only, this
-  writer): the initial scoped `Store` semantics violated concept Must 10 — a test
-  asserted that a token issued for one target could be explicitly stored into
-  another and resolve there. Replaced by the immutable one-owner-per-token-text
-  registry above, with regression tests for the rejection, reservation, and
-  concurrency cases. Second acceptance correction (same session, same writer):
-  the concurrent issuance-versus-store test wrongly assumed all 100 stores would
-  win against 20 concurrent mints, making the outcome scheduling-dependent; it
-  now records the actual winner per contested token text (gate-synchronized start,
-  deterministic inputs, no sleeps) and asserts exactly one owner per text plus
-  correct plaintext resolution in the winning scope only. Production code was
-  unchanged in this correction. Stress evidence (own execution, not independent
-  verification): 20 targeted repeats of `dotnet test --filter
-  FullyQualifiedName~TokenVaultScopeTests` -> 20/20 passed, 0 failures captured.
-  Gates run in this session: `dotnet build
-  SqlToAi.slnx` -> 0 warnings, 0 errors; `dotnet test SqlToAi.slnx` -> 1,392
-  passed, 19 skipped, 0 failed (skips remain unavailable external TLS endpoints,
-  unverified, not passes); focused filter over the three token test classes -> 22
-  passed, 0 failed. `git diff --check` clean. AiNetCodeNavigator semantic
-  navigation used (`ITokenVault` references: only Anonymizer, QueryTokenResolver,
-  Program DI and tests). AiNetLinter verify (scope=changes,
-  targetPath=C:/Daten/Entwicklung/Ralf/SqlToAi/SqlToAi.slnx) not executed: the
-  verify tool is not exposed in this session and `ainetlinter-rules.json` is
-  missing (reason: notconfigured); recorded honestly and not treated as a pass.
-  Assignment model / effort: z-ai/glm-5.3-flash / medium via openrouter.
-  Canonical docs updated in [security.md](../../docs/security.md) (token scope
-  paragraph). M2.3 must carry the target through query execution and validation
-  and switch the token call sites to the scoped APIs.
+- [x] [**M2.2 — Scope token storage, issuance and existing resolution paths**](roadmap/m2.2-scope-token-storage-issuance-and-existing-resolution-paths.md)
+  Prevent tokens from carrying plaintext across selected targets.
 
-- [x] **M2.3 — Carry targets through query execution and validation.**
-  **Depends on:** M2.1–M2.2.
-  **Intention:** connect authorization, token processing and query work to one target.
-  **Scope:** query execution, anonymization partials, query validation and
-  [QueryExecutionDependencies](../../src/SqlToAi/Database/QueryExecutionDependencies.cs).
-  Resolve at entry and carry the immutable context through guards, connections,
-  provider calls, token operations and existing database-identifying output.
-  **Exclusions:** script batches, analysis tools, new token coverage and SQL rewrites.
-  **Acceptance:** alternate and concurrent same-name calls use the right endpoint,
-  access level, masking rules and token scope. Direct-service calls reject invalid
-  targets too. Existing target fields/headers are canonical, while rows, catalog
-  hints, limits, `NOEXEC` safeguards, read-only rollback, ReadWrite commit and
-  cancellation-independent cleanup retain their behavior and error contracts.
-  **Completion evidence:** Both `ExecuteQueryAsync` entrypoints and both
-  `ValidateQueryAsync` entrypoints now resolve the caller argument once through the
-  existing `DatabaseTargetResolver` and return `SQL-AI-0001` for malformed,
-  unqualified or unknown targets before the validator or any connection
-  (`QueryExecutionService`, `QueryValidationService`). The resolved immutable
-  context drives `ValidateTargetQuerySafetyAsync`, scoped
-  `IQueryTokenResolver.ResolveTokens`, `CreateTargetConnection`,
-  `PrimaryConnection.OpenTargetAsync`, the target-aware
-  `IAnonymizationRuleProvider.IsExcludedAsync` and scoped
-  `IAnonymizer.Tokenize`; error/log labels and transaction-integrity rejection use
-  the canonical `alias/rawDb` qualified name. No ambient options or current-target
-  mutation; the legacy public string APIs remain the only service surface (no
-  parallel API, no compatibility mode). Shared batch infrastructure gained an
-  explicit `QueryBatchExecutionArgs.Target`; when absent (still-unmigrated script
-  executor, removal owned by M2.4/M4.1) the executor keeps the legacy unscoped
-  rule/token paths so script behavior and tests stay valid without migrating
-  scripts or analysis. `QueryExecutionDependencies` now exposes a shared
-  `DatabaseTargetResolver` for the M3.2 analysis services. New acceptance tests in
-  `QueryExecutionServiceTargetIsolationTests` (15 cases): composed real
-  guard pipeline (real `QuerySafetyValidator` + `SecurityGuard` grants/exclusions) plus
-  real `TokenVault`/`Anonymizer`/`QueryTokenResolver` over a target-aware DB double with
-  distinct rows per owner: 0001 for invalid/unknown/unqualified direct calls with zero
-  factory calls; 0104 for a valid denied target and a server-excluded target before any
-  connection; `TEST/DemoDB` canonicalizes to `test/DemoDB` with the raw physical name only
-  reaching the factory; alternating and 24-call parallel same-raw-name `test/DemoDB` vs
-  `prod/DemoDB` keep access level, rows, masking and rule-owner identity separate; own
-  token substitutes in the supported literal path only, the foreign owner keeps it
-  literal; rule-exempt column stays raw while the other column tokenizes; raw `App/Db`
-  reaches the factory exactly and ordinally distinct `test/App/Db` vs `test/appdb`
-  scopes do not resolve each other's tokens. Existing regression fixtures were migrated
-  coherently: `FakeSecurityGuard`/`FakeAccessLevelProvider` implement their target
-  members, `FakeQuerySafetyValidator` delegates target calls through the real pipeline,
-  rule-provider fakes answer target-aware lookups, mock factories implement
-  `CreateTargetConnection` recording the target and exposing the raw physical database,
-  and the integration fixture composes the demo profile's named-server view plus
-  qualified grants without touching the shipped `demo-profile.json`. Existing tests for
-  transaction integrity, cancellation-independent cleanup, limits, `NOEXEC`,
-  rollback/commit and primary-failure contracts remain green; primary-failure tests now
-  assert the migrated `SqlToAi:Servers:<alias>` diagnostic path for query/validation
-  tools and the legacy `SqlServer` path for the remaining tools. Gates run in this
-  session: `dotnet build SqlToAi.slnx` -> 0 warnings, 0 errors; `dotnet test
-  SqlToAi.slnx` -> 1,407 passed, 19 skipped, 0 failed (skips remain the unavailable
-  external TLS endpoints, unverified, not passes); focused filter over the new
-  isolation class -> 15 passed, 0 failed. `git diff --check` clean (only autocrlf
-  notices). AiNetCodeNavigator semantic navigation used
-  (`QueryBatchExecutionArgs` references: executor interface, `QueryExecutionService`,
-  both `ScriptExecutionService` construction sites, and test doubles — matching the
-  transitional design). AiNetLinter verify (scope=changes,
-  targetPath=C:/Daten/Entwicklung/Ralf/SqlToAi/SqlToAi.slnx) not executed: the
-  verify tool is not exposed in this session and `ainetlinter-rules.json` is missing
-  (reason: notconfigured); recorded honestly and not treated as a pass. Assignment
-  model / effort: z-ai/glm-5.3-flash / medium via openrouter. Canonical docs updated
-  in [security](../../docs/security.md) (target resolution at service entry, scoped
-  query-literal token substitution, `SqlToAi:Servers:<alias>` failure diagnostics)
-  and [tools](../../docs/tools.md) (`sql_execute_query` `database` resolution).
-  Host DI/config cutover, script migration and analysis migration remain for
-  M2.4/M3.x/M4.1.
-  Acceptance amendment (own execution only, this session): closed three test gaps at
-  `7adeb6a` without production-code changes. (1) The parallel test now proves real
-  cross-owner overlap: a deterministic `OwnerOverlapBarrier` holds every connection open
-  until at least one call per owner is genuinely in flight (`FakeDbConnectionOptions`
-  gained an awaited `OpenAsyncHook` in the shared test support; no sleeps, no
-  schedule-dependent assumptions), the factory and rule provider record thread-safely,
-  and access levels now come from the configured qualified grants via
-  `GrantsAccessLevelProvider` instead of a hardcoded per-target fake. (2) New
-  `QueryExecutionTargetScopeTests` drive both owners at `ReadOnlyAnonymized` with
-  identical fictional plaintext: distinct tokens per owner, own-token substitution and
-  foreign-token literal text asserted against the actually captured SQL per target, an
-  exemption contrast (same rule provider exempts only the test owner's column), and
-  ordinally case-only distinct raw databases `test/AppDb` vs `test/appdb` proving raw
-  scope distinction independent of source text; the rights-difference coverage stays in
-  its own test. (3) A composed positive `QueryValidationService` case over the real
-  guard pipeline resolves canonical targets (`PROD/DemoDB` included), creates exactly
-  one selected-owner connection with the raw physical name per call and retains the
-  always-rollback/never-commit contract; no token resolution in validation. Shared
-  target doubles live in `TargetIsolationFixture.cs`, keeping both test classes below
-  the file-size budget. Gates: `dotnet build SqlToAi.slnx` -> 0 warnings, 0 errors;
-  `dotnet test SqlToAi.slnx` -> 1,411 passed, 19 skipped, 0 failed; 10 repeated
-  `--no-build` runs of the two acceptance classes -> 10/10 passed (19 cases each);
-  `git diff --check` clean. Actual model / effort: z-ai/glm-5.3-flash / medium via
-  openrouter. AiNetLinter verify remains unavailable/notconfigured and is not counted
-  as a pass.
+- [x] [**M2.3 — Carry targets through query execution and validation**](roadmap/m2.3-carry-targets-through-query-execution-and-validation.md)
+  Connect authorization, token processing and query work to one target.
 
-- [x] **M2.4 — Carry targets through script execution.**
-  **Depends on:** M2.3.
-  **Intention:** apply the same identity across every batch in a script request.
-  **Scope:** [ScriptExecutionService](../../src/SqlToAi/Database/ScriptExecutionService.cs),
-  its report composition and shared execution/token/provider dependencies.
-  **Exclusions:** changing script paths, size limits, GO parsing, transaction-control
-  preflight or autocommit behavior.
-  **Acceptance:** batches cannot change the selected target context; per-server
-  access and state isolation hold in parallel requests. Canonical target labels
-  preserve report structure. Existing protected rollback, managed-transaction
-  rejection, ReadWrite autocommit partial failure, timeout and cancellation tests
-  remain valid with qualified targets.
-  **Completion evidence:** `ScriptExecutionService.ExecuteAsync` resolves
-  `request.DatabaseName` exactly once through the existing `DatabaseTargetResolver`
-  before batch splitting, so malformed/unqualified/unknown targets (including the
-  empty-script edge) return `SQL-AI-0001` with zero factory/executor calls; the
-  resolved immutable context drives `ValidateTargetBatchSafetyAsync` for every
-  preflight batch, `CreateTargetConnection`/`OpenTargetAsync`, the batch
-  `QueryBatchExecutionArgs.Target` (identical for every batch and repetition) and
-  the transaction-integrity rejection/log labels; report database fields and error
-  labels use the canonical qualified target, while the raw physical name alone
-  reaches the factory. `QueryBatchExecutionArgs.Target` is now required and the
-  transitional null-target branches (legacy rule/Tokenize fallbacks,
-  `legacyDatabaseName` plumbing) were removed from the shared executor path; no
-  token resolution was added to scripts. Tests: new
-  `ScriptExecutionTargetIsolationTests` (13 cases) over real
-  `QuerySafetyValidator`+`SecurityGuard`+`GrantsAccessLevelProvider`, real
-  `QueryExecutionService` batch executor and real vault/anonymizer/resolver with
-  target-aware doubles: 0001 for invalid/unknown/unqualified direct calls incl.
-  empty-script edge with zero SQL; 0104 for denied and server-excluded targets;
-  `TEST/DemoDB` -> canonical `test/DemoDB` report label and raw `DemoDB` at the
-  factory; alternating/parallel same-raw-name scripts (>=2 GO batches, repeat
-  count 2) keep rows, rights, rule-owner identity and one target per batch
-  separate; parallel 12-script run proves genuine cross-owner overlap via the
-  awaited `OwnerOverlapBarrier` (thread-safe recording, no sleeps); masked vs
-  exempt column contrast; script egress mints owner-scoped tokens, scripts keep
-  token text literal, the query ingress resolves the same-scope token while a
-  foreign owner's query keeps it literal. Migrated coherently:
-  `ScriptExecutionServiceTests`, `ScriptCleanupTests`,
-  `ScriptExecutionServiceIntegrationTests` (qualified requests, named-server test
-  options, raw fixture connections kept for marker cleanup),
-  `PrimaryConnectionFailureTests` (script TLS case), two script anonymization
-  tests, batch-arg unit tests; single-endpoint SQL and explicit TLS fixtures
-  retained unchanged. Docs updated in [security](../../docs/security.md) and
-  [tools](../../docs/tools.md). Gates in this session: `dotnet build SqlToAi.slnx`
-  -> 0 warnings, 0 errors; `dotnet test SqlToAi.slnx` -> 1,424 passed, 19 skipped,
-  0 failed (skips remain unavailable external TLS endpoints, unverified, not
-  passes); 10 repeated runs of the script isolation + script cleanup + query
-  isolation classes -> 10/10 x 35 passed; `git diff --check` clean (only autocrlf
-  notices). AiNetCodeNavigator used (`QueryBatchExecutionArgs`: 15 reference
-  sites, both construction sites pass the target, no legacy null path).
-  AiNetLinter verify (scope=changes,
-  targetPath=C:/Daten/Entwicklung/Ralf/SqlToAi/SqlToAi.slnx) not executed: the
-  verify tool is not exposed in this session and `ainetlinter-rules.json` is
-  missing (reason: notconfigured); recorded honestly and not treated as a pass.
-  Assignment model / effort: z-ai/glm-5.3-flash / medium via openrouter. M2.5
-  audits provider/token/execution isolation; M2 remains open until then.
+- [x] [**M2.4 — Carry targets through script execution**](roadmap/m2.4-carry-targets-through-script-execution.md)
+  Apply the same identity across every batch in a script request.
 
-- [ ] **M2.5 — Audit provider, token and execution isolation.**
-  **Depends on:** M2.1–M2.4.
-  **Intention:** detect foreign exemptions or plaintext reuse before exposing tools.
-  **Scope:** review concept Must 8–10 and the execution portion of Must 5/11 against
-  implementations, fakes and tests, including parallel and failed-load cases.
-  **Exclusions:** claiming schema/analysis or SDK coverage from service tests.
-  **Acceptance:** cache ownership, provider fallback, ordinal token scope and
-  unchanged protection limits have verified success/failure evidence; no shared
-  mutable target state or newly introduced legacy fallback remains. Resolve all
-  findings before closing M2.
+- [ ] [**M2.5 — Audit provider, token and execution isolation**](roadmap/m2.5-audit-provider-token-and-execution-isolation.md)
+  Detect foreign exemptions or plaintext reuse before exposing tools.
 
 ## M3 — Remaining services and public argument surfaces
 
 - [ ] **M3 — Aggregate:** M3.1–M3.4 accepted; every database-facing surface has a
   target-aware implementation ready for host cutover.
 
-- [ ] **M3.1 — Route schema inspection and existing schema exports.**
-  **Depends on:** M2.
-  **Intention:** preserve database identity through metadata and export composition.
-  **Scope:** [SchemaService](../../src/SqlToAi/Database/SchemaService.cs), scalar/batch
-  schema, object search and all separate detail/definition operations; export
-  discovery, [SchemaExportService](../../src/SqlToAi/Cli/SchemaExportService.cs) and
-  its typed identities/rendering contexts. Pass one resolved target through helpers.
-  **Exclusions:** database list/search (M3.3), data/CSV export, changes to selection,
-  batch budgets, dump layout, file safety or offline provider exclusions.
-  **Acceptance:** same-name targets route correctly for scalar/batch schema, every
-  detail tool, selected/all MCP export and legacy full CLI export. SchemaOnly and
-  pre-SQL access checks remain effective. Existing database headings use canonical
-  targets, but SQL/DDL/object identifiers stay raw. Batch envelopes/limits, offline
-  rendering without provider calls, partial-output and cancellation behavior hold.
+- [ ] [**M3.1 — Route schema inspection and existing schema exports**](roadmap/m3.1-route-schema-inspection-and-existing-schema-exports.md)
+  Preserve database identity through metadata and export composition.
 
-- [ ] **M3.2 — Route comparison, measurements, benchmarks and indexes.**
-  **Depends on:** M2.
-  **Intention:** prevent nested analysis calls from selecting different targets.
-  **Scope:** comparison, performance measurement, optimization benchmark, index
-  suggestions and [DatabaseAnalysisServices](../../src/SqlToAi/Database/DatabaseAnalysisServices.cs).
-  Carry context into nested validation, measurements, plans and connection calls.
-  **Exclusions:** new analysis features, masking raw difference samples, new token
-  resolution, altered metrics, verdicts, permissions or query limits.
-  **Acceptance:** each operation and benchmark sub-operation uses one endpoint
-  and policy identity; existing database fields are canonical. Verify SchemaOnly
-  rejection where required, rollback/cleanup, safe connection failures and parallel
-  same-name routing. Existing parameter isolation and raw-output limitations remain.
+- [ ] [**M3.2 — Route comparison, measurements, benchmarks and indexes**](roadmap/m3.2-route-comparison-measurements-benchmarks-and-indexes.md)
+  Prevent nested analysis calls from selecting different targets.
 
-- [ ] **M3.3 — Expose server discovery and qualified MCP/CLI arguments.**
-  **Depends on:** M3.1–M3.2.
-  **Intention:** let callers discover aliases and address only explicit targets.
-  **Scope:** database discovery services; [ToolRegistry](../../src/SqlToAi/Mcp/ToolRegistry.cs),
-  dispatcher, SDK registrations, source-generated JSON metadata, registry-generated
-  CLI and `export-schema` binding; update exploration scenarios, owning fixtures
-  and the expected tool inventory in [package smoke checks](../../scripts/smoke-package.ps1).
-  **Exclusions:** host configuration activation, credential/hostname discovery,
-  connection probes for listing aliases and implicit server selection.
-  **Acceptance:** `sql_list_servers` has no arguments and returns canonical aliases
-  as one JSON array in text content without SQL calls. List/search require `server`;
-  search additionally requires unchanged `search_term` and matches only raw names
-  with `OrdinalIgnoreCase` substring semantics. Catalog work contacts one selected
-  server. Existing static fallback deduplicates only that owner's grants, applies
-  exclusions/policy and claims no existence guarantee; TLS/timeouts return their
-  errors and cancellation propagates. Registered SDK invocation, dispatcher and
-  generated CLI tests verify argument failures, qualified targets, result shapes
-  and MCP `isError`/CLI failure behavior; update the SQL tool count to 19.
+- [ ] [**M3.3 — Expose server discovery and qualified MCP/CLI arguments**](roadmap/m3.3-expose-server-discovery-and-qualified-mcp-cli-arguments.md)
+  Let callers discover aliases and address only explicit targets.
 
-- [ ] **M3.4 — Audit service and transport coverage.**
-  **Depends on:** M3.1–M3.3.
-  **Intention:** rule out a forgotten path before activating the hard cut.
-  **Scope:** trace current factory, policy, provider and vault consumers plus
-  registry/SDK/CLI/exploration wiring. Compare them with concept Must 5–7/11.
-  **Exclusions:** treating static references or test names as runtime proof.
-  **Acceptance:** all existing SQL tools, direct services, both export entry
-  surfaces and exploration use the intended parser/context; every target-bearing
-  output follows the canonical contract without new row formats. Record evidence
-  here, not in a separate code map. Fix omissions before closing M3.
+- [ ] [**M3.4 — Audit service and transport coverage**](roadmap/m3.4-audit-service-and-transport-coverage.md)
+  Rule out a forgotten path before activating the hard cut.
 
 ## M4 — Hard cut, operating documentation and final evidence
 
 - [ ] **M4 — Aggregate:** M4.1–M4.3 accepted; every concept acceptance criterion
   is verified and the final contract contains no compatibility behavior.
 
-- [ ] **M4.1 — Activate strict startup and remove the single-server contract.**
-  **Depends on:** M3.
-  **Intention:** make every shipped entry point accept only the approved contract.
-  **Scope:** [UserConfiguration](../../src/SqlToAi/Configuration/UserConfiguration.cs),
-  ConfigurationResolver, options validation, Program/DI, StartupHarness, main/demo
-  JSON, integration/test-only TLS overlays, package-smoke configuration inputs,
-  remaining fixtures and environment examples. Remove obsolete top-level options,
-  old overloads and unused preparation scaffolding. Update [configuration](../../docs/configuration.md),
-  [security](../../docs/security.md), [architecture](../../docs/architecture.md),
-  [tools](../../docs/tools.md), [development](../../docs/development.md),
-  [exploration](../../docs/exploration.md), [SETUP](../../SETUP.md) and affected
-  public [README](../../README.md) setup examples in this cutover slice.
-  **Exclusions:** importing/rewriting/backing up user settings, migration commands,
-  release/version/publishing changes and weakening test or application TLS defaults.
-  **Acceptance:** require at least one valid server; validate grants after binding
-  and supported expansion. Reject exact/case-only aliases inside each JSON Servers
-  object before lossy merge, but allow normal cross-source overrides. Inspect the
-  required base file, active environment file and process keys for obsolete
-  sections/prefixes even when overridden. Missing base settings still fail;
-  invalid configuration exits 1 before SQL/MCP with safe actionable stderr and no
-  diagnostic stdout or settings writes. Direct options/DI use equivalent effective
-  validation; source checks stay at the loading boundary. Provider SQL paths and
-  other surviving expansion/path rules remain intact. Main grants stay empty;
-  demo grants are qualified and examples use environment-based SQL credentials.
-  Public setup/update guidance includes a complete new example and manual hard-cut
-  instructions. No runtime consumer can still bind or infer the old contract.
+- [ ] [**M4.1 — Activate strict startup and remove the single-server contract**](roadmap/m4.1-activate-strict-startup-and-remove-the-single-server-contract.md)
+  Make every shipped entry point accept only the approved contract.
 
-- [ ] **M4.2 — Verify composed target isolation and Native AOT compilation.**
-  **Depends on:** M4.1.
-  **Intention:** prove the composed process behaves like its unit-level contracts.
-  **Scope:** add focused deterministic multi-target tests and finalize exploration
-  fixtures; use target-aware database doubles with same-name targets and distinct
-  fictional rows/rights/rules. Retain available single-endpoint SQL integration
-  coverage and explicit test authentication settings.
-  Run the documented build/test commands. Separately validate Native AOT with
-  `dotnet publish src/SqlToAi/SqlToAi.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=true -o <fresh-temporary-directory>`.
-  The existing packaging/deploy route is not Native AOT; do not silently replace it.
-  Exercise actual SDK registration/argument binding, not only dispatcher calls.
-  Use the existing temporary-root StartupHarness for managed host startup;
-  personal settings must remain untouched.
-  **Exclusions:** remote provisioning, personal configuration changes, release
-  creation, deployment, pushing and unrequested benchmark/coverage projects.
-  **Acceptance:** alternating and parallel calls in one process never mix endpoint,
-  rights, rules, cache or tokens. Same physical endpoint under two aliases still
-  has independent owners. Service tests and managed host checks cover query/script,
-  validation, schema/details/export, analysis and discovery with qualified targets.
-  Startup failures precede database work; server listing performs no SQL probes;
-  SQL/TLS failures and per-endpoint trust remain safe. Cover syntactically unusual
-  raw database names through offline tests. Native AOT publishes without
-  warnings/errors; registered MCP discovery exposes 19 tools and actual SDK/CLI
-  binding accepts/rejects the changed arguments correctly.
-  Record commands, outcomes and any unavailable infrastructure under this item;
-  unresolved required automated or AOT evidence keeps it open.
+- [ ] [**M4.2 — Verify composed target isolation and Native AOT compilation**](roadmap/m4.2-verify-composed-target-isolation-and-native-aot-compilation.md)
+  Prove the composed process behaves like its unit-level contracts.
 
-- [ ] **M4.3 — Audit the complete concept and close the roadmap.**
-  **Depends on:** M4.1–M4.2 and all preceding milestone acceptance.
-  **Intention:** verify the finished contract without relying on milestone claims.
-  **Scope:** review the final diff, current code/wiring, examples and recorded test
-  evidence against every concept Must and Verification item; inspect remaining
-  legacy identifiers and classify legitimate rejection tests/historical references.
-  **Exclusions:** starting another workflow stage or claiming skipped tests passed.
-  **Acceptance:** no unresolved findings, unverified concept criteria, public
-  legacy configuration, implicit defaults or foreign state remain. Docs and main/
-  demo/test profiles agree with implementation; secrets and raw connection strings
-  are absent from new diagnostics/examples. Links and examples are valid, required
-  validation evidence is complete and related code/tests/docs are committed. Close
-  M4 and the roadmap only after this audit passes.
+- [ ] [**M4.3 — Audit the complete concept and close the roadmap**](roadmap/m4.3-audit-the-complete-concept-and-close-the-roadmap.md)
+  Verify the finished contract without relying on milestone claims.
