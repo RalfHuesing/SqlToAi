@@ -68,9 +68,12 @@ internal static class ScriptExecutionReportRenderer
             AppendError(builder, report.Error);
         }
 
+        string? schemaHint = report.Executions.Count > 0
+            ? SqlMetadataQueryDetector.GetResponseHint(report.Batch.Text)
+            : null;
         for (int index = 0; index < report.Executions.Count; index++)
         {
-            AppendExecution(builder, index + 1, report.Executions[index]);
+            AppendExecution(builder, index + 1, schemaHint, report.Executions[index]);
         }
 
         if (report.Status == ScriptBatchStatus.Failed)
@@ -84,6 +87,7 @@ internal static class ScriptExecutionReportRenderer
     private static void AppendExecution(
         StringBuilder builder,
         int executionNumber,
+        string? schemaHint,
         QueryExecutionResult execution)
     {
         builder.AppendLine();
@@ -93,6 +97,11 @@ internal static class ScriptExecutionReportRenderer
         AppendMetadata(builder, "cpu_time_ms", execution.CpuTimeMs.ToString(CultureInfo.InvariantCulture));
         AppendMetadata(builder, "logical_reads", execution.LogicalReads.ToString(CultureInfo.InvariantCulture));
         AppendAnonymizationMetadata(builder, execution);
+        if (schemaHint is not null)
+        {
+            AppendMetadata(builder, "schema_hint", schemaHint);
+        }
+
         if (string.IsNullOrEmpty(execution.Data))
         {
             AppendMetadata(builder, "data", "(empty)");

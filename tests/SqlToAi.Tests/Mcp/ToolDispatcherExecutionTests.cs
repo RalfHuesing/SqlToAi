@@ -97,4 +97,58 @@ public sealed class ToolDispatcherExecutionTests
         Assert.False(result.IsError);
         Assert.DoesNotContain("searchable tokens", result.Content[0].Text);
     }
+
+    [Fact]
+    public async Task ExecuteQuery_ShouldAddSchemaHintForCatalogQuery_AndKeepResultData()
+    {
+        var exec = new FakeQueryExecutionService(wasAnonymized: true);
+        var dispatcher = BuildDispatcher(exec: exec);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExecuteQuery,
+                (McpConstants.ArgQuery, "SELECT c.name FROM sys.columns AS c"),
+                (McpConstants.ArgDatabase, TestConstants.DatabaseName)),
+            TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsError);
+        Assert.Equal(4, result.Content.Count);
+        Assert.Equal("{\"Col\":1}", result.Content[2].Text);
+        Assert.Contains("Direct catalog results may be anonymized", result.Content[3].Text);
+        Assert.Contains("sql_get_schema", result.Content[3].Text);
+        Assert.Contains("sql_get_trigger_definition", result.Content[3].Text);
+        Assert.Contains("sql_search_objects", result.Content[3].Text);
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_ShouldAddSchemaHintForUnmaskedCatalogQuery()
+    {
+        var dispatcher = BuildDispatcher(exec: new FakeQueryExecutionService(wasAnonymized: false));
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExecuteQuery,
+                (McpConstants.ArgQuery, "SELECT c.name FROM sys.columns AS c"),
+                (McpConstants.ArgDatabase, TestConstants.DatabaseName)),
+            TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsError);
+        Assert.Equal(3, result.Content.Count);
+        Assert.Equal("{\"Col\":1}", result.Content[1].Text);
+        Assert.Contains("Direct catalog results may be anonymized", result.Content[2].Text);
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_ShouldNotAddSchemaHintForMetadataNamesInLiteral()
+    {
+        var dispatcher = BuildDispatcher();
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExecuteQuery,
+                (McpConstants.ArgQuery, "SELECT 'sys.columns' AS value"),
+                (McpConstants.ArgDatabase, TestConstants.DatabaseName)),
+            TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsError);
+        Assert.Equal(2, result.Content.Count);
+        Assert.Equal("{\"Col\":1}", result.Content[1].Text);
+    }
 }

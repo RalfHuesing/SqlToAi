@@ -50,6 +50,8 @@ Query and script result masking applies to `ReadOnlyAnonymized` with `Anonymizer
 
 `sql_get_schema` labels columns `No`, `Yes` or `Yes (searchable)` as guidance. Query results include a notice identifying masked columns where their source is known. Labels and notices do not establish that all outputs are sanitized.
 
+Direct catalog queries through `sql_execute_query` or `sql_execute_file` use the same result-masking rules as other query results; returned catalog strings may be altered. Schema and trigger definition tools return raw schema/DDL text, as described below.
+
 ## Central anonymization rules
 
 The [rule table script](../sql-scripts/03_anonymization_rules.sql) defines database, table and column patterns, `Anonymize`, `IsActive` and `Comment`. An optional `SchemaPattern` extends matching to schemas; older tables without it use `%`. Patterns use SQL-LIKE-style `%` and `_`. Only active rules participate. `Anonymize=0` exposes a matching column; `1` keeps it protected. Without a match, strings remain protected. Missing or unavailable rule tables produce an empty rule set, retaining default masking.

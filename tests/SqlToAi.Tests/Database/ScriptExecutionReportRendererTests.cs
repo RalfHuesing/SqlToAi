@@ -105,6 +105,24 @@ public sealed class ScriptExecutionReportRendererTests
         Assert.DoesNotContain("Failing SQL", markdown, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void RenderSuccessReport_AddsSchemaHintForCatalogBatch_AndRetainsAnonymizedResult()
+    {
+        var execution = new QueryExecutionResult(
+            "{\"definition\":\"masked\"}", true, ["definition"], "ScramblePattern", [], 1, 1, 0, 0);
+        var batch = ScriptExecutionReportFactory.BuildSucceededBatch(
+            1,
+            new SqlBatch("SELECT OBJECT_DEFINITION(OBJECT_ID(N'dbo.Sample')) AS definition", 1, 1),
+            [execution]);
+        var report = BuildReport([batch], ScriptTransactionMode.ReadOnlyAnonymizedRollback);
+
+        string markdown = ScriptExecutionReportRenderer.Render(report);
+
+        Assert.Contains("schema_hint: Schema hint: Direct catalog results may be anonymized", markdown, StringComparison.Ordinal);
+        Assert.Contains("{\"definition\":\"masked\"}", markdown, StringComparison.Ordinal);
+        Assert.Contains("anonymized: true", markdown, StringComparison.Ordinal);
+    }
+
     private static ScriptExecutionReport BuildReport(
         IReadOnlyList<ScriptBatchReport> batches,
         ScriptTransactionMode mode,

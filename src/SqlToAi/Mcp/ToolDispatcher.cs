@@ -122,11 +122,13 @@ internal sealed class ToolDispatcher : IToolDispatcher
             [McpConstants.ToolExecuteQuery] = async (paramsObj, ct) =>
             {
                 Result<QueryExecutionResult> result;
+                string query;
                 try
                 {
+                    query = Require(paramsObj, McpConstants.ArgQuery);
                     result = await _queryExecutionService.ExecuteQueryAsync(
                         GetDb(paramsObj),
-                        Require(paramsObj, McpConstants.ArgQuery),
+                        query,
                         GetInt(paramsObj, McpConstants.ArgRequestedRowLimit),
                         GetObject(paramsObj, McpConstants.ArgParameters),
                         ct);
@@ -152,6 +154,12 @@ internal sealed class ToolDispatcher : IToolDispatcher
 
                 contentList.Add(new ToolContent { Type = "text", Text = execInfoText });
                 contentList.Add(new ToolContent { Type = "text", Text = queryResult.Data });
+
+                string? schemaHint = SqlMetadataQueryDetector.GetResponseHint(query);
+                if (schemaHint is not null)
+                {
+                    contentList.Add(new ToolContent { Type = "text", Text = schemaHint });
+                }
 
                 return new ToolCallResult
                 {
