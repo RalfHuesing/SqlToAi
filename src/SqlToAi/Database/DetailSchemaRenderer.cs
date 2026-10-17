@@ -181,8 +181,7 @@ internal static class DetailSchemaRenderer
             SELECT 
                 dc.name AS ConstraintName,
                 c.name AS ColumnName,
-                dc.definition AS Definition,
-                'DEFAULT' AS ConstraintType
+                dc.definition AS Definition
             FROM sys.default_constraints dc
             INNER JOIN sys.columns c ON dc.parent_object_id = c.object_id AND dc.parent_column_id = c.column_id
             WHERE dc.parent_object_id = OBJECT_ID(@TableName)
@@ -192,8 +191,7 @@ internal static class DetailSchemaRenderer
             SELECT 
                 cc.name AS ConstraintName,
                 c.name AS ColumnName,
-                cc.definition AS Definition,
-                'CHECK' AS ConstraintType
+                cc.definition AS Definition
             FROM sys.check_constraints cc
             LEFT JOIN sys.columns c ON cc.parent_object_id = c.object_id AND cc.parent_column_id = c.column_id
             WHERE cc.parent_object_id = OBJECT_ID(@TableName)
@@ -418,7 +416,6 @@ internal static class DetailSchemaRenderer
         public string ConstraintName { get; init; } = string.Empty;
         public string? ColumnName { get; init; }
         public string Definition { get; init; } = string.Empty;
-        public string ConstraintType { get; init; } = string.Empty;
     }
 
     private sealed class ReferenceRow

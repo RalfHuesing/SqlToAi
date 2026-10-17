@@ -37,7 +37,6 @@ internal sealed class ToolDispatcher : IToolDispatcher
     private readonly IPerformanceMeasurementService _performanceMeasurementService;
     private readonly IOptimizationBenchmarkService _benchmarkService;
     private readonly IIndexSuggestionService _indexSuggestionService;
-    private readonly DatabasesOptions _dbOptions;
     private readonly QueryExecutionOptions _queryExecutionOptions;
     private readonly ILogger<ToolDispatcher> _logger;
     private readonly Dictionary<string, Func<ToolCallParams, CancellationToken, Task<ToolCallResult>>> _handlers;
@@ -62,7 +61,6 @@ internal sealed class ToolDispatcher : IToolDispatcher
         _performanceMeasurementService = analysisServices.PerformanceMeasurement;
         _benchmarkService = analysisServices.Benchmark;
         _indexSuggestionService = analysisServices.IndexSuggestion;
-        _dbOptions = options.Value.Databases;
         _queryExecutionOptions = options.Value.QueryExecution;
         _logger = logger;
 

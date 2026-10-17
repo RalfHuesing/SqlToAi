@@ -220,11 +220,13 @@ public sealed class SqlToAiOptionsTests
     {
         // Arrange
         var options = new SqlToAiOptions();
-        Environment.SetEnvironmentVariable("TEST_ENV_VAR_SERVER", "EnvServerName");
-        Environment.SetEnvironmentVariable("TEST_ENV_VAR_DB", "EnvDbName");
+        string? originalServer = Environment.GetEnvironmentVariable("TEST_ENV_VAR_SERVER");
+        string? originalDatabase = Environment.GetEnvironmentVariable("TEST_ENV_VAR_DB");
 
         try
         {
+            Environment.SetEnvironmentVariable("TEST_ENV_VAR_SERVER", "EnvServerName");
+            Environment.SetEnvironmentVariable("TEST_ENV_VAR_DB", "EnvDbName");
             options.SqlServer.Server = "%TEST_ENV_VAR_SERVER%\\MSSQLSERVER";
             options.Databases.ReadWrite = new List<string> { "%TEST_ENV_VAR_DB%_RW" };
 
@@ -238,8 +240,8 @@ public sealed class SqlToAiOptionsTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("TEST_ENV_VAR_SERVER", null);
-            Environment.SetEnvironmentVariable("TEST_ENV_VAR_DB", null);
+            Environment.SetEnvironmentVariable("TEST_ENV_VAR_SERVER", originalServer);
+            Environment.SetEnvironmentVariable("TEST_ENV_VAR_DB", originalDatabase);
         }
     }
 
