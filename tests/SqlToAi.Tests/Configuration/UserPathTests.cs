@@ -44,8 +44,11 @@ public sealed class UserPathTests
             Assert.Equal(temp.GetPath("user/log"), bound.Logging.GetAbsoluteRoot());
             Assert.Equal(bound.Logging.Directory, startup.Options.Logging.Directory);
         }
-        var direct = new SqlToAiOptions();
-        var configuration = new ConfigurationBuilder().Build();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["SqlToAi:Servers:primary:Server"] = "test-host"
+        }).Build();
+        var direct = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>()!;
         await using var directServices = Program.BuildServiceProvider(configuration, direct, root);
         Assert.Equal(temp.GetPath("user/log"), direct.Logging.GetAbsoluteRoot());
         Assert.Equal(direct.Logging.Directory, directServices.GetRequiredService<IOptions<SqlToAiOptions>>().Value.Logging.Directory);

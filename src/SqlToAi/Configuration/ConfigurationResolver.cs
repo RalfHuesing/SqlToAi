@@ -119,12 +119,19 @@ public static class ConfigurationResolver
                 $"At least one named server must be configured under 'SqlToAi.Servers'.{pathSuffix}");
         }
 
+        var seenAliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (alias, server) in options.Servers)
         {
             if (!DatabaseTargetParser.IsValidAlias(alias))
             {
                 throw new ConfigurationStartupException(
                     $"Server alias '{alias}' is invalid. Server aliases must match [A-Za-z][A-Za-z0-9_-]*.{pathSuffix}");
+            }
+
+            if (!seenAliases.Add(alias))
+            {
+                throw new ConfigurationStartupException(
+                    $"Duplicate server alias '{alias}' in SqlToAi.Servers. Server aliases must be unique (case-insensitive).{pathSuffix}");
             }
 
             if (string.IsNullOrWhiteSpace(server.Server))
@@ -138,6 +145,23 @@ public static class ConfigurationResolver
         ValidateGrants("SqlToAi.Databases.ReadOnly", options.Databases.ReadOnly, options.Servers, pathSuffix);
         ValidateGrants("SqlToAi.Databases.ReadOnlyAnonymized", options.Databases.ReadOnlyAnonymized, options.Servers, pathSuffix);
         ValidateGrants("SqlToAi.Databases.SchemaOnly", options.Databases.SchemaOnly, options.Servers, pathSuffix);
+
+        ValidateSinkRetention(options.Logging.AppLog, "SqlToAi.Logging.AppLog.RetainedFileCount", pathSuffix);
+        ValidateSinkRetention(options.Logging.ErrorLog, "SqlToAi.Logging.ErrorLog.RetainedFileCount", pathSuffix);
+        if (options.SchemaBatch.MaxInputCount <= 0 || options.SchemaBatch.MaxResponseBytes <= 0)
+        {
+            throw new ConfigurationStartupException(
+                $"SqlToAi.SchemaBatch.MaxInputCount and SqlToAi.SchemaBatch.MaxResponseBytes must be greater than zero.{pathSuffix}");
+        }
+    }
+
+    private static void ValidateSinkRetention(FileLogSinkOptions sink, string settingName, string pathSuffix)
+    {
+        if (sink.Enabled && sink.RetainedFileCount <= 0)
+        {
+            throw new ConfigurationStartupException(
+                $"{settingName} must be greater than zero when its file sink is enabled (configured value: {sink.RetainedFileCount}).{pathSuffix}");
+        }
     }
 
     private static void ValidateGrants(string sectionName, List<string>? grants, Dictionary<string, NamedServerOptions> servers, string pathSuffix)

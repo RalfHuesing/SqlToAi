@@ -79,8 +79,9 @@ public sealed class McpModelsTests
     public async Task ServerOptions_ShouldAdvertiseServerInfo()
     {
         using var temp = TestTempDirectory.Create();
+        var configuration = CreateValidConfiguration();
         await using var services = Program.BuildServiceProvider(
-            new ConfigurationBuilder().Build(), new SqlToAiOptions(), temp.DirectoryPath);
+            configuration, configuration.GetSection("SqlToAi").Get<SqlToAiOptions>()!, temp.DirectoryPath);
         var options = services.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
         Assert.NotNull(options.ServerInfo);
@@ -93,14 +94,21 @@ public sealed class McpModelsTests
     public async Task ServerOptions_ShouldAdvertiseAnonymizationInstructions()
     {
         using var temp = TestTempDirectory.Create();
+        var configuration = CreateValidConfiguration();
         await using var services = Program.BuildServiceProvider(
-            new ConfigurationBuilder().Build(), new SqlToAiOptions(), temp.DirectoryPath);
+            configuration, configuration.GetSection("SqlToAi").Get<SqlToAiOptions>()!, temp.DirectoryPath);
         var options = services.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
         Assert.Equal(McpConstants.ServerInstructions, options.ServerInstructions);
         Assert.Contains("Anonymized", options.ServerInstructions, StringComparison.Ordinal);
         Assert.Contains("sql_get_object_references", options.ServerInstructions, StringComparison.Ordinal);
     }
+
+    private static IConfigurationRoot CreateValidConfiguration() =>
+        new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["SqlToAi:Servers:primary:Server"] = "test-host"
+        }).Build();
 
     // -------------------------------------------------------------------------
     // McpConstants completeness

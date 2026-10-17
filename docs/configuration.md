@@ -17,6 +17,15 @@ Database targets are selected by qualified tool arguments (`<alias>/<database>`)
 
 Obsolete top-level sections (`SqlServer`, `MetadataProvider`, `AnonymizationRules`) and obsolete environment variables (`SqlToAi__SqlServer*`) are strictly rejected during configuration loading with exit code `1` and actionable stderr guidance.
 
+Each JSON source is inspected before merging, using the configuration provider's
+colon-delimited paths, including flattened JSON keys. Every effective `SqlToAi` and
+`Servers` occurrence is checked for obsolete sections and exact or case-only duplicate aliases.
+The same alias may still be overridden across the base file, active environment
+file and process environment. Effective options are validated after expansion and
+SQL-file resolution, including direct options and the separately bound DI options.
+This validation requires configured server addresses and qualified grants, positive
+schema-batch limits, and positive retention counts for enabled file sinks.
+
 The general local integration-test fixture has a separate, checked-in test-only trust overlay for the existing self-signed test server. It does not change the demo profile, application defaults, user configuration, or the isolated TLS-default cases. See [development test setup](development.md#build-and-test).
 
 ## Settings reference

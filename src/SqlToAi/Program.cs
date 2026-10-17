@@ -133,13 +133,19 @@ internal static class Program
     internal static ServiceProvider BuildServiceProvider(IConfiguration configuration, SqlToAiOptions sqlToAiOptions, string? rootDirectory = null)
     {
         string root = rootDirectory ?? sqlToAiOptions.ResolvedRootDirectory ?? UserConfiguration.ResolveRoot();
+        string settingsPath = Path.Combine(root, "appsettings.json");
         ConfigurationResolver.Resolve(sqlToAiOptions, root);
+        ConfigurationResolver.Validate(sqlToAiOptions, settingsPath);
         var services = new ServiceCollection();
 
         services.AddSingleton(sqlToAiOptions);
         services.AddOptions();
         services.Configure<SqlToAiOptions>(configuration.GetSection("SqlToAi"));
-        services.PostConfigure<SqlToAiOptions>(options => ConfigurationResolver.Resolve(options, root));
+        services.PostConfigure<SqlToAiOptions>(options =>
+        {
+            ConfigurationResolver.Resolve(options, root);
+            ConfigurationResolver.Validate(options, settingsPath);
+        });
 
         services.AddLogging(logging =>
         {

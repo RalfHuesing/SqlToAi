@@ -313,6 +313,190 @@ public sealed class UserConfigurationTests
         Assert.Contains("Duplicate server alias", result.Error, StringComparison.Ordinal);
     }
 
+    public static TheoryData<string, string, string> HiddenDuplicateAliasCases => new(
+        from source in new[] { "base", "environment" }
+        from wrapper in new[] { "root", "servers", "both" }
+        from secondAlias in new[] { "a", "A" }
+        select (source, wrapper, secondAlias));
+
+    [Theory]
+    [MemberData(nameof(HiddenDuplicateAliasCases))]
+    public async Task DuplicateAliases_InEveryServersOccurrence_FailBeforeSourceMerge(
+        string source, string wrapper, string secondAlias)
+    {
+        const string firstServer = """ "first":{"Server":"host","Password":"credential-marker"} """;
+        string duplicates = """ "a":{"Server":"other"},"$ALIAS":{"IntegratedSecurity":true} """
+            .Replace("$ALIAS", secondAlias, StringComparison.Ordinal);
+        string template = wrapper switch
+        {
+            "root" => """{"SqlToAi":{"Servers":{ $FIRST }},"sqltoai":{"SERVERS":{ $DUPLICATES }}}""",
+            "servers" => """{"SqlToAi":{"Servers":{ $FIRST },"servers":{ $DUPLICATES }}}""",
+            _ => """{"SqlToAi":{"Servers":{ $FIRST }},"sqltoai":{"Servers":{"safe":{"Server":"safe"}},"servers":{ $DUPLICATES }}}"""
+        };
+        string json = template.Replace("$FIRST", firstServer, StringComparison.Ordinal)
+            .Replace("$DUPLICATES", duplicates, StringComparison.Ordinal);
+
+        await AssertRejectedSourceUnchangedAsync(source, json, "Duplicate server alias");
+    }
+
+    public static TheoryData<string, string, string> FlattenedObsoleteCases => new(
+        from source in new[] { "base", "environment" }
+        from section in new[] { "SqlServer", "MetadataProvider", "AnonymizationRules" }
+        from shape in new[] { "root", "qualified", "partial", "section-object" }
+        select (source, section, shape));
+
+    [Theory]
+    [MemberData(nameof(FlattenedObsoleteCases))]
+    public async Task FlattenedObsoletePaths_FailBeforeSourceMerge(string source, string section, string shape)
+    {
+        string template = shape switch
+        {
+            "root" => """{"SqlToAi":{"Servers":{"primary":{"Server":"host"}}},"$SECTION:credential-marker":"credential-marker"}""",
+            "qualified" => """{"SqlToAi":{"Servers":{"primary":{"Server":"host"}}},"sQlToAi:$SECTION:credential-marker":"credential-marker"}""",
+            "partial" => """{"SqlToAi":{"Servers":{"primary":{"Server":"host"}},"$SECTION:credential-marker":"credential-marker"}}""",
+            _ => """{"SqlToAi":{"Servers":{"primary":{"Server":"host"}}},"SqlToAi:$SECTION":{"credential-marker":"credential-marker"}}"""
+        };
+        string json = template.Replace("$SECTION", section, StringComparison.Ordinal);
+        string diagnostic = shape == "root" ? $"section '{section}'" : $"section 'SqlToAi.{section}'";
+
+        await AssertRejectedSourceUnchangedAsync(source, json, diagnostic);
+    }
+
+    [Theory]
+    [InlineData("base", "a")]
+    [InlineData("base", "A")]
+    [InlineData("environment", "a")]
+    [InlineData("environment", "A")]
+    public async Task FlattenedServersObject_RejectsExactAndCaseDuplicateAliases(string source, string alias)
+    {
+        string json = """
+            {"sQlToAi:SeRvErS":{"a":{"Server":"host","Password":"credential-marker"},
+              "$ALIAS":{"IntegratedSecurity":true}}}
+            """.Replace("$ALIAS", alias, StringComparison.Ordinal);
+
+        await AssertRejectedSourceUnchangedAsync(source, json, "Duplicate server alias");
+    }
+
+    [Theory]
+    [InlineData("base")]
+    [InlineData("environment")]
+    public async Task FlattenedAliasFields_RejectCaseVariantAliases(string source)
+    {
+        const string json = """
+            {"SqlToAi:Servers":{"a:Server":"host","A:Password":"credential-marker"}}
+            """;
+
+        await AssertRejectedSourceUnchangedAsync(source, json, "Duplicate server alias");
+    }
+
+    [Fact]
+    public async Task FlattenedFieldsAndUnknownObjects_PreserveSupportedConfigurationPaths()
+    {
+        using var temp = TestTempDirectory.Create();
+        const string json = """
+            {"SqlToAi:Servers":{"primary:Server":"host","primary:IntegratedSecurity":true},
+             "SqlToAi:SqlServerExtra:Password":"credential-marker",
+             "Unknown":{"SqlToAi:SqlServer:Password":"credential-marker",
+               "SqlToAi:Servers":{"a":{"Server":"ignored"},"A":{"IntegratedSecurity":true}}}}
+            """;
+        string file = temp.CreateFile("user-root/appsettings.json", json);
+
+        var result = await RunAsync(temp, temp.GetPath("user-root"), "query");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Empty(result.Error);
+        Assert.Equal("[\"primary\"]", result.Output.Trim());
+        Assert.Equal(json, await File.ReadAllTextAsync(file, TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData("base", "SqlServer")]
+    [InlineData("base", "MetadataProvider")]
+    [InlineData("base", "AnonymizationRules")]
+    [InlineData("environment", "SqlServer")]
+    [InlineData("environment", "MetadataProvider")]
+    [InlineData("environment", "AnonymizationRules")]
+    public async Task ObsoleteSections_InLaterSqlToAiOccurrence_FailBeforeSourceMerge(string source, string section)
+    {
+        string json = """
+            {"SqlToAi":{"Servers":{"primary":{"Server":"host"}}},
+             "sqltoai":{"$SECTION":{"Password":"credential-marker"}}}
+            """.Replace("$SECTION", section, StringComparison.Ordinal);
+
+        await AssertRejectedSourceUnchangedAsync(source, json, $"SqlToAi.{section}");
+    }
+
+    [Theory]
+    [InlineData("SqlServer")]
+    [InlineData("MetadataProvider")]
+    [InlineData("AnonymizationRules")]
+    public async Task ObsoleteBaseSection_IsRejectedEvenWhenLaterSourcesOverrideIt(string section)
+    {
+        using var temp = TestTempDirectory.Create();
+        string json = """{"SqlToAi":{"Servers":{"primary":{"Server":"host"}},"$SECTION":{"Password":"credential-marker"}}}"""
+            .Replace("$SECTION", section, StringComparison.Ordinal);
+        string file = temp.CreateFile("user-root/appsettings.json", json);
+        string environmentJson = """{"SqlToAi":{"$SECTION":{"Password":"overridden-marker"}}}"""
+            .Replace("$SECTION", section, StringComparison.Ordinal);
+        string environmentFile = temp.CreateFile("user-root/appsettings.StartupTest.json", environmentJson);
+        var result = await RunAsync(temp, temp.GetPath("user-root"), "query-help");
+
+        AssertFailure(result, temp.GetPath("user-root"));
+        Assert.Contains("Obsolete", result.Error, StringComparison.Ordinal);
+        Assert.Contains($"detected in '{file}'", result.Error, StringComparison.Ordinal);
+        Assert.DoesNotContain("marker", result.Error, StringComparison.Ordinal);
+        Assert.Equal(json, await File.ReadAllTextAsync(file, TestContext.Current.CancellationToken));
+        Assert.Equal(environmentJson, await File.ReadAllTextAsync(environmentFile, TestContext.Current.CancellationToken));
+        Assert.Empty(Directory.EnumerateFiles(temp.DirectoryPath, "*.log", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public async Task CaseVariantAliases_AcrossSourcesRemainValidOverrides()
+    {
+        using var temp = TestTempDirectory.Create();
+        const string json = """{"SqlToAi":{"Servers":{"TEST":{"Server":"base-host"}}}}""";
+        const string environmentJson = """{"sqltoai":{"servers":{"Test":{"Server":"environment-host"}}}}""";
+        string file = temp.CreateFile("user-root/appsettings.json", json);
+        string environmentFile = temp.CreateFile("user-root/appsettings.StartupTest.json", environmentJson);
+        var environment = new Dictionary<string, string?> { ["SQLTOAI__SERVERS__test__Server"] = "process-host" };
+
+        var inspect = await RunAsync(temp, temp.GetPath("user-root"), "inspect", environment);
+        Assert.Equal(0, inspect.ExitCode);
+        Assert.Empty(inspect.Error);
+        using var output = JsonDocument.Parse(inspect.Output);
+        Assert.Equal("process-host", output.RootElement.GetProperty("Server").GetString());
+        Assert.Equal("process-host", output.RootElement.GetProperty("BoundServer").GetString());
+        var list = await RunAsync(temp, temp.GetPath("user-root"), "query", environment);
+        Assert.Equal(0, list.ExitCode);
+        Assert.Empty(list.Error);
+        Assert.Equal("[\"test\"]", list.Output.Trim());
+        Assert.Equal(json, await File.ReadAllTextAsync(file, TestContext.Current.CancellationToken));
+        Assert.Equal(environmentJson, await File.ReadAllTextAsync(environmentFile, TestContext.Current.CancellationToken));
+    }
+
+    private static async Task AssertRejectedSourceUnchangedAsync(string source, string json, string diagnostic)
+    {
+        using var temp = TestTempDirectory.Create();
+        string baseJson = source == "base" ? json : MinimalSettings;
+        string baseFile = temp.CreateFile("user-root/appsettings.json", baseJson);
+        string? environmentFile = source == "environment"
+            ? temp.CreateFile("user-root/appsettings.StartupTest.json", json)
+            : null;
+        string root = temp.GetPath("user-root");
+        var result = await RunAsync(temp, root, "query-help");
+
+        AssertFailure(result, root);
+        Assert.Contains(diagnostic, result.Error, StringComparison.Ordinal);
+        Assert.Contains(environmentFile ?? baseFile, result.Error, StringComparison.Ordinal);
+        Assert.DoesNotContain("credential-marker", result.Error, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unhandled exception", result.Error, StringComparison.Ordinal);
+        Assert.Equal(baseJson, await File.ReadAllTextAsync(baseFile, TestContext.Current.CancellationToken));
+        if (environmentFile is not null)
+            Assert.Equal(json, await File.ReadAllTextAsync(environmentFile, TestContext.Current.CancellationToken));
+        Assert.Empty(Directory.EnumerateFiles(temp.DirectoryPath, "*.log", SearchOption.AllDirectories));
+        Assert.Empty(Directory.EnumerateFiles(temp.DirectoryPath, "*.bak", SearchOption.AllDirectories));
+    }
+
     [Fact]
     public async Task MissingServers_FailsAtStartup()
     {

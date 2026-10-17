@@ -38,10 +38,11 @@ loops, superseding the workflow's sequential-audit and one-correction defaults.
   nested comments; retain literal substitution and foreign-token isolation. Add
   regression tests at scanner, resolver and execution boundaries.
   Evidence: [R1 review and gates](audit.md#r1--syntax-aware-token-resolution).
-- [ ] **R2 — Validate every JSON source occurrence and both DI options paths.**
+- [x] **R2 — Validate every JSON source occurrence and both DI options paths.**
   Inspect every matching wrapper before merge; reject hidden obsolete sections
   and exact/case-only duplicate aliases. Validate resolved direct and bound options
   equivalently; preserve legitimate overrides, safe stderr and settings bytes.
+  Evidence: [R2 review and gates](audit.md#r2--source-boundaries-and-effective-options-validation).
 - [ ] **R3 — Preserve discovery timeout/TLS failures after connection open.**
   Classify catalog-command failures before static-grant fallback; preserve safe
   owner-specific errors, cancellation and fallback for other catalog errors.

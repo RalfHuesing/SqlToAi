@@ -220,3 +220,31 @@ returned 0 warnings/errors; `dotnet test SqlToAi.slnx --no-build` returned 1,526
 passed, 19 skipped, 0 failed. `temp/audit-gates/r1.trx` confirmed every skip is an
 external `TlsConnectionIntegrationTests` case. `git diff --check` was clean.
 
+## R2 — Source boundaries and effective options validation
+
+Coder: GPT-6.1-Sol/high (`audit_foundations`); independent reviewer:
+GPT-6.1-Sol/high (`audit_state`). First review rejected a remaining colon-key
+bypass in the JSON provider; second review accepted the amended nine-file diff
+against `0bbbe55`. R1 was committed as `0bbbe55`.
+
+`src/SqlToAi/Configuration/UserConfiguration.cs:117–193` recursively inspects
+effective provider paths, including repeated wrappers, colon-containing keys and
+array indices, before merge. Known obsolete prefixes are rejected with safe
+contract-path diagnostics. Every physical effective Servers object rejects exact
+or case-only alias duplicates while same-spelling flattened fields and unknown
+settings remain supported. Cross-source overrides remain valid.
+
+`ConfigurationResolver.cs:113–166` shares server/grant, logging-retention and
+SchemaBatch validation; `src/SqlToAi/Program.cs:133–149` invokes it after resolving
+both the direct instance and separately bound DI options. Source validation stays
+at the loader. Tests in `UserConfigurationTests.cs:315–496` cover normal and
+flattened source attacks, base/active-environment loading, exit 1, empty stdout,
+safe stderr and unchanged file bytes. `EffectiveOptionsValidationTests.cs:25–114`
+exercises both effective options boundaries and preserved expansion/SQL-file
+resolution; previously incomplete DI fixtures now supply valid servers.
+
+Parent gates after approval: `dotnet build SqlToAi.slnx --warnaserror` returned
+0 warnings/errors; full `dotnet test SqlToAi.slnx --no-build` returned 1,600 passed,
+19 skipped, 0 failed. TRX skip names exactly match the 19 external TLS baseline
+cases. `git diff --check` was clean.
+

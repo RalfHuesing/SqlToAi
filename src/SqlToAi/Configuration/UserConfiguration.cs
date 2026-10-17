@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 
@@ -5,6 +6,8 @@ namespace SqlToAi.Configuration;
 
 internal sealed class UserConfiguration : IDisposable
 {
+    private static readonly string[] ObsoleteSectionNames = ["SqlServer", "MetadataProvider", "AnonymizationRules"];
+
     private UserConfiguration(string rootDirectory, IConfigurationRoot configuration, SqlToAiOptions options)
     {
         RootDirectory = rootDirectory;
@@ -70,8 +73,6 @@ internal sealed class UserConfiguration : IDisposable
             var options = configuration.GetSection("SqlToAi").Get<SqlToAiOptions>() ?? new SqlToAiOptions();
             ConfigurationResolver.Resolve(options, root);
             ConfigurationResolver.Validate(options, expectedPath);
-            ValidateLoggingOptions(options.Logging, expectedPath);
-            ValidateSchemaBatchOptions(options.SchemaBatch, expectedPath);
             EnsureWritableDirectory(root);
             return new UserConfiguration(root, configuration, options);
         }
@@ -122,95 +123,73 @@ internal sealed class UserConfiguration : IDisposable
             CommentHandling = JsonCommentHandling.Skip
         });
 
-        JsonElement root = document.RootElement;
-        if (root.ValueKind != JsonValueKind.Object)
+        InspectJsonElement(document.RootElement, null, filePath, settingsPath);
+    }
+
+    private static void InspectJsonElement(JsonElement element, string? path, string filePath, string settingsPath)
+    {
+        string? obsoleteSection = GetObsoleteSectionPrefix(path);
+        if (obsoleteSection is not null)
         {
-            return;
+            throw new ConfigurationStartupException(
+                $"Obsolete configuration section '{obsoleteSection}' detected in '{filePath}'. Obsolete single-server settings ('SqlServer', 'MetadataProvider', 'AnonymizationRules') have been removed in favor of 'SqlToAi.Servers.<alias>'. " +
+                $"Settings file: '{settingsPath}'. Correct this manually using the supplied appsettings.json template, then restart.");
         }
 
-        // Check top-level obsolete sections
-        foreach (var prop in root.EnumerateObject())
+        if (element.ValueKind == JsonValueKind.Object)
         {
-            if (IsObsoleteSection(prop.Name))
+            bool isServersObject = string.Equals(path, "SqlToAi:Servers", StringComparison.OrdinalIgnoreCase);
+            var aliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var propertyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var property in element.EnumerateObject())
             {
-                throw new ConfigurationStartupException(
-                    $"Obsolete configuration section '{prop.Name}' detected in '{filePath}'. Obsolete single-server settings ('SqlServer', 'MetadataProvider', 'AnonymizationRules') have been removed in favor of 'SqlToAi.Servers.<alias>'. " +
-                    $"Settings file: '{settingsPath}'. Correct this manually using the supplied appsettings.json template, then restart.");
-            }
-        }
-
-        // Check SqlToAi-level obsolete sections & server alias uniqueness
-        var sqlToAiProp = GetPropertyCaseInsensitive(root, "SqlToAi");
-        if (sqlToAiProp is { ValueKind: JsonValueKind.Object } sqlToAiObj)
-        {
-            foreach (var prop in sqlToAiObj.EnumerateObject())
-            {
-                if (IsObsoleteSection(prop.Name))
+                if (isServersObject)
                 {
-                    throw new ConfigurationStartupException(
-                        $"Obsolete configuration section 'SqlToAi.{prop.Name}' detected in '{filePath}'. Obsolete single-server settings ('SqlServer', 'MetadataProvider', 'AnonymizationRules') have been removed in favor of 'SqlToAi.Servers.<alias>'. " +
-                        $"Settings file: '{settingsPath}'. Correct this manually using the supplied appsettings.json template, then restart.");
-                }
-            }
-
-            var serversProp = GetPropertyCaseInsensitive(sqlToAiObj, "Servers");
-            if (serversProp is { ValueKind: JsonValueKind.Object } serversObj)
-            {
-                var seenAliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var serverProp in serversObj.EnumerateObject())
-                {
-                    if (!seenAliases.Add(serverProp.Name))
+                    int separator = property.Name.IndexOf(':');
+                    string alias = separator < 0 ? property.Name : property.Name[..separator];
+                    // Same-spelling flattened fields can configure one alias. A repeated
+                    // declaration or another spelling must not be hidden by provider merging.
+                    if (!propertyNames.Add(property.Name)
+                        || aliases.TryGetValue(alias, out string? firstAlias)
+                            && !string.Equals(firstAlias, alias, StringComparison.Ordinal))
                     {
                         throw new ConfigurationStartupException(
-                            $"Duplicate server alias '{serverProp.Name}' detected in '{filePath}'. Server aliases must be unique (case-insensitive). " +
+                            $"Duplicate server alias detected in '{filePath}' under 'SqlToAi.Servers'. Server aliases must be unique (case-insensitive). " +
                             $"Settings file: '{settingsPath}'. Correct this manually using the supplied appsettings.json template, then restart.");
                     }
+                    aliases.TryAdd(alias, alias);
                 }
+
+                // JsonConfigurationProvider treats ':' within a property name as a path delimiter.
+                string propertyPath = path is null ? property.Name : $"{path}:{property.Name}";
+                InspectJsonElement(property.Value, propertyPath, filePath, settingsPath);
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            int index = 0;
+            foreach (var item in element.EnumerateArray())
+            {
+                InspectJsonElement(item, $"{path}:{index.ToString(CultureInfo.InvariantCulture)}", filePath, settingsPath);
+                index++;
             }
         }
     }
 
-    private static bool IsObsoleteSection(string name) =>
-        string.Equals(name, "SqlServer", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(name, "MetadataProvider", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(name, "AnonymizationRules", StringComparison.OrdinalIgnoreCase);
-
-    private static JsonElement? GetPropertyCaseInsensitive(JsonElement element, string propertyName)
+    private static string? GetObsoleteSectionPrefix(string? path)
     {
-        if (element.ValueKind != JsonValueKind.Object) return null;
-        foreach (var prop in element.EnumerateObject())
+        if (path is null) return null;
+        foreach (string section in ObsoleteSectionNames)
         {
-            if (string.Equals(prop.Name, propertyName, StringComparison.OrdinalIgnoreCase))
-                return prop.Value;
+            if (IsPathPrefix(path, section)) return section;
+            if (IsPathPrefix(path, $"SqlToAi:{section}")) return $"SqlToAi.{section}";
         }
         return null;
     }
 
-    private static void ValidateLoggingOptions(LoggingOptions logging, string settingsPath)
-    {
-        ValidateSinkRetention(logging.AppLog, "SqlToAi.Logging.AppLog.RetainedFileCount", settingsPath);
-        ValidateSinkRetention(logging.ErrorLog, "SqlToAi.Logging.ErrorLog.RetainedFileCount", settingsPath);
-    }
-
-    private static void ValidateSchemaBatchOptions(SchemaBatchOptions options, string settingsPath)
-    {
-        if (options.MaxInputCount <= 0 || options.MaxResponseBytes <= 0)
-        {
-            throw new ConfigurationStartupException(
-                $"SqlToAi.SchemaBatch.MaxInputCount and SqlToAi.SchemaBatch.MaxResponseBytes must be greater than zero. " +
-                $"Settings file: '{settingsPath}'. Correct these values manually using the supplied appsettings.json template, then restart.");
-        }
-    }
-
-    private static void ValidateSinkRetention(FileLogSinkOptions sink, string settingName, string settingsPath)
-    {
-        if (sink.Enabled && sink.RetainedFileCount <= 0)
-        {
-            throw new ConfigurationStartupException(
-                $"{settingName} must be greater than zero when its file sink is enabled (configured value: {sink.RetainedFileCount}). " +
-                $"Settings file: '{settingsPath}'. Correct this value manually using the supplied appsettings.json template, then restart.");
-        }
-    }
+    private static bool IsPathPrefix(string path, string prefix) =>
+        string.Equals(path, prefix, StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith($"{prefix}:", StringComparison.OrdinalIgnoreCase);
 
     internal static void EnsureWritableDirectory(string directory)
     {
