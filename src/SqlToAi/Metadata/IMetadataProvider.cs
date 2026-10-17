@@ -1,4 +1,5 @@
 using SqlToAi.Database;
+using SqlToAi.Domain;
 
 namespace SqlToAi.Metadata;
 
@@ -12,6 +13,12 @@ public interface IMetadataProvider
 
     Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(string databaseName, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
         => GetColumnDescriptionsAsync(databaseName, identity.DisplayName, cancellationToken);
+
+    /// <summary>Retrieves the table description using the target's owning server provider settings.</summary>
+    Task<string?> GetTableDescriptionAsync(DatabaseTargetContext target, SchemaObjectIdentity identity, CancellationToken cancellationToken = default);
+
+    /// <summary>Retrieves the column descriptions using the target's owning server provider settings.</summary>
+    Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(DatabaseTargetContext target, SchemaObjectIdentity identity, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves the description for a table.

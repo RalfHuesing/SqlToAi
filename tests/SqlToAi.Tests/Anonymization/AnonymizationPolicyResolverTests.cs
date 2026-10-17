@@ -77,5 +77,8 @@ public sealed class AnonymizationPolicyResolverTests
     {
         public Task<bool> IsExcludedAsync(string databaseName, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
             => Task.FromResult(excluded);
+
+        public Task<bool> IsExcludedAsync(SqlToAi.Domain.DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
+            => Task.FromResult(excluded);
     }
 }

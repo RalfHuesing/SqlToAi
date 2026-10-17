@@ -101,6 +101,9 @@ internal sealed class AlwaysAllowPolicyResolver : IAnonymizationPolicyResolver
     public Task<bool> WillAnonymizeAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
         => Task.FromResult(false);
 
+    public Task<bool> WillAnonymizeAsync(SqlToAi.Domain.DatabaseTargetContext target, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
     public bool IsTokenizationActive => false;
 }
 
@@ -110,6 +113,9 @@ internal sealed class SelectiveAnonymizePolicyResolver(string anonymizedColumnNa
     public Task<bool> WillAnonymizeAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
         => Task.FromResult(string.Equals(columnName, anonymizedColumnName, StringComparison.OrdinalIgnoreCase));
 
+    public Task<bool> WillAnonymizeAsync(SqlToAi.Domain.DatabaseTargetContext target, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
     public bool IsTokenizationActive => false;
 }
 
@@ -118,6 +124,9 @@ internal sealed class SearchableAnonymizePolicyResolver(string searchableColumnN
 {
     public Task<bool> WillAnonymizeAsync(string databaseName, string tableName, string columnName, CancellationToken cancellationToken = default)
         => Task.FromResult(string.Equals(columnName, searchableColumnName, StringComparison.OrdinalIgnoreCase));
+
+    public Task<bool> WillAnonymizeAsync(SqlToAi.Domain.DatabaseTargetContext target, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
 
     public bool IsTokenizationActive => true;
 }

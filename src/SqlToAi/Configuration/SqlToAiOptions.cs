@@ -128,6 +128,23 @@ public sealed class TokenizationOptions
 }
 
 /// <summary>
+/// Connection settings shared by the per-server supporting-provider options
+/// (<see cref="MetadataProviderOptions"/> and <see cref="AnonymizationRulesOptions"/>). A provider
+/// slice with an empty <see cref="Server"/> uses the owning server's primary endpoint; a non-empty
+/// <see cref="Server"/> is a dedicated source that must also carry its own <see cref="Database"/>.
+/// </summary>
+internal interface IProviderConnectionOptions
+{
+    string Server { get; }
+    string? Database { get; }
+    string? UserId { get; }
+    string? Password { get; }
+    bool IntegratedSecurity { get; }
+    bool TrustServerCertificate { get; }
+    int CommandTimeoutSeconds { get; }
+}
+
+/// <summary>
 /// Options for the optional central, cross-database anonymization rule table. Unlike
 /// <see cref="AnonymizerOptions.ExclusionTableName"/> (which lives inside each customer
 /// database and is wiped out by a customer backup restore), this table is intended to live
@@ -135,7 +152,7 @@ public sealed class TokenizationOptions
 /// its rules survive customer-side restores and apply consistently across many customer
 /// databases via wildcard patterns.
 /// </summary>
-public sealed class AnonymizationRulesOptions
+public sealed class AnonymizationRulesOptions : IProviderConnectionOptions
 {
     /// <summary>Master switch. When false, the rule table is never queried.</summary>
     public bool Enabled { get; set; }
@@ -165,7 +182,7 @@ public sealed class AnonymizationRulesOptions
 /// <summary>
 /// Options for enriching database schemas with custom query-based documentation.
 /// </summary>
-public sealed class MetadataProviderOptions
+public sealed class MetadataProviderOptions : IProviderConnectionOptions
 {
     public bool Enabled { get; set; } = true;
     public string Server { get; set; } = string.Empty;

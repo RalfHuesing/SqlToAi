@@ -15,7 +15,8 @@ user-approved acceptance boundaries in the current concept.
 ## Resume checkpoint
 
 M1.1–M1.3 are accepted; [M1.3 audit evidence](audit.md) covers the preparation
-contracts at `070d1bb`. The next open task is **M2.1**. M2–M4 remain untouched.
+contracts at `070d1bb`. M2.1 is implemented (see its evidence below). The next
+open task is **M2.2**. M2.2–M2.5 and M4 remain untouched.
 
 ## Execution contract
 
@@ -131,7 +132,7 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 - [ ] **M2 — Aggregate:** M2.1–M2.5 accepted; supporting providers and execution
   paths use scoped state without changing their existing protection boundaries.
 
-- [ ] **M2.1 — Scope metadata, central rules and rule caches.**
+- [x] **M2.1 — Scope metadata, central rules and rule caches.**
   **Depends on:** M1.
   **Intention:** keep descriptions and masking exemptions with their policy owner.
   **Scope:** [MetadataProvider](../../src/SqlToAi/Metadata/MetadataProvider.cs),
@@ -151,6 +152,26 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
   both shared dedicated sources and per-target fallback sources. Failed loads
   retain default masking; cancellation propagates without caching a fallback.
   Masked and explicitly exempt values remain correct under parallel requests.
+  **Completion evidence:** Added `IProviderConnectionOptions`,
+  `SecondaryConnectionBuilder.ResolveSource`/`CreateForOwner`,
+  `ProviderSourceResolution`, target-aware `IMetadataProvider`,
+  `IAnonymizationRuleProvider` and `IAnonymizationPolicyResolver` overloads with
+  per-owner rule cache keys and shared loaders; `ConfigurationResolver` expands
+  per-server settings and resolves per-server provider SQL files. New tests:
+  `SecondaryConnectionBuilderOwnerTests`, `AnonymizationRuleProviderOwnerTests`
+  (disabled/no-connection, same endpoint different aliases, per-target fallback
+  partitioning, shared dedicated source per owner, raw-database rule patterns,
+  failure->masking, cancellation without caching), `MetadataProviderOwnerTests`,
+  `ConfigurationResolverServerTests`. `dotnet build SqlToAi.slnx` succeeded with
+  0 warnings and 0 errors. `dotnet test SqlToAi.slnx` succeeded: 1,356 passed,
+  19 skipped, 0 failed; skipped cases remain unavailable external TLS endpoints
+  and are unverified, not passes. `git diff --check` clean. AiNetLinter verify
+  (scope=changes, targetPath=C:/Daten/Entwicklung/Ralf/SqlToAi/SqlToAi.slnx)
+  unavailable: `reason: notconfigured` because `ainetlinter-rules.json` is
+  missing; recorded honestly and not treated as a pass. Assignment model /
+  effort: z-ai/glm-5.3-flash / medium via openrouter. Host activation and legacy
+  setting removal remain for M4.1; legacy top-level provider settings and the
+  legacy call paths stay active for unmigrated consumers.
 
 - [ ] **M2.2 — Scope token storage, issuance and existing resolution paths.**
   **Depends on:** M1.

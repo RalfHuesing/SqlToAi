@@ -1,3 +1,5 @@
+using SqlToAi.Domain;
+
 namespace SqlToAi.Anonymization;
 
 /// <summary>
@@ -23,4 +25,11 @@ public interface IAnonymizationRuleProvider
     /// <param name="columnName">The resolved base column name.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task<bool> IsExcludedAsync(string databaseName, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Target-aware form of <see cref="IsExcludedAsync(string,string,string,string,CancellationToken)"/>:
+    /// rule lookup, provider settings and cache partitioning use the target's canonical alias
+    /// (policy owner) and its raw database name, so owners never borrow each other's exemptions.
+    /// </summary>
+    Task<bool> IsExcludedAsync(DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default);
 }

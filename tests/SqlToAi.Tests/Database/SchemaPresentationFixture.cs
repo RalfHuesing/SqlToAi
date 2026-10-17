@@ -122,12 +122,21 @@ internal sealed class SchemaPresentationFixture : IDatabaseConnectionFactory, IM
         return Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>(StringComparer.Ordinal) { ["Email"] = "Fixed column description" });
     }
 
+    public Task<string?> GetTableDescriptionAsync(SqlToAi.Domain.DatabaseTargetContext target, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(SqlToAi.Domain.DatabaseTargetContext target, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
     public Task<bool> IsExcludedAsync(string databaseName, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
     {
         RuleCalls++;
         if (RejectEnrichment) throw new InvalidOperationException("Rules must not be called");
         return Task.FromResult(false);
     }
+
+    public Task<bool> IsExcludedAsync(SqlToAi.Domain.DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
 
     private sealed class TrackingPolicy(SchemaPresentationFixture fixture, IAnonymizationPolicyResolver inner) : IAnonymizationPolicyResolver
     {
@@ -146,5 +155,8 @@ internal sealed class SchemaPresentationFixture : IDatabaseConnectionFactory, IM
             if (fixture.RejectEnrichment) throw new InvalidOperationException("Policy must not be called");
             return inner.WillAnonymizeAsync(databaseName, tableName, columnName, cancellationToken);
         }
+
+        public Task<bool> WillAnonymizeAsync(SqlToAi.Domain.DatabaseTargetContext target, string tableName, string columnName, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
     }
 }

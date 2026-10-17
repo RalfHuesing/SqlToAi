@@ -85,6 +85,10 @@ custom metadata queries receive the raw base object name. Anonymization policies
 receive the resolved SQL schema and object names, so quoted names, literal dots and
 escaped brackets do not change explicit exemptions. The identity overloads retain
 the existing string-based provider contract as a fallback for custom implementations.
+Named-server preparation adds target-aware contracts: enrichment calls can carry the
+resolved server alias and raw database name, so each alias uses its own provider
+settings and rule-cache partition while legacy string-based calls remain in place
+until the consumer migration slices remove them.
 Scalar inspection and offline export continue to use their existing paths.
 
 `GetExportTriggerDefinitionAsync` validates the trigger's object ID, SQL schema/name and table/view parent association together, then retrieves its definition by that same ID. It shares definition retrieval and rendering with the existing trigger operation. The MCP trigger operation retains its simple-name definition lookup and its limitation for triggers outside the default schema; the export entry does not change MCP tool contracts or results.

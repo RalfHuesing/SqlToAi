@@ -14,15 +14,26 @@ namespace SqlToAi.Anonymization;
 /// Implements <see cref="IAnonymizationRuleProvider"/> by loading the full central rule set from
 /// a dedicated (possibly separate-server) database and resolving the most specific matching rule
 /// per (database, schema, table, column) using SQL <c>LIKE</c>-style wildcard patterns.
+/// Rule caches are partitioned by policy owner (canonical server alias) and effective source
+/// identity (endpoint, actual source database including per-target fallback, rules table), so
+/// owners never borrow foreign cached exemptions.
 /// </summary>
 public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
 {
-    private const string CacheKey = "all-rules";
+    /// <summary>
+    /// Cache identity for one rule load. <see cref="PolicyOwner"/> is the canonical server alias
+    /// (empty for the legacy single-server path), so aliases remain distinct owners even when they
+    /// point at the same endpoint. <see cref="Endpoint"/> and <see cref="SourceDatabase"/> capture
+    /// the effective source including per-target fallback databases, and <see cref="RulesTable"/>
+    /// the configured rule table name.
+    /// </summary>
+    private sealed record RuleCacheKey(string PolicyOwner, string Endpoint, string SourceDatabase, string RulesTable);
 
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly SqlToAiOptions _options;
     private readonly ILogger<AnonymizationRuleProvider> _logger;
-    private readonly TtlCache<string, IReadOnlyList<AnonymizationRule>> _cache = new();
+    private readonly TtlCache<RuleCacheKey, IReadOnlyList<AnonymizationRule>> _cache = new();
+    private DatabaseTargetResolver? _targets;
 
     /// <summary>Initializes a new instance of the <see cref="AnonymizationRuleProvider"/> class.</summary>
     public AnonymizationRuleProvider(
@@ -49,18 +60,88 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
         return bestMatch is not null && !bestMatch.Anonymize;
     }
 
+    /// <inheritdoc/>
+    public async Task<bool> IsExcludedAsync(DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        if (string.IsNullOrWhiteSpace(columnName))
+        {
+            return false;
+        }
+
+        if (!TryGetOwnerOptions(target.ServerAlias, out NamedServerOptions? ownerServer, out AnonymizationRulesOptions? rules))
+        {
+            // Unknown owner or absent provider settings: no central-rule exemptions, default masking.
+            return false;
+        }
+
+        if (!rules.Enabled)
+        {
+            return false;
+        }
+
+        RuleCacheKey cacheKey;
+        try
+        {
+            cacheKey = BuildCacheKey(target, ownerServer, rules);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Misconfigured source (e.g. dedicated server without an explicit database):
+            // fail-safe to default masking instead of surfacing configuration details.
+            string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
+            _logger.LogError("AnonymizationRules {FailureType} while resolving the rule source; default masking remains active.", failureType);
+            return false;
+        }
+
+        Func<DbConnection> createConnection = () => SecondaryConnectionBuilder.CreateForOwner(
+            target, ownerServer, rules, SecondaryConnectionBuilder.AnonymizationRulesApplicationName, _connectionFactory);
+
+        IReadOnlyList<AnonymizationRule> activeRules = await _cache.GetOrLoadAsync(
+            cacheKey,
+            token => LoadRulesFromAsync(createConnection, rules, token),
+            TimeSpan.FromSeconds(rules.CacheTtlSeconds),
+            cancellationToken);
+
+        AnonymizationRule? match = FindMostSpecificMatch(
+            activeRules, target.DatabaseName, schemaName ?? string.Empty, tableName ?? string.Empty, columnName);
+        return match is not null && !match.Anonymize;
+    }
+
     private async Task<IReadOnlyList<AnonymizationRule>> GetActiveRulesAsync(CancellationToken cancellationToken)
     {
+        var rules = _options.AnonymizationRules;
+        RuleCacheKey cacheKey = new(
+            PolicyOwner: string.Empty,
+            Endpoint: !string.IsNullOrWhiteSpace(rules.Server) ? rules.Server : _options.SqlServer.Server,
+            SourceDatabase: rules.Database ?? string.Empty,
+            RulesTable: rules.TableName);
+
         return await _cache.GetOrLoadAsync(
-            CacheKey,
+            cacheKey,
             LoadActiveRulesAsync,
-            TimeSpan.FromSeconds(_options.AnonymizationRules.CacheTtlSeconds),
+            TimeSpan.FromSeconds(rules.CacheTtlSeconds),
             cancellationToken);
     }
 
-    private async Task<IReadOnlyList<AnonymizationRule>> LoadActiveRulesAsync(CancellationToken cancellationToken)
+    private Task<IReadOnlyList<AnonymizationRule>> LoadActiveRulesAsync(CancellationToken cancellationToken)
+        => LoadRulesFromAsync(CreateConnection, _options.AnonymizationRules, cancellationToken);
+
+    /// <summary>
+    /// Loads the active rules through the supplied connection factory for one provider settings
+    /// slice. Load failures return an empty rule set (default masking); requested cancellation
+    /// propagates and caches nothing.
+    /// </summary>
+    private async Task<IReadOnlyList<AnonymizationRule>> LoadRulesFromAsync(
+        Func<DbConnection> createConnection,
+        AnonymizationRulesOptions rules,
+        CancellationToken cancellationToken)
     {
-        string tableName = _options.AnonymizationRules.TableName;
+        string tableName = rules.TableName;
         if (string.IsNullOrWhiteSpace(tableName))
         {
             return [];
@@ -68,7 +149,7 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
 
         try
         {
-            await using var connection = CreateConnection();
+            await using var connection = createConnection();
             await connection.OpenAsync(cancellationToken);
 
             string? safeTableName = await connection.QueryFirstOrDefaultAsync<string>(
@@ -76,7 +157,7 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
                     "SELECT QUOTENAME(OBJECT_SCHEMA_NAME(OBJECT_ID(@TableName, 'U'))) + '.' + QUOTENAME(OBJECT_NAME(OBJECT_ID(@TableName, 'U')))",
                     new { TableName = tableName },
                     cancellationToken: cancellationToken,
-                    commandTimeout: _options.AnonymizationRules.CommandTimeoutSeconds));
+                    commandTimeout: rules.CommandTimeoutSeconds));
 
             if (string.IsNullOrEmpty(safeTableName))
             {
@@ -87,13 +168,13 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
                 return [];
             }
 
-            bool hasSchemaPattern = await HasSchemaPatternColumnAsync(connection, tableName, cancellationToken);
+            bool hasSchemaPattern = await HasSchemaPatternColumnAsync(connection, rules, cancellationToken);
             string columnList = hasSchemaPattern
                 ? "[DatabasePattern], [SchemaPattern], [TablePattern], [ColumnPattern], [Anonymize]"
                 : "[DatabasePattern], [TablePattern], [ColumnPattern], [Anonymize]";
             string sql = $"SELECT {columnList} FROM {safeTableName} WHERE [IsActive] = 1";
             var rows = await connection.QueryAsync<RuleRow>(
-                new CommandDefinition(sql, cancellationToken: cancellationToken, commandTimeout: _options.AnonymizationRules.CommandTimeoutSeconds));
+                new CommandDefinition(sql, cancellationToken: cancellationToken, commandTimeout: rules.CommandTimeoutSeconds));
 
             return rows.Select(r => new AnonymizationRule(r.DatabasePattern, r.SchemaPattern, r.TablePattern, r.ColumnPattern, r.Anonymize)).ToList();
         }
@@ -109,16 +190,42 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
         }
     }
 
+    private RuleCacheKey BuildCacheKey(DatabaseTargetContext target, NamedServerOptions ownerServer, AnonymizationRulesOptions rules)
+    {
+        ProviderSourceResolution source = SecondaryConnectionBuilder.ResolveSource(
+            ownerServer, rules, target.DatabaseName, SecondaryConnectionBuilder.AnonymizationRulesApplicationName);
+        return new RuleCacheKey(target.ServerAlias, source.Endpoint, source.SourceDatabase, rules.TableName);
+    }
+
+    private bool TryGetOwnerOptions(string serverAlias, out NamedServerOptions ownerServer, out AnonymizationRulesOptions rules)
+    {
+        ownerServer = new NamedServerOptions();
+        rules = _options.AnonymizationRules;
+        if (DatabaseTargetParser.IsValidAlias(serverAlias)
+            && Targets().TryGetServerOptions(serverAlias, out NamedServerOptions? resolved)
+            && resolved is not null)
+        {
+            ownerServer = resolved;
+            rules = resolved.AnonymizationRules;
+            return true;
+        }
+
+        return false;
+    }
+
+    private DatabaseTargetResolver Targets() => _targets ??= new DatabaseTargetResolver(_options);
+
     private DbConnection CreateConnection()
     {
+        var rules = _options.AnonymizationRules;
         var settings = new SecondaryConnectionSettings(
-            _options.AnonymizationRules.Server,
-            _options.AnonymizationRules.Database,
-            _options.AnonymizationRules.UserId,
-            _options.AnonymizationRules.Password,
-            _options.AnonymizationRules.IntegratedSecurity,
-            _options.AnonymizationRules.TrustServerCertificate,
-            _options.AnonymizationRules.CommandTimeoutSeconds);
+            rules.Server,
+            rules.Database,
+            rules.UserId,
+            rules.Password,
+            rules.IntegratedSecurity,
+            rules.TrustServerCertificate,
+            rules.CommandTimeoutSeconds);
 
         return SecondaryConnectionBuilder.Create(
             settings,
@@ -131,13 +238,13 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
     /// Detects the optional SchemaPattern column. Lookup failures use schema-agnostic rules;
     /// requested cancellation propagates to the caller.
     /// </summary>
-    private async Task<bool> HasSchemaPatternColumnAsync(DbConnection connection, string tableName, CancellationToken cancellationToken)
+    private async Task<bool> HasSchemaPatternColumnAsync(DbConnection connection, AnonymizationRulesOptions rules, CancellationToken cancellationToken)
     {
         try
         {
             const string checkSql = "SELECT CASE WHEN COL_LENGTH(@TableName, 'SchemaPattern') IS NOT NULL THEN 1 ELSE 0 END";
             return await connection.QueryFirstOrDefaultAsync<bool>(
-                new CommandDefinition(checkSql, new { TableName = tableName }, cancellationToken: cancellationToken, commandTimeout: _options.AnonymizationRules.CommandTimeoutSeconds));
+                new CommandDefinition(checkSql, new { TableName = rules.TableName }, cancellationToken: cancellationToken, commandTimeout: rules.CommandTimeoutSeconds));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

@@ -1,10 +1,10 @@
 using System.Data.Common;
-using System.Text.RegularExpressions;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
 using SqlToAi.Database;
+using SqlToAi.Domain;
 #pragma warning disable CA1848 // Use the LoggerMessage delegates
 
 namespace SqlToAi.Metadata;
@@ -17,6 +17,7 @@ public sealed class MetadataProvider : IMetadataProvider
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly SqlToAiOptions _options;
     private readonly ILogger<MetadataProvider> _logger;
+    private DatabaseTargetResolver? _targets;
 
     // Standard native queries for SQL Server Extended Properties
     private const string NativeTableQuery = """
@@ -29,7 +30,7 @@ public sealed class MetadataProvider : IMetadataProvider
         """;
 
     private const string NativeColumnQuery = """
-        SELECT 
+        SELECT
             c.name AS ColumnName,
             CAST(ep.value AS NVARCHAR(MAX)) AS Description
         FROM sys.extended_properties ep
@@ -55,6 +56,91 @@ public sealed class MetadataProvider : IMetadataProvider
         _logger = logger;
     }
 
+    /// <inheritdoc/>
+    public async Task<string?> GetTableDescriptionAsync(DatabaseTargetContext target, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
+    {
+        if (!TryGetOwnerOptions(target.ServerAlias, out NamedServerOptions? ownerServer, out MetadataProviderOptions? metadata))
+        {
+            // Unknown owner or absent provider settings: keep native descriptions.
+            return null;
+        }
+
+        if (!metadata.Enabled || string.IsNullOrWhiteSpace(identity.QualifiedName))
+        {
+            return null;
+        }
+
+        (string sql, string queryTableName) = BuildTableQuery(metadata, identity.QualifiedName, identity.ObjectName);
+
+        try
+        {
+            await using var connection = CreateOwnerConnection(target, ownerServer, metadata);
+            await connection.OpenAsync(cancellationToken);
+
+            string? description = await connection.QueryFirstOrDefaultAsync<string>(
+                new CommandDefinition(sql, new { TableName = queryTableName }, cancellationToken: cancellationToken));
+
+            return description;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
+            _logger.LogError("MetadataProvider {FailureType} while retrieving a table description.", failureType);
+            return null;
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(DatabaseTargetContext target, SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
+    {
+        var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        if (!TryGetOwnerOptions(target.ServerAlias, out NamedServerOptions? ownerServer, out MetadataProviderOptions? metadata))
+        {
+            // Unknown owner or absent provider settings: keep native descriptions.
+            return dict;
+        }
+
+        if (!metadata.Enabled || string.IsNullOrWhiteSpace(identity.QualifiedName))
+        {
+            return dict;
+        }
+
+        (string sql, string queryTableName) = BuildColumnQuery(metadata, identity.QualifiedName, identity.ObjectName);
+
+        try
+        {
+            await using var connection = CreateOwnerConnection(target, ownerServer, metadata);
+            await connection.OpenAsync(cancellationToken);
+
+            var rows = await connection.QueryAsync<object>(
+                new CommandDefinition(sql, new { TableName = queryTableName }, cancellationToken: cancellationToken));
+
+            foreach (var row in rows)
+            {
+                if (row is IDictionary<string, object> dictRow)
+                {
+                    ExtractColumnDescription(dictRow, dict);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            string failureType = SqlToAiErrorMapper.GetSafeConnectionFailureCategory(ex);
+            _logger.LogError("MetadataProvider {FailureType} while retrieving column descriptions.", failureType);
+        }
+
+        return dict;
+    }
+
     /// <summary>
     /// Retrieves the description for a table.
     /// </summary>
@@ -75,19 +161,7 @@ public sealed class MetadataProvider : IMetadataProvider
             return null;
         }
 
-        string sql;
-        string queryTableName = tableName;
-
-        if (!string.IsNullOrWhiteSpace(_options.MetadataProvider.TableMetadataQuery))
-        {
-            sql = _options.MetadataProvider.TableMetadataQuery;
-            // Clean schema prefix from tableName for custom metadata queries (e.g. "dbo.KHKVKBelege" -> "KHKVKBelege")
-            queryTableName = resolvedName ?? tableName[(tableName.LastIndexOf('.') + 1)..];
-        }
-        else
-        {
-            sql = NativeTableQuery;
-        }
+        (string sql, string queryTableName) = BuildTableQuery(_options.MetadataProvider, tableName, resolvedName);
 
         try
         {
@@ -129,19 +203,7 @@ public sealed class MetadataProvider : IMetadataProvider
             return dict;
         }
 
-        string sql;
-        string queryTableName = tableName;
-
-        if (!string.IsNullOrWhiteSpace(_options.MetadataProvider.ColumnMetadataQuery))
-        {
-            sql = _options.MetadataProvider.ColumnMetadataQuery;
-            // Clean schema prefix from tableName for custom metadata queries (e.g. "dbo.KHKVKBelege" -> "KHKVKBelege")
-            queryTableName = resolvedName ?? tableName[(tableName.LastIndexOf('.') + 1)..];
-        }
-        else
-        {
-            sql = NativeColumnQuery;
-        }
+        (string sql, string queryTableName) = BuildColumnQuery(_options.MetadataProvider, tableName, resolvedName);
 
         try
         {
@@ -168,6 +230,28 @@ public sealed class MetadataProvider : IMetadataProvider
         return dict;
     }
 
+    private static (string Sql, string QueryTableName) BuildTableQuery(MetadataProviderOptions metadata, string tableName, string? resolvedName)
+    {
+        if (!string.IsNullOrWhiteSpace(metadata.TableMetadataQuery))
+        {
+            // Clean schema prefix from tableName for custom metadata queries (e.g. "dbo.KHKVKBelege" -> "KHKVKBelege")
+            return (metadata.TableMetadataQuery, resolvedName ?? tableName[(tableName.LastIndexOf('.') + 1)..]);
+        }
+
+        return (NativeTableQuery, tableName);
+    }
+
+    private static (string Sql, string QueryTableName) BuildColumnQuery(MetadataProviderOptions metadata, string tableName, string? resolvedName)
+    {
+        if (!string.IsNullOrWhiteSpace(metadata.ColumnMetadataQuery))
+        {
+            // Clean schema prefix from tableName for custom metadata queries (e.g. "dbo.KHKVKBelege" -> "KHKVKBelege")
+            return (metadata.ColumnMetadataQuery, resolvedName ?? tableName[(tableName.LastIndexOf('.') + 1)..]);
+        }
+
+        return (NativeColumnQuery, tableName);
+    }
+
     private static void ExtractColumnDescription(IDictionary<string, object> dictRow, Dictionary<string, string> dict)
     {
         var colKey = dictRow.Keys.FirstOrDefault(k => string.Equals(k, "ColumnName", StringComparison.OrdinalIgnoreCase));
@@ -184,6 +268,28 @@ public sealed class MetadataProvider : IMetadataProvider
             }
         }
     }
+
+    private bool TryGetOwnerOptions(string serverAlias, out NamedServerOptions ownerServer, out MetadataProviderOptions metadata)
+    {
+        ownerServer = new NamedServerOptions();
+        metadata = _options.MetadataProvider;
+        if (DatabaseTargetParser.IsValidAlias(serverAlias)
+            && Targets().TryGetServerOptions(serverAlias, out NamedServerOptions? resolved)
+            && resolved is not null)
+        {
+            ownerServer = resolved;
+            metadata = resolved.MetadataProvider;
+            return true;
+        }
+
+        return false;
+    }
+
+    private DatabaseTargetResolver Targets() => _targets ??= new DatabaseTargetResolver(_options);
+
+    private DbConnection CreateOwnerConnection(DatabaseTargetContext target, NamedServerOptions ownerServer, MetadataProviderOptions metadata)
+        => SecondaryConnectionBuilder.CreateForOwner(
+            target, ownerServer, metadata, SecondaryConnectionBuilder.MetadataApplicationName, _connectionFactory);
 
     private DbConnection CreateConnection(string databaseName)
     {

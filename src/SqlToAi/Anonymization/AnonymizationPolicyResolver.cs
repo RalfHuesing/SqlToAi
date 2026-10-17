@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
 using SqlToAi.Database;
+using SqlToAi.Domain;
 
 namespace SqlToAi.Anonymization;
 
@@ -42,6 +43,27 @@ public sealed class AnonymizationPolicyResolver : IAnonymizationPolicyResolver
     public async Task<bool> WillAnonymizeAsync(string databaseName, SchemaObjectIdentity identity, string columnName, CancellationToken cancellationToken = default)
         => _options.Anonymizer.Enabled && !await _ruleProvider.IsExcludedAsync(
             databaseName, identity.SchemaName, identity.ObjectName, columnName, cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task<bool> WillAnonymizeAsync(DatabaseTargetContext target, string tableName, string columnName, CancellationToken cancellationToken = default)
+    {
+        if (!_options.Anonymizer.Enabled)
+        {
+            return false;
+        }
+
+        if (await _ruleProvider.IsExcludedAsync(target, string.Empty, tableName, columnName, cancellationToken))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> WillAnonymizeAsync(DatabaseTargetContext target, SchemaObjectIdentity identity, string columnName, CancellationToken cancellationToken = default)
+        => _options.Anonymizer.Enabled && !await _ruleProvider.IsExcludedAsync(
+            target, identity.SchemaName, identity.ObjectName, columnName, cancellationToken);
 
     /// <inheritdoc/>
     public bool IsTokenizationActive => _options.Anonymizer.Tokenization.IsUsable;

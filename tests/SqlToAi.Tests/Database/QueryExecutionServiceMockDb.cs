@@ -12,6 +12,9 @@ internal sealed class AlwaysExcludeRuleProvider : IAnonymizationRuleProvider
 {
     public Task<bool> IsExcludedAsync(string databaseName, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
         => Task.FromResult(true);
+
+    public Task<bool> IsExcludedAsync(SqlToAi.Domain.DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
 }
 
 internal sealed class ColumnNameRuleProvider(string excludedColumn) : IAnonymizationRuleProvider
@@ -23,6 +26,9 @@ internal sealed class ColumnNameRuleProvider(string excludedColumn) : IAnonymiza
         Lookups.Add((schemaName, tableName, columnName));
         return Task.FromResult(string.Equals(columnName, excludedColumn, StringComparison.OrdinalIgnoreCase));
     }
+
+    public Task<bool> IsExcludedAsync(SqlToAi.Domain.DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
 }
 
 /// <summary>
@@ -37,6 +43,9 @@ internal sealed class SchemaScopedRuleProvider(string excludedSchema) : IAnonymi
 {
     public Task<bool> IsExcludedAsync(string databaseName, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
         => Task.FromResult(string.Equals(schemaName, excludedSchema, StringComparison.OrdinalIgnoreCase));
+
+    public Task<bool> IsExcludedAsync(SqlToAi.Domain.DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
 }
 
 

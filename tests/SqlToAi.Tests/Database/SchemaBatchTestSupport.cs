@@ -99,5 +99,11 @@ internal sealed class SchemaBatchTestFactory : IDatabaseConnectionFactory
 
         public Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(string databaseName, string tableName, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string> { ["Secret"] = "enriched column description" });
+
+        public Task<string?> GetTableDescriptionAsync(SqlToAi.Domain.DatabaseTargetContext target, SqlToAi.Database.SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlyDictionary<string, string>> GetColumnDescriptionsAsync(SqlToAi.Domain.DatabaseTargetContext target, SqlToAi.Database.SchemaObjectIdentity identity, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
     }
 }

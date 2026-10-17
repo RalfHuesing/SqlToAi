@@ -234,6 +234,9 @@ public sealed class SchemaServiceBatchTests
             Columns.Add(columnName);
             return Task.FromResult(columnName == "Exempt");
         }
+
+        public Task<bool> IsExcludedAsync(SqlToAi.Domain.DatabaseTargetContext target, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
     }
 
     private static JsonElement Json(string json) => JsonSerializer.Deserialize<JsonElement>(json);

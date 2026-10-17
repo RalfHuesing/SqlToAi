@@ -87,6 +87,35 @@ public static class ConfigurationResolver
             options.AnonymizationRules.Password = Expand(options.AnonymizationRules.Password);
         }
 
+        foreach (NamedServerOptions server in options.Servers.Values)
+        {
+            ExpandNamedServer(server);
+        }
+    }
+
+    private static void ExpandNamedServer(NamedServerOptions server)
+    {
+        server.Server = Expand(server.Server);
+        server.UserId = Expand(server.UserId);
+        server.Password = Expand(server.Password);
+
+        if (server.MetadataProvider != null)
+        {
+            server.MetadataProvider.Server = Expand(server.MetadataProvider.Server);
+            server.MetadataProvider.Database = Expand(server.MetadataProvider.Database);
+            server.MetadataProvider.UserId = Expand(server.MetadataProvider.UserId);
+            server.MetadataProvider.Password = Expand(server.MetadataProvider.Password);
+            server.MetadataProvider.TableMetadataQuery = Expand(server.MetadataProvider.TableMetadataQuery);
+            server.MetadataProvider.ColumnMetadataQuery = Expand(server.MetadataProvider.ColumnMetadataQuery);
+        }
+
+        if (server.AnonymizationRules != null)
+        {
+            server.AnonymizationRules.Server = Expand(server.AnonymizationRules.Server);
+            server.AnonymizationRules.Database = Expand(server.AnonymizationRules.Database);
+            server.AnonymizationRules.UserId = Expand(server.AnonymizationRules.UserId);
+            server.AnonymizationRules.Password = Expand(server.AnonymizationRules.Password);
+        }
     }
 
     private static void ResolveSqlFiles(SqlToAiOptions options, string root)
@@ -95,6 +124,15 @@ public static class ConfigurationResolver
         {
             options.MetadataProvider.TableMetadataQuery = ResolveValue(options.MetadataProvider.TableMetadataQuery, root);
             options.MetadataProvider.ColumnMetadataQuery = ResolveValue(options.MetadataProvider.ColumnMetadataQuery, root);
+        }
+
+        foreach (NamedServerOptions server in options.Servers.Values)
+        {
+            if (server.MetadataProvider != null)
+            {
+                server.MetadataProvider.TableMetadataQuery = ResolveValue(server.MetadataProvider.TableMetadataQuery, root);
+                server.MetadataProvider.ColumnMetadataQuery = ResolveValue(server.MetadataProvider.ColumnMetadataQuery, root);
+            }
         }
     }
 
