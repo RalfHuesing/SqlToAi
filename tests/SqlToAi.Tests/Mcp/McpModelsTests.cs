@@ -1,5 +1,10 @@
 using System.Globalization;
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using ModelContextProtocol.Server;
+using SqlToAi.Configuration;
 using SqlToAi.Mcp;
 
 namespace SqlToAi.Tests.Mcp;
@@ -67,27 +72,34 @@ public sealed class McpModelsTests
     }
 
     // -------------------------------------------------------------------------
-    // InitializeResult
+    // Server options
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void InitializeResult_ShouldAdvertiseServerInfo()
+    public async Task ServerOptions_ShouldAdvertiseServerInfo()
     {
-        var initResult = new InitializeResult();
-        Assert.Equal(McpConstants.ProtocolVersion, initResult.ProtocolVersion);
-        Assert.Equal(McpConstants.ServerName, initResult.ServerInfo.Name);
-        Assert.Equal(McpConstants.ServerVersion, initResult.ServerInfo.Version);
+        using var temp = TestTempDirectory.Create();
+        await using var services = Program.BuildServiceProvider(
+            new ConfigurationBuilder().Build(), new SqlToAiOptions(), temp.DirectoryPath);
+        var options = services.GetRequiredService<IOptions<McpServerOptions>>().Value;
+
+        Assert.NotNull(options.ServerInfo);
+        Assert.Equal(McpConstants.ServerName, options.ServerInfo.Name);
+        Assert.Equal(typeof(Program).Assembly.GetName().Version?.ToString() ?? McpConstants.ServerVersion,
+            options.ServerInfo.Version);
     }
 
     [Fact]
-    public void InitializeResult_ShouldAdvertiseAnonymizationInstructions()
+    public async Task ServerOptions_ShouldAdvertiseAnonymizationInstructions()
     {
-        var initResult = new InitializeResult();
-        Assert.Contains("Anonymized", initResult.Instructions, StringComparison.Ordinal);
-        Assert.Contains("sql_get_object_references", initResult.Instructions, StringComparison.Ordinal);
+        using var temp = TestTempDirectory.Create();
+        await using var services = Program.BuildServiceProvider(
+            new ConfigurationBuilder().Build(), new SqlToAiOptions(), temp.DirectoryPath);
+        var options = services.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
-        string json = JsonSerializer.Serialize(initResult, Options);
-        Assert.Contains("\"instructions\"", json);
+        Assert.Equal(McpConstants.ServerInstructions, options.ServerInstructions);
+        Assert.Contains("Anonymized", options.ServerInstructions, StringComparison.Ordinal);
+        Assert.Contains("sql_get_object_references", options.ServerInstructions, StringComparison.Ordinal);
     }
 
     // -------------------------------------------------------------------------

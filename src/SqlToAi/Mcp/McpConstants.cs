@@ -7,13 +7,6 @@ namespace SqlToAi.Mcp;
 internal static class McpConstants
 {
     // -------------------------------------------------------------------------
-    // Protocol
-    // -------------------------------------------------------------------------
-
-    /// <summary>MCP protocol version this server implements.</summary>
-    internal const string ProtocolVersion = "2024-11-05";
-
-    // -------------------------------------------------------------------------
     // Server identity
     // -------------------------------------------------------------------------
 
