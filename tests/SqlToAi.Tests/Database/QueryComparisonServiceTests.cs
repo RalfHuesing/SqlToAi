@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
@@ -74,6 +75,103 @@ public sealed class QueryComparisonServiceTests
             TestContext.Current.CancellationToken);
         Assert.True(result.IsFailure);
         Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
+    }
+
+    public static IEnumerable<object[]> ParameterNameCollisionCases()
+    {
+        using JsonDocument queryA = JsonDocument.Parse("{\"p\":1}");
+        yield return [queryA.RootElement.Clone(), "{\"@P\":2}"];
+
+        using JsonDocument nestedJsonString = JsonDocument.Parse(JsonSerializer.Serialize("{\"p\":1}"));
+        yield return [nestedJsonString.RootElement.Clone(), new Dictionary<string, object?> { ["@P"] = 2 }];
+
+        yield return [new Dictionary<string, object?> { ["p"] = 1 }, new Dictionary<string, object?> { ["@P"] = 1 }];
+        yield return ["{\"p\":1}", "{\"P\":{\"value\":\"1\",\"dbType\":\"String\"}}"];
+    }
+
+    [Theory]
+    [MemberData(nameof(ParameterNameCollisionCases))]
+    public async Task CompareQueriesAsync_RejectsOverlappingParametersBeforeOpeningConnection(object parametersA, object parametersB)
+    {
+        var factory = new ComparisonConnectionFactory();
+        var result = await BuildService(factory: factory).CompareQueriesAsync(
+            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT @p AS Value", "SELECT @P AS Value",
+                ParametersA: parametersA, ParametersB: parametersB), TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
+        Assert.Contains("@P", result.Error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(factory.Connection);
+    }
+
+    [Fact]
+    public async Task CompareQueriesAsync_AllowsDisjointAndSharedParameters()
+    {
+        var disjointFactory = new ComparisonConnectionFactory();
+        var disjointResult = await BuildService(factory: disjointFactory).CompareQueriesAsync(
+            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT @left AS Value", "SELECT @right AS Value",
+                ParametersA: new Dictionary<string, object?> { ["left"] = 1 },
+                ParametersB: new Dictionary<string, object?> { ["right"] = 2 }),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(disjointResult.IsSuccess);
+        Assert.Equal(2, disjointFactory.DifferenceCalls);
+
+        var sharedFactory = new ComparisonConnectionFactory();
+        var shared = new Dictionary<string, object?> { ["value"] = 1 };
+        var sharedResult = await BuildService(factory: sharedFactory).CompareQueriesAsync(
+            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT @value AS Value", "SELECT @value AS Value",
+                SharedParameters: shared), TestContext.Current.CancellationToken);
+
+        Assert.True(sharedResult.IsSuccess);
+        Assert.Equal(2, sharedFactory.DifferenceCalls);
+    }
+
+    [Fact]
+    public async Task CompareQueriesAsync_RejectsOverlapBetweenExplicitAndSharedFallback()
+    {
+        var factory = new ComparisonConnectionFactory();
+        var result = await BuildService(factory: factory).CompareQueriesAsync(
+            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT @value AS Value", "SELECT @value AS Value",
+                ParametersA: new Dictionary<string, object?> { ["@VALUE"] = 1 },
+                SharedParameters: new Dictionary<string, object?> { ["value"] = 1 }),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
+        Assert.Null(factory.Connection);
+    }
+
+    [Fact]
+    public async Task CompareQueriesAsync_MapsMalformedParameterJsonBeforeOpeningConnection()
+    {
+        var factory = new ComparisonConnectionFactory();
+        var result = await BuildService(factory: factory).CompareQueriesAsync(
+            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1", "SELECT 1", ParametersA: "{invalid"),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
+        Assert.Null(factory.Connection);
+    }
+
+    [Fact]
+    public async Task CompareQueriesAsync_MapsDisposedParameterJsonBeforeOpeningConnection()
+    {
+        JsonElement disposedElement;
+        using (JsonDocument document = JsonDocument.Parse("{\"p\":1}"))
+        {
+            disposedElement = document.RootElement;
+        }
+
+        var factory = new ComparisonConnectionFactory();
+        var result = await BuildService(factory: factory).CompareQueriesAsync(
+            new QueryComparisonArgs(TestConstants.DatabaseName, "SELECT 1", "SELECT 1", ParametersA: disposedElement),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.QueryErrorCode, result.Error.Code);
+        Assert.Null(factory.Connection);
     }
 
     // ---- Pipeline stages 3-4: whitelist + access level (both queries get the same probe) ----

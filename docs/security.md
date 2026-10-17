@@ -38,7 +38,7 @@ Query and script execution, validation, comparison, performance measurement, and
 
 ## String masking and tokenization
 
-Query and script result masking applies to `ReadOnlyAnonymized` with `Anonymizer.Enabled=true`, except excluded columns. Disabling this switch exposes raw values even at that access level. Empty strings and non-string values remain unchanged.
+Query and script result masking applies to `ReadOnlyAnonymized` with `Anonymizer.Enabled=true`, except columns excluded by a matching central rule. Exclusion matching uses the reader's resolved base schema, table and column; output aliases do not change the source-column decision. If any part of that origin is unavailable, the result stays masked by default. Disabling this switch exposes raw values even at that access level. Empty strings and non-string values remain unchanged.
 
 | Mode | Transformation | Limits |
 | --- | --- | --- |
@@ -46,7 +46,7 @@ Query and script result masking applies to `ReadOnlyAnonymized` with `Anonymizer
 | `Hash` | Unsalted SHA-256 as lowercase hexadecimal | Reveals equality; predictable inputs can be guessed by hashing candidates |
 | Tokenization | Process-local mapping, e.g. `§§§T1§§§` | Reversible in server memory; reveals equality; mappings disappear after restart |
 
-`Tokenization.Enabled=true` with non-empty delimiters replaces masking for protected strings. The query-execution resolver substitutes known complete tokens inside SQL string literals, escaping quotes. It leaves comments, identifiers and unknown tokens unchanged. Tokens can be reused with `=`, `IN` or `LIKE`; token fragments do not preserve the original value relationship. Unknown tokens are ordinary literal text and can match real stored text. Do not assume substitution for parameter values or every analysis tool.
+`Tokenization.Enabled=true` with non-empty delimiters replaces masking for protected strings. It follows the same source-origin exclusion decision, including default masking when the origin is incomplete. The query-execution resolver substitutes known complete tokens inside SQL string literals, escaping quotes. It leaves comments, identifiers and unknown tokens unchanged. Tokens can be reused with `=`, `IN` or `LIKE`; token fragments do not preserve the original value relationship. Unknown tokens are ordinary literal text and can match real stored text. Do not assume substitution for parameter values or every analysis tool.
 
 `sql_get_schema` labels columns `No`, `Yes` or `Yes (searchable)` as guidance. Query results include a notice identifying masked columns where their source is known. Labels and notices do not establish that all outputs are sanitized.
 

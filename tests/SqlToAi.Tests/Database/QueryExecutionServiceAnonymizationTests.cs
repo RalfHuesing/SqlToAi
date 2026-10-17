@@ -116,7 +116,8 @@ public sealed class QueryExecutionServiceAnonymizationTests
         const string original = "Ralf Huesing";
         var options = new SqlToAiOptions();
         options.Anonymizer.Enabled = true;
-        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original, Origin: new MockSchemaOrigin(BaseTableName: "FakeConsultants")));
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original, Origin: new MockSchemaOrigin(
+            BaseTableName: "FakeConsultants", BaseColumnName: "Name", BaseSchemaName: "dbo")));
         var service = new QueryExecutionService(
             factory,
             new FakeQuerySafetyValidator(
@@ -132,6 +133,171 @@ public sealed class QueryExecutionServiceAnonymizationTests
         Assert.Contains(original, result.Value.Data, StringComparison.OrdinalIgnoreCase);
         Assert.False(result.Value.WasAnonymized);
         Assert.Empty(result.Value.AnonymizedColumns);
+    }
+
+    [Theory]
+    [InlineData("FullName", false)]
+    [InlineData("SSN", true)]
+    public async Task ExecuteQueryAsync_CentralExclusionUsesSourceColumnInsteadOfAlias(string excludedColumn, bool expectedRaw)
+    {
+        const string original = "synthetic-secret-123";
+        var options = new SqlToAiOptions();
+        options.Anonymizer.Enabled = true;
+        var ruleProvider = new ColumnNameRuleProvider(excludedColumn);
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original,
+            ColumnName: "FullName",
+            Origin: new MockSchemaOrigin(BaseTableName: "FakeConsultants", BaseColumnName: "SSN", BaseSchemaName: "dbo")));
+        var service = new QueryExecutionService(
+            factory,
+            new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(true),
+                new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+                new FakeReadOnlyGuard(true)),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault()), RuleProvider: ruleProvider),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync(
+            TestConstants.DatabaseName, "SELECT SSN AS FullName FROM FakeConsultants", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(expectedRaw, result.Value.Data.Contains(original, StringComparison.Ordinal));
+        Assert.Equal([("dbo", "FakeConsultants", "SSN")], ruleProvider.Lookups);
+    }
+
+    [Theory]
+    [InlineData(null, null, null, false)]
+    [InlineData(null, null, null, true)]
+    [InlineData(null, "FakeConsultants", "SSN", false)]
+    [InlineData(null, "FakeConsultants", "SSN", true)]
+    [InlineData("dbo", null, "SSN", false)]
+    [InlineData("dbo", null, "SSN", true)]
+    [InlineData("dbo", "FakeConsultants", null, false)]
+    [InlineData("dbo", "FakeConsultants", null, true)]
+    public async Task ExecuteQueryAsync_KeepsDefaultMaskingWhenOriginIsPartial(
+        string? schemaName, string? tableName, string? columnName, bool tokenizationEnabled)
+    {
+        const string original = "synthetic-secret-123";
+        var options = tokenizationEnabled
+            ? AnonymizationTestHelper.BuildTokenizationOptions()
+            : new SqlToAiOptions();
+        options.Anonymizer.Enabled = true;
+        var ruleProvider = new ColumnNameRuleProvider("FullName");
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original,
+            ColumnName: "FullName",
+            Origin: new MockSchemaOrigin(tableName, columnName, BaseSchemaName: schemaName)));
+        var service = new QueryExecutionService(
+            factory,
+            new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(true),
+                new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+                new FakeReadOnlyGuard(true)),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault()), RuleProvider: ruleProvider),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync(
+            TestConstants.DatabaseName, "SELECT SSN AS FullName FROM FakeConsultants", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.DoesNotContain(original, result.Value.Data, StringComparison.Ordinal);
+        Assert.Empty(ruleProvider.Lookups);
+        if (tokenizationEnabled)
+        {
+            Assert.StartsWith(options.Anonymizer.Tokenization.Prefix, ExtractColumnValue(result.Value.Data, "FullName"), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_KeepsDefaultMaskingWhenSchemaTableIsUnavailable()
+    {
+        const string original = "synthetic-secret-123";
+        var options = new SqlToAiOptions();
+        options.Anonymizer.Enabled = true;
+        var ruleProvider = new ColumnNameRuleProvider("FullName");
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original,
+            ColumnName: "FullName", Origin: new MockSchemaOrigin(Available: false)));
+        var service = new QueryExecutionService(
+            factory,
+            new FakeQuerySafetyValidator(
+                new FakeSecurityGuard(true),
+                new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+                new FakeReadOnlyGuard(true)),
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault()), RuleProvider: ruleProvider),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+
+        var result = await service.ExecuteQueryAsync(
+            TestConstants.DatabaseName, "SELECT SSN AS FullName FROM FakeConsultants", null, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.DoesNotContain(original, result.Value.Data, StringComparison.Ordinal);
+        Assert.Empty(ruleProvider.Lookups);
+    }
+
+    [Fact]
+    public async Task ExecuteFileAsync_UsesSourceOriginForAliasMaskingAndTokenization()
+    {
+        const string original = "DE89370400440532013000";
+        var options = AnonymizationTestHelper.BuildTokenizationOptions();
+        var ruleProvider = new ColumnNameRuleProvider("FullName");
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original,
+            ColumnName: "FullName",
+            Origin: new MockSchemaOrigin(BaseTableName: "FakeConsultants", BaseColumnName: "SSN", BaseSchemaName: "dbo")));
+        var validator = new FakeQuerySafetyValidator(
+            new FakeSecurityGuard(true),
+            new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+            new FakeReadOnlyGuard(true));
+        var queryService = new QueryExecutionService(
+            factory,
+            validator,
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault()), RuleProvider: ruleProvider),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+        var scriptService = new ScriptExecutionService(
+            factory, validator, queryService, Options.Create(options), NullLogger<ScriptExecutionService>.Instance);
+
+        var result = await scriptService.ExecuteAsync(
+            new ScriptExecutionRequest(
+                new SqlScriptFile("script.sql", "SELECT SSN AS FullName FROM FakeConsultants", "UTF-8"),
+                TestConstants.DatabaseName),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ScriptExecutionStatus.Success, result.Status);
+        string data = Assert.Single(Assert.Single(result.Batches).Executions).Data;
+        Assert.DoesNotContain(original, data, StringComparison.Ordinal);
+        Assert.StartsWith(options.Anonymizer.Tokenization.Prefix, ExtractColumnValue(data, "FullName"), StringComparison.Ordinal);
+        Assert.Equal([("dbo", "FakeConsultants", "SSN")], ruleProvider.Lookups);
+    }
+
+    [Fact]
+    public async Task ExecuteFileAsync_LeavesSourceExemptionRawThroughOutputAlias()
+    {
+        const string original = "DE89370400440532013000";
+        var options = AnonymizationTestHelper.BuildTokenizationOptions();
+        var ruleProvider = new ColumnNameRuleProvider("SSN");
+        var factory = new MockQueryConnectionFactory(new MockQueryRowConfig(original,
+            ColumnName: "FullName",
+            Origin: new MockSchemaOrigin(BaseTableName: "FakeConsultants", BaseColumnName: "SSN", BaseSchemaName: "dbo")));
+        var validator = new FakeQuerySafetyValidator(
+            new FakeSecurityGuard(true),
+            new FakeAccessLevelProvider(AccessLevel.ReadOnlyAnonymized),
+            new FakeReadOnlyGuard(true));
+        var queryService = new QueryExecutionService(
+            factory,
+            validator,
+            new AnonymizationDependencies(new Anonymizer(Options.Create(options), new TokenVault()), RuleProvider: ruleProvider),
+            Options.Create(options), NullLogger<QueryExecutionService>.Instance);
+        var scriptService = new ScriptExecutionService(
+            factory, validator, queryService, Options.Create(options), NullLogger<ScriptExecutionService>.Instance);
+
+        var result = await scriptService.ExecuteAsync(
+            new ScriptExecutionRequest(
+                new SqlScriptFile("script.sql", "SELECT SSN AS FullName FROM FakeConsultants", "UTF-8"),
+                TestConstants.DatabaseName),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ScriptExecutionStatus.Success, result.Status);
+        string data = Assert.Single(Assert.Single(result.Batches).Executions).Data;
+        Assert.Equal(original, ExtractColumnValue(data, "FullName"));
+        Assert.DoesNotContain(ruleProvider.Lookups, lookup => lookup.Column != "SSN");
+        Assert.Equal([("dbo", "FakeConsultants", "SSN")], ruleProvider.Lookups);
     }
 
 

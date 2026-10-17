@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using SqlToAi.Configuration;
 using SqlToAi.Database;
 using SqlToAi.Domain;
+using SqlToAi.Security;
 
 namespace SqlToAi.Tests.Database;
 
@@ -23,8 +26,11 @@ public sealed class OptimizationBenchmarkServiceTests
 
     private sealed class FakePerfService(PerformanceMetrics metricsA, PerformanceMetrics metricsB) : IPerformanceMeasurementService
     {
+        public int Calls { get; private set; }
+
         public Task<Result<PerformanceMeasurementResult>> MeasurePerformanceAsync(QueryPerformanceArgs args, CancellationToken ct = default)
         {
+            Calls++;
             var metrics = args.Query == "A" ? metricsA : metricsB;
             var res = new PerformanceMeasurementResult(args.DatabaseName, 1, 1, metrics, Array.Empty<PerformancePlanWarning>(), true, null);
             return Task.FromResult(Result<PerformanceMeasurementResult>.Success(res));
@@ -79,5 +85,31 @@ public sealed class OptimizationBenchmarkServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(BenchmarkVerdict.NotRecommended, result.Value.Verdict);
+    }
+
+    [Fact]
+    public async Task BenchmarkOptimizationAsync_PropagatesComparisonParameterConflictWithoutMeasuring()
+    {
+        var options = new SqlToAiOptions();
+        var comparison = new QueryComparisonService(
+            new QueryExecutionDependencies(
+                new ValidationMockConnectionFactory(),
+                FakeQuerySafetyValidator.Create(isAllowed: true, accessLevel: AccessLevel.ReadOnly),
+                Options.Create(options)),
+            NullLogger<QueryComparisonService>.Instance);
+        var performance = new FakePerfService(
+            new PerformanceMetrics(100, 120, 500, 0, 0),
+            new PerformanceMetrics(40, 45, 100, 0, 0));
+        var service = new OptimizationBenchmarkService(
+            comparison, performance, NullLogger<OptimizationBenchmarkService>.Instance);
+
+        var result = await service.BenchmarkOptimizationAsync(
+            new QueryBenchmarkArgs("TestDb", "A", "B", ParametersA: new Dictionary<string, object?> { ["p"] = 1 },
+                ParametersB: new Dictionary<string, object?> { ["@P"] = 2 }),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(SqlToAiError.InvalidParametersCode, result.Error.Code);
+        Assert.Equal(0, performance.Calls);
     }
 }

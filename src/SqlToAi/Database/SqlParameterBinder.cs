@@ -24,6 +24,28 @@ public static class SqlParameterBinder
     {
         ArgumentNullException.ThrowIfNull(command);
 
+        ForEachParameter(rawParameters, (name, value) =>
+        {
+            if (value is JsonElement jsonElement)
+            {
+                AddParameter(command, name, jsonElement);
+            }
+            else
+            {
+                AddParameterFromValue(command, name, value, null);
+            }
+        });
+    }
+
+    internal static IReadOnlyList<string> GetNormalizedParameterNames(object? rawParameters)
+    {
+        var names = new List<string>();
+        ForEachParameter(rawParameters, (name, _) => names.Add(NormalizeParameterName(name)));
+        return names;
+    }
+
+    private static void ForEachParameter(object? rawParameters, Action<string, object?> visitor)
+    {
         if (rawParameters == null)
         {
             return;
@@ -31,7 +53,7 @@ public static class SqlParameterBinder
 
         if (rawParameters is JsonElement jsonElement)
         {
-            BindJsonElement(command, jsonElement);
+            ForEachJsonParameter(jsonElement, visitor);
             return;
         }
 
@@ -43,20 +65,23 @@ public static class SqlParameterBinder
             }
 
             using var doc = JsonDocument.Parse(jsonString);
-            BindJsonElement(command, doc.RootElement);
+            ForEachJsonParameter(doc.RootElement, visitor);
             return;
         }
 
         if (rawParameters is IDictionary<string, object?> dict)
         {
-            BindDictionary(command, dict);
+            foreach (var (key, value) in dict)
+            {
+                visitor(key, value);
+            }
             return;
         }
 
         throw new ArgumentException($"Unsupported parameter container type: '{rawParameters.GetType().FullName}'.");
     }
 
-    private static void BindJsonElement(DbCommand command, JsonElement element)
+    private static void ForEachJsonParameter(JsonElement element, Action<string, object?> visitor)
     {
         if (element.ValueKind == JsonValueKind.String)
         {
@@ -66,7 +91,7 @@ public static class SqlParameterBinder
                 return;
             }
             using var doc = JsonDocument.Parse(rawStr);
-            BindJsonElement(command, doc.RootElement);
+            ForEachJsonParameter(doc.RootElement, visitor);
             return;
         }
 
@@ -77,22 +102,7 @@ public static class SqlParameterBinder
 
         foreach (var property in element.EnumerateObject())
         {
-            AddParameter(command, property.Name, property.Value);
-        }
-    }
-
-    private static void BindDictionary(DbCommand command, IDictionary<string, object?> dict)
-    {
-        foreach (var (key, value) in dict)
-        {
-            if (value is JsonElement jsonEl)
-            {
-                AddParameter(command, key, jsonEl);
-            }
-            else
-            {
-                AddParameterFromValue(command, key, value, null);
-            }
+            visitor(property.Name, property.Value);
         }
     }
 
@@ -186,7 +196,7 @@ public static class SqlParameterBinder
 
     private static void AddParameterFromValue(DbCommand command, string paramName, object? value, DbType? dbType)
     {
-        string normalizedName = paramName.StartsWith('@') ? paramName : "@" + paramName;
+        string normalizedName = NormalizeParameterName(paramName);
 
         if (command.Parameters.Contains(normalizedName))
         {
@@ -210,4 +220,7 @@ public static class SqlParameterBinder
 
         command.Parameters.Add(param);
     }
+
+    private static string NormalizeParameterName(string paramName) =>
+        paramName.StartsWith('@') ? paramName : "@" + paramName;
 }

@@ -53,6 +53,32 @@ public sealed class QueryComparisonService : IQueryComparisonService
             return validationError;
         }
 
+        object? effectiveParamsA = args.ParametersA ?? args.SharedParameters;
+        object? effectiveParamsB = args.ParametersB ?? args.SharedParameters;
+        try
+        {
+            IReadOnlyList<string> parameterNamesA = SqlParameterBinder.GetNormalizedParameterNames(effectiveParamsA);
+            if (!ReferenceEquals(effectiveParamsA, effectiveParamsB))
+            {
+                var parameterNamesASet = new HashSet<string>(parameterNamesA, StringComparer.OrdinalIgnoreCase);
+                string? conflict = SqlParameterBinder.GetNormalizedParameterNames(effectiveParamsB)
+                    .FirstOrDefault(parameterNamesASet.Contains);
+                if (conflict != null)
+                {
+                    return SqlToAiError.InvalidParameters(
+                        $"Parameters A and B both define '{conflict}'. Use distinct parameter names for each query.");
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return SqlToAiErrorMapper.MapException(ex);
+        }
+
         // 1-5. Run the shared 6-stage guardrail pipeline once per query — the pipeline is
         // single-query, so QueryComparisonService is the only consumer that calls it twice
         // (once for QueryA, once for QueryB) and short-circuits on the first failure.
@@ -72,8 +98,6 @@ public sealed class QueryComparisonService : IQueryComparisonService
             return safetyResultB.Error;
         }
 
-        object? effectiveParamsA = args.ParametersA ?? args.SharedParameters;
-        object? effectiveParamsB = args.ParametersB ?? args.SharedParameters;
         int effectiveMaxDiff = Math.Clamp(args.MaxDiffRows, 1, _dependencies.QueryExecutionOptions.MaxRowLimit);
 
         try

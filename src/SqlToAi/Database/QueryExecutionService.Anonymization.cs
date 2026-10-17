@@ -10,7 +10,7 @@ namespace SqlToAi.Database;
 /// <summary>
 /// Partial-class half of <see cref="QueryExecutionService"/> holding the row-serialization and
 /// PII-anonymization helpers. Split purely to stay within the project's per-file line-count
-/// budget (<c>MaxLineCount</c> 500) — no behavioral change, see step-002 JIT context.
+/// budget (<c>MaxLineCount</c> 500).
 /// </summary>
 public sealed partial class QueryExecutionService
 {
@@ -83,9 +83,16 @@ public sealed partial class QueryExecutionService
         for (int i = 0; i < columnNames.Length; i++)
         {
             ColumnOrigin? origin = i < columnOrigins.Length ? columnOrigins[i] : null;
-            string tableName = origin?.TableName ?? string.Empty;
-            string schemaName = origin?.SchemaName ?? string.Empty;
-            result[i] = await _anonymizationRuleProvider!.IsExcludedAsync(databaseName, schemaName, tableName, columnNames[i], cancellationToken);
+            if (origin is null
+                || string.IsNullOrWhiteSpace(origin.SchemaName)
+                || string.IsNullOrWhiteSpace(origin.TableName)
+                || string.IsNullOrWhiteSpace(origin.ColumnName))
+            {
+                continue;
+            }
+
+            result[i] = await _anonymizationRuleProvider!.IsExcludedAsync(
+                databaseName, origin.SchemaName, origin.TableName, origin.ColumnName, cancellationToken);
         }
         return result;
     }

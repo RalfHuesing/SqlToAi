@@ -120,7 +120,7 @@ Execution, validation, comparison and benchmark tools accept dictionaries of SQL
 }
 ```
 
-Parameterize values with names such as `@CustomerId`. Choose explicit types where inferred types would cause conversions. Comparison/benchmark use `parameters_a` and `parameters_b` when supplied; each falls back to shared `parameters` otherwise.
+Parameterize values with names such as `@CustomerId`. Choose explicit types where inferred types would cause conversions. Comparison/benchmark use `parameters_a` and `parameters_b` when supplied; each falls back to shared `parameters` otherwise. Independent parameter sets must use distinct names, ignoring letter casing and an optional leading `@`; overlapping names are rejected before query validation or database access because both queries otherwise share one SQL command during difference checks. A single shared `parameters` set remains supported.
 
 ## Comparison and performance
 

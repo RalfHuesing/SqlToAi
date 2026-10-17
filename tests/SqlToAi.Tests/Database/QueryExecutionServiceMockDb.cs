@@ -14,6 +14,17 @@ internal sealed class AlwaysExcludeRuleProvider : IAnonymizationRuleProvider
         => Task.FromResult(true);
 }
 
+internal sealed class ColumnNameRuleProvider(string excludedColumn) : IAnonymizationRuleProvider
+{
+    public List<(string Schema, string Table, string Column)> Lookups { get; } = [];
+
+    public Task<bool> IsExcludedAsync(string databaseName, string schemaName, string tableName, string columnName, CancellationToken cancellationToken = default)
+    {
+        Lookups.Add((schemaName, tableName, columnName));
+        return Task.FromResult(string.Equals(columnName, excludedColumn, StringComparison.OrdinalIgnoreCase));
+    }
+}
+
 /// <summary>
 /// Test double for <see cref="IAnonymizationRuleProvider"/> that excludes (shows in clear text)
 /// only when the resolved schema equals <see cref="ExcludedSchema"/> (case-insensitive) â€” used to
