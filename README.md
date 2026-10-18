@@ -37,7 +37,11 @@ the executable yourself, or the MCPB to install the same executable as a client
 launch entry. Both are self-contained and need no separate .NET runtime. Before
 either route can start the server, create `%LOCALAPPDATA%\SqlToAi\appsettings.json`
 manually from the supplied template; bundle installation does not create it.
-Updates preserve the separate user settings and logs.
+Updates preserve the separate user settings and logs, but upgrading from the old
+single-server settings is a breaking change: manually move old sections and
+provider settings under a named server, qualify database grants, and rename
+environment keys before the first new startup. There is no automatic migration;
+follow the [upgrade instructions](SETUP.md#upgrading-from-single-server-settings).
 
 You need the .NET 10 SDK, a reachable SQL Server, and a database login with the
 permissions required by the tools you use.

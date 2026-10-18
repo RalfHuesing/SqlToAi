@@ -6,9 +6,12 @@ Discover aliases with `sql_list_servers` and permitted qualified targets with
 `sql_list_databases`. Both discovery schemas and CLI help describe the required
 `alias/database` form, for example `test/AppDb`. Registered MCP calls with a
 missing, null, incorrectly typed, malformed or unknown `database`/`server`
-return `SQL-AI-0001` with `isError=true` before SQL work. The generated CLI retains
-required options: missing options fail during command parsing; invalid supplied
-targets return the same catalog error through the dispatcher.
+return `SQL-AI-0001` with `isError=true` before SQL work when the other arguments
+are bindable. For example, missing required arguments or arguments with
+incompatible types may be rejected by the SDK with a generic tool error before
+target validation. The generated CLI retains required options: missing options
+fail during command parsing; invalid supplied targets return the same catalog
+error through the dispatcher.
 
 ## Discovery and schema
 

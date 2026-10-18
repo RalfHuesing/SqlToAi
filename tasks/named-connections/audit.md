@@ -143,11 +143,97 @@ approved by a different GPT-6.1-Sol/high agent.
 
 # M4.3 — Independent final concept audit
 
-Status: reopened. The previous blanket closure statement and warning-free Native
-AOT claim were invalid and have been replaced. The source-level findings and
-reviewed remediation are recorded below. Final independent review, actual AOT
-gates and exact final source/commit evidence are still pending R6. M4 and the
-roadmap remain open until every required acceptance criterion is verified.
+Date: 2026-10-18. A fresh GPT-6.1-Sol/high agent (`final_audit`) independently
+reviewed the complete contract, current wiring, history and recorded execution
+evidence. It did not implement any correction or rerun the parent's gates.
+History scope: `988b641..b7b2eaa`, especially `41a4271..b7b2eaa`; remediation:
+`cab47d3..b7b2eaa`. It used semantic C# navigation and actual source/diff reads,
+not prior checkbox claims. No AiNetLinter tool was exposed.
+
+**Verdict: no additional blocking application finding in the reviewed scope;
+full feature acceptance remains open because Native AOT failed.** The former
+blanket closure and warning-free publish claims are withdrawn. M4.2, M4.3 and
+the M4/roadmap aggregates remain open. External TLS stays unverified rather than
+being counted as passed.
+
+The following source/test locations are physical lines at `b7b2eaa`. The final
+five-file correction changes only README/SETUP/tool documentation and XML
+comments in IAnonymizer/SqlToAiOptions; its independent review confirmed no
+non-comment C# differences. QueryExecutionOptions moves from line 183 to 180 in
+that comment-only delta. Historical slice sections below cite their own reviewed
+snapshot; they are not substituted for this final matrix.
+
+## Concept requirement verification
+
+| Must | Final implementation evidence and meaningful tests |
+| --- | --- |
+| 1 | Named ownership and required configuration: `src/SqlToAi/Configuration/SqlToAiOptions.cs:9,18`, `src/SqlToAi/Configuration/ConfigurationResolver.cs:110`. Binding/default tests: `tests/SqlToAi.Tests/Database/DatabaseTargetResolverTests.cs:108`; owner-specific connection construction: `tests/SqlToAi.Tests/Database/NamedPrimaryRoutingTests.cs:38`. These inspect real SqlClient construction without contacting multiple live endpoints. |
+| 2 | First-slash/raw-name parsing: `src/SqlToAi/Database/DatabaseTargetParser.cs:8`; configured resolution: `src/SqlToAi/Database/DatabaseTargetResolver.cs:37`; every JSON source occurrence: `src/SqlToAi/Configuration/UserConfiguration.cs:135`. Tests: `tests/SqlToAi.Tests/Database/DatabaseTargetResolverTests.cs:12,69,95` and `tests/SqlToAi.Tests/Configuration/UserConfigurationTests.cs:363`. Only aliases are ASCII-canonicalized; raw database characters and ordinal identity are retained. |
+| 3 | Qualified grants, restrictive overlap and default deny: `src/SqlToAi/Security/TargetAccessPolicy.cs:11`; startup grant validation: `src/SqlToAi/Configuration/ConfigurationResolver.cs:144,167`. Tests: `tests/SqlToAi.Tests/Database/NamedPrimaryRoutingTests.cs:103,157`. |
+| 4 | Source loading, safe hard-cut rejection and equivalent DI validation: `src/SqlToAi/Configuration/UserConfiguration.cs:51,99,135`, `src/SqlToAi/Program.cs:133,144`; target binding and required public schemas: `src/SqlToAi/Mcp/SqlMcpToolRegistrations.cs:27,47`. Tests: `tests/SqlToAi.Tests/Configuration/UserConfigurationTests.cs:274`, `tests/SqlToAi.Tests/Configuration/EffectiveOptionsValidationTests.cs:26,42`, `tests/SqlToAi.Tests/Mcp/ComposedTargetBindingTests.cs:39`, `tests/SqlToAi.Tests/Mcp/ManagedMcpTargetBindingTests.cs:13`. The SDK multi-error boundary below is explicit. |
+| 5 | Request-local targets: `src/SqlToAi/Database/QueryExecutionService.cs:93`, `src/SqlToAi/Database/ScriptExecutionService.cs:47`, `src/SqlToAi/Database/SchemaService.cs:244,379,503`, `src/SqlToAi/Cli/SchemaExportService.cs:52,117`, `src/SqlToAi/Database/OptimizationBenchmarkService.cs:42`, `tools/SqlToAi.Exploration/Program.cs:19`. Actual child-service context identity: `tests/SqlToAi.Tests/Cli/SchemaExportTests.cs:337`, `tests/SqlToAi.Tests/Database/AnalysisTargetIsolationTests.cs:227`; scripts/exploration: `tests/SqlToAi.Tests/Database/ScriptExecutionTargetIsolationTests.cs:118`, `tests/SqlToAi.Tests/Exploration/ExplorationTests.cs:114`. |
+| 6 | Pure server listing, selected catalog and raw-name search: `src/SqlToAi/Database/SchemaService.cs:79,84,179,197`. Tests: `tests/SqlToAi.Tests/Database/ServerDiscoveryTargetIsolationTests.cs:92,134,180,272`, `tests/SqlToAi.Tests/Mcp/ComposedTargetBindingTests.cs:62`. Reader timeout/TLS/cancellation cases enter after successful connection open. |
+| 7 | Owner-local exclusions and existing SQL guards: `src/SqlToAi/Security/TargetAccessPolicy.cs:15`, `src/SqlToAi/Database/QuerySafetyValidator.cs:80,85,90,101,108`. Tests: `tests/SqlToAi.Tests/Database/NamedPrimaryRoutingTests.cs:126,175,195,270`, `tests/SqlToAi.Tests/Database/ComposedProviderIsolationTests.cs:103`. Cross-database references, synonyms and linked servers do not acquire a new sandbox guarantee. |
+| 8 | Explicit source fallback and independent dedicated-provider credentials/TLS: `src/SqlToAi/Database/SecondaryConnectionBuilder.cs:48,82`, `src/SqlToAi/Metadata/MetadataProvider.cs:67,116`. Tests: `tests/SqlToAi.Tests/Database/SecondaryConnectionBuilderOwnerTests.cs:55,175,189,257`, `tests/SqlToAi.Tests/Metadata/MetadataProviderOwnerTests.cs:67`, `tests/SqlToAi.Tests/Anonymization/AnonymizationRuleProviderOwnerTests.cs:187,327`. Both metadata timeouts are applied; no dedicated-endpoint failover is added. |
+| 9 | Owner/source cache key and fail-closed probes: `src/SqlToAi/Anonymization/AnonymizationRuleProvider.cs:30,124,180,209`. Tests: `tests/SqlToAi.Tests/Anonymization/AnonymizationRuleProviderOwnerTests.cs:266,385,441`, `tests/SqlToAi.Tests/Database/ComposedProviderIsolationTests.cs:14,61,84`. Real providers/cache/vault share a production-factory decorator replacing only I/O; cold owner loads are forced to overlap. |
+| 10 | Ordinal token scope, global ownership and value-only SQL substitution: `src/SqlToAi/Anonymization/TokenVault.cs:25,58,86`, `src/SqlToAi/Database/QueryTokenResolver.cs:39`, `src/SqlToAi/Database/SqlLiteralScanner.cs:12,30,36`. Tests: `tests/SqlToAi.Tests/Anonymization/TokenVaultScopeTests.cs:12`, `tests/SqlToAi.Tests/Database/QueryExecutionTargetScopeTests.cs:90`, `tests/SqlToAi.Tests/Database/ComposedProviderIsolationTests.cs:14`. Foreign tokens remain ordinary SQL text; no new parameter/tool resolution paths are added. |
+| 11 | Global limits and mandatory encrypted connections: `src/SqlToAi/Configuration/SqlToAiOptions.cs:183` (180 after comment delta), `src/SqlToAi/appsettings.json:41,55`, `src/SqlToAi/Database/SqlConnectionFactory.cs:52`. Tests: `tests/SqlToAi.Tests/Database/QueryExecutionServiceOptionsTests.cs:28,41,97`, `tests/SqlToAi.Tests/Database/NamedPrimaryRoutingTests.cs:38`. README/SETUP now state the hard cut and provide a complete minimal new settings document before replacement instructions; main grants stay empty. Native AOT verification is still unmet. |
+
+The auditor's complete semantic factory-reference result contained 15 production
+CreateTargetConnection calls in eight files with no analysis omissions. Relevant
+service cores, DI/host wiring and outputs were also read; static references alone
+were not treated as runtime evidence. The 29 former Dapper calls and 29 explicit
+executor replacements, mappings, parameters, NULL/defaults, numeric conversions,
+timeouts, cancellation and awaited disposal were checked. Reviewed test changes
+did not weaken assertions; the unsafe rule-probe expectation was strengthened.
+
+## Actual final gates and scope boundaries
+
+- `dotnet build SqlToAi.slnx --warnaserror`: 0 warnings/errors.
+- `dotnet test SqlToAi.slnx --no-build`: 1,961 passed, 19 skipped, 0 failed;
+  `temp/audit-gates/final.trx`. The final suite ran after independent approval of
+  the documentation/comment delta. The auditor separately parsed `r6b.trx` and
+  sampled important alias-leak, repeated-JSON, environment-normalization, reader
+  timeout/TLS, shared-context, real cold-cache and managed-stdio regressions as
+  Passed, rather than trusting test names.
+- `git diff --check`: clean. Related Markdown links, JSON examples and claims are
+  checked during evidence synchronization. The complete SETUP JSON was also run
+  through the actual managed StartupHarness CLI in an isolated temporary root:
+  exit 0, canonical `["primary"]`, empty stderr and unchanged settings bytes;
+  no SQL connection was needed.
+- Exact required Native AOT command: exit 1, recorded in
+  `temp/aot-final.log`; the separate relaxed diagnostic publish has 57 IL warnings
+  including three IL3050. The auditor independently counted diagnostics and
+  checked both recorded log hashes. See [R6b](#r6b--unmasked-native-aot-gate-and-official-driver-boundary)
+  for commands, origins and upstream evidence. Generated AOT directories are
+  absent; logs/TRX are retained.
+
+All 19 skips exactly match the baseline and belong to
+`tests/SqlToAi.Tests/Integration/TlsConnectionIntegrationTests.cs`:
+
+| Test | Exact skipped combinations | Count |
+| --- | --- | --- |
+| EndpointPolicy_RejectsOrObservesEncryptedSession | TrustedTcp × Primary/Metadata/Rules × trust=false | 3 |
+| EndpointPolicy_RejectsOrObservesEncryptedSession | UntrustedTcp/LocalUntrusted × Primary/Metadata/Rules × trust=false/true | 12 |
+| PrimaryDefault_RealCertificateFailureReachesServiceError | LocalUntrusted/UntrustedTcp | 2 |
+| LocalFallback_UsesPrimaryPolicyDespiteOppositeSecondarySetting | primaryTrust=false/true | 2 |
+
+Available ordinary SQL integration tests pass using the explicitly documented
+fixture-only certificate-trust overlay. They do not prove strict certificate
+authentication. No second live endpoint or separate Windows profile is claimed.
+
+Target-only missing/null/malformed/unknown SDK arguments return 0001 when other
+arguments are bindable. Actual isolated stdio calls `sql_execute_query {}` and
+`sql_search_databases {}` still return generic SDK errors because query/search_term
+are also absent. The independent auditor classified this as an existing binding
+boundary, not an added routing/security blocker: the concept specifies no error
+precedence for multiply invalid requests. `docs/tools.md` now states this limit;
+the audit does not promise catalog codes for every malformed multi-error request.
+
+No personal settings, global environment, deployment, release or push was changed.
+The remaining required decision is obtaining a warning-free supported driver or
+explicitly maintaining a driver change; this audit does not authorize that fork
+or silently waive the Native AOT criterion.
 
 # Deep audit at cab47d3
 
@@ -216,6 +302,7 @@ Remediation is tracked in [the roadmap](roadmap.md#deep-audit-remediation).
 | R5: real composition and SDK/CLI binding | `f4145ed` | 1,927 / 19 / 0 |
 | R2a: normalized environment boundaries | `00f5b58` | 1,943 / 19 / 0 |
 | R6a: explicit ADO.NET mapping | `fe52819` | 1,961 / 19 / 0 |
+| R6b: visible AOT diagnostics | `b7b2eaa` | 1,961 / 19 / 0; Native AOT failed |
 
 Every code row had a different independent reviewer, a warning-as-error build
 with zero warnings/errors and a clean diff check before commit. Skip names were
@@ -518,4 +605,34 @@ retained. SHA-256 of `temp/aot-final.log`:
 `F1105CB7B91CEEB6A65F1382CEE07CCB7E1CD75A80857DE331571D5B541EC1A7`;
 of `temp/aot-diagnostic-after.log`:
 `06FE2F8CE323BC155E9082B3DF19738D83EF057DE8B8CDBC839F194B647A1D0B`.
+
+## R6c — Final independent audit and public documentation correction
+
+Completed on 2026-10-18. A fresh GPT-6.1-Sol/high auditor (`final_audit`) reviewed
+clean `b7b2eaa`, all concept requirements and the actual TRX/AOT logs. The final
+matrix above replaces earlier inaccurate closure claims and intermediate line
+references. M3.4 evidence is supplied; M4.2/M4.3 and the feature aggregate remain
+open because the required Native AOT gate fails.
+
+The audit found public-documentation and XML-comment corrections, implemented by
+GPT-6-luna/high (`coder_r1`) and independently approved by `final_audit`:
+README/SETUP now warn explicitly about the breaking configuration cut before
+startup and include a complete minimal new JSON document; obsolete environment
+paths are described with their real section boundaries; tool docs distinguish
+target errors from SDK binding failures for other invalid arguments. Three stale
+XML comments no longer cite removed APIs or inline removal history. The reviewer
+compared both C# files outside XML comments and confirmed zero code differences.
+
+After that approval, parent warning-as-error build returned 0 warnings/errors;
+the complete no-build test run returned 1,961 passed, 19 exact baseline TLS skips,
+0 failed (`temp/audit-gates/final.trx`). The new SETUP JSON also loaded through the
+actual managed host in an isolated temporary root: exit 0, canonical server list,
+empty stderr and unchanged settings. No SQL or personal configuration was used.
+`git diff --check` is clean. The final documentation check verified 93 local links
+and 33 heading anchors across all eight changed Markdown files; it also corrected
+the ADO.NET heading anchor rather than leaving a broken roadmap link. No additional
+runtime code or AOT-success claim is introduced by this evidence synchronization.
+The fresh independent auditor approved the synchronized task documentation and
+reproduced the final TRX and link/anchor counts. R6c records audit execution, not
+closure of the failed R6b/M4.2/M4.3 acceptance.
 

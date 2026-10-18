@@ -15,10 +15,13 @@ user-approved acceptance boundaries in the current concept.
 ## Resume checkpoint
 
 The independent deep audit started at `cab47d3` on 2026-10-17. Reviewed remediation
-R1–R5, R2a and R6a are committed through `fe52819`. R6b removes hidden diagnostics
-and has complete managed gates, but the exact Native AOT publish exits 1 on
-official dependency diagnostics. R6c must independently audit this result and the
-complete feature; AOT acceptance and feature closure remain open. Findings are in the
+R1–R5, R2a and R6a are committed; `b7b2eaa` exposes the remaining official-driver
+diagnostics. The fresh final audit and public-documentation/comment correction
+are complete, with final managed gates of 1,961 passed, 19 exact external TLS skips
+and 0 failures; build has 0 warnings/errors. The exact Native AOT publish exits 1.
+The first remaining acceptance item is R6b: a warning-free supported driver or an
+explicit decision to maintain a driver change is needed. Feature closure remains
+open. Findings are in the
 [deep audit](audit.md#deep-audit-at-cab47d3).
 
 Baseline gates: `dotnet build SqlToAi.slnx --warnaserror` returned 0 warnings and
@@ -77,7 +80,7 @@ loops, superseding the workflow's sequential-audit and one-correction defaults.
     existing Dapper catalog/provider calls with explicit ADO.NET mappings and
     parameters; preserve null handling, outputs, cancellation and timeouts. Use
     independent review and the complete managed gates before committing.
-    Evidence: [R6a review and gates](audit.md#r6a--explicit-ado-net-catalog-and-provider-mapping).
+    Evidence: [R6a review and gates](audit.md#r6a--explicit-adonet-catalog-and-provider-mapping).
   - [ ] **R6b — Remove hidden diagnostics and execute the Native AOT gate.**
     Remove global IL2104/IL3053 suppression, publish the actual application,
     and distinguish application remediation from unresolved official-driver
@@ -86,10 +89,13 @@ loops, superseding the workflow's sequential-audit and one-correction defaults.
     blocked by the current official dependencies. The exact command exits 1;
     diagnostic-only publish has 57 IL warnings, including three IL3050.
     Evidence: [R6b gates and upstream boundary](audit.md#r6b--unmasked-native-aot-gate-and-official-driver-boundary).
-    Continue the independent R6c audit without closing this unmet criterion.
-  - [ ] **R6c — Complete independent final audit and evidence synchronization.**
+    R6c completed without closing this unmet criterion.
+  - [x] **R6c — Complete independent final audit and evidence synchronization.**
     Supply M3.4 evidence, replace M4.3 claims, verify links/line and commit
     references, and leave any unmet Native AOT criterion explicitly open.
+    Evidence: [independent final audit](audit.md#m43--independent-final-concept-audit)
+    and [R6c corrections and gates](audit.md#r6c--final-independent-audit-and-public-documentation-correction).
+    Audit execution is complete; M4.3's aggregate acceptance remains open for AOT.
 
 ## Execution contract
 

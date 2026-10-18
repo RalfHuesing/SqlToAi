@@ -51,11 +51,9 @@ public sealed class DatabasesOptions
 /// <para>
 /// Default behavior: every string column is anonymized with <see cref="DefaultMode"/> unless the
 /// central <c>AnonymizationRules</c> table (see <c>AnonymizationRuleProvider</c>) marks it as
-/// excluded (<c>Anonymize == false</c>) for the resolved database/schema/table/column. There is
-/// no local, options-based exclusion list anymore (see <c>AnonymizerExclusionProvider</c>
-/// removal, 2026-07-25) — the central rule table is the single source of truth. Per-database
-/// opt-out is configured via the database access level (<c>Databases.ReadOnly</c> for raw versus
-/// <c>Databases.ReadOnlyAnonymized</c>).
+/// excluded (<c>Anonymize == false</c>) for the resolved database/schema/table/column. The central
+/// rule table is the source of exclusion decisions. Per-database opt-out is configured via the
+/// access level (<c>Databases.ReadOnly</c> for raw versus <c>Databases.ReadOnlyAnonymized</c>).
 /// </para>
 /// </summary>
 public sealed class AnonymizerOptions
@@ -126,12 +124,11 @@ internal interface IProviderConnectionOptions
 }
 
 /// <summary>
-/// Options for the optional central, cross-database anonymization rule table. Unlike
-/// <see cref="AnonymizerOptions.ExclusionTableName"/> (which lives inside each customer
-/// database and is wiped out by a customer backup restore), this table is intended to live
-/// in its own dedicated database — configured independently of any customer connection — so
-/// its rules survive customer-side restores and apply consistently across many customer
-/// databases via wildcard patterns.
+/// Options for the optional central, cross-database anonymization rule table. Its connection
+/// and <see cref="TableName"/> are configured under the owning
+/// <see cref="NamedServerOptions.AnonymizationRules"/> settings. The table can live in a
+/// dedicated database so its rules apply consistently across customer databases via wildcard
+/// patterns.
 /// </summary>
 public sealed class AnonymizationRulesOptions : IProviderConnectionOptions
 {

@@ -13,6 +13,38 @@ Before installing the MCPB or starting either package, create the user settings
 file manually as described below. Keep the package's `LICENSE` and
 `THIRD-PARTY-NOTICES.txt` with the extracted files.
 
+## Upgrading from single-server settings
+
+Named-server configuration is a breaking change. Updates preserve the user settings file, but the new version does not load the old single-server schema or migrate it; obsolete sections and environment keys make startup fail with exit code `1`. Before the first new startup, manually move the primary connection settings into `SqlToAi.Servers.<alias>`, move each `MetadataProvider` and `AnonymizationRules` configuration under its owning server, convert database grants to qualified `<alias>/<database>` names, and rename old environment keys to the `SqlToAi__Servers__<alias>__...` form. Keep any chosen query and logging options by carrying them forward manually. Startup never changes the settings file automatically.
+
+This complete minimal example uses a fictional server name, leaves database access denied, and disables both optional providers:
+
+```json
+{
+  "SqlToAi": {
+    "Servers": {
+      "primary": {
+        "Server": "sql.example.invalid",
+        "IntegratedSecurity": true,
+        "TrustServerCertificate": false,
+        "ConnectTimeoutSeconds": 30,
+        "ExcludedDatabases": [],
+        "MetadataProvider": { "Enabled": false },
+        "AnonymizationRules": { "Enabled": false }
+      }
+    },
+    "Databases": {
+      "SchemaOnly": [],
+      "ReadOnlyAnonymized": [],
+      "ReadOnly": [],
+      "ReadWrite": []
+    }
+  }
+}
+```
+
+Replace the fictional server before connecting. Omitted root settings retain their defaults: `Anonymizer.Enabled=true`, `Anonymizer.DefaultMode=ScramblePattern`, tokenization disabled, `QueryExecution.DefaultRowLimit=100`, `MaxRowLimit=1000`, `CommandTimeoutSeconds=30`, and `MaxScriptFileSizeBytes=10485760`; `SchemaBatch.MaxInputCount=10` and `MaxResponseBytes=65536`; application/error logging enabled and MCP trail logging disabled. `Databases.CacheTtlSeconds` defaults to `300`. See the [full settings template](src/SqlToAi/appsettings.json) before carrying forward additional options.
+
 ## Create your settings manually
 
 Run PowerShell under the same Windows account that will run the MCP client.
@@ -99,8 +131,15 @@ $env:SqlToAi__Servers__primary__IntegratedSecurity = 'true'
 
 Double underscores address nested keys; SQL authentication can use
 `SqlToAi__Servers__<alias>__UserId` and `SqlToAi__Servers__<alias>__Password`.
-Obsolete `SqlToAi__SqlServer*` environment variables or obsolete root sections
-in JSON cause fatal startup exit code 1 with clean actionable stderr diagnostics.
+Environment-variable paths under `SqlToAi` are normalized by replacing `__`
+with `:` and compared case-insensitively. Exactly the legacy sections
+`SqlServer`, `MetadataProvider`, and `AnonymizationRules` are rejected when the
+normalized path names the section under `SqlToAi` or a descendant; colon,
+double-underscore, and mixed delimiters therefore all match. Similar section
+names such as `SqlServerless`, `MetadataProviderExtra`, and
+`AnonymizationRulesOther`, along with variables under unrelated application
+roots, are accepted. Obsolete JSON root sections or matching environment paths
+cause startup exit code `1` with safe actionable stderr diagnostics.
 There is no special `SQLTOAI_CONNECTION_STRING` setting.
 
 ## Logs and updates
@@ -113,8 +152,12 @@ enabled log destinations must be writable.
 
 To update, stop/restart your own server session around replacement of package
 files in the installation directory. Settings and existing logs under the separate
-user root are preserved. Compare the new template and apply desired configuration
-changes manually; startup does not rewrite keys, copy files, or create backups.
+user root are preserved. For older single-server settings, the new named-server
+configuration is a breaking change: manually migrate the old sections, provider
+ownership, database grants and environment keys before the first new startup as
+described in [Upgrading from single-server settings](#upgrading-from-single-server-settings).
+Compare the new template and apply desired configuration changes manually;
+startup does not rewrite keys, copy files, or create backups.
 After replacing ZIP files, reload the MCP server entry or restart the client. For
 MCPB updates, use the client's bundle update/install flow and restart or reload its
 server entry so it launches the new files.
