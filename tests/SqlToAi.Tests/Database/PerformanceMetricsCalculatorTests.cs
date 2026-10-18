@@ -150,12 +150,31 @@ public sealed class PerformanceMetricsCalculatorTests
     [InlineData("Table 'Orders'. Scan count 1, logische Lesevorgänge 8, physische Lesevorgänge 3, " +
         "Read-Ahead-Lesevorgänge 2, LOB logische Lesevorgänge 100, LOB physische Lesevorgänge 50, " +
         "LOB Read-Ahead-Lesevorgänge 25.", 8L, 3L, 2L)]
+    [InlineData("Tabelle: \"Orders\". Anzahl von Überprüfungen: 1, logische Lesevorgänge: 99, physische Lesevorgänge: 2, " +
+        "Lesevorgänge Auslagerungsserver: 0, Read-Ahead-Lesevorgänge: 1, Read-Ahead-Lesevorgänge Auslagerungsserver: 0, " +
+        "logische LOB-Lesevorgänge: 10, physische LOB-Lesevorgänge: 5, LOB-Lesevorgänge Auslagerungsserver: 0, " +
+        "LOB-Read-Ahead-Lesevorgänge: 2, LOB-Read-Ahead-Lesevorgänge Auslagerungsserver: 0.", 99L, 2L, 1L)]
+    [InlineData("Table 'Orders'. Scan count: 1, logical reads: 50, physical reads: 4, " +
+        "page server reads: 1, read-ahead reads: 3, page server read-ahead reads: 0, " +
+        "lob logical reads: 20, lob physical reads: 10, lob page server reads: 0, " +
+        "lob read-ahead reads: 5, lob page server read-ahead reads: 0.", 50L, 4L, 3L)]
     public void ParseRunMessages_IoOnlyRun_IsMatchedAndCountsNonLobReads(
         string ioMessage, long logicalReads, long physicalReads, long readAheadReads)
     {
         var result = PerformanceMetricsCalculator.ParseRunMessages([ioMessage]);
 
         Assert.Equal((0L, 0L, logicalReads, physicalReads, readAheadReads, true), result);
+    }
+
+    [Fact]
+    public void ParseRunMessages_GermanExecutionTimesWithPrefix_ReturnsMetrics()
+    {
+        var result = PerformanceMetricsCalculator.ParseRunMessages(
+        [
+            "\r\n SQL Server-Ausführungszeiten:\r\n, CPU-Zeit = 10 ms, verstrichene Zeit = 25 ms."
+        ]);
+
+        Assert.Equal((10L, 25L, 0L, 0L, 0L, true), result);
     }
 
     [Fact]

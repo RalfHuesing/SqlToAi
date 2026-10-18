@@ -12,16 +12,16 @@ namespace SqlToAi.Database;
 /// </summary>
 internal static partial class PerformanceMetricsCalculator
 {
-    [GeneratedRegex(@"CPU time = (\d+) ms,\s+elapsed time = (\d+) ms", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
+    [GeneratedRegex(@"CPU time\s*=\s*(\d+)\s*ms,\s+elapsed time\s*=\s*(\d+)\s*ms", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
     private static partial Regex CpuTimeRegex();
 
-    [GeneratedRegex(@"CPU-Zeit = (\d+) ms,\s+verstrichene Zeit = (\d+) ms", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
+    [GeneratedRegex(@"CPU-Zeit\s*=\s*(\d+)\s*ms,\s+verstrichene Zeit\s*=\s*(\d+)\s*ms", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
     private static partial Regex GermanCpuTimeRegex();
 
-    [GeneratedRegex(@"(?<!LOB )logical reads (\d+),\s+physical reads (\d+),\s+read-ahead reads (\d+)", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
+    [GeneratedRegex(@"(?<!LOB[\s\-])logical reads:?\s*(\d+),\s*physical reads:?\s*(\d+),\s*(?:page server reads:?\s*\d+,\s*)?read-ahead reads:?\s*(\d+)", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
     private static partial Regex IoReadsRegex();
 
-    [GeneratedRegex(@"(?<!LOB )logische Lesevorgänge (\d+),\s+physische Lesevorgänge (\d+),\s+Read-Ahead-Lesevorgänge (\d+)", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
+    [GeneratedRegex(@"(?<!LOB[\s\-])logische Lesevorgänge:?\s*(\d+),\s*physische Lesevorgänge:?\s*(\d+),\s*(?:Lesevorgänge Auslagerungsserver:?\s*\d+,\s*)?Read-?Ahead-Lesevorgänge:?\s*(\d+)", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
     private static partial Regex GermanIoReadsRegex();
 
     /// <summary>
