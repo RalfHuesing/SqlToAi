@@ -31,7 +31,7 @@ without executing the query; actual runtime diagnosis remains with existing tool
 ### Must
 
 1. Add `sql_explain_query` with required `database` and `query`, optional typed
-   `parameters`. Use the [qualified target](../named-connections/Konzept.md)
+   `parameters`. Use the [qualified target](../../docs/tools.md)
    resolver in the final combined feature set, and the existing binder, safe connection errors,
    command timeouts and cancellation conventions.
 2. Permit a single read-only SELECT with supported leading declarations. Enforce

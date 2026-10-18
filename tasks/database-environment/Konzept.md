@@ -31,7 +31,7 @@ independent addition and should not become a broad server-monitoring subsystem.
 ### Must
 
 1. Add `sql_get_environment` with one required `database` argument. Resolve
-   [qualified targets](../named-connections/Konzept.md) through the shared boundary
+   [qualified targets](../../docs/tools.md) through the shared boundary
    in the final combined feature set; do not add a separate legacy fallback.
 2. Check configured access before connecting. SchemaOnly suffices; None and
    excluded targets remain denied. Use the selected endpoint's SqlClient factory,

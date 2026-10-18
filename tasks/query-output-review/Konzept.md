@@ -74,7 +74,6 @@ workflow; revisit representation only when a concrete problem justifies it.
 - Review agrees with the current tool/reader contracts and configured row limits.
 - No runtime, configuration default or query output changes in this planning slice.
 - The active feature concepts remain
-  [named servers](../named-connections/Konzept.md),
   [environment context](../database-environment/Konzept.md) and
   [estimated plans](../estimated-query-plan/Konzept.md).
 - Before any deferred feature becomes active, obtain an explicit scope decision
