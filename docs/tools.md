@@ -159,7 +159,7 @@ Compares column names/types, exact row counts (`COUNT_BIG`) and both set differe
 
 ### Measurement
 
-Runs unmeasured warmups followed by measured executions. `STATISTICS IO/TIME` provides CPU/elapsed time and logical, physical and read-ahead reads. Optional XML plan analysis reports missing indexes, table scans and implicit conversions. Without `SHOWPLAN`, it can return metrics and a permission note.
+Runs unmeasured warmups followed by measured executions. `STATISTICS IO/TIME` provides CPU/elapsed time and logical, physical and read-ahead reads; English and German SQL Server messages are parsed, and LOB read counters are excluded. Optional XML plan analysis reports missing indexes, table scans and implicit conversions. Without `SHOWPLAN`, it can return metrics and a permission note.
 
 The JSON result contains `database`, `runs_evaluated`, `warmup_runs`, `metrics`, `warnings`, `has_showplan_permission` and `showplan_note`. Metrics are averages; `min_elapsed_ms`, `max_elapsed_ms`, `min_cpu_ms` and `max_cpu_ms` are populated only for multiple measured runs. Warnings carry type/severity/message/impact; missing-index warnings can include `missing_index_statement` with generated DDL, or null if no key columns support a statement. Review suggestions against existing indexes and workload before executing DDL.
 

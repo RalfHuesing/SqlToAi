@@ -131,4 +131,49 @@ public sealed class PerformanceMetricsCalculatorTests
         Assert.Equal(0L, result.MinElapsedMs);
         Assert.Equal(0L, result.MaxElapsedMs);
     }
+
+    [Fact]
+    public void ParseRunMessages_GermanStatistics_ReturnsAllMetrics()
+    {
+        var result = PerformanceMetricsCalculator.ParseRunMessages(
+        [
+            "CPU-Zeit = 15 ms, verstrichene Zeit = 12 ms.",
+            "logische Lesevorgänge 3, physische Lesevorgänge 0, Read-Ahead-Lesevorgänge 0"
+        ]);
+
+        Assert.Equal((15L, 12L, 3L, 0L, 0L, true), result);
+    }
+
+    [Theory]
+    [InlineData("Table 'Orders'. Scan count 1, logical reads 7, physical reads 2, read-ahead reads 1, " +
+        "LOB logical reads 100, LOB physical reads 50, LOB read-ahead reads 25.", 7L, 2L, 1L)]
+    [InlineData("Table 'Orders'. Scan count 1, logische Lesevorgänge 8, physische Lesevorgänge 3, " +
+        "Read-Ahead-Lesevorgänge 2, LOB logische Lesevorgänge 100, LOB physische Lesevorgänge 50, " +
+        "LOB Read-Ahead-Lesevorgänge 25.", 8L, 3L, 2L)]
+    public void ParseRunMessages_IoOnlyRun_IsMatchedAndCountsNonLobReads(
+        string ioMessage, long logicalReads, long physicalReads, long readAheadReads)
+    {
+        var result = PerformanceMetricsCalculator.ParseRunMessages([ioMessage]);
+
+        Assert.Equal((0L, 0L, logicalReads, physicalReads, readAheadReads, true), result);
+    }
+
+    [Fact]
+    public void ParseRunMessages_SumsCompileAndExecutionLinesAcrossLanguagesOnce()
+    {
+        var result = PerformanceMetricsCalculator.ParseRunMessages(
+        [
+            "Compile: CPU time = 4 ms, elapsed time = 5 ms. " +
+            "Execution: CPU time = 5 ms, elapsed time = 6 ms.",
+            "Execution: CPU-Zeit = 6 ms, verstrichene Zeit = 7 ms.",
+            "Compile: logical reads 2, physical reads 0, read-ahead reads 0. " +
+            "Execution: logical reads 4, physical reads 0, read-ahead reads 0.",
+            "Execution: logische Lesevorgänge 3, physische Lesevorgänge 1, Read-Ahead-Lesevorgänge 0",
+            "CPU time = 10 ms, elapsed time = 11 ms; CPU-Zeit = 99 ms, verstrichene Zeit = 99 ms.",
+            "logical reads 4, physical reads 0, read-ahead reads 0; logische Lesevorgänge 99, " +
+            "physische Lesevorgänge 99, Read-Ahead-Lesevorgänge 99"
+        ]);
+
+        Assert.Equal((25L, 29L, 13L, 1L, 0L, true), result);
+    }
 }

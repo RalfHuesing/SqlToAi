@@ -15,8 +15,14 @@ internal static partial class PerformanceMetricsCalculator
     [GeneratedRegex(@"CPU time = (\d+) ms,\s+elapsed time = (\d+) ms", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
     private static partial Regex CpuTimeRegex();
 
-    [GeneratedRegex(@"logical reads (\d+),\s+physical reads (\d+),\s+read-ahead reads (\d+)", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
+    [GeneratedRegex(@"CPU-Zeit = (\d+) ms,\s+verstrichene Zeit = (\d+) ms", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
+    private static partial Regex GermanCpuTimeRegex();
+
+    [GeneratedRegex(@"(?<!LOB )logical reads (\d+),\s+physical reads (\d+),\s+read-ahead reads (\d+)", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
     private static partial Regex IoReadsRegex();
+
+    [GeneratedRegex(@"(?<!LOB )logische Lesevorgänge (\d+),\s+physische Lesevorgänge (\d+),\s+Read-Ahead-Lesevorgänge (\d+)", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: SecurityConstants.DefaultRegexTimeoutMs)]
+    private static partial Regex GermanIoReadsRegex();
 
     /// <summary>
     /// Computes <see cref="PerformanceMetrics"/> from per-run message captures.
@@ -82,17 +88,28 @@ internal static partial class PerformanceMetricsCalculator
         bool hasMatch = false;
         foreach (string msg in messages)
         {
-            var cpuMatch = CpuTimeRegex().Match(msg);
-            if (cpuMatch.Success)
+            var cpuMatches = CpuTimeRegex().Matches(msg);
+            if (cpuMatches.Count == 0)
+            {
+                cpuMatches = GermanCpuTimeRegex().Matches(msg);
+            }
+
+            foreach (Match cpuMatch in cpuMatches)
             {
                 hasMatch = true;
                 cpu     += long.Parse(cpuMatch.Groups[1].Value, CultureInfo.InvariantCulture);
                 elapsed += long.Parse(cpuMatch.Groups[2].Value, CultureInfo.InvariantCulture);
             }
 
-            var ioMatch = IoReadsRegex().Match(msg);
-            if (ioMatch.Success)
+            var ioMatches = IoReadsRegex().Matches(msg);
+            if (ioMatches.Count == 0)
             {
+                ioMatches = GermanIoReadsRegex().Matches(msg);
+            }
+
+            foreach (Match ioMatch in ioMatches)
+            {
+                hasMatch = true;
                 logical   += long.Parse(ioMatch.Groups[1].Value, CultureInfo.InvariantCulture);
                 physical  += long.Parse(ioMatch.Groups[2].Value, CultureInfo.InvariantCulture);
                 readAhead += long.Parse(ioMatch.Groups[3].Value, CultureInfo.InvariantCulture);

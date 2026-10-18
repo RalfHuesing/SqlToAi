@@ -38,3 +38,12 @@ Calculator fixtures only. No German SQL Server.
 
 - Query Store, DMVs, and translated tool text.
 - The stopwatch elapsed time on `sql_execute_query`.
+
+## Verified implementation
+
+- Added German CPU/IO parsing, IO-based `HasMatch`, multi-match summation and LOB exclusion. English matches take precedence within a message; all matches of that selected language are counted, so one message cannot contribute both language variants.
+- Calculator fixtures cover the specified German totals, English behavior, IO-only matching, compile and execution messages, mixed languages, duplicate bilingual text and LOB counters.
+- `dotnet build SqlToAi.slnx`: passed with 0 warnings and 0 errors.
+- `dotnet test SqlToAi.slnx`: passed; 1,973 passed, 19 skipped, 0 failed.
+- After expanding the final fixtures, `dotnet test SqlToAi.slnx --filter FullyQualifiedName~PerformanceMetricsCalculatorTests`: passed; 10 passed, 0 skipped or failed.
+- No production database was used. Model: `gpt-6-luna`, reasoning effort: `high`.
