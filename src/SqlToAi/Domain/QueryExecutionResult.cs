@@ -22,4 +22,7 @@ public sealed record QueryExecutionResult(
     long LogicalReads = 0)
 {
     public IReadOnlyList<string> SearchableTokenColumns { get; init; } = SearchableTokenColumns ?? [];
+    public AccessLevel AccessLevel { get; init; }
+    public bool HasResultSet { get; init; } = true;
+    public int RecordsAffected { get; init; } = -1;
 }

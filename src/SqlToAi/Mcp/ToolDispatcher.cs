@@ -150,7 +150,11 @@ internal sealed class ToolDispatcher : IToolDispatcher
                 }
 
                 var queryResult = result.Value;
-                string execInfoText = $"Execution Info: {queryResult.RowCount} rows returned in {queryResult.ElapsedMs} ms | cpu: {queryResult.CpuTimeMs} ms | logical reads: {queryResult.LogicalReads}.";
+                string transactionOutcome = queryResult.AccessLevel == AccessLevel.ReadWrite ? "committed" : "rolled_back";
+                string countPhrase = queryResult.HasResultSet
+                    ? $"{queryResult.RowCount} rows returned"
+                    : $"{queryResult.RecordsAffected} rows affected";
+                string execInfoText = $"Execution Info: accessLevel={queryResult.AccessLevel} | transaction={transactionOutcome} | {countPhrase} in {queryResult.ElapsedMs} ms | cpu: {queryResult.CpuTimeMs} ms | logical reads: {queryResult.LogicalReads}.";
                 var contentList = new List<ToolContent>();
 
                 if (queryResult.WasAnonymized)

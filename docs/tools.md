@@ -117,7 +117,13 @@ There is no automatic cleanup or staging.
 | `sql_execute_query` | `query`, `database` | `requested_row_limit`, `parameters` |
 | `sql_execute_file` | `file_path`, `database` | `use_transaction` (true), `requested_row_limit`, `parameters` |
 
-`sql_execute_query` accepts one main statement with supported leading declarations. The `database` argument is resolved as a qualified `alias/database` target: malformed, unqualified or unknown targets fail with `SQL-AI-0001` before any database work. Returned rows are capped by `QueryExecution` limits. It returns separate text blocks: a masking notice when applicable, an execution header, JSON rows, and a schema hint when the parsed query references a supported SQL Server catalog view or `OBJECT_DEFINITION`. The hint directs agents to `sql_get_schema`, `sql_get_trigger_definition` or `sql_search_objects`; it does not make another tool call. Catalog query string results may be anonymized. The header reports returned rows, client query time, server CPU time and logical reads from `STATISTICS IO/TIME`. Client elapsed time and server CPU time measure different things.
+`sql_execute_query` accepts one main statement with supported leading declarations. The `database` argument is resolved as a qualified `alias/database` target: malformed, unqualified or unknown targets fail with `SQL-AI-0001` before any database work. Returned rows are capped by `QueryExecution` limits. It returns separate text blocks: a masking notice when applicable, an execution header, JSON rows, and a schema hint when the parsed query references a supported SQL Server catalog view or `OBJECT_DEFINITION`. The hint directs agents to `sql_get_schema`, `sql_get_trigger_definition` or `sql_search_objects`; it does not make another tool call. Catalog query string results may be anonymized. The header has this format:
+
+```text
+Execution Info: accessLevel={Name} | transaction={committed|rolled_back} | {count phrase} in {ms} ms | cpu: {cpu} ms | logical reads: {reads}.
+```
+
+`Name` is the `AccessLevel` enum name. The transaction is `committed` only for `ReadWrite`; all other levels use `rolled_back`. The count phrase is `{rowCount} rows returned` when any result set has `FieldCount > 0`, including an empty SELECT or `INSERT ... OUTPUT`. Only when every result set has `FieldCount == 0`, it is `{N} rows affected`, using the final ADO.NET reader `RecordsAffected` after disposal. This value can be `-1` when the provider reports no affected count. The data block stays `[]` when no row was serialized. The metrics retain client query time, server CPU time and logical reads from `STATISTICS IO/TIME`. Client elapsed time and server CPU time measure different things.
 
 Query and script JSON rows omit provider fields marked `IsHidden=true` in the
 reader's schema table, including browse-only keys and `rowversion` fields. These

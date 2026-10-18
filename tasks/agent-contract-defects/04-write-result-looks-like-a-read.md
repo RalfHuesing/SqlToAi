@@ -42,3 +42,13 @@ In `docs/tools.md`, replace the sentence that the header reports returned rows, 
 
 - Script-report suffixes.
 - Changing which databases are `ReadWrite`.
+
+## Verified implementation
+
+- Added the access-level enum name and the specified transaction outcome to the `sql_execute_query` header, preserving its metrics tail and data blocks. `sql_execute_file` and `sql_list_databases` report text remain unchanged.
+- Result-set detection uses `FieldCount > 0`, including empty SELECTs, `INSERT ... OUTPUT`, later result sets and a zero serialization limit. Columnless results report the final affected count, including zero and the provider's `-1` sentinel.
+- ADO.NET owns `RecordsAffected` on `DbDataReader`, not `DbCommand`; the implementation reads the reader property after async disposal. A test reader exposes the final count only after disposal.
+- Added 15 service-to-dispatcher cases covering these results, commit/rollback in all three execution access levels, and unchanged `SQL-AI-0107` rejection before connection creation for read-only UPDATEs.
+- `dotnet build SqlToAi.slnx`: passed with 0 warnings and 0 errors.
+- `dotnet test SqlToAi.slnx`: passed; 2,015 passed, 19 skipped, 0 failed.
+- No production database was used. Model: `gpt-6.1-sol`, reasoning effort: `medium`.

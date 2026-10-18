@@ -123,8 +123,9 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
             ? _queryTokenResolver.ResolveTokens(query, target)
             : query;
 
-        return await ExecuteQueryInTransactionAsync(
+        var result = await ExecuteQueryInTransactionAsync(
             target, effectiveQuery, effectiveLimit, anonymize, writeAllowed, parameters, cancellationToken);
+        return result.IsSuccess ? result.Value with { AccessLevel = accessLevel } : result;
     }
 
     private async Task<Result<QueryExecutionResult>> ExecuteQueryInTransactionAsync(
@@ -242,6 +243,8 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
 
             var sb = new StringBuilder();
             int rowCount = 0;
+            bool hasResultSet = false;
+            int recordsAffected;
             var tracker = new RowAnonymizationTracker();
             bool executionFailed = false;
 
@@ -251,20 +254,26 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
                     ? CommandBehavior.SequentialAccess | CommandBehavior.KeyInfo
                     : CommandBehavior.SequentialAccess;
 
-                await using var reader = await command.ExecuteReaderAsync(behavior, cancellationToken);
-                do
+                var reader = await command.ExecuteReaderAsync(behavior, cancellationToken);
+                await using (reader)
                 {
-                    var columns = GetColumnNames(reader);
-                    var anonCtx = await ResolveAnonymizationContextAsync(
-                        reader, columns, args.Anonymize, args.Target, cancellationToken);
-
-                    while (rowCount < args.RowLimit && await reader.ReadAsync(cancellationToken))
+                    do
                     {
-                        AppendSerializedRow(sb, reader, columns, anonCtx, tracker);
-                        rowCount++;
+                        hasResultSet |= reader.FieldCount > 0;
+                        var columns = GetColumnNames(reader);
+                        var anonCtx = await ResolveAnonymizationContextAsync(
+                            reader, columns, args.Anonymize, args.Target, cancellationToken);
+
+                        while (rowCount < args.RowLimit && await reader.ReadAsync(cancellationToken))
+                        {
+                            AppendSerializedRow(sb, reader, columns, anonCtx, tracker);
+                            rowCount++;
+                        }
                     }
+                    while ((rowCount < args.RowLimit || !hasResultSet) && await reader.NextResultAsync(cancellationToken));
                 }
-                while (rowCount < args.RowLimit && await reader.NextResultAsync(cancellationToken));
+                // ADO.NET exposes the final affected count on the reader, after disposal.
+                recordsAffected = reader.RecordsAffected;
             }
             catch
             {
@@ -283,12 +292,14 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
 
             if (rowCount == 0)
             {
-                return new QueryExecutionResult("[]", false, Array.Empty<string>(), _anonymizationMode, ElapsedMs: stopwatch.ElapsedMilliseconds, RowCount: 0, CpuTimeMs: cpu, LogicalReads: logical);
+                return new QueryExecutionResult("[]", false, Array.Empty<string>(), _anonymizationMode, ElapsedMs: stopwatch.ElapsedMilliseconds, RowCount: 0, CpuTimeMs: cpu, LogicalReads: logical)
+                { HasResultSet = hasResultSet, RecordsAffected = recordsAffected };
             }
 
             return new QueryExecutionResult(
                 sb.ToString().TrimEnd(), tracker.WasAnonymized, tracker.AnonymizedColumns, _anonymizationMode, tracker.SearchableTokenColumns,
-                ElapsedMs: stopwatch.ElapsedMilliseconds, RowCount: rowCount, CpuTimeMs: cpu, LogicalReads: logical);
+                ElapsedMs: stopwatch.ElapsedMilliseconds, RowCount: rowCount, CpuTimeMs: cpu, LogicalReads: logical)
+            { HasResultSet = hasResultSet, RecordsAffected = recordsAffected };
         }
         finally
         {
