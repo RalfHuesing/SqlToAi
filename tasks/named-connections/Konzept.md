@@ -22,6 +22,10 @@ names on different servers must have independent policy, rules and token scopes.
   match the new contract.
 - Switching among already loaded targets needs no restart. Editing server settings
   remains a restart operation; hot reload is outside this concept.
+- User-approved follow-up: remove the obsolete optional logging configuration,
+  template section, startup cleanup implementation and related documentation
+  completely. Application/error logging and its sink retention remain supported.
+  Existing user settings and log files must not be edited or deleted.
 
 ## Current behavior
 

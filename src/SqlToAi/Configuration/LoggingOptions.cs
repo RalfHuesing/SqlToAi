@@ -24,14 +24,6 @@ public sealed class LoggingOptions
         RetainedFileCount = 90
     };
 
-    /// <summary>Settings for the structured MCP tool-call trail (one JSONL per call).</summary>
-    public McpTrailOptions McpTrail { get; set; } = new()
-    {
-        Enabled = false,
-        Directory = "mcp",
-        RetainedDays = 14
-    };
-
     /// <summary>Resolves the log root independently of the working and installation directories.</summary>
     public string GetAbsoluteRoot() =>
         Path.IsPathFullyQualified(Directory) ? Directory : Path.GetFullPath(Directory, UserConfiguration.ResolveRoot());
@@ -54,20 +46,4 @@ public sealed class FileLogSinkOptions
 
     /// <summary>How many rolled files to keep on disk before the oldest is deleted.</summary>
     public int RetainedFileCount { get; set; } = 30;
-}
-
-/// <summary>
-/// Options for the structured MCP call trail. One JSONL file per call, grouped into
-/// per-day subdirectories so the LLM activity is browsable in human time.
-/// </summary>
-public sealed class McpTrailOptions
-{
-    /// <summary>Whether the MCP trail is recorded at all.</summary>
-    public bool Enabled { get; set; } = false;
-
-    /// <summary>Trail directory, absolute or relative to <see cref="LoggingOptions.Directory"/>.</summary>
-    public string Directory { get; set; } = "mcp";
-
-    /// <summary>How many days of MCP-trail files to keep. Files older than this are deleted on startup.</summary>
-    public int RetainedDays { get; set; } = 14;
 }

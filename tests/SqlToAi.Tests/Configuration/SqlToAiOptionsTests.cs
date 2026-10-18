@@ -33,9 +33,11 @@ public sealed class SqlToAiOptionsTests
         Assert.Equal(10_485_760L, options.QueryExecution.MaxScriptFileSizeBytes);
         Assert.Equal(10, options.SchemaBatch.MaxInputCount);
         Assert.Equal(65_536, options.SchemaBatch.MaxResponseBytes);
+        Assert.Equal("log", options.Logging.Directory);
         Assert.True(options.Logging.AppLog.Enabled);
         Assert.True(options.Logging.ErrorLog.Enabled);
-        Assert.False(options.Logging.McpTrail.Enabled);
+        Assert.Equal(30, options.Logging.AppLog.RetainedFileCount);
+        Assert.Equal(90, options.Logging.ErrorLog.RetainedFileCount);
 
         var accessLevels = new AccessLevelProvider(Options.Create(options));
         Assert.Equal(AccessLevel.None,

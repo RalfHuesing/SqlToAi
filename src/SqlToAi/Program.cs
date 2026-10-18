@@ -34,11 +34,6 @@ internal static class Program
             Log.Logger = BuildLogger(startup.Options.Logging);
             await using ServiceProvider serviceProvider = BuildServiceProvider(startup.Configuration, startup.Options, startup.RootDirectory);
 
-            // ---------------------------------------------------------------------------
-            // Run retention sweep on startup (best-effort)
-            // ---------------------------------------------------------------------------
-            serviceProvider.GetRequiredService<LogRetentionService>().Run();
-
             RootCommand rootCommand = BuildRootCommand(serviceProvider);
             ParseResult parseResult = rootCommand.Parse(args);
             return await parseResult.InvokeAsync();
@@ -201,11 +196,6 @@ internal static class Program
         // MCP
         services.AddSingleton<ToolRegistry>();
         services.AddSingleton<IToolDispatcher, ToolDispatcher>();
-        services.AddSingleton<LogRetentionService>(sp =>
-            new LogRetentionService(
-                sp.GetRequiredService<SqlToAiOptions>().Logging,
-                sp.GetRequiredService<ILogger<LogRetentionService>>()));
-
         services.AddMcpServer(serverOptions =>
         {
             serverOptions.ServerInfo = new Implementation

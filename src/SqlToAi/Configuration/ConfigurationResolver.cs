@@ -39,7 +39,6 @@ public static class ConfigurationResolver
         // 2. Resolve SQL file paths
         ResolveSqlFiles(options, root);
         options.Logging.Directory = ResolvePath(options.Logging.Directory, root);
-        options.Logging.McpTrail.Directory = ResolvePath(options.Logging.McpTrail.Directory, options.Logging.Directory);
         options.ResolvedRootDirectory = root;
     }
 

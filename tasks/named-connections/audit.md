@@ -636,3 +636,42 @@ The fresh independent auditor approved the synchronized task documentation and
 reproduced the final TRX and link/anchor counts. R6c records audit execution, not
 closure of the failed R6b/M4.2/M4.3 acceptance.
 
+## R7 — Obsolete optional logging removal
+
+User-approved follow-up on 2026-10-18; reviewed against `84dc1be`. The user
+explicitly deferred AOT/package work and requested complete removal of the unused
+optional logging fragment. Coder: GPT-6-luna/high (`cleanup_logging`);
+independent read-only reviewer: GPT-6.1-Sol/high (`final_audit`).
+
+Removed the unused option/property contract, template section, path-resolution
+branch, entire startup cleanup service and its DI/startup calls. No disabled stub,
+compatibility branch, migration, replacement warning or deletion of existing user
+settings/logs was introduced. Searches across the tracked working tree, existing
+filenames and the current semantic snapshot found no obsolete identifiers or
+references. Unrelated line-delimited query-result formats remain supported.
+
+`src/SqlToAi/Configuration/LoggingOptions.cs:9,12,20,28` retains the log root,
+application/error sinks and root resolution. `ConfigurationResolver.cs:41,148`
+retains path resolution and sink-retention validation. `src/SqlToAi/Program.cs:34,37,197`
+goes directly from normal logger/service setup to command construction and MCP
+registration; `Program.cs:244,258` still passes the same retained-file counts to
+Serilog. The reviewer parsed the template and verified that its remaining JSON is
+structurally identical to `84dc1be` after removal of the obsolete section.
+
+Four tests of the removed service and one feature-only path test were deleted.
+Surviving real application/error log probes, default/relative/absolute path tests,
+user-file preservation, DI/startup and stdio tests remain. In particular,
+`tests/SqlToAi.Tests/Configuration/UserPathTests.cs:24,102,157` exercises real
+options/DI and log destinations; `SqlToAiOptionsTests.cs:39,40,48` retains explicit
+sink defaults and shipped-template binding. SETUP and canonical configuration/
+architecture documentation no longer describe the removed fragment. The concept
+and roadmap record the approved scope without reintroducing retired names.
+
+After independent approval, parent `dotnet build SqlToAi.slnx --warnaserror`
+returned 0 warnings/errors; `dotnet test SqlToAi.slnx --no-build` returned
+1,956 passed, 19 skipped, 0 failed (`temp/audit-gates/r7.trx`). All 19 skip names
+exactly match the documented external TLS baseline. The five-test reduction from
+1,961 is entirely the deleted feature-only cases, reviewed independently.
+`git diff --check`, JSON parsing and the obsolete-reference scan passed. No Native
+AOT publish, package upgrade, deployment or personal-configuration change was run.
+

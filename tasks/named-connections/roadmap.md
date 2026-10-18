@@ -24,6 +24,11 @@ explicit decision to maintain a driver change is needed. Feature closure remains
 open. Findings are in the
 [deep audit](audit.md#deep-audit-at-cab47d3).
 
+The user deferred that AOT work and explicitly authorized the follow-up R7 below.
+R7 is complete: independent review and managed gates passed with 1,956 tests,
+19 exact baseline external TLS skips and 0 failures; build has 0 warnings/errors.
+Deferral does not close R6b or M4 acceptance. No AOT or package work was resumed.
+
 Baseline gates: `dotnet build SqlToAi.slnx --warnaserror` returned 0 warnings and
 0 errors; `dotnet test SqlToAi.slnx --no-build` returned 1,486 passed, 19 skipped,
 0 failed. All skipped cases belong to `TlsConnectionIntegrationTests`; external
@@ -96,6 +101,21 @@ loops, superseding the workflow's sequential-audit and one-correction defaults.
     Evidence: [independent final audit](audit.md#m43--independent-final-concept-audit)
     and [R6c corrections and gates](audit.md#r6c--final-independent-audit-and-public-documentation-correction).
     Audit execution is complete; M4.3's aggregate acceptance remains open for AOT.
+
+- [x] **R7 — Remove obsolete optional logging and its startup cleanup.**
+  Coder: GPT-6-luna/high; independent reviewer: GPT-6.1-Sol/high.
+  Remove its JSON configuration, option types, path resolution, startup/DI
+  wiring and obsolete retention implementation, plus its feature-only tests and
+  documentation. Inspect all tracked source, profiles, examples and task docs
+  for remaining references or disabled stubs. Retain application/error logging,
+  sink retention, ordinary configuration path semantics and stdio behavior.
+  Do not change user settings or remove existing logs; introduce no migration,
+  compatibility branch, package update or renewed AOT work.
+  Acceptance: no obsolete contract or implementation remains; surviving logging
+  paths and startup/DI behavior are covered by meaningful regression assertions;
+  independent review approves; warning-as-error build, full tests (only the exact
+  baseline external TLS skips) and diff check pass before an atomic commit.
+  Evidence: [R7 removal, review and gates](audit.md#r7--obsolete-optional-logging-removal).
 
 ## Execution contract
 

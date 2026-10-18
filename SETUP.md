@@ -43,7 +43,7 @@ This complete minimal example uses a fictional server name, leaves database acce
 }
 ```
 
-Replace the fictional server before connecting. Omitted root settings retain their defaults: `Anonymizer.Enabled=true`, `Anonymizer.DefaultMode=ScramblePattern`, tokenization disabled, `QueryExecution.DefaultRowLimit=100`, `MaxRowLimit=1000`, `CommandTimeoutSeconds=30`, and `MaxScriptFileSizeBytes=10485760`; `SchemaBatch.MaxInputCount=10` and `MaxResponseBytes=65536`; application/error logging enabled and MCP trail logging disabled. `Databases.CacheTtlSeconds` defaults to `300`. See the [full settings template](src/SqlToAi/appsettings.json) before carrying forward additional options.
+Replace the fictional server before connecting. Omitted root settings retain their defaults: `Anonymizer.Enabled=true`, `Anonymizer.DefaultMode=ScramblePattern`, tokenization disabled, `QueryExecution.DefaultRowLimit=100`, `MaxRowLimit=1000`, `CommandTimeoutSeconds=30`, and `MaxScriptFileSizeBytes=10485760`; `SchemaBatch.MaxInputCount=10` and `MaxResponseBytes=65536`; application/error logging enabled. `Databases.CacheTtlSeconds` defaults to `300`. See the [full settings template](src/SqlToAi/appsettings.json) before carrying forward additional options.
 
 ## Create your settings manually
 

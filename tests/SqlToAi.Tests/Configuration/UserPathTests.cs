@@ -4,10 +4,8 @@ using System.Security.Principal;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
-using SqlToAi.Mcp;
 using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Configuration;
@@ -272,23 +270,6 @@ public sealed class UserPathTests
             Assert.Empty(Directory.GetFiles(temp.DirectoryPath, "*.bak", SearchOption.AllDirectories));
             Assert.Empty(Directory.GetFiles(temp.DirectoryPath, "*backup*", SearchOption.AllDirectories));
         }
-    }
-
-    [Fact]
-    public void Retention_UsesResolvedUserLogRootAndPreservesInstallationDirectories()
-    {
-        using var temp = TestTempDirectory.Create();
-        string oldDay = DateTime.UtcNow.AddDays(-100).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-        string current = temp.CreateSubdirectory($"user/custom/mcp/{oldDay}");
-        string installOldLog = temp.CreateFile($"installation/log/mcp/{oldDay}/old.jsonl", "install-log");
-        var options = new SqlToAiOptions();
-        options.Logging.Directory = "custom";
-        options.Logging.McpTrail.Enabled = true;
-        ConfigurationResolver.Resolve(options, temp.GetPath("user"));
-        new LogRetentionService(options.Logging, NullLogger<LogRetentionService>.Instance).Run();
-        Assert.False(Directory.Exists(current));
-        Assert.Equal("install-log", File.ReadAllText(installOldLog));
-        Assert.Equal(temp.GetPath("user/custom/mcp"), options.Logging.McpTrail.Directory);
     }
 
     private static IDisposable DenyWrites(string path) => new WriteDenial(path);
