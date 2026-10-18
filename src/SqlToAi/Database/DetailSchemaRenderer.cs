@@ -1,5 +1,5 @@
+using System.Data;
 using System.Data.Common;
-using Dapper;
 using SqlToAi.Domain;
 
 namespace SqlToAi.Database;
@@ -17,8 +17,10 @@ internal static class DetailSchemaRenderer
     /// </summary>
     private static async Task<Result<string>?> ValidateTableOrViewAsync(DbConnection connection, string objectName, CancellationToken cancellationToken)
     {
-        string? objectType = await connection.QueryFirstOrDefaultAsync<string>(
-            new CommandDefinition("SELECT RTRIM(type) FROM sys.objects WHERE object_id = OBJECT_ID(@ObjectName)", new { ObjectName = objectName }, cancellationToken: cancellationToken));
+        string? objectType = await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<string?>(
+            connection, "SELECT RTRIM(type) FROM sys.objects WHERE object_id = OBJECT_ID(@ObjectName)",
+                static row => row.GetStringOrNull(0), cancellationToken,
+                parameters: new Dictionary<string, object?> { ["ObjectName"] = new SqlParameterValue(objectName, DbType.String) });
 
         if (string.IsNullOrEmpty(objectType))
         {
@@ -61,8 +63,10 @@ internal static class DetailSchemaRenderer
             ORDER BY ParentTable, ForeignKeyName, fkc.constraint_column_id
             """;
 
-        var rows = await connection.QueryAsync<ForeignKeyRow>(
-            new CommandDefinition(sql, new { TableName = tableName }, cancellationToken: cancellationToken));
+        var rows = await DatabaseCommandExecutor.QueryAsync<ForeignKeyRow>(
+            connection, sql,
+                ReadForeignKeyRow, cancellationToken,
+                parameters: new Dictionary<string, object?> { ["TableName"] = new SqlParameterValue(tableName, DbType.String) });
 
         // Composite-key FKs produce one row per column pair, all sharing the same FK name. Group
         // them back into a single table row so a 2-column FK reads as one entry instead of two,
@@ -127,8 +131,10 @@ internal static class DetailSchemaRenderer
             ORDER BY i.index_id, ic.key_ordinal, ic.is_included_column
             """;
 
-        var rows = await connection.QueryAsync<IndexRow>(
-            new CommandDefinition(sql, new { TableName = tableName }, cancellationToken: cancellationToken));
+        var rows = await DatabaseCommandExecutor.QueryAsync<IndexRow>(
+            connection, sql,
+                ReadIndexRow, cancellationToken,
+                parameters: new Dictionary<string, object?> { ["TableName"] = new SqlParameterValue(tableName, DbType.String) });
 
         var indexGroups = rows.GroupBy(r => new { IndexName = r.IndexName, IndexType = r.IndexType, IsUnique = r.IsUnique, IsPrimaryKey = r.IsPrimaryKey });
 
@@ -197,20 +203,24 @@ internal static class DetailSchemaRenderer
             WHERE cc.parent_object_id = OBJECT_ID(@TableName)
             """;
 
-        var defaultConstraints = await connection.QueryAsync<ConstraintRow>(
-            new CommandDefinition(defaultSql, new { TableName = tableName }, cancellationToken: cancellationToken));
+        var defaultConstraints = await DatabaseCommandExecutor.QueryAsync<ConstraintRow>(
+            connection, defaultSql,
+                ReadConstraintRow, cancellationToken,
+                parameters: new Dictionary<string, object?> { ["TableName"] = new SqlParameterValue(tableName, DbType.String) });
 
-        var checkConstraints = await connection.QueryAsync<ConstraintRow>(
-            new CommandDefinition(checkSql, new { TableName = tableName }, cancellationToken: cancellationToken));
+        var checkConstraints = await DatabaseCommandExecutor.QueryAsync<ConstraintRow>(
+            connection, checkSql,
+                ReadConstraintRow, cancellationToken,
+                parameters: new Dictionary<string, object?> { ["TableName"] = new SqlParameterValue(tableName, DbType.String) });
 
         var renderedRows = new List<string[]>();
         foreach (var dc in defaultConstraints)
         {
-            renderedRows.Add([ context is null ? dc.ConstraintName : OfflineSqlNameFormatter.Text(dc.ConstraintName), context is null ? dc.ColumnName ?? "" : OfflineSqlNameFormatter.Text(dc.ColumnName ?? ""), "DEFAULT", dc.Definition ]);
+            renderedRows.Add([context is null ? dc.ConstraintName : OfflineSqlNameFormatter.Text(dc.ConstraintName), context is null ? dc.ColumnName ?? "" : OfflineSqlNameFormatter.Text(dc.ColumnName ?? ""), "DEFAULT", dc.Definition]);
         }
         foreach (var cc in checkConstraints)
         {
-            renderedRows.Add([ context is null ? cc.ConstraintName : OfflineSqlNameFormatter.Text(cc.ConstraintName), context is null ? cc.ColumnName ?? "" : OfflineSqlNameFormatter.Text(cc.ColumnName ?? ""), "CHECK", cc.Definition ]);
+            renderedRows.Add([context is null ? cc.ConstraintName : OfflineSqlNameFormatter.Text(cc.ConstraintName), context is null ? cc.ColumnName ?? "" : OfflineSqlNameFormatter.Text(cc.ColumnName ?? ""), "CHECK", cc.Definition]);
         }
 
         if (renderedRows.Count == 0)
@@ -225,8 +235,14 @@ internal static class DetailSchemaRenderer
     public static async Task<Result<string>> GetTriggerDefinitionAsync(DbConnection connection, string tableName, string triggerName, string databaseName, CancellationToken cancellationToken)
     {
         // Verify trigger belongs to the table
-        var tName = await connection.QueryFirstOrDefaultAsync<string>(
-            new CommandDefinition("SELECT name FROM sys.triggers WHERE name = @TriggerName AND parent_id = OBJECT_ID(@TableName)", new { TriggerName = triggerName, TableName = tableName }, cancellationToken: cancellationToken));
+        var tName = await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<string?>(
+            connection, "SELECT name FROM sys.triggers WHERE name = @TriggerName AND parent_id = OBJECT_ID(@TableName)",
+                static row => row.GetStringOrNull(0), cancellationToken,
+                parameters: new Dictionary<string, object?>
+                {
+                    ["TriggerName"] = new SqlParameterValue(triggerName, DbType.String),
+                    ["TableName"] = new SqlParameterValue(tableName, DbType.String)
+                });
 
         if (string.IsNullOrEmpty(tName))
         {
@@ -248,7 +264,8 @@ internal static class DetailSchemaRenderer
 
         // Validate the discovered ID, original SQL names, and parent association together.
         // Module lookup below uses this same ID rather than resolving a simple name again.
-        int? objectId = await connection.QueryFirstOrDefaultAsync<int?>(new CommandDefinition("""
+        int? objectId = await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<int?>(
+            connection, """
             SELECT t.object_id
             FROM sys.triggers t
             INNER JOIN sys.objects o ON o.object_id = t.object_id
@@ -259,12 +276,18 @@ internal static class DetailSchemaRenderer
               AND o.schema_id = SCHEMA_ID(@SchemaName) AND o.name = @ObjectName
               AND parent.schema_id = SCHEMA_ID(@ParentSchemaName) AND parent.name = @ParentObjectName
               AND parent.type = @ParentType
-            """, new
-            {
-                identity.ObjectId, identity.SchemaName, identity.ObjectName,
-                ParentObjectId = parent.ObjectId, ParentSchemaName = parent.SchemaName, ParentObjectName = parent.ObjectName,
-                ParentType = parent.Kind == SchemaObjectKind.Table ? "U" : "V"
-            }, cancellationToken: cancellationToken));
+            """,
+                static row => row.GetNullableInt32(0), cancellationToken,
+                parameters: new Dictionary<string, object?>
+                {
+                    ["ObjectId"] = new SqlParameterValue(identity.ObjectId, DbType.Int32),
+                    ["SchemaName"] = new SqlParameterValue(identity.SchemaName, DbType.String),
+                    ["ObjectName"] = new SqlParameterValue(identity.ObjectName, DbType.String),
+                    ["ParentObjectId"] = new SqlParameterValue(parent.ObjectId, DbType.Int32),
+                    ["ParentSchemaName"] = new SqlParameterValue(parent.SchemaName, DbType.String),
+                    ["ParentObjectName"] = new SqlParameterValue(parent.ObjectName, DbType.String),
+                    ["ParentType"] = new SqlParameterValue(parent.Kind == SchemaObjectKind.Table ? "U" : "V", DbType.String)
+                });
 
         if (!objectId.HasValue)
         {
@@ -276,11 +299,14 @@ internal static class DetailSchemaRenderer
     }
 
     private static Task<string?> ReadTriggerDefinitionAsync(DbConnection connection, string triggerName, int? objectId, CancellationToken cancellationToken)
-        => connection.QueryFirstOrDefaultAsync<string>(new CommandDefinition(
-            objectId.HasValue
+        => DatabaseCommandExecutor.QueryFirstOrDefaultAsync<string?>(
+            connection, objectId.HasValue
                 ? "SELECT definition FROM sys.sql_modules WHERE object_id = @ObjectId"
                 : "SELECT definition FROM sys.sql_modules WHERE object_id = OBJECT_ID(@TriggerName)",
-            new { TriggerName = triggerName, ObjectId = objectId }, cancellationToken: cancellationToken));
+                static row => row.GetStringOrNull(0), cancellationToken,
+                parameters: objectId.HasValue
+                    ? new Dictionary<string, object?> { ["ObjectId"] = new SqlParameterValue(objectId, DbType.Int32) }
+                    : new Dictionary<string, object?> { ["TriggerName"] = new SqlParameterValue(triggerName, DbType.String) });
 
     private static string RenderTriggerDefinition(string triggerName, string tableName, string? definition, bool offline = false)
     {
@@ -296,8 +322,10 @@ internal static class DetailSchemaRenderer
     public static async Task<Result<string>> GetObjectReferencesAsync(DbConnection connection, string objectName, string databaseName, CancellationToken cancellationToken, SchemaRenderingContext? context = null)
     {
         // Check if object is table or view
-        string? objectType = await connection.QueryFirstOrDefaultAsync<string>(
-            new CommandDefinition("SELECT RTRIM(type) FROM sys.objects WHERE object_id = OBJECT_ID(@ObjectName)", new { ObjectName = objectName }, cancellationToken: cancellationToken));
+        string? objectType = await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<string?>(
+            connection, "SELECT RTRIM(type) FROM sys.objects WHERE object_id = OBJECT_ID(@ObjectName)",
+                static row => row.GetStringOrNull(0), cancellationToken,
+                parameters: new Dictionary<string, object?> { ["ObjectName"] = new SqlParameterValue(objectName, DbType.String) });
 
         if (string.IsNullOrEmpty(objectType))
         {
@@ -318,13 +346,15 @@ internal static class DetailSchemaRenderer
             ORDER BY referencing_schema_name, referencing_entity_name
             """;
 
-        var rows = await connection.QueryAsync<ReferenceRow>(
-            new CommandDefinition(sql, new { ObjectName = objectName }, cancellationToken: cancellationToken));
+        var rows = await DatabaseCommandExecutor.QueryAsync<ReferenceRow>(
+            connection, sql,
+                ReadReferenceRow, cancellationToken,
+                parameters: new Dictionary<string, object?> { ["ObjectName"] = new SqlParameterValue(objectName, DbType.String) });
 
         var renderedRows = new List<string[]>();
         foreach (var r in rows)
         {
-            renderedRows.Add([ context is null ? r.SchemaName : OfflineSqlNameFormatter.Text(r.SchemaName), context?.ObjectLink(r.SchemaName, r.EntityName, r.EntityName) ?? r.EntityName, r.ClassDescription ]);
+            renderedRows.Add([context is null ? r.SchemaName : OfflineSqlNameFormatter.Text(r.SchemaName), context?.ObjectLink(r.SchemaName, r.EntityName, r.EntityName) ?? r.EntityName, r.ClassDescription]);
         }
 
         if (renderedRows.Count == 0)
@@ -339,8 +369,10 @@ internal static class DetailSchemaRenderer
     public static async Task<Result<string>> GetRoutineParametersAsync(DbConnection connection, string routineName, string databaseName, CancellationToken cancellationToken, SchemaRenderingContext? context = null)
     {
         // Check if object is procedure or function
-        string? objectType = await connection.QueryFirstOrDefaultAsync<string>(
-            new CommandDefinition("SELECT RTRIM(type) FROM sys.objects WHERE object_id = OBJECT_ID(@RoutineName)", new { RoutineName = routineName }, cancellationToken: cancellationToken));
+        string? objectType = await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<string?>(
+            connection, "SELECT RTRIM(type) FROM sys.objects WHERE object_id = OBJECT_ID(@RoutineName)",
+                static row => row.GetStringOrNull(0), cancellationToken,
+                parameters: new Dictionary<string, object?> { ["RoutineName"] = new SqlParameterValue(routineName, DbType.String) });
 
         if (string.IsNullOrEmpty(objectType))
         {
@@ -364,8 +396,10 @@ internal static class DetailSchemaRenderer
             ORDER BY p.parameter_id
             """;
 
-        var rows = await connection.QueryAsync<ParameterRow>(
-            new CommandDefinition(sql, new { RoutineName = routineName }, cancellationToken: cancellationToken));
+        var rows = await DatabaseCommandExecutor.QueryAsync<ParameterRow>(
+            connection, sql,
+                ReadParameterRow, cancellationToken,
+                parameters: new Dictionary<string, object?> { ["RoutineName"] = new SqlParameterValue(routineName, DbType.String) });
 
         var renderedRows = new List<string[]>();
         foreach (var r in rows)
@@ -432,4 +466,49 @@ internal static class DetailSchemaRenderer
         public int MaxLength { get; init; }
         public bool IsOutput { get; init; }
     }
+
+    private static ConstraintRow ReadConstraintRow(DatabaseRow row) => new()
+    {
+        ConstraintName = row.GetString("ConstraintName"),
+        ColumnName = row.GetStringOrNull("ColumnName"),
+        Definition = row.GetString("Definition")
+    };
+
+    private static ForeignKeyRow ReadForeignKeyRow(DatabaseRow row) => new()
+    {
+        ParentSchemaName = row.GetString("ParentSchemaName"),
+        ParentObjectName = row.GetString("ParentObjectName"),
+        ReferencedSchemaName = row.GetString("ReferencedSchemaName"),
+        ReferencedObjectName = row.GetString("ReferencedObjectName"),
+        ForeignKeyName = row.GetString("ForeignKeyName"),
+        ParentTable = row.GetString("ParentTable"),
+        ParentColumn = row.GetString("ParentColumn"),
+        ReferencedTable = row.GetString("ReferencedTable"),
+        ReferencedColumn = row.GetString("ReferencedColumn")
+    };
+
+    private static IndexRow ReadIndexRow(DatabaseRow row) => new()
+    {
+        IndexName = row.GetStringOrNull("IndexName"),
+        IndexType = row.GetString("IndexType"),
+        IsUnique = row.GetBoolean("IsUnique"),
+        IsPrimaryKey = row.GetBoolean("IsPrimaryKey"),
+        ColumnName = row.GetString("ColumnName"),
+        IsIncluded = row.GetBoolean("IsIncluded")
+    };
+
+    private static ParameterRow ReadParameterRow(DatabaseRow row) => new()
+    {
+        ParameterName = row.GetStringOrNull("ParameterName"),
+        DataType = row.GetString("DataType"),
+        MaxLength = row.GetInt32("MaxLength"),
+        IsOutput = row.GetBoolean("IsOutput")
+    };
+
+    private static ReferenceRow ReadReferenceRow(DatabaseRow row) => new()
+    {
+        SchemaName = row.GetString("SchemaName"),
+        EntityName = row.GetString("EntityName"),
+        ClassDescription = row.GetString("ClassDescription")
+    };
 }

@@ -111,37 +111,43 @@ Paths below are repository-relative; line numbers refer to the reviewed code.
 - `dotnet test SqlToAi.slnx`: 1,424 passed, 19 skipped (external TLS), 0 failed.
 - `git diff --check`: clean.
 
-# M4.3 — Final concept audit and roadmap closure
+# M3.4 — Independent service and transport audit
 
-> Superseded by the independent deep audit below. These historical claims are
-> not current acceptance evidence; in particular, the Native AOT result hid
-> third-party diagnostics, and the composed tests did not exercise a real rule cache.
+The original M3.4 acceptance lacked evidence in this audit. Its closure is
+re-evaluated by the deep audit and the reviewed remediation, rather than inferred
+from old task checkmarks. Reviewed history includes `988b641..cab47d3`, especially
+`41a4271..cab47d3`; subsequent service and transport corrections are `0eb44d4`
+(R4) and `f4145ed` (R5), each implemented by GPT-6.1-Sol/high and independently
+approved by a different GPT-6.1-Sol/high agent.
 
-Reviewed full repository state against `tasks/named-connections/Konzept.md` (Must 1–11, Out of scope, and Verification criteria).
-Verdict: all concept requirements and acceptance criteria are completely satisfied; no open findings; accept M4 and close the named-connections roadmap.
+- Must 5/11: `src/SqlToAi/Cli/SchemaExportService.cs:48–73,117–145` retains one
+  context through export discovery and rendering; typed schema overloads retain
+  access checks. `Database/OptimizationBenchmarkService.cs:40–82` shares one
+  context through comparison and both measurements. The R4 evidence below names
+  real-service context-identity tests, child failure/cancellation checks and
+  unchanged mutation/USE/statement guards. Exploration rights follow the actual
+  canonical `primary/DemoDB`, not the first configured alias.
+- Must 6/7: server discovery and raw-name-only database search are exercised by
+  `tests/SqlToAi.Tests/Database/ServerDiscoveryTargetIsolationTests.cs`; R3 adds
+  actual post-open reader timeout/TLS handling and cancellation. Owner policy,
+  exclusions and production connection settings are observed by the composed R5
+  tests, including same-address owners and denial before connection creation.
+- Public MCP/CLI arguments: `Mcp/ComposedTargetBindingTests.cs:39–249` under the
+  test project invokes actual SDK delegates and generated CLI commands. Required
+  public schemas, qualified descriptions, all target-bearing tools' invalid input
+  forms and unusual raw database names are checked. The managed stdio host test
+  at `Mcp/ManagedMcpTargetBindingTests.cs:13–57` is an actual child process.
+- The R5 gate passed 1,927 tests with 19 external TLS skips and no failures;
+  warning-as-error build and diff checks were clean. This evidence establishes
+  managed service/transport acceptance, not Native AOT or strict TLS validation.
 
-## Final contract verification against Konzept.md
+# M4.3 — Independent final concept audit
 
-- **Must 1 (Named Servers Configuration):** `SqlToAi.Servers` requires at least one named server. Each entry holds server address, authentication, TLS, connect timeout, local excluded DB patterns, and secondary provider options. New endpoints grant no access by default. Distinct aliases pointing to the same physical host maintain completely independent policy contexts (`SamePhysicalEndpointUnderTwoAliases_RetainsIndependentOwners`).
-- **Must 2 (Target Syntax and Canonicalization):** `alias/database` syntax validated by `DatabaseTargetParser.cs`. Aliases match `[A-Za-z][A-Za-z0-9_-]*`, with canonical invariant ASCII lowercase. Duplicate alias keys inside a single JSON `Servers` object are rejected at startup before merge. Only the first `/` is split, preserving all subsequent characters including dots, spaces, slashes, and Unicode. Empty parts, malformed aliases, and unknown aliases are rejected before any database operation.
-- **Must 3 (Qualified Access Grants):** All entries in `Databases` access lists (`SchemaOnly`, `ReadOnlyAnonymized`, `ReadOnly`, `ReadWrite`) are qualified with `alias/database`. Startup validation rejects malformed, unqualified, or unknown-server grants. Policy evaluation matches alias plus database using `OrdinalIgnoreCase` for database names.
-- **Must 4 (Hard Cut & Startup Diagnostics):** Obsolete top-level sections (`SqlServer`, `MetadataProvider`, `AnonymizationRules`) and old environment prefixes (`SqlToAi__SqlServer__`, etc.) are actively detected and rejected at startup with exit code 1 and clean stderr diagnostics without leaking sensitive configuration or credentials. Unqualified database arguments return `SQL-AI-0001`; unauthorized targets return `SQL-AI-0104`.
-- **Must 5 (Target Context & Database Routing):** Every database-facing path resolves an immutable `DatabaseTargetContext`. SqlClient InitialCatalog receives exclusively the raw physical database name. Tool responses carry canonical qualified target names. No singleton option mutation or global current-server variables exist.
-- **Must 6 (Server Discovery & Target Discovery):** `sql_list_servers` returns configured canonical server aliases with zero SQL probes or network connections. `sql_list_databases` and `sql_search_databases` require a valid `server` alias and return only permitted qualified targets. Search filters only on the raw database name substring.
-- **Must 7 (Scoped Exclusions):** Local database exclusions match raw DB glob patterns scoped strictly to the owning server alias, taking precedence over grants and safety guards.
-- **Must 8 (Scoped Supporting Providers):** MetadataProvider and AnonymizationRules are configured per server. Server-less providers inherit the primary endpoint, auth, TLS, and timeout with explicit or target database fallback; dedicated providers require their own raw database and never fall back to primary.
-- **Must 9 (Partitioned Rule Caches):** Anonymization rule caches are strictly partitioned by `(PolicyOwner, Endpoint, SourceDatabase, RulesTable)`. Fallback target database rules are never reused across different databases.
-- **Must 10 (Scoped Token Vault & Resolution):** Token issuance, storage, and resolution are scoped by `DatabaseTargetContext` with 64-bit global collision avoidance. Identical plaintext on different targets yields non-interchangeable tokens. Foreign tokens stay literal SQL text. Complete hard cut achieved: all unscoped methods and transitional `_legacyScope` state on `ITokenVault`, `TokenVault`, `IAnonymizer`, `Anonymizer`, `IQueryTokenResolver`, and `QueryTokenResolver` were completely deleted. Production code (`src/`), unit tests (`tests/`), and documentation (`docs/`) contain zero legacy methods, fallback artifacts, or transitional legacy comments (`rg -i legacy` returns zero hits across `src/`, `tests/`, and `docs/`).
-- **Must 11 (Limits, Formats & Operational Documentation):** Global row and command limits remain unchanged. Main and demo settings files, README, SETUP, and documentation across `docs/` have been updated to the qualified multi-server schema with manual hard-cut migration instructions.
-
-## Verification gates passed
-
-- `dotnet build SqlToAi.slnx --warnaserror`: 0 warnings, 0 errors.
-- `dotnet test SqlToAi.slnx`: 1,486 passed, 0 failed, 19 skipped (external TLS endpoints without live test server).
-- `dotnet publish src/SqlToAi/SqlToAi.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=true -o temp/aot`: Clean Native AOT publish with 0 warnings and 0 errors.
-- `ComposedTargetIsolationTests`: 12/12 passed (multi-target concurrency, same physical endpoint under distinct aliases, unusual raw database names, server discovery, and MCP SDK bindings).
-- `git grep -i legacy src/ tests/ docs/`: 0 hits across all source, test, and documentation files.
-- Clean working directory, all changes committed.
+Status: reopened. The previous blanket closure statement and warning-free Native
+AOT claim were invalid and have been replaced. The source-level findings and
+reviewed remediation are recorded below. Final independent review, actual AOT
+gates and exact final source/commit evidence are still pending R6. M4 and the
+roadmap remain open until every required acceptance criterion is verified.
 
 # Deep audit at cab47d3
 
@@ -197,6 +203,23 @@ positive observations do not substitute for missing composed runtime coverage.
   SqlClient reflection/dynamic serialization. The Native AOT gate remains open.
 
 Remediation is tracked in [the roadmap](roadmap.md#deep-audit-remediation).
+
+## Reviewed remediation commits
+
+| Slice | Commit | Independent managed gate: passed / TLS skipped / failed |
+| --- | --- | --- |
+| Findings and reopened acceptance | `7f419fd` | Baseline 1,486 / 19 / 0 |
+| R1: syntax-aware token literals | `0bbbe55` | 1,526 / 19 / 0 |
+| R2: JSON source and effective options | `7f88de2` | 1,600 / 19 / 0 |
+| R3: safe discovery and failed rule loads | `dd17ef3` | 1,610 / 19 / 0 |
+| R4: shared composed target contexts | `0eb44d4` | 1,646 / 19 / 0 |
+| R5: real composition and SDK/CLI binding | `f4145ed` | 1,927 / 19 / 0 |
+| R2a: normalized environment boundaries | `00f5b58` | 1,943 / 19 / 0 |
+
+Every code row had a different independent reviewer, a warning-as-error build
+with zero warnings/errors and a clean diff check before commit. Skip names were
+compared exactly with the baseline, not inferred from totals. None of these
+managed gates establishes Native AOT or strict certificate validation.
 
 ## R1 — Syntax-aware token resolution
 
@@ -383,4 +406,50 @@ Parent gates after independent approval: warning-as-error build returned
 0 warnings/errors; full no-build tests returned 1,943 passed, 19 skipped, 0 failed.
 `temp/audit-gates/r2a.trx` skip names exactly match the external TLS baseline.
 `git diff --check` was clean. No process-global or personal environment was edited.
+
+## R6a — Explicit ADO.NET catalog and provider mapping
+
+Completed on 2026-10-18. Coder: GPT-6.1-Sol/high (`aot_resolution`);
+independent reviewer: GPT-6.1-Sol/high (`audit_foundations`), read-only approval
+against `00f5b58` (R2a). The initially assigned reviewer hit a usage limit before
+delivering a review; that interruption is not approval. Both new files were
+included in the completed independent review.
+
+`src/SqlToAi/Database/DatabaseCommandExecutor.cs:11–79` buffers the first resultset
+using explicit static mappings and drains subsequent results. Execute/read/next
+operations receive the request token; reader and command are disposed
+asynchronously, including configuration, mapping, cancellation and late-result
+failures. The caller retains the already-open connection. `DatabaseRow.cs:7–38`
+performs case-insensitive SQL-alias lookup and null-aware numeric/string access;
+it performs no reflection, dynamic activation or runtime mapper generation.
+
+All 29 former Dapper calls in the rule/metadata providers, discovery, schema
+service, both renderers and index suggestions now use these helpers and explicit
+parameter types. SQL, ordering, output rendering and trigger ID/schema/parent
+checks remain intact. Existing nullable row defaults and SQL byte/short/bit
+conversions are retained. Rule-probe failure still enters the fail-closed loader.
+Both `MetadataProvider` commands now honor their existing configured timeout,
+including zero; unrelated catalog calls retain their provider default.
+
+`tests/SqlToAi.Tests/Database/DatabaseCommandExecutorTests.cs:11–159` exercises
+buffering, empty/NULL/defaults, numeric aliases, typed nullable parameters,
+default/zero/positive timeouts, token propagation, cancellation during draining,
+late result errors and awaited disposal. `Metadata/MetadataProviderTests.cs:29–80`
+covers both configured timeouts and custom alias/NULL/last-row semantics. Four
+real SQL integration queries also use ADO.NET; existing assertions were retained.
+The complete managed suite includes available local SQL integration; external TLS
+authentication remains outside that evidence.
+
+Dapper was removed from the production reference and central package pin, not
+moved into tests. Restored production/test assets contain no Dapper. The reviewer
+independently compared the regenerated notices with the actual runtime graph:
+52 matching dependencies, no difference. Only Dapper's attribution was removed;
+shared license terms remain. Architecture and deployment comments now reflect the
+actual implementation without changing the managed packaging route.
+
+Parent gates after independent approval: `dotnet build SqlToAi.slnx --warnaserror`
+returned 0 warnings/errors; full no-build tests returned 1,961 passed, 19 skipped,
+0 failed. `temp/audit-gates/r6a.trx` skip names exactly match the external TLS
+baseline; `git diff --check` was clean. The independent review and managed checks
+do not substitute for R6b's unmasked Native AOT gate.
 

@@ -14,10 +14,11 @@ user-approved acceptance boundaries in the current concept.
 
 ## Resume checkpoint
 
-The independent deep audit started at `cab47d3` on 2026-10-17. Historical
-milestone checkmarks below describe prior acceptance, not renewed verification.
-Feature closure is reopened until the remediation slices and final audit below
-pass. Findings and their source locations are in the [deep audit](audit.md#deep-audit-at-cab47d3).
+The independent deep audit started at `cab47d3` on 2026-10-17. Reviewed remediation
+R1–R5 and the R2a environment follow-up are committed through `00f5b58`. R6a has
+independent approval and complete managed gates; R6b is next. Feature closure remains open for the Native AOT gate
+and independent final acceptance. Findings and source locations are in the
+[deep audit](audit.md#deep-audit-at-cab47d3).
 
 Baseline gates: `dotnet build SqlToAi.slnx --warnaserror` returned 0 warnings and
 0 errors; `dotnet test SqlToAi.slnx --no-build` returned 1,486 passed, 19 skipped,
@@ -71,10 +72,11 @@ loops, superseding the workflow's sequential-audit and one-correction defaults.
   run final build/tests/publish, retain unresolved compatibility findings openly,
   replace unsupported M4.3 claims and supply the missing M3.4 evidence. No
   production-grade or warning-free AOT claim is permitted while these remain open.
-  - [ ] **R6a — Remove application-owned dynamic data mapping.** Replace the
+  - [x] **R6a — Remove application-owned dynamic data mapping.** Replace the
     existing Dapper catalog/provider calls with explicit ADO.NET mappings and
     parameters; preserve null handling, outputs, cancellation and timeouts. Use
     independent review and the complete managed gates before committing.
+    Evidence: [R6a review and gates](audit.md#r6a--explicit-ado-net-catalog-and-provider-mapping).
   - [ ] **R6b — Remove hidden diagnostics and execute the Native AOT gate.**
     Remove global IL2104/IL3053 suppression, publish the actual application,
     and distinguish application remediation from unresolved official-driver
@@ -163,14 +165,14 @@ claims; rerun code checks only when changes or unresolved concerns warrant it.
 
 ## M4 — Hard cut, operating documentation and final evidence
 
-- [x] **M4 — Aggregate:** M4.1–M4.3 accepted; every concept acceptance criterion
-  is verified and the final contract contains no compatibility behavior.
+- [ ] **M4 — Aggregate:** managed remediation is verified; warning-free Native
+  AOT and final independent acceptance remain open.
 
 - [x] [**M4.1 — Activate strict startup and remove the single-server contract**](roadmap/m4.1-activate-strict-startup-and-remove-the-single-server-contract.md)
   Make every shipped entry point accept only the approved contract.
 
-- [x] [**M4.2 — Verify composed target isolation and Native AOT compilation**](roadmap/m4.2-verify-composed-target-isolation-and-native-aot-compilation.md)
+- [ ] [**M4.2 — Verify composed target isolation and Native AOT compilation**](roadmap/m4.2-verify-composed-target-isolation-and-native-aot-compilation.md)
   Prove the composed process behaves like its unit-level contracts.
 
-- [x] [**M4.3 — Audit the complete concept and close the roadmap**](roadmap/m4.3-audit-the-complete-concept-and-close-the-roadmap.md)
+- [ ] [**M4.3 — Audit the complete concept and close the roadmap**](roadmap/m4.3-audit-the-complete-concept-and-close-the-roadmap.md)
   Verify the finished contract without relying on milestone claims.

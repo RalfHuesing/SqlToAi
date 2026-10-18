@@ -27,6 +27,60 @@ public sealed class MetadataProviderTests
     public static string? LastTableNameParameter { get; set; }
 
     [Theory]
+    [InlineData(0)]
+    [InlineData(7)]
+    public async Task Lookups_ApplyProviderCommandTimeoutToBothCommands(int timeout)
+    {
+        var commands = new List<FakeDbCommand>();
+        using var connection = new FakeDbConnection(conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(
+            ExecuteReader: command =>
+            {
+                commands.Add(command);
+                return command.CommandText.Contains("sys.columns", StringComparison.Ordinal)
+                    ? new FakeDbDataReader(["ColumnName", "Description"], [["Value", "column description"]])
+                    : new FakeDbDataReader(["Description"], [["table description"]]);
+            })));
+        var options = new SqlToAiOptions().WithNamedServers(ServerAlias);
+        options.Servers[ServerAlias].MetadataProvider.Enabled = true;
+        options.Servers[ServerAlias].MetadataProvider.CommandTimeoutSeconds = timeout;
+        var provider = new MetadataProvider(new DummyConnectionFactory(connection), Options.Create(options), NullLogger<MetadataProvider>.Instance);
+
+        Assert.Equal("table description", await provider.GetTableDescriptionAsync(Target, "dbo.Table", TestContext.Current.CancellationToken));
+        Assert.Equal("column description", (await provider.GetColumnDescriptionsAsync(Target, "dbo.Table", TestContext.Current.CancellationToken))["Value"]);
+        Assert.Equal(2, commands.Count);
+        Assert.All(commands, command => Assert.Equal(timeout, command.CommandTimeout));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ColumnLookup_PreservesCustomAliasesNullValuesAndLastRowWins(bool omitDescriptionAlias)
+    {
+        using var connection = new FakeDbConnection(conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(
+            ExecuteReader: _ => new FakeDbDataReader(
+                [omitDescriptionAlias ? "Other" : "dEsCrIpTiOn", "COLUMNNAME"],
+                [["first", "Value"], [DBNull.Value, "Value"], [42, "Number"], ["", "Empty"],
+                    ["ignored", DBNull.Value], ["ignored", " "], ["last", "VALUE"]]))));
+        var options = new SqlToAiOptions().WithNamedServers(ServerAlias);
+        options.Servers[ServerAlias].MetadataProvider.Enabled = true;
+        options.Servers[ServerAlias].MetadataProvider.ColumnMetadataQuery = "SELECT custom aliases";
+        var provider = new MetadataProvider(new DummyConnectionFactory(connection), Options.Create(options), NullLogger<MetadataProvider>.Instance);
+
+        var descriptions = await provider.GetColumnDescriptionsAsync(Target, "dbo.Table", TestContext.Current.CancellationToken);
+        if (omitDescriptionAlias)
+        {
+            Assert.Empty(descriptions);
+        }
+        else
+        {
+            Assert.Equal(3, descriptions.Count);
+            Assert.Equal("last", descriptions["value"]);
+            Assert.Equal("42", descriptions["Number"]);
+            Assert.Equal("", descriptions["Empty"]);
+        }
+    }
+
+    [Theory]
     [InlineData("table")]
     [InlineData("columns")]
     public async Task Lookup_TlsOpenFailure_PreservesMissingResultAndLogsOnlySafeDiagnostic(string lookup)

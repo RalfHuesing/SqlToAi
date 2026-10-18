@@ -26,7 +26,11 @@ public static class SqlParameterBinder
 
         ForEachParameter(rawParameters, (name, value) =>
         {
-            if (value is JsonElement jsonElement)
+            if (value is SqlParameterValue typedValue)
+            {
+                AddParameterFromValue(command, name, typedValue.Value, typedValue.DbType);
+            }
+            else if (value is JsonElement jsonElement)
             {
                 AddParameter(command, name, jsonElement);
             }
@@ -224,3 +228,5 @@ public static class SqlParameterBinder
     private static string NormalizeParameterName(string paramName) =>
         paramName.StartsWith('@') ? paramName : "@" + paramName;
 }
+
+internal readonly record struct SqlParameterValue(object? Value, DbType DbType);

@@ -38,7 +38,7 @@ public sealed class SchemaDiscoveryTests
             if (export)
             {
                 Assert.DoesNotContain("TOP", command.CommandText);
-                Assert.DoesNotContain(command.Parameters.Cast<DbParameter>(), parameter => parameter.ParameterName == "Limit");
+                Assert.DoesNotContain(command.Parameters.Cast<DbParameter>(), parameter => parameter.ParameterName.TrimStart('@') == "Limit");
             }
             else
             {
@@ -193,7 +193,7 @@ public sealed class SchemaDiscoveryTests
             new SchemaObjectIdentity(2, "audit", "Orders", SchemaObjectKind.Table));
         var factory = new ReaderConnectionFactory(command =>
         {
-            bool hasIdentity = command.Parameters.Cast<DbParameter>().Any(parameter => parameter.ParameterName == "ObjectId");
+            bool hasIdentity = command.Parameters.Cast<DbParameter>().Any(parameter => parameter.ParameterName.TrimStart('@') == "ObjectId");
             if (command.CommandText.Contains("sys.triggers", StringComparison.Ordinal))
             {
                 return hasIdentity
@@ -317,7 +317,7 @@ public sealed class SchemaDiscoveryTests
     }
 
     private static object? Parameter(FakeDbCommand command, string name) =>
-        command.Parameters.Cast<DbParameter>().Single(parameter => parameter.ParameterName == name).Value;
+        command.Parameters.Cast<DbParameter>().Single(parameter => parameter.ParameterName.TrimStart('@') == name).Value;
 
     private sealed class ReaderConnectionFactory(Func<FakeDbCommand, DbDataReader> reader) : IDatabaseConnectionFactory
     {

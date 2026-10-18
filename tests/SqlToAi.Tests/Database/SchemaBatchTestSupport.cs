@@ -42,7 +42,7 @@ internal sealed class SchemaBatchTestFactory : IDatabaseConnectionFactory
     {
         string sql = command.CommandText;
         Commands.Add(sql);
-        var parameters = command.Parameters.Cast<DbParameter>().ToDictionary(item => item.ParameterName, item => item.Value, StringComparer.Ordinal);
+        var parameters = command.Parameters.Cast<DbParameter>().ToDictionary(item => item.ParameterName.TrimStart('@'), item => item.Value, StringComparer.Ordinal);
         if (sql is "CUSTOM_TABLE_DESCRIPTION" or "CUSTOM_COLUMN_DESCRIPTION" || sql.Contains("MS_Description", StringComparison.Ordinal))
         {
             MetadataQueryNames.Add((string)parameters["TableName"]!);

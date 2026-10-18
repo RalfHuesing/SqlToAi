@@ -7,7 +7,6 @@ using SqlToAi.Database;
 using SqlToAi.Domain;
 using SqlToAi.Metadata;
 using SqlToAi.Security;
-using Dapper;
 
 namespace SqlToAi.Tests.Database;
 

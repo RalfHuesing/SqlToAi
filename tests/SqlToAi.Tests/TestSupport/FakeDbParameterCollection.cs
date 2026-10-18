@@ -7,7 +7,7 @@ namespace SqlToAi.Tests.TestSupport;
 /// Generic <see cref="DbParameterCollection"/> fake shared by every ADO.NET test double in this
 /// project. Backed by a plain <see cref="List{DbParameter}"/> — every member is a byte-for-byte
 /// mechanical forwarding call, so a single fully-functional implementation is safe to reuse
-/// everywhere: production code (via Dapper) only ever calls <see cref="Add"/>/<see cref="Clear"/>
+/// everywhere: production code only ever calls <see cref="Add"/>/<see cref="Clear"/>
 /// and enumerates the collection, never the by-name lookups/removals, so there is no
 /// test-specific behavior to preserve per call site.
 /// </summary>

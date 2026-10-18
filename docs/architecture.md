@@ -1,6 +1,6 @@
 # Architecture
 
-SqlToAi is a .NET 10 / C# 14 process hosting MCP over stdio, with a CLI that dispatches the same SQL tools. It connects to Microsoft SQL Server through `Microsoft.Data.SqlClient`; Dapper is used for metadata queries. It does not expose an HTTP listener. SQL Server connections still use the network when the configured instance is remote.
+SqlToAi is a .NET 10 / C# 14 process hosting MCP over stdio, with a CLI that dispatches the same SQL tools. It connects to Microsoft SQL Server through `Microsoft.Data.SqlClient`; catalog and provider queries use ADO.NET commands with explicit row mappings. It does not expose an HTTP listener. SQL Server connections still use the network when the configured instance is remote.
 
 ## Runtime
 

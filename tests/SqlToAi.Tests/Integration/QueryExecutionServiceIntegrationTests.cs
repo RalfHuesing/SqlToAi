@@ -3,7 +3,6 @@ using SqlToAi.Configuration;
 using SqlToAi.Database;
 using SqlToAi.Domain;
 using SqlToAi.Security;
-using Dapper;
 
 namespace SqlToAi.Tests.Integration;
 
@@ -114,7 +113,8 @@ public sealed class QueryExecutionServiceIntegrationTests
     {
         await using var connection = _fx.ConnectionFactory.CreateTargetConnection(new DatabaseTargetContext(_server, _db));
         await connection.OpenAsync(TestContext.Current.CancellationToken);
-        return await connection.ExecuteScalarAsync<long>("SELECT COUNT(*) FROM dbo.FakeProjects");
+        return await DatabaseCommandExecutor.QueryFirstOrDefaultAsync(connection,
+            "SELECT COUNT(*) FROM dbo.FakeProjects", static row => row.GetInt64(0), TestContext.Current.CancellationToken);
     }
 
     [Fact]

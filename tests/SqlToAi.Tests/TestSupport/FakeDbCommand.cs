@@ -25,7 +25,7 @@ internal sealed record FakeDbCommandHandlers(
 /// supplied at construction, so each mock connection only has to author the dispatch logic that is
 /// actually specific to the service under test.
 /// </summary>
-internal sealed class FakeDbCommand(DbConnection? connection, FakeDbCommandHandlers? handlers = null) : DbCommand
+internal class FakeDbCommand(DbConnection? connection, FakeDbCommandHandlers? handlers = null) : DbCommand
 {
     private readonly FakeDbCommandHandlers _handlers = handlers ?? new FakeDbCommandHandlers();
     private readonly FakeDbParameterCollection _parameters = new();

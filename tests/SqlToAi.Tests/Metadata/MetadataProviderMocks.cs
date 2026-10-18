@@ -42,7 +42,7 @@ internal static class MockMetadataConnection
     {
         foreach (DbParameter param in cmd.Parameters)
         {
-            if (param.ParameterName == "TableName")
+            if (param.ParameterName.TrimStart('@') == "TableName")
             {
                 MetadataProviderTests.LastTableNameParameter = param.Value?.ToString();
             }

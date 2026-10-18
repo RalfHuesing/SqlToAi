@@ -65,7 +65,7 @@ internal sealed class SchemaPresentationFixture : IDatabaseConnectionFactory, IM
         string sql = command.CommandText;
         foreach (DbParameter parameter in command.Parameters)
         {
-            if (parameter.ParameterName is "ObjectName" or "TableName" or "RoutineName" or "ViewName")
+            if (parameter.ParameterName.TrimStart('@') is "ObjectName" or "TableName" or "RoutineName" or "ViewName")
                 QueriedObjectNames.Add((string)parameter.Value!);
         }
         if (ExportDiscovery && sql.Contains("ParentObjectId", StringComparison.Ordinal) && !sql.Contains("SELECT t.object_id", StringComparison.Ordinal))

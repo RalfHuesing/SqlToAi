@@ -260,7 +260,7 @@ public sealed class SchemaObjectSelectionTests
         {
             Commands.Add(command.CommandText);
             if (FailQuery) throw new InvalidOperationException("fixed selection failure");
-            var parameters = command.Parameters.Cast<DbParameter>().ToDictionary(parameter => parameter.ParameterName, parameter => parameter.Value, StringComparer.Ordinal);
+            var parameters = command.Parameters.Cast<DbParameter>().ToDictionary(parameter => parameter.ParameterName.TrimStart('@'), parameter => parameter.Value, StringComparer.Ordinal);
             var name = (string)parameters["ObjectName"]!;
             var schema = parameters["SchemaName"] as string;
             Names.Add(name);

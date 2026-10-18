@@ -1,8 +1,7 @@
 # SqlToAi Deployment Script
 # Compiles the application as a self-contained single-file executable for Windows win-x64.
-# Note: Native AOT is explicitly NOT used. Microsoft.Data.SqlClient and Dapper are
-# fundamentally AOT-incompatible (IL3053/IL2104 hard blockers), violating the
-# Zero-Warning directive. Self-contained single-file is the correct deployment strategy.
+# This packaging route uses the .NET runtime. Native AOT acceptance is validated separately;
+# the official SqlClient dependency still emits trimming and AOT diagnostics.
 
 $ErrorActionPreference = "Stop"
 
@@ -63,8 +62,7 @@ if (Test-Path $PublishDir) {
 }
 
 # Self-contained single-file publish for win-x64.
-# Native AOT is not used: Microsoft.Data.SqlClient and Dapper are fundamentally
-# AOT-incompatible (IL3053/IL2104 hard blockers), which would cause runtime crashes.
+# The packaging route remains independent of the separate Native AOT validation gate.
 dotnet publish $ProjectFile `
     -c Release `
     -r win-x64 `

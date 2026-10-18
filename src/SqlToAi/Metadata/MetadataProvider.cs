@@ -1,5 +1,5 @@
+using System.Data;
 using System.Data.Common;
-using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
@@ -85,8 +85,11 @@ public sealed class MetadataProvider : IMetadataProvider
             await using var connection = CreateOwnerConnection(target, ownerServer, metadata);
             await connection.OpenAsync(cancellationToken);
 
-            string? description = await connection.QueryFirstOrDefaultAsync<string>(
-                new CommandDefinition(sql, new { TableName = queryTableName }, cancellationToken: cancellationToken));
+            string? description = await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<string?>(
+                connection, sql,
+                static row => row.GetStringOrNull(0), cancellationToken,
+                parameters: new Dictionary<string, object?> { ["TableName"] = new SqlParameterValue(queryTableName, DbType.String) },
+                commandTimeout: metadata.CommandTimeoutSeconds);
 
             return description;
         }
@@ -133,14 +136,17 @@ public sealed class MetadataProvider : IMetadataProvider
             await using var connection = CreateOwnerConnection(target, ownerServer, metadata);
             await connection.OpenAsync(cancellationToken);
 
-            var rows = await connection.QueryAsync<object>(
-                new CommandDefinition(sql, new { TableName = queryTableName }, cancellationToken: cancellationToken));
+            var rows = await DatabaseCommandExecutor.QueryAsync<(string? ColumnName, string? Description)>(
+                connection, sql,
+                static row => (row.GetStringOrNull("ColumnName"), row.GetStringOrNull("Description")), cancellationToken,
+                parameters: new Dictionary<string, object?> { ["TableName"] = new SqlParameterValue(queryTableName, DbType.String) },
+                commandTimeout: metadata.CommandTimeoutSeconds);
 
             foreach (var row in rows)
             {
-                if (row is IDictionary<string, object> dictRow)
+                if (!string.IsNullOrWhiteSpace(row.ColumnName) && row.Description is not null)
                 {
-                    ExtractColumnDescription(dictRow, dict);
+                    dict[row.ColumnName] = row.Description;
                 }
             }
         }
@@ -179,23 +185,6 @@ public sealed class MetadataProvider : IMetadataProvider
         }
 
         return (NativeColumnQuery, tableName);
-    }
-
-    private static void ExtractColumnDescription(IDictionary<string, object> dictRow, Dictionary<string, string> dict)
-    {
-        var colKey = dictRow.Keys.FirstOrDefault(k => string.Equals(k, "ColumnName", StringComparison.OrdinalIgnoreCase));
-        var descKey = dictRow.Keys.FirstOrDefault(k => string.Equals(k, "Description", StringComparison.OrdinalIgnoreCase));
-
-        if (colKey != null && descKey != null)
-        {
-            string? colName = dictRow[colKey]?.ToString();
-            string? desc = dictRow[descKey]?.ToString();
-
-            if (!string.IsNullOrWhiteSpace(colName) && desc != null)
-            {
-                dict[colName] = desc;
-            }
-        }
     }
 
     private bool TryGetOwnerOptions(string serverAlias, out NamedServerOptions ownerServer, out MetadataProviderOptions metadata)

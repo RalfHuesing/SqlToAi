@@ -1,6 +1,6 @@
+using System.Data;
 using System.Data.Common;
 using System.Text.Json;
-using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
@@ -105,8 +105,9 @@ public sealed class SchemaService : ISchemaService
             await using var connection = connResult.Value;
             await PrimaryConnection.OpenCatalogAsync(connection, canonicalServer, cancellationToken);
 
-            var databases = await connection.QueryAsync<string>(
-                new CommandDefinition("SELECT name FROM sys.databases WHERE state = 0", cancellationToken: cancellationToken));
+            var databases = await DatabaseCommandExecutor.QueryAsync<string>(
+                connection, "SELECT name FROM sys.databases WHERE state = 0",
+                static row => row.GetString(0), cancellationToken);
 
             var allowedDbs = databases
                 .Where(db => _securityGuard.IsTargetAllowed(new DatabaseTargetContext(canonicalServer, db)))
@@ -220,7 +221,7 @@ public sealed class SchemaService : ISchemaService
             var renderedRows = new List<string[]>();
             foreach (var r in rows)
             {
-                renderedRows.Add([ r.SchemaName, r.ObjectName, r.TypeDescription ]);
+                renderedRows.Add([r.SchemaName, r.ObjectName, r.TypeDescription]);
             }
 
             if (renderedRows.Count == 0)
@@ -387,8 +388,10 @@ public sealed class SchemaService : ISchemaService
             await PrimaryConnection.OpenTargetAsync(connection, target, cancellationToken);
 
             // 1. Identify object type
-            var typeCode = await connection.QueryFirstOrDefaultAsync<string>(
-                new CommandDefinition("SELECT RTRIM(type) FROM sys.objects WHERE object_id = OBJECT_ID(@ObjectName)", new { ObjectName = objectName }, cancellationToken: cancellationToken));
+            var typeCode = await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<string?>(
+                connection, "SELECT RTRIM(type) FROM sys.objects WHERE object_id = OBJECT_ID(@ObjectName)",
+                static row => row.GetStringOrNull(0), cancellationToken,
+                parameters: new Dictionary<string, object?> { ["ObjectName"] = new SqlParameterValue(objectName, DbType.String) });
 
             if (string.IsNullOrEmpty(typeCode))
             {

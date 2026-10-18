@@ -229,7 +229,7 @@ public sealed class IndexSuggestionServiceTests
         DbParameter? tableParam = null;
         foreach (DbParameter p in paramsCmd!.Parameters)
         {
-            // Dapper sometimes strips the @ prefix, sometimes keeps it. Match either.
+            // Normalize the SQL parameter prefix for the assertions.
             string name = p.ParameterName.TrimStart('@');
             if (string.Equals(name, "TableName", StringComparison.OrdinalIgnoreCase))
             {
@@ -372,7 +372,7 @@ public sealed class IndexSuggestionServiceTests
         public FakeDbConnection? LastConnection { get; private set; }
 
         /// <summary>The most recent <see cref="FakeDbCommand"/> passed to <c>ExecuteReader</c> —
-        /// lets tests inspect the bound parameters (Dapper prefixes the names with <c>@</c>, but
+        /// lets tests inspect the bound parameters (the binder prefixes the names with <c>@</c>, but
         /// tests strip that prefix when looking up by property name).</summary>
         public FakeDbCommand? LastReaderCommand { get; private set; }
 

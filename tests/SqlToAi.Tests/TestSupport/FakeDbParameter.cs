@@ -6,8 +6,8 @@ namespace SqlToAi.Tests.TestSupport;
 
 /// <summary>
 /// Generic <see cref="DbParameter"/> fake shared by every ADO.NET test double in this project.
-/// Production code (via Dapper) only ever sets <see cref="ParameterName"/>/<see cref="Value"/> and
-/// reads them back — none of the other members carry test-specific behavior, so a single
+/// Stores parameter values, names and explicit types for command assertions. None of the
+/// members carry test-specific behavior, so a single
 /// implementation covers every mock connection/command in <c>tests/SqlToAi.Tests</c>.
 /// </summary>
 internal sealed class FakeDbParameter : DbParameter

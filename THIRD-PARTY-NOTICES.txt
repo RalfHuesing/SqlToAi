@@ -6,11 +6,10 @@ their own terms below. The self-contained executable includes the .NET runtime.
 Unmodified .NET third-party notices are included below.
 Review this file and upstream terms when dependencies change.
 
-Runtime dependency review: resolved net10.0 graph, 2026-10-17.
+Runtime dependency review: resolved net10.0 graph, 2026-10-18.
 Version references describe this review; the built artifacts determine shipped bytes.
 Build analyzers and test-only packages are not distributed.
 
-* Dapper/2.1.79 — Apache-2.0; Sam Saffron,Marc Gravell,Nick Craver; 2019 Stack Exchange, Inc.
 * Microsoft.Bcl.Cryptography/9.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 * Microsoft.Data.SqlClient/7.0.2 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 * Microsoft.Data.SqlClient.Extensions.Abstractions/7.0.2 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
@@ -97,7 +96,6 @@ SOFTWARE.
 
 Apache-2.0 components
 ---------------------
-Dapper: Copyright (c) 2019 Stack Exchange, Inc.; Sam Saffron, Marc Gravell, Nick Craver.
 Serilog and Serilog extensions/sinks: Copyright (c) Serilog Contributors.
 ModelContextProtocol: Copyright (c) Model Context Protocol a Series of LF Projects, LLC.
 No dependency source modifications are made by SqlToAi.

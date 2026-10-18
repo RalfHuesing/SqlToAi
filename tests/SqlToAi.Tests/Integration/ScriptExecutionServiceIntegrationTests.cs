@@ -1,5 +1,4 @@
 using System.Text;
-using Dapper;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
@@ -289,20 +288,20 @@ public sealed class ScriptExecutionServiceIntegrationTests
     {
         await using var connection = _fixture.ConnectionFactory.CreateTargetConnection(new SqlToAi.Domain.DatabaseTargetContext("test", TestConstants.DatabaseName));
         await connection.OpenAsync(TestContext.Current.CancellationToken);
-        return await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+        return await DatabaseCommandExecutor.QueryFirstOrDefaultAsync(connection,
             "SELECT COUNT(*) FROM dbo.FakeProjects WHERE ProjectName = @Marker",
-            new { Marker = marker },
-            cancellationToken: TestContext.Current.CancellationToken));
+            static row => row.GetInt64(0), TestContext.Current.CancellationToken,
+            new Dictionary<string, object?> { ["Marker"] = marker });
     }
 
     private async Task DeleteMarkerAsync(string marker)
     {
         await using var connection = _fixture.ConnectionFactory.CreateTargetConnection(new SqlToAi.Domain.DatabaseTargetContext("test", TestConstants.DatabaseName));
         await connection.OpenAsync(CancellationToken.None);
-        await connection.ExecuteAsync(new CommandDefinition(
-            "DELETE FROM dbo.FakeProjects WHERE ProjectName = @Marker",
-            new { Marker = marker },
-            cancellationToken: CancellationToken.None));
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM dbo.FakeProjects WHERE ProjectName = @Marker";
+        SqlParameterBinder.BindParameters(command, new Dictionary<string, object?> { ["Marker"] = marker });
+        await command.ExecuteNonQueryAsync(CancellationToken.None);
     }
 
     private async Task CleanupAsync(string scriptPath, string marker)

@@ -30,7 +30,6 @@ SOFTWARE.
 
 Apache-2.0 components
 ---------------------
-Dapper: Copyright (c) 2019 Stack Exchange, Inc.; Sam Saffron, Marc Gravell, Nick Craver.
 Serilog and Serilog extensions/sinks: Copyright (c) Serilog Contributors.
 ModelContextProtocol: Copyright (c) Model Context Protocol a Series of LF Projects, LLC.
 No dependency source modifications are made by SqlToAi.

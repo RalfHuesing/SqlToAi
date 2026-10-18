@@ -1,5 +1,5 @@
+using System.Data;
 using System.Data.Common;
-using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlToAi.Configuration;
@@ -138,12 +138,11 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
             await using var connection = createConnection();
             await connection.OpenAsync(cancellationToken);
 
-            string? safeTableName = await connection.QueryFirstOrDefaultAsync<string>(
-                new CommandDefinition(
-                    "SELECT QUOTENAME(OBJECT_SCHEMA_NAME(OBJECT_ID(@TableName, 'U'))) + '.' + QUOTENAME(OBJECT_NAME(OBJECT_ID(@TableName, 'U')))",
-                    new { TableName = tableName },
-                    cancellationToken: cancellationToken,
-                    commandTimeout: rules.CommandTimeoutSeconds));
+            string? safeTableName = await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<string?>(
+                connection, "SELECT QUOTENAME(OBJECT_SCHEMA_NAME(OBJECT_ID(@TableName, 'U'))) + '.' + QUOTENAME(OBJECT_NAME(OBJECT_ID(@TableName, 'U')))",
+                static row => row.GetStringOrNull(0), cancellationToken,
+                parameters: new Dictionary<string, object?> { ["TableName"] = new SqlParameterValue(tableName, DbType.String) },
+                commandTimeout: rules.CommandTimeoutSeconds);
 
             if (string.IsNullOrEmpty(safeTableName))
             {
@@ -159,8 +158,9 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
                 ? "[DatabasePattern], [SchemaPattern], [TablePattern], [ColumnPattern], [Anonymize]"
                 : "[DatabasePattern], [TablePattern], [ColumnPattern], [Anonymize]";
             string sql = $"SELECT {columnList} FROM {safeTableName} WHERE [IsActive] = 1";
-            var rows = await connection.QueryAsync<RuleRow>(
-                new CommandDefinition(sql, cancellationToken: cancellationToken, commandTimeout: rules.CommandTimeoutSeconds));
+            var rows = await DatabaseCommandExecutor.QueryAsync<RuleRow>(
+                connection, sql,
+                ReadRuleRow, cancellationToken, commandTimeout: rules.CommandTimeoutSeconds);
 
             return rows.Select(r => new AnonymizationRule(r.DatabasePattern, r.SchemaPattern, r.TablePattern, r.ColumnPattern, r.Anonymize)).ToList();
         }
@@ -209,8 +209,11 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
     private async Task<bool> HasSchemaPatternColumnAsync(DbConnection connection, AnonymizationRulesOptions rules, CancellationToken cancellationToken)
     {
         const string checkSql = "SELECT CASE WHEN COL_LENGTH(@TableName, 'SchemaPattern') IS NOT NULL THEN 1 ELSE 0 END";
-        return await connection.QueryFirstOrDefaultAsync<bool>(
-            new CommandDefinition(checkSql, new { TableName = rules.TableName }, cancellationToken: cancellationToken, commandTimeout: rules.CommandTimeoutSeconds));
+        return await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<bool>(
+            connection, checkSql,
+                static row => row.GetBoolean(0), cancellationToken,
+                parameters: new Dictionary<string, object?> { ["TableName"] = new SqlParameterValue(rules.TableName, DbType.String) },
+                commandTimeout: rules.CommandTimeoutSeconds);
     }
 
     /// <summary>
@@ -353,4 +356,13 @@ public sealed class AnonymizationRuleProvider : IAnonymizationRuleProvider
         public string ColumnPattern { get; init; } = string.Empty;
         public bool Anonymize { get; init; }
     }
+
+    private static RuleRow ReadRuleRow(DatabaseRow row) => new()
+    {
+        DatabasePattern = row.GetString("DatabasePattern", "%"),
+        SchemaPattern = row.GetString("SchemaPattern", "%"),
+        TablePattern = row.GetString("TablePattern", "%"),
+        ColumnPattern = row.GetString("ColumnPattern"),
+        Anonymize = row.GetBoolean("Anonymize")
+    };
 }

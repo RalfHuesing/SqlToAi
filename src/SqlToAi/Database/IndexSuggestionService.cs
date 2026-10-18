@@ -1,7 +1,7 @@
+using System.Data;
 using System.Data.Common;
 using System.Globalization;
 using System.Text;
-using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -193,15 +193,17 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
             ORDER BY ti.ImprovementScore DESC, ti.Statement, mic.column_id
             """;
 
-        var parameters = new
+        var parameters = new Dictionary<string, object?>
         {
-            TableName = args.TableName,
-            MinScore = args.MinScore,
-            Top = args.Top
+            ["TableName"] = new SqlParameterValue(args.TableName, DbType.String),
+            ["MinScore"] = new SqlParameterValue(args.MinScore, DbType.Double),
+            ["Top"] = new SqlParameterValue(args.Top, DbType.Int32)
         };
 
-        var rawRows = await connection.QueryAsync<SuggestionRawRow>(
-            new CommandDefinition(sql, parameters, cancellationToken: ct));
+        var rawRows = await DatabaseCommandExecutor.QueryAsync<SuggestionRawRow>(
+            connection, sql,
+                ReadSuggestionRawRow, ct,
+                parameters: parameters);
 
         return GroupRows(rawRows);
     }
@@ -345,4 +347,17 @@ public sealed class IndexSuggestionService : IIndexSuggestionService
         public int ColumnId { get; init; }
         public string ColumnUsage { get; init; } = string.Empty;
     }
+
+    private static SuggestionRawRow ReadSuggestionRawRow(DatabaseRow row) => new()
+    {
+        Statement = row.GetString("Statement"),
+        IndexHandle = row.GetInt64("IndexHandle"),
+        UserSeeks = row.GetInt64("UserSeeks"),
+        UserScans = row.GetInt64("UserScans"),
+        LastUserSeek = row.GetNullableDateTime("LastUserSeek"),
+        AvgTotalUserCost = row.GetDouble("AvgTotalUserCost"),
+        AvgUserImpact = row.GetDouble("AvgUserImpact"),
+        ColumnId = row.GetInt32("ColumnId"),
+        ColumnUsage = row.GetString("ColumnUsage")
+    };
 }

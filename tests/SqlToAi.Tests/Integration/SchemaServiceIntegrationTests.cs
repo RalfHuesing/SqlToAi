@@ -1,6 +1,5 @@
 using SqlToAi.Database;
 using SqlToAi.Domain;
-using Dapper;
 using System.Text;
 using System.Text.Json;
 
@@ -85,9 +84,10 @@ public sealed class SchemaServiceIntegrationTests
 
         await using var connection = _fx.ConnectionFactory.CreateTargetConnection(new DatabaseTargetContext(_server, _db));
         await connection.OpenAsync(TestContext.Current.CancellationToken);
-        var matchingIds = (await connection.QueryAsync<int>(new CommandDefinition(
+        var matchingIds = (await DatabaseCommandExecutor.QueryAsync(connection,
             "SELECT object_id FROM sys.objects WHERE is_ms_shipped = 0 AND schema_name(schema_id) = @SchemaName AND name = @ObjectName",
-            new { SchemaName = "DBO", ObjectName = "FAKEPROJECTS" }, cancellationToken: TestContext.Current.CancellationToken))).ToArray();
+            static row => row.GetInt32(0), TestContext.Current.CancellationToken,
+            new Dictionary<string, object?> { ["SchemaName"] = "DBO", ["ObjectName"] = "FAKEPROJECTS" })).ToArray();
         var cased = result.Value[3].Object;
         if (matchingIds.Length == 0)
         {

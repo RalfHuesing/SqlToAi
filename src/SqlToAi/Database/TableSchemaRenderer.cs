@@ -1,6 +1,6 @@
+using System.Data;
 using System.Data.Common;
 using System.Text;
-using Dapper;
 using SqlToAi.Anonymization;
 using SqlToAi.Domain;
 using SqlToAi.Metadata;
@@ -55,8 +55,10 @@ internal sealed class TableSchemaRenderer
             ORDER BY c.column_id
             """;
 
-        var columns = await connection.QueryAsync<ColumnRow>(
-            new CommandDefinition(columnsSql, new { TableName = tableName }, cancellationToken: cancellationToken));
+        var columns = await DatabaseCommandExecutor.QueryAsync<ColumnRow>(
+            connection, columnsSql,
+                ReadColumnRow, cancellationToken,
+                parameters: new Dictionary<string, object?> { ["TableName"] = new SqlParameterValue(tableName, DbType.String) });
 
         string? tableDesc = null;
         IReadOnlyDictionary<string, string>? columnDescs = null;
@@ -191,14 +193,20 @@ internal sealed class TableSchemaRenderer
 
     private static async Task AppendDiscoveryIndexAsync(StringBuilder sb, DbConnection connection, string tableName, List<TriggerRow> triggers, CancellationToken cancellationToken)
     {
-        int fksCount = await connection.QueryFirstOrDefaultAsync<int>(
-            new CommandDefinition("SELECT COUNT(*) FROM sys.foreign_keys WHERE parent_object_id = OBJECT_ID(@TableName) OR referenced_object_id = OBJECT_ID(@TableName)", new { TableName = tableName }, cancellationToken: cancellationToken));
+        int fksCount = await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<int>(
+            connection, "SELECT COUNT(*) FROM sys.foreign_keys WHERE parent_object_id = OBJECT_ID(@TableName) OR referenced_object_id = OBJECT_ID(@TableName)",
+                static row => row.GetInt32(0), cancellationToken,
+                parameters: new Dictionary<string, object?> { ["TableName"] = new SqlParameterValue(tableName, DbType.String) });
 
-        int indexesCount = await connection.QueryFirstOrDefaultAsync<int>(
-            new CommandDefinition("SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(@TableName) AND is_hypothetical = 0", new { TableName = tableName }, cancellationToken: cancellationToken));
+        int indexesCount = await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<int>(
+            connection, "SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(@TableName) AND is_hypothetical = 0",
+                static row => row.GetInt32(0), cancellationToken,
+                parameters: new Dictionary<string, object?> { ["TableName"] = new SqlParameterValue(tableName, DbType.String) });
 
-        int constraintsCount = await connection.QueryFirstOrDefaultAsync<int>(
-            new CommandDefinition("SELECT COUNT(*) FROM (SELECT object_id FROM sys.default_constraints WHERE parent_object_id = OBJECT_ID(@TableName) UNION ALL SELECT object_id FROM sys.check_constraints WHERE parent_object_id = OBJECT_ID(@TableName)) c", new { TableName = tableName }, cancellationToken: cancellationToken));
+        int constraintsCount = await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<int>(
+            connection, "SELECT COUNT(*) FROM (SELECT object_id FROM sys.default_constraints WHERE parent_object_id = OBJECT_ID(@TableName) UNION ALL SELECT object_id FROM sys.check_constraints WHERE parent_object_id = OBJECT_ID(@TableName)) c",
+                static row => row.GetInt32(0), cancellationToken,
+                parameters: new Dictionary<string, object?> { ["TableName"] = new SqlParameterValue(tableName, DbType.String) });
 
         sb.AppendLine("## Discovery Index");
         sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"- **Foreign Keys:** {fksCount} (run `sql_get_schema_foreign_keys` to view details)");
@@ -227,14 +235,18 @@ internal sealed class TableSchemaRenderer
             WHERE parent_id = OBJECT_ID(@TableName)
             """;
 
-        return await connection.QueryAsync<TriggerRow>(
-            new CommandDefinition(triggersSql, new { TableName = tableName }, cancellationToken: cancellationToken));
+        return await DatabaseCommandExecutor.QueryAsync<TriggerRow>(
+            connection, triggersSql,
+                ReadTriggerRow, cancellationToken,
+                parameters: new Dictionary<string, object?> { ["TableName"] = new SqlParameterValue(tableName, DbType.String) });
     }
 
     public static async Task<string> GetViewDefinitionMarkdownAsync(DbConnection connection, string viewName, CancellationToken cancellationToken)
     {
-        string? ddl = await connection.QueryFirstOrDefaultAsync<string>(
-            new CommandDefinition("SELECT definition FROM sys.sql_modules WHERE object_id = OBJECT_ID(@ViewName)", new { ViewName = viewName }, cancellationToken: cancellationToken));
+        string? ddl = await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<string?>(
+            connection, "SELECT definition FROM sys.sql_modules WHERE object_id = OBJECT_ID(@ViewName)",
+                static row => row.GetStringOrNull(0), cancellationToken,
+                parameters: new Dictionary<string, object?> { ["ViewName"] = new SqlParameterValue(viewName, DbType.String) });
 
         var sb = new StringBuilder();
         sb.AppendLine("## View Definition");
@@ -254,11 +266,15 @@ internal sealed class TableSchemaRenderer
     public static async Task<string> GetRoutineSchemaMarkdownAsync(DbConnection connection, string routineName, CancellationToken cancellationToken, SchemaRenderingContext? context = null)
     {
         // Query DDL Definition
-        string? ddl = await connection.QueryFirstOrDefaultAsync<string>(
-            new CommandDefinition("SELECT definition FROM sys.sql_modules WHERE object_id = OBJECT_ID(@RoutineName)", new { RoutineName = routineName }, cancellationToken: cancellationToken));
+        string? ddl = await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<string?>(
+            connection, "SELECT definition FROM sys.sql_modules WHERE object_id = OBJECT_ID(@RoutineName)",
+                static row => row.GetStringOrNull(0), cancellationToken,
+                parameters: new Dictionary<string, object?> { ["RoutineName"] = new SqlParameterValue(routineName, DbType.String) });
 
-        int paramCount = await connection.QueryFirstOrDefaultAsync<int>(
-            new CommandDefinition("SELECT COUNT(*) FROM sys.parameters WHERE object_id = OBJECT_ID(@RoutineName)", new { RoutineName = routineName }, cancellationToken: cancellationToken));
+        int paramCount = await DatabaseCommandExecutor.QueryFirstOrDefaultAsync<int>(
+            connection, "SELECT COUNT(*) FROM sys.parameters WHERE object_id = OBJECT_ID(@RoutineName)",
+                static row => row.GetInt32(0), cancellationToken,
+                parameters: new Dictionary<string, object?> { ["RoutineName"] = new SqlParameterValue(routineName, DbType.String) });
 
         var sb = new StringBuilder();
         sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"# DDL Definition for Stored Procedure/Function: {(context is null ? $"`{routineName}`" : OfflineSqlNameFormatter.Code(context.Source.DisplayName))}");
@@ -324,4 +340,26 @@ internal sealed class TableSchemaRenderer
         public int? IsDelete { get; init; }
         public int? IsInsert { get; init; }
     }
+
+    private static ColumnRow ReadColumnRow(DatabaseRow row) => new()
+    {
+        ColumnName = row.GetString("ColumnName"),
+        DataType = row.GetString("DataType"),
+        MaxLength = row.GetInt32("MaxLength"),
+        Precision = row.GetInt32("Precision"),
+        Scale = row.GetInt32("Scale"),
+        IsNullable = row.GetBoolean("IsNullable"),
+        IsIdentity = row.GetBoolean("IsIdentity"),
+        IsPrimaryKey = row.GetInt32("IsPrimaryKey")
+    };
+
+    private static TriggerRow ReadTriggerRow(DatabaseRow row) => new()
+    {
+        ObjectId = row.GetInt32("ObjectId"),
+        TriggerName = row.GetString("TriggerName"),
+        IsDisabled = row.GetNullableInt32("IsDisabled"),
+        IsUpdate = row.GetNullableInt32("IsUpdate"),
+        IsDelete = row.GetNullableInt32("IsDelete"),
+        IsInsert = row.GetNullableInt32("IsInsert")
+    };
 }

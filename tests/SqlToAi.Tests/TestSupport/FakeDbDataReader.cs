@@ -25,7 +25,7 @@ internal sealed record FakeDbResultSet(string[] Columns, IReadOnlyList<object?[]
 /// the requested ordinal, and <see cref="GetFieldType"/> infers each column's CLR type from the
 /// first non-null value found in that column.
 /// </summary>
-internal sealed class FakeDbDataReader : DbDataReader
+internal class FakeDbDataReader : DbDataReader
 {
     private readonly IReadOnlyList<FakeDbResultSet> _resultSets;
     private int _resultSetIndex;

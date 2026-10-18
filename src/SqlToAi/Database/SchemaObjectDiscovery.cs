@@ -1,5 +1,5 @@
+using System.Data;
 using System.Data.Common;
-using Dapper;
 
 namespace SqlToAi.Database;
 
@@ -51,8 +51,28 @@ internal static class SchemaObjectDiscovery
                 schema_name(o.schema_id), o.name
             """;
 
-        return connection.QueryAsync<ObjectRow>(new CommandDefinition(sql,
-            new { Limit = limit, SearchPattern = searchPattern, TypeFilter = typeFilter, ExportOnly = exportOnly, SchemaName = schemaName, ObjectName = objectName }, cancellationToken: cancellationToken));
+        var parameters = new Dictionary<string, object?>
+        {
+            ["TypeFilter"] = new SqlParameterValue(typeFilter, DbType.String),
+            ["ExportOnly"] = new SqlParameterValue(exportOnly, DbType.Boolean)
+        };
+        if (limit.HasValue)
+        {
+            parameters["Limit"] = new SqlParameterValue(limit, DbType.Int32);
+        }
+        if (objectName is null)
+        {
+            parameters["SearchPattern"] = new SqlParameterValue(searchPattern, DbType.String);
+        }
+        else
+        {
+            parameters["SchemaName"] = new SqlParameterValue(schemaName, DbType.String);
+            parameters["ObjectName"] = new SqlParameterValue(objectName, DbType.String);
+        }
+        return DatabaseCommandExecutor.QueryAsync<ObjectRow>(
+            connection, sql,
+            ReadObjectRow, cancellationToken,
+            parameters: parameters);
     }
 
     internal sealed class ObjectRow
@@ -91,4 +111,16 @@ internal static class SchemaObjectDiscovery
             _ => throw new InvalidOperationException($"Unsupported schema object type '{typeDescription}'.")
         };
     }
+
+    private static ObjectRow ReadObjectRow(DatabaseRow row) => new()
+    {
+        ObjectId = row.GetInt32("ObjectId"),
+        SchemaName = row.GetString("SchemaName"),
+        ObjectName = row.GetString("ObjectName"),
+        TypeDescription = row.GetString("TypeDescription"),
+        ParentObjectId = row.GetNullableInt32("ParentObjectId"),
+        ParentSchemaName = row.GetStringOrNull("ParentSchemaName"),
+        ParentObjectName = row.GetStringOrNull("ParentObjectName"),
+        ParentTypeDescription = row.GetStringOrNull("ParentTypeDescription")
+    };
 }
