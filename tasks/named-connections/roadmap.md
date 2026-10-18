@@ -15,9 +15,10 @@ user-approved acceptance boundaries in the current concept.
 ## Resume checkpoint
 
 The independent deep audit started at `cab47d3` on 2026-10-17. Reviewed remediation
-R1–R5 and the R2a environment follow-up are committed through `00f5b58`. R6a has
-independent approval and complete managed gates; R6b is next. Feature closure remains open for the Native AOT gate
-and independent final acceptance. Findings and source locations are in the
+R1–R5, R2a and R6a are committed through `fe52819`. R6b removes hidden diagnostics
+and has complete managed gates, but the exact Native AOT publish exits 1 on
+official dependency diagnostics. R6c must independently audit this result and the
+complete feature; AOT acceptance and feature closure remain open. Findings are in the
 [deep audit](audit.md#deep-audit-at-cab47d3).
 
 Baseline gates: `dotnet build SqlToAi.slnx --warnaserror` returned 0 warnings and
@@ -81,6 +82,11 @@ loops, superseding the workflow's sequential-audit and one-correction defaults.
     Remove global IL2104/IL3053 suppression, publish the actual application,
     and distinguish application remediation from unresolved official-driver
     compatibility. Do not introduce a maintained driver fork implicitly.
+    Implementation and gate execution are complete; warning-free acceptance is
+    blocked by the current official dependencies. The exact command exits 1;
+    diagnostic-only publish has 57 IL warnings, including three IL3050.
+    Evidence: [R6b gates and upstream boundary](audit.md#r6b--unmasked-native-aot-gate-and-official-driver-boundary).
+    Continue the independent R6c audit without closing this unmet criterion.
   - [ ] **R6c — Complete independent final audit and evidence synchronization.**
     Supply M3.4 evidence, replace M4.3 claims, verify links/line and commit
     references, and leave any unmet Native AOT criterion explicitly open.

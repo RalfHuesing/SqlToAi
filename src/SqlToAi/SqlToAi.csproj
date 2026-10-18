@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <NoWarn>$(NoWarn);NU1510;IL2104;IL3053</NoWarn>
+    <NoWarn>$(NoWarn);NU1510</NoWarn>
     <Version>1.0.34</Version>
   </PropertyGroup>
 

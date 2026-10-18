@@ -215,6 +215,7 @@ Remediation is tracked in [the roadmap](roadmap.md#deep-audit-remediation).
 | R4: shared composed target contexts | `0eb44d4` | 1,646 / 19 / 0 |
 | R5: real composition and SDK/CLI binding | `f4145ed` | 1,927 / 19 / 0 |
 | R2a: normalized environment boundaries | `00f5b58` | 1,943 / 19 / 0 |
+| R6a: explicit ADO.NET mapping | `fe52819` | 1,961 / 19 / 0 |
 
 Every code row had a different independent reviewer, a warning-as-error build
 with zero warnings/errors and a clean diff check before commit. Skip names were
@@ -452,4 +453,69 @@ returned 0 warnings/errors; full no-build tests returned 1,961 passed, 19 skippe
 0 failed. `temp/audit-gates/r6a.trx` skip names exactly match the external TLS
 baseline; `git diff --check` was clean. The independent review and managed checks
 do not substitute for R6b's unmasked Native AOT gate.
+
+## R6b — Unmasked Native AOT gate and official driver boundary
+
+Executed on 2026-10-18. Coder: GPT-6-luna/high (`coder_r1`); independent
+reviewer: GPT-6.1-Sol/high (`audit_foundations`), read-only approval against
+`fe52819`. `src/SqlToAi/SqlToAi.csproj:5` removes IL2104/IL3053 suppression;
+the pre-existing NU1510 setting and TreatWarningsAsErrors remain. No descriptor,
+feature removal, driver fork, package downgrade or replacement suppression was
+introduced. `docs/development.md` documents the exact gate and separates it from
+managed packaging.
+
+After approval, parent `dotnet build SqlToAi.slnx --warnaserror` returned
+0 warnings/errors. Full no-build tests returned 1,961 passed, 19 skipped, 0 failed;
+`temp/audit-gates/r6b.trx` skip names exactly match the external TLS baseline.
+The diff check was clean.
+
+Actual required command, without property overrides:
+
+```powershell
+dotnet publish src/SqlToAi/SqlToAi.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=true -o temp/aot
+```
+
+**Exit 1; acceptance failed.** `temp/aot-final.log` records three IL2104 errors
+for Microsoft.Data.SqlClient, System.Configuration.ConfigurationManager and
+Microsoft.Data.SqlClient.Internal.Logging, plus IL3053 for SqlClient. The SDK
+reports MSB3077 after the native compiler emits those diagnostics. They are
+visible failures, not a clean publish.
+
+Diagnostic-only command:
+
+```powershell
+dotnet publish src/SqlToAi/SqlToAi.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=true -p:TrimmerSingleWarn=false -p:TreatWarningsAsErrors=false -o temp/aot-diagnostic-after
+```
+
+Exit 0 with **57 IL warning lines**, recorded in `temp/aot-diagnostic-after.log`:
+IL2026 26, IL2057 7, IL2067 4, IL2070 6, IL2072 7, IL2075 2, IL2111 2, IL3050 3.
+Diagnostic-origin namespaces: SqlClient 50, SqlTypes 2, System.Configuration 5.
+No diagnostic originates in SqlToAi or Dapper. Relative to the baseline, the
+46 Dapper warnings and its 14 IL3050 warnings are gone. This relaxed diagnostic
+run is not an accepted gate or runtime correctness proof.
+
+An independent GPT-6.1-Sol/high investigation inspected the installed 7.0.2 and
+official 7.1.1 code and linker substitutions; upgrading alone does not remove
+the reachable reflection/JSON/authentication/UDT paths. Upstream status checked
+2026-10-18: [7.1.1 release](https://github.com/dotnet/SqlClient/releases/tag/v7.1.1)
+predates the [partial JSON source-generation correction](https://github.com/dotnet/SqlClient/pull/4683)
+merged on October 1. [Zero-warning AOT support](https://github.com/dotnet/SqlClient/issues/1947)
+and [trimming-compatible UDT deserialization](https://github.com/dotnet/SqlClient/issues/4413)
+remain open; [AOT-safe authentication registration](https://github.com/dotnet/SqlClient/pull/4806)
+is separate upstream work. The [7.1.1 linker substitutions](https://github.com/dotnet/SqlClient/blob/v7.1.1/src/Microsoft.Data.SqlClient/src/Resources/ILLink.Substitutions.xml)
+do not offer a supported removal of those paths.
+
+A warning-free official dependency or an explicitly maintained driver change is
+still required. Introducing such a fork silently would add maintenance and
+support obligations beyond the application remediation. R6b/M4.2 and aggregate
+feature acceptance remain open; no production-grade or warning-free AOT claim is
+made. Independent final audit must preserve this boundary.
+
+Generated `temp/aot`, `temp/aot-diagnostic` and `temp/aot-diagnostic-after`
+directories are absent after cleanup. Paths were verified inside this checkout's
+temp directory and contained no tracked files. Diagnostic logs and TRX files are
+retained. SHA-256 of `temp/aot-final.log`:
+`F1105CB7B91CEEB6A65F1382CEE07CCB7E1CD75A80857DE331571D5B541EC1A7`;
+of `temp/aot-diagnostic-after.log`:
+`06FE2F8CE323BC155E9082B3DF19738D83EF057DE8B8CDBC839F194B647A1D0B`.
 

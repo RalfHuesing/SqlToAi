@@ -233,6 +233,23 @@ Existing inspection output remains unchanged; export returns only its compact ou
 
 The script checks each native `dotnet` exit code and stops on failure. Failed tests leave the existing `publish/` directory intact; the test step restores the caller's working directory even on failure. A failed publish stops before package verification and completion messages, but may leave partial output after the previous package was removed. After redeployment, reload the MCP server entry in the client or restart the client: its old stdio session was terminated.
 
+### Native AOT publish gate
+
+From the repository root, ensure `temp/aot` is a fresh, untracked output directory, then run:
+
+```powershell
+dotnet publish src/SqlToAi/SqlToAi.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=true -o temp/aot
+```
+
+The publish must succeed with warnings treated as errors. Resolve trimming or AOT warnings in code or dependencies; suppressing `IL2104`, `IL3053`, or other warning codes is not an accepted gate result. After reviewing the output, remove the generated directory:
+
+```powershell
+Remove-Item -LiteralPath temp/aot -Recurse
+```
+
+This validation does not change the managed packaging and deployment path above.
+The Native AOT gate remains open: current `Microsoft.Data.SqlClient` dependencies produce trimming and AOT diagnostics, and a successful managed build does not establish Native AOT publishability.
+
 ### Create and check a Windows ZIP
 
 [package.ps1](../scripts/package.ps1) creates a new output directory and publishes the current project **once** as a self-contained, single-file `win-x64` executable with native-library extraction. It archives the complete publish directory without a directory prefix as `SqlToAi-win-x64.zip`, copies that archive to `SqlToAi-win-x64.mcpb`, and adds only `manifest.json`. Both contain byte-identical application payloads. Project publish rules supply `appsettings.json`, `demo-profile.json`, the package `README.md`, `LICENSE`, and [THIRD-PARTY-NOTICES.txt](../THIRD-PARTY-NOTICES.txt), including ordinary build/deploy output. Before packaging, `package.ps1` runs [update-third-party-notices.ps1](../scripts/update-third-party-notices.ps1) to automatically inspect runtime dependencies and regenerate `THIRD-PARTY-NOTICES.txt`. The consolidated notice preserves package metadata attribution, the MIT/Apache texts, the MCP SDK's licensing transition, the native SqlClient SNI license and the .NET runtime third-party notices.
