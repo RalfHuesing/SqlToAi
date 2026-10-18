@@ -229,7 +229,7 @@ public sealed class ScriptExecutionServiceTests
         var service = BuildService(factory, safety, executor);
 
         var result = await service.ExecuteAsync(
-            BuildRequest("SELECT 1\nGO\nSELECT 2"), TestContext.Current.CancellationToken);
+            BuildRequest("SELECT ProtectedName FROM dbo.T\nGO\nSELECT ProtectedName FROM dbo.T"), TestContext.Current.CancellationToken);
 
         Assert.Equal(ScriptExecutionStatus.Success, result.Status);
         Assert.All(executor.Calls, call => Assert.Equal(expectedAnonymize, call.Anonymize));
@@ -253,7 +253,7 @@ public sealed class ScriptExecutionServiceTests
         var service = BuildService(factory, safety, executor);
 
         var result = await service.ExecuteAsync(
-            BuildRequest("SELECT 1\nGO\nSELECT 2") with
+            BuildRequest("SELECT ProtectedName FROM dbo.T\nGO\nSELECT ProtectedName FROM dbo.T") with
             {
                 UseTransaction = false
             },

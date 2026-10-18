@@ -149,8 +149,9 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
             try
             {
                 baselineTranCount = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, _options.CommandTimeoutSeconds, cancellationToken);
+                bool anonymizeResult = anonymize && !SqlColumnReferenceDetector.IsColumnIndependent(query);
                 var execArgs = new QueryBatchExecutionArgs(
-                    connection, transaction, target.QualifiedName, query, effectiveLimit, anonymize, parameters, target);
+                    connection, transaction, target.QualifiedName, query, effectiveLimit, anonymizeResult, parameters, target);
                 result = await ((IQueryBatchExecutor)this).ExecuteBatchAsync(execArgs, cancellationToken);
                 int tranCountAfterExecution = await TransactionIntegrityGuard.GetTranCountAsync(connection, transaction, _options.CommandTimeoutSeconds, cancellationToken);
                 tranCountChanged = tranCountAfterExecution != baselineTranCount;

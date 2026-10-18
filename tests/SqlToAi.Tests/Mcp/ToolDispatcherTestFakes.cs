@@ -13,7 +13,7 @@ internal static class ToolDispatcherTestHelper
 {
     public static ToolDispatcher BuildDispatcher(
         ISchemaService? schema = null,
-        FakeQueryExecutionService? exec = null,
+        IQueryExecutionService? exec = null,
         FakeScriptExecutionService? script = null,
         FakeQueryValidationService? validation = null,
         DatabaseAnalysisServices? analysis = null,

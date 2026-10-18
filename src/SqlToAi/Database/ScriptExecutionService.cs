@@ -330,7 +330,11 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
         CancellationToken cancellationToken)
     {
         var executions = new List<QueryExecutionResult>(batch.RepeatCount);
-        QueryBatchExecutionArgs args = context.ExecutionArgs with { Query = batch.Text };
+        QueryBatchExecutionArgs args = context.ExecutionArgs with
+        {
+            Query = batch.Text,
+            Anonymize = context.ExecutionArgs.Anonymize && !SqlColumnReferenceDetector.IsColumnIndependent(batch.Text)
+        };
         try
         {
             for (int repetition = 0; repetition < batch.RepeatCount; repetition++)

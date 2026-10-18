@@ -2,6 +2,26 @@
 
 Order: 3. Implement after [03](03-hidden-browse-columns.md) and [05](05-german-statistics-messages.md).
 
+Status: completed and verified.
+
+Implementation: `gpt-6.1-sol`, reasoning effort `high`.
+
+Single-query and script-batch callers disable result anonymization only after a
+successful ScriptDom parse with no `ColumnReferenceExpression` or
+`SelectStarExpression`. Parse failures and references anywhere in the tree retain
+the existing masking path; the dispatcher notice and forced serializer behavior
+are unchanged. Both security-documentation statements now describe this boundary.
+
+Verification: `dotnet build SqlToAi.slnx` passed with 0 warnings and 0 errors;
+`dotnet test SqlToAi.slnx` passed 2,000 tests with 19 configured TLS integration
+cases skipped and 0 failures. The focused column-reference, script and browse-column
+regression run passed 79 tests. Fixtures cover literals, `FROM` without a column,
+`@@LANGUAGE`, actual dispatcher output without a notice, both star forms,
+null-origin expressions, constant projections with predicate references, parse
+failure, permitted `LEN`/`LIKE`/`CASE` and cleartext access. The forced-anonymization
+serializer test from [03](03-hidden-browse-columns.md) remains intact. No production
+database was used.
+
 ## Problem
 
 On a `ReadOnlyAnonymized` target, `AnonymizeCell` tokenizes every string whose column origin is missing. These statements were tokenized, and `BuildAnonymizationNote` described the output alias as a searchable column:
