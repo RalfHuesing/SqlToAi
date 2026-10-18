@@ -44,6 +44,8 @@ public sealed partial class QueryExecutionService
     /// </summary>
     private sealed record ColumnOrigin(string? TableName, string? ColumnName, string? SchemaName);
 
+    private sealed record ResultColumn(int Ordinal, string Name);
+
     /// <summary>
     /// Bundles per-query anonymization context for passing between internal helpers.
     /// <see cref="Target"/> is the resolved execution target carried by every batch execution.
@@ -57,7 +59,7 @@ public sealed partial class QueryExecutionService
 
     private async Task<AnonymizationContext> ResolveAnonymizationContextAsync(
         DbDataReader reader,
-        string[] columnNames,
+        ResultColumn[] columns,
         bool anonymize,
         DatabaseTargetContext target,
         CancellationToken cancellationToken)
@@ -69,7 +71,7 @@ public sealed partial class QueryExecutionService
 
         var columnOrigins = GetColumnOrigins(reader);
         bool[]? centralExclusions = _anonymizationRuleProvider != null
-            ? await ResolveCentralExclusionsAsync(target, columnNames, columnOrigins, cancellationToken)
+            ? await ResolveCentralExclusionsAsync(target, columns, columnOrigins, cancellationToken)
             : null;
 
         return new AnonymizationContext(true, columnOrigins, centralExclusions, _tokenizationOptions.IsUsable, target);
@@ -82,12 +84,12 @@ public sealed partial class QueryExecutionService
     /// never inherits a rule scoped to another schema.
     /// </summary>
     private async Task<bool[]> ResolveCentralExclusionsAsync(
-        DatabaseTargetContext target, string[] columnNames, ColumnOrigin?[] columnOrigins, CancellationToken cancellationToken)
+        DatabaseTargetContext target, ResultColumn[] columns, ColumnOrigin?[] columnOrigins, CancellationToken cancellationToken)
     {
-        var result = new bool[columnNames.Length];
-        for (int i = 0; i < columnNames.Length; i++)
+        var result = new bool[columnOrigins.Length];
+        foreach (var column in columns)
         {
-            ColumnOrigin? origin = i < columnOrigins.Length ? columnOrigins[i] : null;
+            ColumnOrigin? origin = columnOrigins[column.Ordinal];
             if (origin is null
                 || string.IsNullOrWhiteSpace(origin.SchemaName)
                 || string.IsNullOrWhiteSpace(origin.TableName)
@@ -96,7 +98,7 @@ public sealed partial class QueryExecutionService
                 continue;
             }
 
-            result[i] = await _anonymizationRuleProvider!.IsExcludedAsync(
+            result[column.Ordinal] = await _anonymizationRuleProvider!.IsExcludedAsync(
                 target, origin.SchemaName, origin.TableName, origin.ColumnName, cancellationToken);
         }
         return result;
@@ -105,17 +107,17 @@ public sealed partial class QueryExecutionService
     private void AppendSerializedRow(
         StringBuilder sb,
         DbDataReader reader,
-        string[] columnNames,
+        ResultColumn[] columns,
         AnonymizationContext anonCtx,
         RowAnonymizationTracker tracker)
     {
-        var rowDict = new Dictionary<string, object?>(columnNames.Length, StringComparer.OrdinalIgnoreCase);
+        var rowDict = new Dictionary<string, object?>(columns.Length, StringComparer.OrdinalIgnoreCase);
 
-        for (int i = 0; i < columnNames.Length; i++)
+        foreach (var column in columns)
         {
-            object? raw = reader.IsDBNull(i) ? null : reader.GetValue(i);
-            raw = AnonymizeCell(columnNames[i], raw, anonCtx, i, tracker);
-            rowDict[columnNames[i]] = raw;
+            object? raw = reader.IsDBNull(column.Ordinal) ? null : reader.GetValue(column.Ordinal);
+            raw = AnonymizeCell(column.Name, raw, anonCtx, column.Ordinal, tracker);
+            rowDict[column.Name] = raw;
         }
 
         sb.AppendLine(JsonSerializer.Serialize(rowDict, typeof(Dictionary<string, object?>), McpJsonContext.Default));
@@ -225,13 +227,41 @@ public sealed partial class QueryExecutionService
         return string.IsNullOrEmpty(value) ? null : value;
     }
 
-    private static string[] GetColumnNames(DbDataReader reader)
+    private static ResultColumn[] GetColumnNames(DbDataReader reader)
     {
-        var names = new string[reader.FieldCount];
+        var hiddenOrdinals = new HashSet<int>();
+        try
+        {
+            var schemaTable = reader.GetSchemaTable();
+            if (schemaTable?.Columns.Contains("IsHidden") == true)
+            {
+                bool hasOrdinal = schemaTable.Columns.Contains("ColumnOrdinal");
+                for (int i = 0; i < schemaTable.Rows.Count; i++)
+                {
+                    var row = schemaTable.Rows[i];
+                    if (row["IsHidden"] is true)
+                    {
+                        hiddenOrdinals.Add(hasOrdinal
+                            ? Convert.ToInt32(row["ColumnOrdinal"], System.Globalization.CultureInfo.InvariantCulture)
+                            : i);
+                    }
+                }
+            }
+        }
+        catch (Exception ignored)
+        {
+            _ = ignored; // Preserve all fields when schema metadata is unavailable.
+            hiddenOrdinals.Clear();
+        }
+
+        var columns = new List<ResultColumn>(reader.FieldCount);
         for (int i = 0; i < reader.FieldCount; i++)
         {
-            names[i] = reader.GetName(i);
+            if (!hiddenOrdinals.Contains(i))
+            {
+                columns.Add(new ResultColumn(i, reader.GetName(i)));
+            }
         }
-        return names;
+        return columns.ToArray();
     }
 }

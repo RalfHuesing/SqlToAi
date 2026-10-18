@@ -253,13 +253,13 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
                 await using var reader = await command.ExecuteReaderAsync(behavior, cancellationToken);
                 do
                 {
-                    string[] columnNames = GetColumnNames(reader);
+                    var columns = GetColumnNames(reader);
                     var anonCtx = await ResolveAnonymizationContextAsync(
-                        reader, columnNames, args.Anonymize, args.Target, cancellationToken);
+                        reader, columns, args.Anonymize, args.Target, cancellationToken);
 
                     while (rowCount < args.RowLimit && await reader.ReadAsync(cancellationToken))
                     {
-                        AppendSerializedRow(sb, reader, columnNames, anonCtx, tracker);
+                        AppendSerializedRow(sb, reader, columns, anonCtx, tracker);
                         rowCount++;
                     }
                 }

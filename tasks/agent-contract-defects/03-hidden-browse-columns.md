@@ -2,6 +2,23 @@
 
 Order: 1.
 
+Status: completed and verified.
+
+Implementation: `gpt-6.1-sol`, reasoning effort `high`.
+
+Visible result columns retain their reader ordinals. Schema rows marked
+`IsHidden=true` are omitted from JSON and anonymization notices on both execution
+paths; full origin metadata and the existing reader behaviors remain intact.
+Unavailable hidden metadata preserves all fields. Selected binary values remain
+base64. The result contract is documented in [tools](../../docs/tools.md#query-and-script-execution).
+
+Verification: `dotnet build SqlToAi.slnx` succeeded with no warnings or errors;
+`dotnet test SqlToAi.slnx` passed 1,970 tests with 19 configured TLS integration
+cases skipped (1,989 total). The 14 new fake-reader regression cases all passed,
+including hidden intermediate ordinals, reordered schema rows, source exclusions,
+null/missing/unsupported schema metadata, projected keys and selected `byte[]`.
+The new cases use no database; the full suite uses its existing test fixtures.
+
 `02` turns cell anonymization off when a statement has no column reference. This file's serializer test does not use that production decision. It calls the serializer with anonymization forced on, so the reader is opened with `CommandBehavior.KeyInfo`.
 
 ## Problem
