@@ -10,35 +10,35 @@ Runtime dependency review: resolved net10.0 graph, 2026-10-18.
 Version references describe this review; the built artifacts determine shipped bytes.
 Build analyzers and test-only packages are not distributed.
 
-* Microsoft.Bcl.Cryptography/9.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Data.SqlClient/7.0.2 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Data.SqlClient.Extensions.Abstractions/7.0.2 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Data.SqlClient.Internal.Logging/7.0.2 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Data.SqlClient.SNI.runtime/6.0.2 — LICENSE.txt; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Bcl.Cryptography/9.0.18 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Data.SqlClient/7.1.1 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Data.SqlClient.Extensions.Abstractions/7.1.1 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Data.SqlClient.Internal.Logging/7.1.1 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Data.SqlClient.SNI.runtime/7.1.0 — LICENSE.txt; Microsoft; © Microsoft Corporation. All rights reserved.
 * Microsoft.Extensions.AI.Abstractions/10.8.3 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 * Microsoft.Extensions.Caching.Abstractions/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.Caching.Memory/9.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.Configuration/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.Configuration.Abstractions/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.Configuration.Binder/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.Configuration.EnvironmentVariables/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.Configuration.FileExtensions/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.Configuration.Json/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.DependencyInjection/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.DependencyInjection.Abstractions/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.Caching.Memory/9.0.18 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.Configuration/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.Configuration.Abstractions/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.Configuration.Binder/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.Configuration.EnvironmentVariables/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.Configuration.FileExtensions/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.Configuration.Json/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.DependencyInjection/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.DependencyInjection.Abstractions/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 * Microsoft.Extensions.DependencyModel/10.0.0 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 * Microsoft.Extensions.Diagnostics.Abstractions/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.FileProviders.Abstractions/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.FileProviders.Physical/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.FileSystemGlobbing/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.FileProviders.Abstractions/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.FileProviders.Physical/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.FileSystemGlobbing/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 * Microsoft.Extensions.Hosting.Abstractions/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.Logging/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.Logging.Abstractions/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.Logging.Configuration/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.Logging.Console/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.Options/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.Options.ConfigurationExtensions/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.Extensions.Primitives/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.Logging/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.Logging.Abstractions/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.Logging.Configuration/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.Logging.Console/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.Options/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.Options.ConfigurationExtensions/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.Extensions.Primitives/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 * Microsoft.IdentityModel.Abstractions/8.16.0 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 * Microsoft.IdentityModel.JsonWebTokens/8.16.0 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 * Microsoft.IdentityModel.Logging/8.16.0 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
@@ -46,7 +46,7 @@ Build analyzers and test-only packages are not distributed.
 * Microsoft.IdentityModel.Protocols.OpenIdConnect/8.16.0 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 * Microsoft.IdentityModel.Tokens/8.16.0 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 * Microsoft.SqlServer.Server/1.0.0 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* Microsoft.SqlServer.TransactSql.ScriptDom/170.3.0 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* Microsoft.SqlServer.TransactSql.ScriptDom/180.140.0 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 * ModelContextProtocol/2.2.0 — Apache-2.0; ModelContextProtocol; © Model Context Protocol a Series of LF Projects, LLC.
 * ModelContextProtocol.Core/2.2.0 — Apache-2.0; ModelContextProtocol; © Model Context Protocol a Series of LF Projects, LLC.
 * Serilog/4.4.0 — Apache-2.0; Serilog Contributors; Copyright © Serilog Contributors
@@ -55,13 +55,14 @@ Build analyzers and test-only packages are not distributed.
 * Serilog.Settings.Configuration/10.0.1 — Apache-2.0; Serilog Contributors; 
 * Serilog.Sinks.Console/6.1.1 — Apache-2.0; Serilog Contributors; 
 * Serilog.Sinks.File/7.0.0 — Apache-2.0; Serilog Contributors; 
-* System.CommandLine/2.0.9 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* System.Configuration.ConfigurationManager/9.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* System.Diagnostics.EventLog/9.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* System.CommandLine/2.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* System.Configuration.ConfigurationManager/9.0.18 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* System.Diagnostics.EventLog/9.0.18 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 * System.IdentityModel.Tokens.Jwt/8.16.0 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 * System.Security.Cryptography.Pkcs/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* System.Security.Cryptography.ProtectedData/9.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
-* System.Text.Encoding.CodePages/10.0.10 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* System.Security.Cryptography.ProtectedData/9.0.18 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* System.Text.Encoding.CodePages/10.0.13 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
+* System.Threading.RateLimiting/9.0.18 — MIT; Microsoft; © Microsoft Corporation. All rights reserved.
 
 
 MIT components

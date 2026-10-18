@@ -27,7 +27,13 @@ open. Findings are in the
 The user deferred that AOT work and explicitly authorized the follow-up R7 below.
 R7 is complete: independent review and managed gates passed with 1,956 tests,
 19 exact baseline external TLS skips and 0 failures; build has 0 warnings/errors.
-Deferral does not close R6b or M4 acceptance. No AOT or package work was resumed.
+Deferral does not close R6b or M4 acceptance. R7 resumed no AOT or package work.
+The user subsequently authorized R8 dependency updates, now complete for all 27
+repository-declared versions (20 updated, 7 already current). Independent review,
+managed gates and the dependency audit passed; 19 transitive-only version
+differences are explicitly recorded in the R8 evidence. Native AOT work remains
+deferred; an updated package graph is not proof that its separate acceptance gate
+passes.
 
 Baseline gates: `dotnet build SqlToAi.slnx --warnaserror` returned 0 warnings and
 0 errors; `dotnet test SqlToAi.slnx --no-build` returned 1,486 passed, 19 skipped,
@@ -116,6 +122,26 @@ loops, superseding the workflow's sequential-audit and one-correction defaults.
   independent review approves; warning-as-error build, full tests (only the exact
   baseline external TLS skips) and diff check pass before an atomic commit.
   Evidence: [R7 removal, review and gates](audit.md#r7--obsolete-optional-logging-removal).
+
+- [x] **R8 — Update all repository-declared NuGet dependencies to latest stable.**
+  Coder and different independent reviewer: GPT-6-luna/high. Escalate only if
+  runtime API changes require deeper implementation review.
+  Verify current versions against the official NuGet feed, including global
+  analyzer references and explicit transitive pins. Update central/project
+  declarations, resolve transitive dependencies and adapt affected APIs while
+  preserving tool schemas, safety, logging and test assertions. Refresh runtime
+  notices from the restored production graph using the already installed tool.
+  Exclude previews, framework/SDK migration, user-wide tool changes, publishing
+  and the deferred AOT work. Do not add warning/vulnerability suppressions or
+  downgrade packages to make checks pass.
+  Acceptance: all declared versions match latest stable upstream releases;
+  audit the resolved graph, explain any necessary compatibility boundary,
+  independent review approves, build has zero warnings/errors, full tests pass
+  with only the exact external TLS baseline skips, and diff/notices checks are
+  clean before the atomic commit. Report remaining transitive-only differences
+  explicitly rather than claiming every upstream dependency is independently
+  upgraded by its parent package.
+  Evidence: [R8 versions, graph boundary, review and gates](audit.md#r8--current-stable-nuget-declarations).
 
 ## Execution contract
 

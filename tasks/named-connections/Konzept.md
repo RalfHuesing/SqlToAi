@@ -26,6 +26,11 @@ names on different servers must have independent policy, rules and token scopes.
   template section, startup cleanup implementation and related documentation
   completely. Application/error logging and its sink retention remain supported.
   Existing user settings and log files must not be edited or deleted.
+- User-approved follow-up: update repository-declared NuGet dependencies,
+  including global analyzers and explicit transitive pins, to their latest
+  stable releases. Resolve the resulting dependency graph, adapt affected APIs
+  without weakening contracts, and refresh runtime notices. Do not install
+  previews or change the supported framework, user-wide tools or settings.
 
 ## Current behavior
 

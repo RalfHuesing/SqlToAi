@@ -675,3 +675,99 @@ exactly match the documented external TLS baseline. The five-test reduction from
 `git diff --check`, JSON parsing and the obsolete-reference scan passed. No Native
 AOT publish, package upgrade, deployment or personal-configuration change was run.
 
+## R8 — Current stable NuGet declarations
+
+User-approved follow-up on 2026-10-18; reviewed against `5be0da2`. Coder:
+GPT-6-luna/high (`upgrade_packages`); different independent read-only reviewer:
+GPT-6-luna/high (`review_packages`). The slice updates dependencies; the separate
+Native AOT acceptance remains deferred and open.
+
+All 27 central declarations, including both global analyzers and the explicit
+PKCS transitive pin, match the latest **listed stable** releases in official
+NuGet V3 registration metadata. Twenty declarations changed; seven were already
+current. No preview, framework/SDK change, downgrade or additional warning/audit
+suppression was introduced. Updated versions:
+
+| Declaration | Previous | Current |
+|---|---|---|
+| Meziantou.Analyzer | 3.0.290 | 3.0.307 |
+| Microsoft.CodeAnalysis.NetAnalyzers | 10.0.401 | 10.0.402 |
+| Microsoft.Data.SqlClient | 7.0.2 | 7.1.1 |
+| Microsoft.SqlServer.TransactSql.ScriptDom | 170.3.0 | 180.140.0 |
+| System.Text.Encoding.CodePages | 10.0.10 | 10.0.13 |
+| All ten declared Microsoft.Extensions packages | 10.0.10 | 10.0.13 |
+| System.CommandLine | 2.0.9 | 2.0.13 |
+| coverlet.collector | 10.0.1 | 10.1.0 |
+| Microsoft.NET.Test.Sdk | 18.7.0 | 18.11.0 |
+| xunit.runner.visualstudio | 3.1.5 | 4.0.1 |
+| xunit.v3 → xunit.v3.mtp-off | 3.2.2 | 4.0.2 |
+
+The unchanged current entries are ModelContextProtocol 2.2.0,
+System.Security.Cryptography.Pkcs 10.0.13, Serilog 4.4.0,
+Serilog.Extensions.Hosting 10.0.0, Serilog.Settings.Configuration 10.0.1,
+Serilog.Sinks.Console 6.1.1 and Serilog.Sinks.File 7.0.0.
+
+The xUnit package variant deliberately preserves the existing VSTest runner,
+category filters, TRX output and Coverlet collector. This is the
+[official xUnit v3 variant with MTP integration disabled](https://xunit.net/docs/getting-started/v3/microsoft-testing-platform#choosing-the-microsoft-testing-platform-version),
+using the current framework and adapter versions. No test assertions, source
+code, CI/release scripts or test configuration were changed; no `global.json`
+was added. The reviewer verified the variant against official documentation and
+independently checked important listed/latest feed entries.
+
+### Resolved graph boundary
+
+`dotnet package list --project SqlToAi.slnx --outdated --include-transitive
+--format json` reports **zero outdated top-level packages**, but 19 unique
+transitive-only differences across the four projects remain:
+
+| Transitive packages | Resolved | Latest stable |
+|---|---|---|
+| Microsoft.Bcl.AsyncInterfaces | 6.0.0 | 10.0.13 |
+| Microsoft.Extensions.AI.Abstractions | 10.8.3 | 10.11.0 |
+| Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.Diagnostics.Abstractions, Microsoft.Extensions.Hosting.Abstractions | 10.0.10 | 10.0.13 |
+| Microsoft.Extensions.DependencyModel | 10.0.0 | 10.0.13 |
+| Microsoft.Bcl.Cryptography, Microsoft.Extensions.Caching.Memory, System.Configuration.ConfigurationManager, System.Diagnostics.EventLog, System.Security.Cryptography.ProtectedData, System.Threading.RateLimiting | 9.0.18 | 10.0.13 |
+| Microsoft.IdentityModel.Abstractions, Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Logging, Microsoft.IdentityModel.Protocols, Microsoft.IdentityModel.Protocols.OpenIdConnect, Microsoft.IdentityModel.Tokens, System.IdentityModel.Tokens.Jwt | 8.16.0 | 8.23.0 |
+
+Some projects resolve the Extensions/EventLog entries to 10.0.13 already; the
+table records the older resolutions still reported elsewhere. The restored
+assets show these dependency floors in current upstream parents: xunit.v3.common
+for AsyncInterfaces; ModelContextProtocol/Core for AI, caching and hosting;
+SqlClient for the 9.0.18 and IdentityModel dependencies; the IdentityModel chain
+for its own family; Serilog.Settings.Configuration for DependencyModel. This
+slice updates repository declarations and uses their resolved graph; it adds no
+independent override pins for these upstream dependencies. These are disclosed
+version differences, not proven incompatibilities or a claim that every resolved
+package is latest.
+
+### Verification
+
+After independent approval, parent forced a fresh restore with
+`--force --force-evaluate --no-http-cache -p:NuGetAudit=true
+-p:NuGetAuditMode=all -p:NuGetAuditLevel=low -p:TreatWarningsAsErrors=true`:
+exit 0 for all four projects, no vulnerability or audit-source diagnostics.
+`dotnet build SqlToAi.slnx --no-restore --warnaserror` returned 0 warnings/errors.
+The complete `dotnet test SqlToAi.slnx --no-build` run returned 1,956 passed,
+19 skipped, 0 failed (`temp/audit-gates/r8.trx`); all skip names exactly match the
+original external TLS baseline. TLS acceptance remains unverified.
+
+The unchanged documented offline category filter with
+`RunConfiguration.TreatNoTestsAsError=true` and `--collect 'XPlat Code Coverage'`
+also passed: 1,907 passed, 0 skipped/failed. Coverlet produced a nonempty Cobertura
+report in `temp/r8/offline-coverage/`; this verifies the retained filter and
+collector with the updated test packages.
+
+Notices were regenerated using the already installed license tool. Parent and
+reviewer independently compared actual production assets against every notice
+package/version: all 53 runtime dependencies match, including native assets;
+no test/analyzer dependencies are included. `git diff --check` and the tracked
+obsolete-reference scan pass. No publish, deployment, user-wide tool installation
+or personal-settings change was performed.
+
+Ignored supporting reports are in `temp/r8/`: `version-matrix.csv`,
+`package-list-outdated.json`, `outdated-transitives.csv`,
+`transitive-parent-ranges.txt`, `parent-restore-audit.log`, `parent-build.log` and
+`parent-tests.log`. The committed declarations, notices and this explicit graph
+boundary retain the reviewable result without depending on temporary reports.
+
