@@ -40,6 +40,7 @@ public sealed class SchemaBatchOptions
 public sealed class DatabasesOptions
 {
     public List<string> ReadWrite { get; set; } = [];
+    public List<string> ReadWriteAnonymized { get; set; } = [];
     public List<string> ReadOnly { get; set; } = [];
     public List<string> ReadOnlyAnonymized { get; set; } = [];
     public List<string> SchemaOnly { get; set; } = [];
@@ -53,7 +54,7 @@ public sealed class DatabasesOptions
 /// central <c>AnonymizationRules</c> table (see <c>AnonymizationRuleProvider</c>) marks it as
 /// excluded (<c>Anonymize == false</c>) for the resolved database/schema/table/column. The central
 /// rule table is the source of exclusion decisions. Per-database opt-out is configured via the
-/// access level (<c>Databases.ReadOnly</c> for raw versus <c>Databases.ReadOnlyAnonymized</c>).
+/// access level (<c>ReadOnly</c>/<c>ReadWrite</c> for raw results, or their anonymized variants).
 /// </para>
 /// </summary>
 public sealed class AnonymizerOptions

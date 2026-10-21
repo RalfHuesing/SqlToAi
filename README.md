@@ -72,6 +72,7 @@ For Windows authentication and string masking, configure the `Databases` and
 "Databases": {
   "CacheTtlSeconds": 300,
   "ReadWrite": [],
+  "ReadWriteAnonymized": [],
   "ReadOnly": [],
   "ReadOnlyAnonymized": ["primary/ReportingDB"],
   "SchemaOnly": []
@@ -125,11 +126,14 @@ notices and errors go to stderr. Failed calls exit with code `1`. See
 ## Protection and limits
 
 Read-only execution uses SQL statement validation and rollback transactions.
-`ReadWrite` access permits changes. These guards complement SQL Server
-permissions; they do not replace them.
+`ReadWrite` permits changes with raw string results; `ReadWriteAnonymized` permits
+changes while applying the configured string masking or tokenization to query and
+script results. These application checks complement SQL Server permissions; they
+do not replace them.
 
-String masking applies to query and script results for `ReadOnlyAnonymized`
-databases. Numeric values, dates, schema definitions, query-comparison difference
+String masking applies to query and script results for `ReadOnlyAnonymized` and
+`ReadWriteAnonymized` databases. Numeric values, dates, schema definitions,
+query-comparison difference
 samples, and execution plan content can remain visible. Tokens are reversible
 within the running server. This is not a guarantee that all sensitive data is
 removed.

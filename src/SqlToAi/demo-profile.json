@@ -13,6 +13,7 @@
     "Databases": {
       "CacheTtlSeconds": 300,
       "ReadWrite": [ "test/DemoDB" ],
+      "ReadWriteAnonymized": [],
       "ReadOnly": [],
       "ReadOnlyAnonymized": [],
       "SchemaOnly": []

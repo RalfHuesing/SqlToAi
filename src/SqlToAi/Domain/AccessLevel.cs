@@ -28,5 +28,7 @@ public enum AccessLevel
     /// <summary>
     /// Full access is allowed (schema, read, and write operations).
     /// </summary>
-    ReadWrite = 4
+    ReadWrite = 4,
+
+    ReadWriteAnonymized = 5
 }

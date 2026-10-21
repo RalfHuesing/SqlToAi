@@ -49,6 +49,7 @@ public static class ConfigurationResolver
         if (options.Databases != null)
         {
             ExpandListInPlace(options.Databases.ReadWrite);
+            ExpandListInPlace(options.Databases.ReadWriteAnonymized);
             ExpandListInPlace(options.Databases.ReadOnly);
             ExpandListInPlace(options.Databases.ReadOnlyAnonymized);
             ExpandListInPlace(options.Databases.SchemaOnly);
@@ -141,6 +142,7 @@ public static class ConfigurationResolver
         }
 
         ValidateGrants("SqlToAi.Databases.ReadWrite", options.Databases.ReadWrite, options.Servers, pathSuffix);
+        ValidateGrants("SqlToAi.Databases.ReadWriteAnonymized", options.Databases.ReadWriteAnonymized, options.Servers, pathSuffix);
         ValidateGrants("SqlToAi.Databases.ReadOnly", options.Databases.ReadOnly, options.Servers, pathSuffix);
         ValidateGrants("SqlToAi.Databases.ReadOnlyAnonymized", options.Databases.ReadOnlyAnonymized, options.Servers, pathSuffix);
         ValidateGrants("SqlToAi.Databases.SchemaOnly", options.Databases.SchemaOnly, options.Servers, pathSuffix);

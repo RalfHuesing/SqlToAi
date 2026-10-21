@@ -150,7 +150,7 @@ internal sealed class ToolDispatcher : IToolDispatcher
                 }
 
                 var queryResult = result.Value;
-                string transactionOutcome = queryResult.AccessLevel == AccessLevel.ReadWrite ? "committed" : "rolled_back";
+                string transactionOutcome = queryResult.AccessLevel.IsWriteAllowed() ? "committed" : "rolled_back";
                 string countPhrase = queryResult.HasResultSet
                     ? $"{queryResult.RowCount} rows returned"
                     : $"{queryResult.RecordsAffected} rows affected";

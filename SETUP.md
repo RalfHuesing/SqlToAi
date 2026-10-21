@@ -37,6 +37,7 @@ This complete minimal example uses a fictional server name, leaves database acce
       "SchemaOnly": [],
       "ReadOnlyAnonymized": [],
       "ReadOnly": [],
+      "ReadWriteAnonymized": [],
       "ReadWrite": []
     }
   }
@@ -67,7 +68,7 @@ Inside the `SqlToAi` object, configure `Servers.<alias>.Server` and either
 `IntegratedSecurity=true` for the process Windows identity, or `UserId`/`Password`
 for SQL authentication. Valid server aliases match `^[A-Za-z][A-Za-z0-9_-]*$`.
 Add only deliberate database grants to `Databases`: `SchemaOnly`, `ReadOnlyAnonymized`,
-`ReadOnly`, or `ReadWrite` using qualified target names (`<alias>/<database>`),
+`ReadOnly`, `ReadWriteAnonymized`, or `ReadWrite` using qualified target names (`<alias>/<database>`),
 such as `primary/DemoDB`. Unlisted databases are denied. Restrict SQL Server
 permissions too. The separate `demo-profile.json` contains fictional local DemoDB
 credentials under server alias `test` and `ReadWrite` access to `test/DemoDB`.

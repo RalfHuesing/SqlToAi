@@ -166,7 +166,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
             target.QualifiedName,
             string.Empty,
             ResolveRowLimit(request.RequestedRowLimit),
-            safety.AccessLevel == AccessLevel.ReadOnlyAnonymized,
+            safety.AccessLevel.RequiresAnonymization(),
             request.Parameters,
             target);
         var context = new ScriptTransactionContext(args, safety.IsWriteAllowed, false, 0);
@@ -240,7 +240,7 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
                 target.QualifiedName,
                 string.Empty,
                 ResolveRowLimit(request.RequestedRowLimit),
-                safety.AccessLevel == AccessLevel.ReadOnlyAnonymized,
+                safety.AccessLevel.RequiresAnonymization(),
                 request.Parameters,
                 target);
             var context = new ScriptTransactionContext(args, safety.IsWriteAllowed, true, baselineTranCount);
@@ -405,14 +405,14 @@ internal sealed class ScriptExecutionService : IScriptExecutionService
         QuerySafetyCheckResult safety,
         bool useTransaction)
     {
-        if (safety.AccessLevel == AccessLevel.ReadWrite)
+        if (safety.AccessLevel.IsWriteAllowed())
         {
             return useTransaction
                 ? ScriptTransactionMode.ReadWriteAtomic
                 : ScriptTransactionMode.ReadWriteProviderAutocommit;
         }
 
-        return safety.AccessLevel == AccessLevel.ReadOnlyAnonymized
+        return safety.AccessLevel.RequiresAnonymization()
             ? ScriptTransactionMode.ReadOnlyAnonymizedRollback
             : ScriptTransactionMode.ReadOnlyRollback;
     }

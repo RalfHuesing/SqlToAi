@@ -15,6 +15,7 @@ public sealed class EffectiveOptionsValidationTests
         { "invalid-alias", "Server alias" },
         { "unqualified-grant", "SqlToAi.Databases.ReadWrite" },
         { "unknown-grant", "SqlToAi.Databases.ReadOnly" },
+        { "unknown-anonymized-write-grant", "SqlToAi.Databases.ReadWriteAnonymized" },
         { "schema-count", "SqlToAi.SchemaBatch.MaxInputCount" },
         { "schema-bytes", "SqlToAi.SchemaBatch.MaxResponseBytes" },
         { "app-retention", "SqlToAi.Logging.AppLog.RetainedFileCount" },
@@ -124,6 +125,7 @@ public sealed class EffectiveOptionsValidationTests
             case "invalid-alias": settings["SqlToAi:Servers:bad.alias:Server"] = "host"; break;
             case "unqualified-grant": settings["SqlToAi:Databases:ReadWrite:0"] = "AppDb"; break;
             case "unknown-grant": settings["SqlToAi:Databases:ReadOnly:0"] = "unknown/AppDb"; break;
+            case "unknown-anonymized-write-grant": settings["SqlToAi:Databases:ReadWriteAnonymized:0"] = "unknown/AppDb"; break;
             case "schema-count": settings["SqlToAi:SchemaBatch:MaxInputCount"] = "0"; break;
             case "schema-bytes": settings["SqlToAi:SchemaBatch:MaxResponseBytes"] = "-1"; break;
             case "app-retention": settings["SqlToAi:Logging:AppLog:RetainedFileCount"] = "0"; break;

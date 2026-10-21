@@ -33,7 +33,7 @@ The general local integration-test fixture has a separate, checked-in test-only 
 | Section | Fields and behavior |
 | --- | --- |
 | `Servers.<alias>` | One or more named servers. Valid aliases match `^[A-Za-z][A-Za-z0-9_-]*$`. Per-server: `Server`, `UserId`, `Password`, `IntegratedSecurity`, `TrustServerCertificate` (false), `ConnectTimeoutSeconds` (30), `ExcludedDatabases` (glob patterns, empty by default), plus optional server-scoped `MetadataProvider` (disabled by default) and `AnonymizationRules` (disabled by default) with their own dedicated connection fields. |
-| `Databases` | `SchemaOnly`, `ReadOnlyAnonymized`, `ReadOnly`, `ReadWrite`: qualified database grants (`<alias>/<database>`); all lists are empty by default; see [access policy](security.md#database-access). Grants must reference configured server aliases. `CacheTtlSeconds` defaults to 300; access-level resolution itself reads in-memory lists. |
+| `Databases` | `SchemaOnly`, `ReadOnlyAnonymized`, `ReadOnly`, `ReadWriteAnonymized`, `ReadWrite`: qualified database grants (`<alias>/<database>`); all lists are empty by default; see [access policy](security.md#database-access). Grants must reference configured server aliases. `CacheTtlSeconds` defaults to 300; access-level resolution itself reads in-memory lists. |
 | `Anonymizer` | `Enabled` (true), `DefaultMode` (`ScramblePattern` or `Hash`), `Tokenization.Enabled` (false), `Tokenization.Prefix` / `Suffix` (both `§§§`) |
 | `QueryExecution` | `DefaultRowLimit` (100), `MaxRowLimit` (1000), `CommandTimeoutSeconds` (30), `MaxScriptFileSizeBytes` (10485760 = 10 MiB) |
 | `SchemaBatch` | `MaxInputCount` (10), `MaxResponseBytes` (65536 UTF-8 bytes); both must be greater than zero |

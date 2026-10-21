@@ -3,10 +3,8 @@ using SqlToAi.Domain;
 namespace SqlToAi.Database;
 
 /// <summary>
-/// Executes a single SQL statement. Runs inside an explicit rollback transaction and rejects
-/// mutating keywords unless the database is at <c>AccessLevel.ReadWrite</c>, in which case the
-/// transaction is committed instead. Applies row limits and optional PII anonymization based on
-/// the database access level.
+/// Executes a single SQL statement with row limits. Writable access levels commit changes;
+/// read-only levels reject mutations and roll back. Anonymized access levels mask string results.
 /// </summary>
 public interface IQueryExecutionService
 {

@@ -10,15 +10,22 @@ database names, raw logs, or unredacted query/result content in public reports.
 
 ## Database access
 
-Access lists use qualified target names (`<alias>/<database>`), compared case-insensitively. Unlisted databases resolve to `None`. Server-scoped `Servers.<alias>.ExcludedDatabases` glob patterns match the raw database name and override database grants. If a target occurs in several lists, the first configured level in this table wins:
+Access lists use qualified target names (`<alias>/<database>`), compared case-insensitively. Unlisted databases resolve to `None`. Server-scoped `Servers.<alias>.ExcludedDatabases` glob patterns match the raw database name and override database grants. When a target occurs in several grant lists, the overlap rules below determine its effective level:
 
 | Level | Behavior |
 | --- | --- |
 | `SchemaOnly` | Schema discovery and query validation; data execution, comparison and performance measurement blocked |
 | `ReadOnlyAnonymized` | Read queries with string masking when the anonymizer is enabled |
 | `ReadOnly` | Read queries with raw results |
+| `ReadWriteAnonymized` | Read/write query and script execution with string masking when the anonymizer is enabled |
 | `ReadWrite` | Query/script execution can persist changes |
 | `None` | Access blocked; default for unlisted databases |
+
+When a target appears in multiple grant lists, the more restrictive matching
+level applies: `SchemaOnly` takes precedence, then `ReadOnlyAnonymized` (including
+a conflict between `ReadOnly` and `ReadWriteAnonymized`), then `ReadOnly`, then
+`ReadWriteAnonymized`, then `ReadWrite`. This preserves read-only and masking
+restrictions from overlapping grants.
 
 The shipped main template has empty access lists, so every database, including `DemoDB`, is denied until an administrator configures a level deliberately. The separate fictional DemoDB example explicitly grants `ReadWrite` to `test/DemoDB` for a local test database and is never loaded by the host automatically. Database discovery returns permitted databases only. Index suggestions also accept `SchemaOnly`, since they read metadata.
 
@@ -37,11 +44,29 @@ comparison and measurement calls resolve their own target and use the same
 context-based implementations. Export overviews and benchmark database fields
 identify the canonical qualified target; SQL/DDL identifiers remain unchanged.
 
-`sql_execute_query` rolls back in read-only modes and commits in `ReadWrite`. Single-query calls support leading `DECLARE` statements followed by one main query; multiple main statements fail with `SQL-AI-0101`. `ReadWrite` bypasses mutation checks but retains `USE` and single-query restrictions.
+`sql_execute_query` rolls back in read-only modes and commits in `ReadWrite` and
+`ReadWriteAnonymized`. Single-query calls support leading `DECLARE` statements
+followed by one main query; multiple main statements fail with `SQL-AI-0101`.
+Both write-capable levels bypass mutation checks but retain `USE` and single-query
+restrictions.
 
-`sql_execute_file` supports multiple statements and `GO` batches. Protected read-only modes always roll back. In `ReadWrite`, `use_transaction=true` selects one server-managed transaction; `false` permits per-batch autocommit, so earlier changes can remain after a later failure. Before any batch runs in a server-managed transaction, AST preflight rejects explicit `BEGIN`, `COMMIT`, `ROLLBACK`, `SAVE TRANSACTION` and `SET IMPLICIT_TRANSACTIONS`, including nested statements. Comments and string literals do not trigger rejection. Unparseable batches fail before execution. ReadWrite autocommit mode still permits caller transaction control.
+`sql_execute_file` supports multiple statements and `GO` batches. Protected read-only
+modes always roll back. In `ReadWrite` and `ReadWriteAnonymized`,
+`use_transaction=true` selects one server-managed transaction; `false` permits
+per-batch autocommit, so earlier changes can remain after a later failure. Before
+any batch runs in a server-managed transaction, AST preflight rejects explicit
+`BEGIN`, `COMMIT`, `ROLLBACK`, `SAVE TRANSACTION` and `SET IMPLICIT_TRANSACTIONS`,
+including nested statements. Comments and string literals do not trigger
+rejection. Unparseable batches fail before execution. Write-capable autocommit
+modes still permit caller transaction control.
 
-Atomicity requires all executed code to preserve the server-managed transaction. Procedures, dynamic SQL and triggers can contain transaction control that caller-text analysis cannot inspect; these remain supported in ReadWrite, with no atomicity guarantee for such code. The post-execution transaction-count check detects some state changes but cannot undo an earlier commit or guarantee detection when the count is restored. SQL Server permissions remain essential.
+Atomicity requires all executed code to preserve the server-managed transaction.
+Procedures, dynamic SQL and triggers can contain transaction control that
+caller-text analysis cannot inspect; these remain supported in write-capable
+modes, with no atomicity guarantee for such code. The post-execution
+transaction-count check detects some state changes but cannot undo an earlier
+commit or guarantee detection when the count is restored. SQL Server permissions
+remain essential.
 
 Validation uses SQL Server `NOEXEC` and rollback. A separate AST preflight rejects caller `SET NOEXEC`, `SET PARSEONLY` and `SET FMTONLY` (ON or OFF), including nested statements, before opening its validation connection. Unparseable input fails with `SQL-AI-0102`; prohibited controls fail with `SQL-AI-0104`. Ordinary SELECT and access-permitted DML validation remain supported. Comparison and performance services also roll back. Rollback does not prevent expensive queries, locks, information disclosure or every external side effect; it does not replace SQL permissions.
 
@@ -49,7 +74,16 @@ Query and script execution, validation, comparison, performance measurement, and
 
 ## String masking and tokenization
 
-Query and script result masking applies to `ReadOnlyAnonymized` with `Anonymizer.Enabled=true`, except columns excluded by a matching central rule. Exclusion matching uses the reader's resolved base schema, table and column; output aliases do not change the source-column decision. An expression that contains a column reference and has an incomplete origin stays masked by default. A successfully parsed statement with no ScriptDom `ColumnReferenceExpression` or `SelectStarExpression` is returned unchanged; a `FROM` table alone is not a column reference. Parse failures retain default masking. Disabling this switch exposes raw values even at that access level. Empty strings and non-string values remain unchanged.
+Query and script result masking applies to `ReadOnlyAnonymized` and
+`ReadWriteAnonymized` with `Anonymizer.Enabled=true`, except columns excluded by a
+matching central rule. Exclusion matching uses the reader's resolved base schema,
+table and column; output aliases do not change the source-column decision. An
+expression that contains a column reference and has an incomplete origin stays
+masked by default. A successfully parsed statement with no ScriptDom
+`ColumnReferenceExpression` or `SelectStarExpression` is returned unchanged; a
+`FROM` table alone is not a column reference. Parse failures retain default
+masking. Disabling this switch exposes raw values even at those access levels.
+Empty strings and non-string values remain unchanged.
 
 | Mode | Transformation | Limits |
 | --- | --- | --- |
@@ -57,11 +91,27 @@ Query and script result masking applies to `ReadOnlyAnonymized` with `Anonymizer
 | `Hash` | Unsalted SHA-256 as lowercase hexadecimal | Reveals equality; predictable inputs can be guessed by hashing candidates |
 | Tokenization | Process-local mapping, e.g. `§§§T1§§§` | Reversible in server memory; reveals equality; mappings disappear after restart |
 
-`Tokenization.Enabled=true` with non-empty delimiters replaces masking for protected strings. It follows the same source-origin exclusion decision: an expression that contains a column reference and has an incomplete origin stays masked by default; a successfully parsed statement with no column reference, as defined above, is returned unchanged. Parse failures retain default masking. The query-execution resolver uses ScriptDom syntax to substitute known complete tokens inside single-quoted value literals, escaping quotes, and does so only for the resolved target's own token scope. It preserves tokens in comments and identifiers, including single-quoted column aliases, escaped identifier delimiters and nested block comments, as well as unknown tokens. Unparseable input remains unchanged. Tokens can be reused with `=`, `IN` or `LIKE`; token fragments do not preserve the original value relationship. Unknown tokens are ordinary literal text and can match real stored text. Do not assume substitution for parameter values or every analysis tool.
+`Tokenization.Enabled=true` with non-empty delimiters replaces masking for
+protected strings at both anonymized access levels. It follows the same
+source-origin exclusion decision: an expression that contains a column reference
+and has an incomplete origin stays masked by default; a successfully parsed
+statement with no column reference, as defined above, is returned unchanged.
+Parse failures retain default masking. The query-execution resolver uses
+ScriptDom syntax to substitute known complete tokens inside single-quoted value
+literals, escaping quotes, and does so only for the resolved target's own token
+scope. It preserves tokens in comments and identifiers, including single-quoted
+column aliases, escaped identifier delimiters and nested block comments, as well
+as unknown tokens. Unparseable input remains unchanged. Tokens can be reused with
+`=`, `IN` or `LIKE`; token fragments do not preserve the original value
+relationship. Unknown tokens are ordinary literal text and can match real stored
+text. Do not assume substitution for parameter values or every analysis tool.
 
 The context-aware token paths scope token storage, issuance and resolution by the canonical server alias plus the exact raw database name, compared ordinally. Identical plaintext in different targets yields different tokens that cannot be resolved through the other target. Every token text has exactly one immutable owner scope for the process lifetime, covering minted and explicitly stored tokens: an explicit store that tries to bind a token owned by one target to another fails instead of rebinding, and minted identifiers never reuse a text reserved by a store, so token IDs cannot collide across scopes. A foreign or unknown token stays literal SQL text. Within one target, the same plaintext reuses the same token and re-storing overwrites the remembered value.
 
-`sql_get_schema` labels columns `No`, `Yes` or `Yes (searchable)` as guidance. Query results include a notice identifying masked columns where their source is known. Labels and notices do not establish that all outputs are sanitized.
+`sql_get_schema` labels columns `No`, `Yes` or `Yes (searchable)` as guidance for
+both anonymized access levels. Query results include a notice identifying masked
+columns where their source is known. Labels and notices do not establish that all
+outputs are sanitized.
 
 Direct catalog queries through `sql_execute_query` or `sql_execute_file` use the same result-masking rules as other query results; returned catalog strings may be altered. Schema and trigger definition tools return raw schema/DDL text, as described below.
 

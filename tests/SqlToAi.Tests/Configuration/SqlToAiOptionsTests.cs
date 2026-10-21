@@ -25,6 +25,7 @@ public sealed class SqlToAiOptionsTests
         Assert.NotNull(options.Anonymizer);
 
         Assert.Empty(options.Databases.ReadWrite);
+        Assert.Empty(options.Databases.ReadWriteAnonymized);
         Assert.Empty(options.Databases.ReadOnly);
         Assert.Empty(options.Databases.ReadOnlyAnonymized);
         Assert.Empty(options.Databases.SchemaOnly);
@@ -52,6 +53,7 @@ public sealed class SqlToAiOptionsTests
         var defaults = new SqlToAiOptions();
 
         Assert.Equal(defaults.Databases.ReadWrite, templateOptions.Databases.ReadWrite);
+        Assert.Equal(defaults.Databases.ReadWriteAnonymized, templateOptions.Databases.ReadWriteAnonymized);
         Assert.Equal(defaults.Databases.ReadOnly, templateOptions.Databases.ReadOnly);
         Assert.Equal(defaults.Databases.ReadOnlyAnonymized, templateOptions.Databases.ReadOnlyAnonymized);
         Assert.Equal(defaults.Databases.SchemaOnly, templateOptions.Databases.SchemaOnly);
@@ -119,6 +121,7 @@ public sealed class SqlToAiOptionsTests
           },
           "Databases": {
             "ReadWrite": ["my-server/DemoDB"],
+            "ReadWriteAnonymized": ["my-server/CustomerDB"],
             "ReadOnly": ["my-server/ArchiveDB"],
             "CacheTtlSeconds": 100
           },
@@ -155,6 +158,8 @@ public sealed class SqlToAiOptionsTests
 
         var rw = Assert.Single(options.Databases.ReadWrite);
         Assert.Equal("my-server/DemoDB", rw);
+        var rwAnon = Assert.Single(options.Databases.ReadWriteAnonymized);
+        Assert.Equal("my-server/CustomerDB", rwAnon);
         var ro = Assert.Single(options.Databases.ReadOnly);
         Assert.Equal("my-server/ArchiveDB", ro);
         Assert.Equal(100, options.Databases.CacheTtlSeconds);

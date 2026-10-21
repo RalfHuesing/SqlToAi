@@ -181,6 +181,7 @@ try {
     # Begin with the shipped conservative template; turn off optional enrichment and file sinks.
     $prepared = Get-Content -LiteralPath (Join-Path $installation 'appsettings.json') -Raw | ConvertFrom-Json -AsHashtable
     $prepared.SqlToAi.Databases.ReadWrite = @()
+    $prepared.SqlToAi.Databases.ReadWriteAnonymized = @()
     $prepared.SqlToAi.Databases.ReadOnly = @()
     $prepared.SqlToAi.Databases.ReadOnlyAnonymized = @()
     $prepared.SqlToAi.Databases.SchemaOnly = @()

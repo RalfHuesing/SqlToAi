@@ -21,7 +21,12 @@ internal sealed class TargetAccessPolicy(SqlToAiOptions options)
         // Evaluate the most restrictive list first; database characters are never trimmed.
         if (Matches(options.Databases.SchemaOnly, target)) return AccessLevel.SchemaOnly;
         if (Matches(options.Databases.ReadOnlyAnonymized, target)) return AccessLevel.ReadOnlyAnonymized;
-        if (Matches(options.Databases.ReadOnly, target)) return AccessLevel.ReadOnly;
+        bool readOnly = Matches(options.Databases.ReadOnly, target);
+        bool readWriteAnonymized = Matches(options.Databases.ReadWriteAnonymized, target);
+        // Keep both restrictions when grants disagree about writes and masking.
+        if (readOnly && readWriteAnonymized) return AccessLevel.ReadOnlyAnonymized;
+        if (readOnly) return AccessLevel.ReadOnly;
+        if (readWriteAnonymized) return AccessLevel.ReadWriteAnonymized;
         if (Matches(options.Databases.ReadWrite, target)) return AccessLevel.ReadWrite;
         return AccessLevel.None;
     }

@@ -34,6 +34,7 @@ public sealed class QueryExecutionHeaderTests
 
     [Theory]
     [InlineData(AccessLevel.ReadWrite, "committed", 1)]
+    [InlineData(AccessLevel.ReadWriteAnonymized, "committed", 1)]
     [InlineData(AccessLevel.ReadOnly, "rolled_back", 0)]
     [InlineData(AccessLevel.ReadOnlyAnonymized, "rolled_back", 0)]
     public async Task Select_ReportsAccessLevelAndTransaction(AccessLevel level, string outcome, int commits)

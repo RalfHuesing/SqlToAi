@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using SqlToAi.Anonymization;
 using SqlToAi.Configuration;
 using SqlToAi.Database;
+using SqlToAi.Domain;
 using SqlToAi.Metadata;
 using SqlToAi.Security;
 using SqlToAi.Tests.TestSupport;
@@ -48,12 +49,17 @@ public sealed class SchemaServiceAnonymizationTests
         Assert.Equal(1, ruleFactory.ConnectionCreatedCount);
     }
 
-    [Fact]
-    public async Task GetSchemaAsync_ShouldAnnotateAnonymizedColumn_UsingPolicyResolver()
+    [Theory]
+    [InlineData(AccessLevel.ReadWrite)]
+    [InlineData(AccessLevel.ReadWriteAnonymized)]
+    public async Task GetSchemaAsync_ShouldAnnotateAnonymizedColumn_UsingPolicyResolver(AccessLevel accessLevel)
     {
         // Arrange — mock schema returns CustomerId (int, PK/Identity) and Email (varchar, nullable).
         var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
-        options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
+        if (accessLevel == AccessLevel.ReadWriteAnonymized)
+            options.Databases.ReadWriteAnonymized = [TestConstants.QualifiedDatabaseName];
+        else
+            options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -76,13 +82,18 @@ public sealed class SchemaServiceAnonymizationTests
         Assert.Contains("| CustomerId | int | No | PK, Identity | No |  |", result.Value);
     }
 
-    [Fact]
-    public async Task GetSchemaAsync_ShouldAnnotateSearchableColumn_AsYesSearchable()
+    [Theory]
+    [InlineData(AccessLevel.ReadWrite)]
+    [InlineData(AccessLevel.ReadWriteAnonymized)]
+    public async Task GetSchemaAsync_ShouldAnnotateSearchableColumn_AsYesSearchable(AccessLevel accessLevel)
     {
         // Arrange — same mock schema (CustomerId int, Email varchar), but the resolver now flags
         // Email as both anonymized AND searchable-token (reversible), not just masked.
         var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
-        options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
+        if (accessLevel == AccessLevel.ReadWriteAnonymized)
+            options.Databases.ReadWriteAnonymized = [TestConstants.QualifiedDatabaseName];
+        else
+            options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));

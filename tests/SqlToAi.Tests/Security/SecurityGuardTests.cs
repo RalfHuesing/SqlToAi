@@ -43,6 +43,23 @@ public sealed class SecurityGuardTests
         Assert.False(guard.IsTargetAllowed(new DatabaseTargetContext("primary", "HR_Payroll")));
     }
 
+    [Fact]
+    public void IsTargetAllowed_ShouldKeepReadWriteAnonymizedGrantDeniedWhenServerExcluded()
+    {
+        var options = new SqlToAiOptions();
+        options.Servers["primary"] = new NamedServerOptions
+        {
+            Server = "localhost",
+            ExcludedDatabases = ["Private*"]
+        };
+        options.Databases.ReadWriteAnonymized = ["primary/PrivateReporting", "primary/PublicReporting"];
+        var guard = new SecurityGuard(Options.Create(options));
+
+        Assert.False(guard.IsTargetAllowed(new DatabaseTargetContext("primary", "PrivateReporting")));
+        Assert.True(guard.IsTargetAllowed(new DatabaseTargetContext("primary", "PublicReporting")));
+        Assert.False(guard.IsTargetAllowed(new DatabaseTargetContext("primary", "Unlisted")));
+    }
+
     [Theory]
     [InlineData("Demo_A", "Demo_?", true)]
     [InlineData("Demo_App", "Demo_??", false)]

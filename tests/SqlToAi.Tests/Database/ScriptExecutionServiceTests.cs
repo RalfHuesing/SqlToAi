@@ -54,6 +54,23 @@ public sealed class ScriptExecutionServiceTests
         Assert.Empty(executor.Calls);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ReadWriteAnonymized_RejectsTransactionControlBeforeAtomicExecution()
+    {
+        var factory = new MockQueryConnectionFactory();
+        var safety = new RecordingSafetyValidator(_ =>
+            new QuerySafetyCheckResult(AccessLevel.ReadWriteAnonymized, true));
+        var executor = new RecordingBatchExecutor();
+        var result = await BuildService(factory, safety, executor).ExecuteAsync(
+            BuildRequest("UPDATE dbo.T SET Value = 1\nGO\nCOMMIT TRANSACTION;"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ScriptTransactionMode.NotStarted, result.Mode);
+        Assert.Equal(SqlToAiError.SafetyCheckFailedCode, result.Error!.Code);
+        Assert.Null(factory.LastConnection);
+        Assert.Empty(executor.Calls);
+    }
+
     [Theory]
     [InlineData("SELECT N'COMMIT; SET IMPLICIT_TRANSACTIONS ON' AS [ROLLBACK]; /* BEGIN TRAN */")]
     [InlineData("EXEC dbo.FictionalProcedure;")]
@@ -158,6 +175,42 @@ public sealed class ScriptExecutionServiceTests
         Assert.Same(executor.Calls[0].Transaction, executor.Calls[1].Transaction);
         Assert.Equal(1, factory.LastConnection?.LastTransaction?.CommitCount);
         Assert.Equal(0, factory.LastConnection?.LastTransaction?.RollbackCount);
+    }
+
+    [Theory]
+    [InlineData(true, "ReadWriteAtomic")]
+    [InlineData(false, "ReadWriteProviderAutocommit")]
+    public async Task ExecuteAsync_ReadWriteAnonymizedUsesWriteTransactionModeAndRequestsAnonymization(
+        bool useTransaction, string expectedMode)
+    {
+        var factory = new MockQueryConnectionFactory();
+        var safety = new RecordingSafetyValidator(_ =>
+            new QuerySafetyCheckResult(AccessLevel.ReadWriteAnonymized, true));
+        var executor = new RecordingBatchExecutor();
+        var service = BuildService(factory, safety, executor);
+
+        var result = await service.ExecuteAsync(
+            BuildRequest("INSERT INTO dbo.Customers (Name) OUTPUT inserted.Name VALUES ('Sensitive Name')") with
+            {
+                UseTransaction = useTransaction
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ScriptExecutionStatus.Success, result.Status);
+        Assert.Equal(expectedMode, result.Mode.ToString());
+        Assert.Single(executor.Calls);
+        Assert.True(executor.Calls[0].Anonymize);
+        if (useTransaction)
+        {
+            Assert.Equal(1, factory.LastConnection?.LastTransaction?.CommitCount);
+            Assert.Equal(0, factory.LastConnection?.LastTransaction?.RollbackCount);
+            Assert.NotNull(executor.Calls[0].Transaction);
+        }
+        else
+        {
+            Assert.Null(factory.LastConnection?.LastTransaction);
+            Assert.Null(executor.Calls[0].Transaction);
+        }
     }
 
     [Fact]

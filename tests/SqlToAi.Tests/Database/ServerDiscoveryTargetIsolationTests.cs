@@ -174,6 +174,29 @@ public sealed class ServerDiscoveryTargetIsolationTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ListDatabasesAsync_ReadWriteAnonymizedGrants_PreserveServerAndExclusionFilters(bool catalogFails)
+    {
+        var (service, factory) = CreateService(options =>
+        {
+            options.Databases.ReadWrite = [];
+            options.Databases.ReadWriteAnonymized = ["alpha/CustomersDb", "alpha/OrdersDb", "beta/FinanceDb"];
+            options.Servers["alpha"].ExcludedDatabases = ["Orders*"];
+        });
+        factory.FailCatalogQuery = catalogFails;
+
+        var alpha = await service.ListDatabasesAsync("alpha", TestContext.Current.CancellationToken);
+        var beta = await service.ListDatabasesAsync("beta", TestContext.Current.CancellationToken);
+
+        Assert.True(alpha.IsSuccess);
+        Assert.Equal("alpha/CustomersDb", Assert.Single(alpha.Value));
+        Assert.True(beta.IsSuccess);
+        Assert.Equal("beta/FinanceDb", Assert.Single(beta.Value));
+        Assert.Equal(["alpha", "beta"], factory.OpenedCatalogServers);
+    }
+
+    [Theory]
     [InlineData("list", "sql-timeout", SqlToAiError.TimeoutCode)]
     [InlineData("search", "nested-timeout", SqlToAiError.TimeoutCode)]
     [InlineData("list", "tls-certificate", SqlToAiError.InfrastructureErrorCode)]

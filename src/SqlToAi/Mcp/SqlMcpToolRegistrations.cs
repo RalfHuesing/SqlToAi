@@ -218,7 +218,7 @@ public static class SqlMcpToolRegistrations
             {
                 Name = McpConstants.ToolExecuteQuery,
                 Description = "Executes a single SQL statement and returns results as JSON lines with execution metrics (rows, latency, CPU, logical reads). " +
-                    "ReadOnly databases enforce rollback protection and block writes; ReadWrite databases commit changes permanently. " +
+                    "ReadOnly and ReadOnlyAnonymized databases enforce rollback protection and block writes; ReadWrite and ReadWriteAnonymized databases commit changes permanently. " +
                     "String columns are anonymized when required by access level."
             }));
 

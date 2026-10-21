@@ -26,10 +26,8 @@ public sealed record AnonymizationDependencies(
     IQueryTokenResolver? TokenResolver = null);
 
 /// <summary>
-/// Executes a single SQL statement. For every database except those at
-/// <see cref="AccessLevel.ReadWrite"/>, the statement runs inside an explicit rollback
-/// transaction and mutating keywords are rejected outright. Applies row limits and on-the-fly
-/// PII anonymization for <see cref="AccessLevel.ReadOnlyAnonymized"/> databases.
+/// Executes a single SQL statement with row limits. Writable access levels commit changes;
+/// read-only levels reject mutations and roll back. Anonymized access levels mask string results.
 /// </summary>
 public sealed partial class QueryExecutionService : IQueryExecutionService, IQueryBatchExecutor
 {
@@ -113,7 +111,7 @@ public sealed partial class QueryExecutionService : IQueryExecutionService, IQue
             ? Math.Min(requestedRowLimit.Value, _options.MaxRowLimit)
             : _options.DefaultRowLimit;
 
-        bool anonymize = accessLevel == AccessLevel.ReadOnlyAnonymized;
+        bool anonymize = accessLevel.RequiresAnonymization();
 
         // Detokenization runs only for anonymized databases (the only place tokens are ever
         // issued) and after the safety/multi-statement checks above, so it substitutes literal

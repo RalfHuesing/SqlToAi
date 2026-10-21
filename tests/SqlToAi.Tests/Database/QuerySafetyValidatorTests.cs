@@ -138,6 +138,16 @@ public sealed class QuerySafetyValidatorTests
         Assert.True(result.Value.IsWriteAllowed);
     }
 
+    [Fact]
+    public async Task ValidateTargetQuerySafetyAsync_MutatingQuery_WithReadWriteAnonymized_ReturnsSuccess()
+    {
+        var v = BuildValidator(accessLevel: AccessLevel.ReadWriteAnonymized);
+        var result = await v.ValidateTargetQuerySafetyAsync(Target, "DELETE FROM Customers", cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(AccessLevel.ReadWriteAnonymized, result.Value.AccessLevel);
+        Assert.True(result.Value.IsWriteAllowed);
+    }
+
     // -------------------------------------------------------------------------
     // multi-statement detection — always enforced.
     // -------------------------------------------------------------------------
@@ -160,6 +170,7 @@ public sealed class QuerySafetyValidatorTests
 
     [Theory]
     [InlineData(AccessLevel.ReadOnly)]
+    [InlineData(AccessLevel.ReadWriteAnonymized)]
     [InlineData(AccessLevel.ReadWrite)]
     public async Task ValidateTargetQuerySafetyAsync_MultiStatement_RegardlessOfAccessLevel_ReturnsMultipleStatementsForbidden(AccessLevel level)
     {
@@ -225,6 +236,16 @@ public sealed class QuerySafetyValidatorTests
     }
 
     [Fact]
+    public async Task ValidateTargetBatchSafetyAsync_ReadWriteAnonymized_AllowsMultipleStatements()
+    {
+        var v = BuildValidator(accessLevel: AccessLevel.ReadWriteAnonymized);
+        var result = await v.ValidateTargetBatchSafetyAsync(Target, "UPDATE Customers SET Name = 'X'; UPDATE Orders SET Flag = 1", TestContext.Current.CancellationToken);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(AccessLevel.ReadWriteAnonymized, result.Value.AccessLevel);
+        Assert.True(result.Value.IsWriteAllowed);
+    }
+
+    [Fact]
     public async Task ValidateTargetBatchSafetyAsync_ReadOnly_AllowsMultipleReadStatements()
     {
         var v = BuildValidator(accessLevel: AccessLevel.ReadOnly);
@@ -245,6 +266,7 @@ public sealed class QuerySafetyValidatorTests
 
     [Theory]
     [InlineData(AccessLevel.ReadOnly)]
+    [InlineData(AccessLevel.ReadWriteAnonymized)]
     [InlineData(AccessLevel.ReadWrite)]
     public async Task ValidateTargetQuerySafetyAsync_UseStatement_ReturnsSafetyCheckFailed(AccessLevel accessLevel)
     {
@@ -256,6 +278,7 @@ public sealed class QuerySafetyValidatorTests
 
     [Theory]
     [InlineData(AccessLevel.ReadOnly)]
+    [InlineData(AccessLevel.ReadWriteAnonymized)]
     [InlineData(AccessLevel.ReadWrite)]
     public async Task ValidateTargetBatchSafetyAsync_UseStatement_ReturnsSafetyCheckFailed(AccessLevel accessLevel)
     {

@@ -155,6 +155,7 @@ public sealed class SchemaService : ISchemaService
     private IReadOnlyList<string> GetStaticAllowedDatabases(string canonicalServer)
     {
         var allGrants = _options.Databases.ReadWrite
+            .Concat(_options.Databases.ReadWriteAnonymized)
             .Concat(_options.Databases.ReadOnly)
             .Concat(_options.Databases.ReadOnlyAnonymized)
             .Concat(_options.Databases.SchemaOnly);

@@ -50,6 +50,37 @@ public sealed class QueryExecutionServiceIntegrationTests
     }
 
     [Fact]
+    public async Task ExecuteQueryAsync_ReadWriteAnonymized_PersistsInsertAndMasksOutput()
+    {
+        string marker = "sql_ai_rw_anon_" + Guid.NewGuid().ToString("N");
+        var options = CloneOptions();
+        options.Anonymizer.Enabled = true;
+        var service = BuildExecutionServiceWithOptions(options,
+            new FakeAccessLevelProvider(AccessLevel.ReadWriteAnonymized));
+
+        try
+        {
+            var result = await service.ExecuteQueryAsync(_target,
+                "INSERT INTO dbo.FakeProjects (ProjectName, Mandant, Description, Status) " +
+                "OUTPUT inserted.ProjectName AS ProjectName " +
+                "VALUES (@ProjectName, 1, N'ReadWriteAnonymized integration marker', N'Active')",
+                null,
+                new Dictionary<string, object?> { ["ProjectName"] = marker },
+                TestContext.Current.CancellationToken);
+
+            Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
+            Assert.True(result.Value.WasAnonymized);
+            Assert.Contains("ProjectName", result.Value.AnonymizedColumns);
+            Assert.DoesNotContain(marker, result.Value.Data, StringComparison.Ordinal);
+            Assert.Equal(1, await CountProjectMarkerAsync(marker));
+        }
+        finally
+        {
+            await DeleteProjectMarkerAsync(marker);
+        }
+    }
+
+    [Fact]
     public async Task ExecuteQueryAsync_ShouldBlock_MutatingStatement()
     {
         // Even though the rollback protects the DB, the pipeline must reject the statement
@@ -115,6 +146,26 @@ public sealed class QueryExecutionServiceIntegrationTests
         await connection.OpenAsync(TestContext.Current.CancellationToken);
         return await DatabaseCommandExecutor.QueryFirstOrDefaultAsync(connection,
             "SELECT COUNT(*) FROM dbo.FakeProjects", static row => row.GetInt64(0), TestContext.Current.CancellationToken);
+    }
+
+    private async Task<long> CountProjectMarkerAsync(string marker)
+    {
+        await using var connection = _fx.ConnectionFactory.CreateTargetConnection(new DatabaseTargetContext(_server, _db));
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        return await DatabaseCommandExecutor.QueryFirstOrDefaultAsync(connection,
+            "SELECT COUNT_BIG(*) FROM dbo.FakeProjects WHERE ProjectName = @Marker",
+            static row => row.GetInt64(0), TestContext.Current.CancellationToken,
+            new Dictionary<string, object?> { ["Marker"] = marker });
+    }
+
+    private async Task DeleteProjectMarkerAsync(string marker)
+    {
+        await using var connection = _fx.ConnectionFactory.CreateTargetConnection(new DatabaseTargetContext(_server, _db));
+        await connection.OpenAsync(CancellationToken.None);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM dbo.FakeProjects WHERE ProjectName = @Marker";
+        SqlParameterBinder.BindParameters(command, new Dictionary<string, object?> { ["Marker"] = marker });
+        await command.ExecuteNonQueryAsync(CancellationToken.None);
     }
 
     [Fact]
