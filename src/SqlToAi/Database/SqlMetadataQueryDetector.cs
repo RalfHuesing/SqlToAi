@@ -72,7 +72,7 @@ internal static class SqlMetadataQueryDetector
     {
         return ContainsSchemaMetadataReference(query)
             ? "Schema hint: Direct catalog results may be anonymized. Use sql_get_schema for columns and view/routine definitions, sql_get_trigger_definition for triggers, or sql_search_objects to find object names."
-            : null;
+            : null;
     }
 
     private sealed class MetadataReferenceVisitor : TSqlFragmentVisitor
