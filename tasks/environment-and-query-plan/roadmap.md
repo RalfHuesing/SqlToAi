@@ -96,7 +96,7 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
     - [x] Lifecycle, error-mapping and bound tests pass
     - [x] Atomic commit: `feat: Implementiere Showplan-Ausführung über nicht gepoolte Verbindung`
 
-- [ ] **M2.3 — Secure Showplan XML Parser and Tree Truncation**
+- [x] **M2.3 — Secure Showplan XML Parser and Tree Truncation**
   - **Intention**: Parse showplan XML into the bounded result shape defined in the concept without leaking sensitive strings.
   - **Scope**:
     - Secure XML settings (`DtdProcessing.Prohibit`, `XmlResolver = null`).
@@ -109,10 +109,10 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
     - DTD/entity rejection test; malformed XML maps to a catalog error.
     - Serialized output contains no raw query text, literals, parameter values, expression text or `CREATE INDEX` text.
   - **Checklist**:
-    - [ ] Parser and tree builder implemented
-    - [ ] Bound and truncation tests pass
-    - [ ] Literal exclusion tests pass
-    - [ ] Atomic commit: `feat: Implementiere sicheren Showplan-XML-Parser mit Baum-Begrenzung`
+    - [x] Parser and tree builder implemented
+    - [x] Bound and truncation tests pass
+    - [x] Literal exclusion tests pass
+    - [x] Atomic commit: `feat: Implementiere sicheren Showplan-XML-Parser mit Baum-Begrenzung`
 
 - [ ] **M2.4 — `ExplainQueryService` and Exposure in MCP, CLI, and Documentation**
   - **Intention**: Orchestrate target resolution, access check, guard, showplan execution and parsing, and expose the tool.

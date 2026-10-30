@@ -161,6 +161,7 @@ internal static class Program
         services.AddSingleton<ISchemaService, SchemaService>();
         services.AddSingleton<IEnvironmentService, EnvironmentService>();
         services.AddSingleton<IShowplanExecutionService, ShowplanExecutionService>();
+        services.AddSingleton<IShowplanXmlParser, ShowplanXmlParser>();
         services.AddSingleton<SchemaExportService>();
         services.AddSingleton<QueryExecutionService>();
         services.AddSingleton<IQueryExecutionService>(sp => sp.GetRequiredService<QueryExecutionService>());
