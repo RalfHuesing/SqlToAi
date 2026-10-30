@@ -46,14 +46,14 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
     - [x] Integration tests pass
     - [x] Atomic commit: `feat: Binde sql_get_environment in MCP, CLI und Dokumentation ein`
 
-- [ ] **M1.3 — Milestone 1 Audit and Verification**
+- [x] **M1.3 — Milestone 1 Audit and Verification**
   - **Intention**: Verify Milestone 1 against the concept.
   - **Acceptance criteria**:
     - Build with `--warnaserror` and full tests pass with 0 failures.
     - Output contains no connection strings, host names or credentials.
   - **Checklist**:
-    - [ ] Audit executed
-    - [ ] Milestone 1 closed
+    - [x] Audit executed
+    - [x] Milestone 1 closed
 
 ---
 
