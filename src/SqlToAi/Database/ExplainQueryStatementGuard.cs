@@ -5,9 +5,6 @@ using SqlToAi.Security;
 
 namespace SqlToAi.Database;
 
-/// <summary>
-/// Pre-connection validation guard enforcing statement allowlist and database access policies for <c>sql_explain_query</c>.
-/// </summary>
 public sealed class ExplainQueryStatementGuard : IExplainQueryStatementGuard
 {
     private readonly ISecurityGuard _securityGuard;
@@ -19,7 +16,6 @@ public sealed class ExplainQueryStatementGuard : IExplainQueryStatementGuard
         _readOnlyGuard = readOnlyGuard ?? throw new ArgumentNullException(nameof(readOnlyGuard));
     }
 
-    /// <inheritdoc/>
     public Result ValidateAccess(DatabaseTargetContext target, AccessLevel accessLevel)
     {
         ArgumentNullException.ThrowIfNull(target);
@@ -37,7 +33,6 @@ public sealed class ExplainQueryStatementGuard : IExplainQueryStatementGuard
         return Result.Success();
     }
 
-    /// <inheritdoc/>
     public Result ValidateStatement(string query)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -123,7 +118,6 @@ public sealed class ExplainQueryStatementGuard : IExplainQueryStatementGuard
         return Result.Success();
     }
 
-    /// <inheritdoc/>
     public Result Validate(DatabaseTargetContext target, AccessLevel accessLevel, string query)
     {
         var accessResult = ValidateAccess(target, accessLevel);

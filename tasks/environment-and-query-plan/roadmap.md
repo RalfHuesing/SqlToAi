@@ -77,7 +77,7 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
     - [x] Guard and options tests pass
     - [x] Atomic commit: `feat: Erstelle Statement-Guard, Optionen und DTOs für sql_explain_query`
 
-- [ ] **M2.2 — Showplan Execution on a Non-Pooled Connection**
+- [x] **M2.2 — Showplan Execution on a Non-Pooled Connection**
   - **Intention**: Obtain showplan XML without executing the query and without any chance of leaking session state into the pool.
   - **Scope**:
     - Extend the connection factory so a caller can request a non-pooled connection (`Pooling=false`); existing callers stay unchanged.
@@ -92,9 +92,9 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
     - Permission-error mapping tests; size cap test.
     - Fixture test against a real SQL Server proves the plan is returned and the query does not run (no side effects, no rows).
   - **Checklist**:
-    - [ ] Factory extension and `ShowplanExecutionService` implemented
-    - [ ] Lifecycle, error-mapping and bound tests pass
-    - [ ] Atomic commit: `feat: Implementiere Showplan-Ausführung über nicht gepoolte Verbindung`
+    - [x] Factory extension and `ShowplanExecutionService` implemented
+    - [x] Lifecycle, error-mapping and bound tests pass
+    - [x] Atomic commit: `feat: Implementiere Showplan-Ausführung über nicht gepoolte Verbindung`
 
 - [ ] **M2.3 — Secure Showplan XML Parser and Tree Truncation**
   - **Intention**: Parse showplan XML into the bounded result shape defined in the concept without leaking sensitive strings.

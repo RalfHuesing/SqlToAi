@@ -28,6 +28,7 @@ public sealed class SqlServerFixture
     public QueryValidationService QueryValidationService { get; }
     public IndexSuggestionService IndexSuggestionService { get; }
     public EnvironmentService EnvironmentService { get; }
+    public ShowplanExecutionService ShowplanExecutionService { get; }
     public Anonymizer Anonymizer { get; }
     public AnonymizationRuleProvider AnonymizationRuleProvider { get; }
     public AnonymizationPolicyResolver AnonymizationPolicyResolver { get; }
@@ -61,6 +62,7 @@ public sealed class SqlServerFixture
         QueryValidationService = new QueryValidationService(ConnectionFactory, QuerySafetyValidator, optionsWrapper, NullLogger<QueryValidationService>.Instance);
         IndexSuggestionService = new IndexSuggestionService(ConnectionFactory, SecurityGuard, AccessLevelProvider, optionsWrapper, NullLogger<IndexSuggestionService>.Instance);
         EnvironmentService = new EnvironmentService(ConnectionFactory, SecurityGuard, AccessLevelProvider, optionsWrapper, NullLogger<EnvironmentService>.Instance);
+        ShowplanExecutionService = new ShowplanExecutionService(ConnectionFactory, optionsWrapper, NullLogger<ShowplanExecutionService>.Instance);
     }
 
     internal static IConfigurationRoot BuildConfiguration(string basePath)

@@ -237,10 +237,13 @@ public sealed class TlsConnectionIntegrationTests(ITestOutputHelper output)
 
     private sealed class CountingFactory(IDatabaseConnectionFactory inner) : IDatabaseConnectionFactory
     {
-        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target)
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target) =>
+            CreateTargetConnection(target, pooling: true);
+
+        public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target, bool pooling)
         {
             Count++;
-            return inner.CreateTargetConnection(target);
+            return inner.CreateTargetConnection(target, pooling);
         }
 
         public SqlToAi.Domain.Result<System.Data.Common.DbConnection> CreateCatalogConnection(string? serverAlias) => throw new NotSupportedException();

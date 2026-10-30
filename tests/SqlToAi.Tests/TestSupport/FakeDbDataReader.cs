@@ -139,6 +139,10 @@ internal class FakeDbDataReader : DbDataReader
 
     public override bool IsDBNull(int ordinal) => GetValue(ordinal) == DBNull.Value;
 
+#pragma warning disable MA0042 // In-memory test fake completes synchronously via Task.FromResult
+    public override Task<bool> IsDBNullAsync(int ordinal, CancellationToken cancellationToken) => Task.FromResult(IsDBNull(ordinal));
+#pragma warning restore MA0042
+
     public override bool GetBoolean(int ordinal) => (bool)GetValue(ordinal);
     public override byte GetByte(int ordinal) => (byte)GetValue(ordinal);
     public override long GetBytes(int ordinal, long dataOffset, byte[]? buffer, int bufferOffset, int length) => 0;

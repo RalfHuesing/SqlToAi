@@ -241,9 +241,15 @@ internal sealed class MockQueryConnectionFactory(MockQueryRowConfig? config = nu
     /// <summary>The target contexts this factory was asked to connect to, in order.</summary>
     public List<SqlToAi.Domain.DatabaseTargetContext> CreatedTargets { get; } = [];
 
+    public List<bool> RequestedPoolings { get; } = [];
+
     public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target)
+        => CreateTargetConnection(target, pooling: true);
+
+    public System.Data.Common.DbConnection CreateTargetConnection(SqlToAi.Domain.DatabaseTargetContext target, bool pooling)
     {
         CreatedTargets.Add(target);
+        RequestedPoolings.Add(pooling);
         // The mock emulates the physical endpoint: the connection's Database is the raw
         // physical database name, never the qualified caller target.
         LastConnection = BuildConnection(_config, target.DatabaseName);

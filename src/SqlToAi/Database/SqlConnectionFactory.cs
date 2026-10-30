@@ -6,37 +6,33 @@ using SqlToAi.Domain;
 
 namespace SqlToAi.Database;
 
-/// <summary>
-/// Factory for creating Microsoft SQL Server connections using ADO.NET and SqlClient.
-/// </summary>
 public sealed class SqlConnectionFactory : IDatabaseConnectionFactory
 {
     private readonly SqlToAiOptions _options;
     private readonly DatabaseTargetResolver _targets;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SqlConnectionFactory"/> class.
-    /// </summary>
-    /// <param name="options">The application options containing database connection properties.</param>
     public SqlConnectionFactory(IOptions<SqlToAiOptions> options)
     {
         _options = options.Value;
         _targets = new DatabaseTargetResolver(_options);
     }
 
-    public DbConnection CreateTargetConnection(DatabaseTargetContext target)
+    public DbConnection CreateTargetConnection(DatabaseTargetContext target) =>
+        CreateTargetConnection(target, pooling: true);
+
+    public DbConnection CreateTargetConnection(DatabaseTargetContext target, bool pooling)
     {
         ArgumentNullException.ThrowIfNull(target);
-        return CreateNamedConnection(target.ServerAlias, target.DatabaseName);
+        return CreateNamedConnection(target.ServerAlias, target.DatabaseName, pooling);
     }
 
     public Result<DbConnection> CreateCatalogConnection(string? serverAlias)
     {
         var resolved = _targets.ResolveServerAlias(serverAlias);
-        return resolved.IsFailure ? resolved.Error : CreateNamedConnection(resolved.Value, databaseName: null);
+        return resolved.IsFailure ? resolved.Error : CreateNamedConnection(resolved.Value, databaseName: null, pooling: true);
     }
 
-    private DbConnection CreateNamedConnection(string serverAlias, string? databaseName)
+    private DbConnection CreateNamedConnection(string serverAlias, string? databaseName, bool pooling = true)
     {
         if (!_targets.TryGetServerOptions(serverAlias, out var server) || server is null)
         {
@@ -56,7 +52,8 @@ public sealed class SqlConnectionFactory : IDatabaseConnectionFactory
             Encrypt = SqlConnectionEncryptOption.Mandatory,
             TrustServerCertificate = server.TrustServerCertificate,
             ConnectTimeout = server.ConnectTimeoutSeconds,
-            IntegratedSecurity = server.IntegratedSecurity
+            IntegratedSecurity = server.IntegratedSecurity,
+            Pooling = pooling
         };
         if (!server.IntegratedSecurity)
         {
