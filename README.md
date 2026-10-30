@@ -8,6 +8,7 @@ results and performance. The server runs over stdio and is built with .NET 10.
 
 - Retrieve SQL Server and database environment metadata (version, edition, compatibility level, collation, state, read-only status).
 - Inspect tables, views, routines, triggers, keys, indexes, and object references.
+- Inspect estimated query execution plans with compact operator trees and warnings without executing queries.
 - Export database schema as linked Markdown files for offline reading.
 - Execute parameterized queries and local `.sql` scripts, including `GO` batches.
 - Stream query results directly into local CSV or JSONL files with compact metadata responses.
@@ -119,6 +120,7 @@ Set-Location src/SqlToAi/bin/Release/net10.0
 .\SqlToAi.exe query --help
 .\SqlToAi.exe query sql_list_databases --server primary
 .\SqlToAi.exe query sql_execute_query --database primary/ReportingDB --query "SELECT TOP 5 name FROM sys.tables"
+.\SqlToAi.exe query sql_explain_query --database primary/ReportingDB --query "SELECT TOP 5 name FROM sys.tables"
 ```
 
 Tool results contain Markdown or JSON. Successful CLI calls write data to stdout;

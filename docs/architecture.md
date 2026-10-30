@@ -18,7 +18,7 @@ The selected user root follows configuration through direct options, DI post-con
 
 [SqlToAi.Exploration](exploration.md) reuses the executable's configuration and service-provider factories to invoke `IToolDispatcher` directly. It retains all inputs, content blocks and failures for manual inspection without starting MCP transport; scenarios do not run as automated tests.
 
-Query services share `QuerySafetyValidator`. It combines database policy, access-level selection, read-only parsing and statement-count restrictions. Execution, script, and data export services control transactions and result serialization. The protection limits are in [security.md](security.md); argument/result contracts are in [tools.md](tools.md).
+Query services share `QuerySafetyValidator`. It combines database policy, access-level selection, read-only parsing and statement-count restrictions. Execution, script, and data export services control transactions and result serialization, while ExplainQueryService orchestrates non-pooled showplan execution and bounded XML parsing. The protection limits are in [security.md](security.md); argument/result contracts are in [tools.md](tools.md).
 
 The named-server architecture resolves `alias/database` through
 `DatabaseTargetResolver` into an immutable `DatabaseTargetContext`. The factory's

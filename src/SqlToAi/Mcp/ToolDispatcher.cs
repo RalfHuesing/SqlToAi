@@ -34,6 +34,7 @@ internal sealed class ToolDispatcher : IToolDispatcher
     private readonly IQueryExecutionService _queryExecutionService;
     private readonly IScriptExecutionService _scriptExecutionService;
     private readonly IQueryValidationService _queryValidationService;
+    private readonly IExplainQueryService _explainQueryService;
     private readonly IQueryComparisonService _queryComparisonService;
     private readonly IPerformanceMeasurementService _performanceMeasurementService;
     private readonly IOptimizationBenchmarkService _benchmarkService;
@@ -50,6 +51,7 @@ internal sealed class ToolDispatcher : IToolDispatcher
         IQueryExecutionService queryExecutionService,
         IScriptExecutionService scriptExecutionService,
         IQueryValidationService queryValidationService,
+        IExplainQueryService explainQueryService,
         DatabaseAnalysisServices analysisServices,
         IOptions<SqlToAiOptions> options,
         ILogger<ToolDispatcher> logger,
@@ -63,6 +65,7 @@ internal sealed class ToolDispatcher : IToolDispatcher
         _queryExecutionService = queryExecutionService;
         _scriptExecutionService = scriptExecutionService;
         _queryValidationService = queryValidationService;
+        _explainQueryService = explainQueryService;
         _queryComparisonService = analysisServices.QueryComparison;
         _performanceMeasurementService = analysisServices.PerformanceMeasurement;
         _benchmarkService = analysisServices.Benchmark;
@@ -94,6 +97,11 @@ internal sealed class ToolDispatcher : IToolDispatcher
             [McpConstants.ToolValidateQuery] = (paramsObj, ct) =>
                 CallAsync(() => _queryValidationService.ValidateQueryAsync(
                     GetDb(paramsObj), Require(paramsObj, McpConstants.ArgQuery), GetObject(paramsObj, McpConstants.ArgParameters), ct)),
+
+            [McpConstants.ToolExplainQuery] = (paramsObj, ct) =>
+                CallAsync(() => _explainQueryService.ExplainQueryAsync(
+                    GetDb(paramsObj), Require(paramsObj, McpConstants.ArgQuery), GetObject(paramsObj, McpConstants.ArgParameters), ct),
+                    res => JsonSerializer.Serialize(res, McpJsonContext.Default.ExplainQueryResult)),
 
             [McpConstants.ToolSearchObjects] = (paramsObj, ct) =>
                 CallAsync(() => _schemaService.SearchObjectsAsync(

@@ -49,7 +49,11 @@ internal sealed class ComposedTargetFixture
             new AnonymizationDependencies(anonymizer, rules, new QueryTokenResolver(Vault, options)),
             options, NullLogger<DataExportService>.Instance);
         var environment = new EnvironmentService(Factory, security, access, options, NullLogger<EnvironmentService>.Instance);
-        Dispatcher = new ToolDispatcher(schema, environment, Query, script, validation, analysis, options,
+        var explainStatementGuard = new ExplainQueryStatementGuard(security, new ReadOnlyGuard());
+        var showplanExec = new ShowplanExecutionService(Factory, options, NullLogger<ShowplanExecutionService>.Instance);
+        var showplanParser = new ShowplanXmlParser(options);
+        Explain = new ExplainQueryService(showplanExec, showplanParser, explainStatementGuard, security, access, options, NullLogger<ExplainQueryService>.Instance);
+        Dispatcher = new ToolDispatcher(schema, environment, Query, script, validation, Explain, analysis, options,
             NullLogger<ToolDispatcher>.Instance, new SchemaExportService(schema, options, NullLogger<SchemaExportService>.Instance),
             exportData);
     }
@@ -58,6 +62,7 @@ internal sealed class ComposedTargetFixture
     internal RecordingPhysicalBoundary Factory { get; }
     internal TokenVault Vault { get; }
     internal QueryExecutionService Query { get; }
+    internal ExplainQueryService Explain { get; }
     internal ToolDispatcher Dispatcher { get; }
 
     internal static SqlToAiOptions CreateConfiguration(bool sameEndpoint = false)

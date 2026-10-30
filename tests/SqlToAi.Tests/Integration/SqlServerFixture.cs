@@ -30,6 +30,7 @@ public sealed class SqlServerFixture
     public EnvironmentService EnvironmentService { get; }
     public ShowplanExecutionService ShowplanExecutionService { get; }
     public ShowplanXmlParser ShowplanXmlParser { get; }
+    public ExplainQueryService ExplainQueryService { get; }
     public Anonymizer Anonymizer { get; }
     public AnonymizationRuleProvider AnonymizationRuleProvider { get; }
     public AnonymizationPolicyResolver AnonymizationPolicyResolver { get; }
@@ -65,6 +66,14 @@ public sealed class SqlServerFixture
         EnvironmentService = new EnvironmentService(ConnectionFactory, SecurityGuard, AccessLevelProvider, optionsWrapper, NullLogger<EnvironmentService>.Instance);
         ShowplanExecutionService = new ShowplanExecutionService(ConnectionFactory, optionsWrapper, NullLogger<ShowplanExecutionService>.Instance);
         ShowplanXmlParser = new ShowplanXmlParser(optionsWrapper);
+        ExplainQueryService = new ExplainQueryService(
+            ShowplanExecutionService,
+            ShowplanXmlParser,
+            new ExplainQueryStatementGuard(SecurityGuard, ReadOnlyGuard),
+            SecurityGuard,
+            AccessLevelProvider,
+            optionsWrapper,
+            NullLogger<ExplainQueryService>.Instance);
     }
 
     internal static IConfigurationRoot BuildConfiguration(string basePath)

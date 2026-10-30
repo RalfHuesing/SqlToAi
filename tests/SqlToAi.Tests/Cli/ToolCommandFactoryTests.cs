@@ -57,6 +57,30 @@ public sealed class ToolCommandFactoryTests
         Assert.Equal("test/AppDb", capturedArgs?[McpConstants.ArgDatabase]);
     }
 
+
+    [Fact]
+    public async Task ExplainQuery_ShouldPassParsedArguments_ToExecuteCallback()
+    {
+        string? capturedTool = null;
+        Dictionary<string, object?>? capturedArgs = null;
+
+        Command queryCommand = BuildQueryCommand((toolName, args, _) =>
+        {
+            capturedTool = toolName;
+            capturedArgs = args;
+            return Task.FromResult(0);
+        });
+
+        RootCommand root = WrapInRoot(queryCommand);
+        int exitCode = await root
+            .Parse(["query", McpConstants.ToolExplainQuery, "--database", "test/AppDb", "--query", "SELECT 1"])
+            .InvokeAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(McpConstants.ToolExplainQuery, capturedTool);
+        Assert.Equal("test/AppDb", capturedArgs?[McpConstants.ArgDatabase]);
+        Assert.Equal("SELECT 1", capturedArgs?[McpConstants.ArgQuery]);
+    }
     [Fact]
     public async Task ExecuteQuery_ShouldPassParsedStringArguments_ToExecuteCallback()
     {

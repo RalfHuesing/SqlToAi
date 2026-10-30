@@ -27,7 +27,7 @@ a conflict between `ReadOnly` and `ReadWriteAnonymized`), then `ReadOnly`, then
 `ReadWriteAnonymized`, then `ReadWrite`. This preserves read-only and masking
 restrictions from overlapping grants.
 
-The shipped main template has empty access lists, so every database, including `DemoDB`, is denied until an administrator configures a level deliberately. The separate fictional DemoDB example explicitly grants `ReadWrite` to `test/DemoDB` for a local test database and is never loaded by the host automatically. Database discovery returns permitted databases only. Index suggestions and environment context (`sql_get_environment`) also accept `SchemaOnly`, since they read metadata.
+The shipped main template has empty access lists, so every database, including `DemoDB`, is denied until an administrator configures a level deliberately. The separate fictional DemoDB example explicitly grants `ReadWrite` to `test/DemoDB` for a local test database and is never loaded by the host automatically. Database discovery returns permitted databases only. Index suggestions, environment context (`sql_get_environment`), and estimated query plan diagnosis (`sql_explain_query`) also accept `SchemaOnly`, since they do not execute workload queries or return table rows.
 
 ## Query guards and transactions
 
@@ -49,6 +49,8 @@ identify the canonical qualified target; SQL/DDL identifiers remain unchanged.
 followed by one main query; multiple main statements fail with `SQL-AI-0101`.
 Both write-capable levels bypass mutation checks but retain `USE` and single-query
 restrictions.
+
+`sql_explain_query` is permitted on all access levels except `None`, including `SchemaOnly`, `ReadOnlyAnonymized`, `ReadOnly`, `ReadWriteAnonymized`, and `ReadWrite`. `ReadOnlyGuard` is enforced at all levels, including `ReadWrite` and `ReadWriteAnonymized`; mutating statements (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `SELECT INTO`, `EXEC`, DDL) are rejected with `SQL-AI-0107`. Caller controls (`SET`, `BEGIN TRAN`, `USE`) fail with `SQL-AI-0104`; multiple main statements fail with `SQL-AI-0101`; syntax errors fail with `SQL-AI-0102`. All rejections happen before opening any database connection. Estimates derive from table statistics; this is not anonymization, and tokens in literals are not resolved. Object identities are limited to names needed for diagnosis (nodes and warnings). The plan can name objects in other databases that the query references; the SQL Server login stays the boundary for cross-database references.
 
 `sql_export_data` enforces strict read-only queries across all access levels, including `ReadWrite` and `ReadWriteAnonymized`. Mutating statements (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, DDL) are rejected with `SQL-AI-0107`. `SchemaOnly` databases and queries that return no result set are rejected with `SQL-AI-0107`. The executed transaction is always rolled back; changes are never committed. Results are streamed row-by-row into a temporary file (`.<guid>.tmp`) in the destination directory and atomically renamed on completion; on error, timeout, or cancellation, the temporary file is deleted immediately and no partial file is retained.
 

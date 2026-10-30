@@ -17,6 +17,7 @@ internal static class ToolDispatcherTestHelper
         IQueryExecutionService? exec = null,
         FakeScriptExecutionService? script = null,
         FakeQueryValidationService? validation = null,
+        IExplainQueryService? explainQuery = null,
         DatabaseAnalysisServices? analysis = null,
         SchemaExportService? export = null,
         IDataExportService? dataExport = null)
@@ -28,6 +29,7 @@ internal static class ToolDispatcherTestHelper
             exec   ?? new FakeQueryExecutionService(),
             script ?? new FakeScriptExecutionService(),
             validation ?? new FakeQueryValidationService(),
+            explainQuery ?? new FakeExplainQueryService(),
             analysis ?? new DatabaseAnalysisServices(
                 new FakePerformanceMeasurementService(),
                 new FakeQueryComparisonService(),
@@ -118,6 +120,53 @@ internal sealed class FakeEnvironmentService : IEnvironmentService
             StateDesc: "ONLINE",
             IsReadOnly: false,
             UnavailableFields: []));
+    }
+}
+
+internal sealed class FakeExplainQueryService : IExplainQueryService
+{
+    public bool ExplainQueryCalled { get; private set; }
+    public string? LastDatabase { get; private set; }
+    public string? LastQuery { get; private set; }
+    public object? LastParameters { get; private set; }
+    public DatabaseTargetContext? LastTarget { get; private set; }
+    public Result<ExplainQueryResult>? NextResult { get; set; }
+
+    public Task<Result<ExplainQueryResult>> ExplainQueryAsync(
+        string databaseName,
+        string query,
+        object? parameters = null,
+        CancellationToken cancellationToken = default)
+    {
+        ExplainQueryCalled = true;
+        LastDatabase = databaseName;
+        LastQuery = query;
+        LastParameters = parameters;
+        return Task.FromResult(NextResult ?? (Result<ExplainQueryResult>)new ExplainQueryResult(
+            Target: databaseName,
+            PlanKind: "estimated",
+            Truncated: false,
+            Nodes: [new ExplainPlanNode(1, null, "Clustered Index Scan", "Clustered Index Scan", 10.0, 0.003, null, null)],
+            Warnings: []));
+    }
+
+    public Task<Result<ExplainQueryResult>> ExplainQueryAsync(
+        DatabaseTargetContext target,
+        string query,
+        object? parameters = null,
+        CancellationToken cancellationToken = default)
+    {
+        ExplainQueryCalled = true;
+        LastTarget = target;
+        LastDatabase = target.QualifiedName;
+        LastQuery = query;
+        LastParameters = parameters;
+        return Task.FromResult(NextResult ?? (Result<ExplainQueryResult>)new ExplainQueryResult(
+            Target: target.QualifiedName,
+            PlanKind: "estimated",
+            Truncated: false,
+            Nodes: [new ExplainPlanNode(1, null, "Clustered Index Scan", "Clustered Index Scan", 10.0, 0.003, null, null)],
+            Warnings: []));
     }
 }
 

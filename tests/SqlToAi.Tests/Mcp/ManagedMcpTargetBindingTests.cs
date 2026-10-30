@@ -32,7 +32,7 @@ public sealed class ManagedMcpTargetBindingTests
         Assert.Equal(McpConstants.ServerInstructions, client.ServerInstructions);
         Assert.Contains("exact raw database name, compared ordinally", client.ServerInstructions, StringComparison.Ordinal);
         Assert.Contains("can match actual stored text", client.ServerInstructions, StringComparison.Ordinal);
-        Assert.Equal(21, (await client.ListToolsAsync(cancellationToken: deadline.Token)).Count);
+        Assert.Equal(22, (await client.ListToolsAsync(cancellationToken: deadline.Token)).Count);
         var servers = await client.CallToolAsync(McpConstants.ToolListServers, cancellationToken: deadline.Token);
         Assert.False(servers.IsError);
         Assert.Equal(["alpha"], JsonSerializer.Deserialize<string[]>(Text(servers))!);
@@ -46,6 +46,10 @@ public sealed class ManagedMcpTargetBindingTests
             (McpConstants.ToolGetEnvironment, new() { ["database"] = null }, SqlToAiError.InvalidParametersCode),
             (McpConstants.ToolGetEnvironment, new() { ["database"] = "unknown/Db" }, SqlToAiError.InvalidParametersCode),
             (McpConstants.ToolGetEnvironment, new() { ["database"] = "ALPHA/Db" }, SqlToAiError.SafetyCheckFailedCode),
+            (McpConstants.ToolExplainQuery, new() { ["query"] = "SELECT 1" }, SqlToAiError.InvalidParametersCode),
+            (McpConstants.ToolExplainQuery, new() { ["query"] = "SELECT 1", ["database"] = null }, SqlToAiError.InvalidParametersCode),
+            (McpConstants.ToolExplainQuery, new() { ["query"] = "SELECT 1", ["database"] = "unknown/Db" }, SqlToAiError.InvalidParametersCode),
+            (McpConstants.ToolExplainQuery, new() { ["query"] = "SELECT 1", ["database"] = "ALPHA/Db" }, SqlToAiError.SafetyCheckFailedCode),
             (McpConstants.ToolExecuteQuery, new() { ["query"] = "SELECT 1" }, SqlToAiError.InvalidParametersCode),
             (McpConstants.ToolExecuteQuery, new() { ["query"] = "SELECT 1", ["database"] = null }, SqlToAiError.InvalidParametersCode),
             (McpConstants.ToolExecuteQuery, new() { ["query"] = "SELECT 1", ["database"] = "unknown/Db" }, SqlToAiError.InvalidParametersCode),

@@ -74,6 +74,94 @@ public sealed class ToolDispatcherTests : IDisposable
         Assert.Contains(SqlToAiError.InvalidParametersCode, result.Content[0].Text);
     }
 
+
+    [Fact]
+    public async Task ExplainQuery_ShouldRouteToExplainQueryService()
+    {
+        var explain = new FakeExplainQueryService();
+        var dispatcher = BuildDispatcher(explainQuery: explain);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExplainQuery,
+                (McpConstants.ArgDatabase, TestConstants.DatabaseName),
+                (McpConstants.ArgQuery, "SELECT 1")),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(explain.ExplainQueryCalled);
+        Assert.Equal(TestConstants.DatabaseName, explain.LastDatabase);
+        Assert.Equal("SELECT 1", explain.LastQuery);
+        Assert.False(result.IsError);
+        Assert.Single(result.Content);
+        Assert.Contains("estimated", result.Content[0].Text);
+    }
+
+    [Fact]
+    public async Task ExplainQuery_MissingDatabase_ReturnsInvalidParameters()
+    {
+        var explain = new FakeExplainQueryService();
+        var dispatcher = BuildDispatcher(explainQuery: explain);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExplainQuery, (McpConstants.ArgQuery, "SELECT 1")),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsError);
+        Assert.Contains(SqlToAiError.InvalidParametersCode, result.Content[0].Text);
+        Assert.False(explain.ExplainQueryCalled);
+    }
+
+    [Fact]
+    public async Task ExplainQuery_MissingQuery_ReturnsInvalidParameters()
+    {
+        var explain = new FakeExplainQueryService();
+        var dispatcher = BuildDispatcher(explainQuery: explain);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExplainQuery, (McpConstants.ArgDatabase, TestConstants.DatabaseName)),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsError);
+        Assert.Contains(SqlToAiError.InvalidParametersCode, result.Content[0].Text);
+        Assert.False(explain.ExplainQueryCalled);
+    }
+
+    [Fact]
+    public async Task ExplainQuery_PassesParametersToService()
+    {
+        var explain = new FakeExplainQueryService();
+        var dispatcher = BuildDispatcher(explainQuery: explain);
+        var parameters = new Dictionary<string, object?> { ["id"] = 42 };
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExplainQuery,
+                (McpConstants.ArgDatabase, TestConstants.DatabaseName),
+                (McpConstants.ArgQuery, "SELECT 1"),
+                (McpConstants.ArgParameters, parameters)),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(explain.ExplainQueryCalled);
+        Assert.Equal(parameters, explain.LastParameters);
+        Assert.False(result.IsError);
+    }
+
+    [Fact]
+    public async Task ExplainQuery_PropagatesServiceError()
+    {
+        var explain = new FakeExplainQueryService
+        {
+            NextResult = SqlToAiError.WriteOperationBlocked("Mutating statement rejected.")
+        };
+        var dispatcher = BuildDispatcher(explainQuery: explain);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExplainQuery,
+                (McpConstants.ArgDatabase, TestConstants.DatabaseName),
+                (McpConstants.ArgQuery, "INSERT INTO T VALUES (1)")),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsError);
+        Assert.Contains(SqlToAiError.WriteOperationBlockedCode, result.Content[0].Text);
+    }
     [Fact]
     public async Task SearchDatabases_ShouldRouteToSchemaService()
     {

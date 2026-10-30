@@ -28,6 +28,7 @@ public sealed class PrimaryConnectionFailureTests
     [InlineData(McpConstants.ToolGetSchema)]
     [InlineData(McpConstants.ToolGetSchemaForeignKeys)]
     [InlineData(McpConstants.ToolValidateQuery)]
+    [InlineData(McpConstants.ToolExplainQuery)]
     [InlineData(McpConstants.ToolExecuteQuery)]
     [InlineData(McpConstants.ToolExportData)]
     [InlineData(McpConstants.ToolCompareQueries)]
@@ -53,6 +54,7 @@ public sealed class PrimaryConnectionFailureTests
     [InlineData(McpConstants.ToolGetSchema)]
     [InlineData(McpConstants.ToolGetSchemaForeignKeys)]
     [InlineData(McpConstants.ToolValidateQuery)]
+    [InlineData(McpConstants.ToolExplainQuery)]
     [InlineData(McpConstants.ToolExecuteQuery)]
     [InlineData(McpConstants.ToolExportData)]
     [InlineData(McpConstants.ToolCompareQueries)]
@@ -197,8 +199,13 @@ public sealed class PrimaryConnectionFailureTests
                 new AnonymizationDependencies(new Anonymizer(options, new TokenVault())),
                 options, _loggers.CreateLogger<DataExportService>());
             var environment = new EnvironmentService(Factory, security, access, options, _loggers.CreateLogger<EnvironmentService>());
+            var explainStatementGuard = new ExplainQueryStatementGuard(security, new ReadOnlyGuard());
+            var showplanExec = new ShowplanExecutionService(Factory, options, _loggers.CreateLogger<ShowplanExecutionService>());
+            var showplanParser = new ShowplanXmlParser(options);
+            var explain = new ExplainQueryService(showplanExec, showplanParser, explainStatementGuard, security, access, options, _loggers.CreateLogger<ExplainQueryService>());
             _dispatcher = new ToolDispatcher(Schema, environment, query, Script,
                 new QueryValidationService(Factory, safety, options, _loggers.CreateLogger<QueryValidationService>()),
+                explain,
                 analysis, options, _loggers.CreateLogger<ToolDispatcher>(),
                 new SchemaExportService(Schema, options, _loggers.CreateLogger<SchemaExportService>()),
                 exportData);

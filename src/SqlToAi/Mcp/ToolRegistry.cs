@@ -32,6 +32,7 @@ public sealed class ToolRegistry
         BuildSearchDatabases(),
         BuildGetEnvironment(),
         BuildValidateQuery(),
+        BuildExplainQuery(),
         BuildSearchObjects(),
         BuildGetSchema(),
         BuildExportSchema(),
@@ -109,6 +110,22 @@ public sealed class ToolRegistry
             Properties = new Dictionary<string, ToolParameterDefinition>
             {
                 [McpConstants.ArgQuery]      = StringParam("The SQL query to validate."),
+                [McpConstants.ArgDatabase]   = StringParam(McpConstants.DatabaseTargetDescription),
+                [McpConstants.ArgParameters] = new() { Type = "object", Description = "Optional dictionary of typed SQL parameters (e.g. {\"CustomerId\": 42} or {\"val\": {\"value\": \"123\", \"dbType\": \"AnsiString\"}})." }
+            },
+            Required = [McpConstants.ArgQuery, McpConstants.ArgDatabase]
+        }
+    };
+
+    private static ToolDefinition BuildExplainQuery() => new()
+    {
+        Name = McpConstants.ToolExplainQuery,
+        Description = ExecutionToolDescriptions.ExplainQuery,
+        InputSchema = new ToolInputSchema
+        {
+            Properties = new Dictionary<string, ToolParameterDefinition>
+            {
+                [McpConstants.ArgQuery]      = StringParam("The SQL query to inspect the estimated execution plan for."),
                 [McpConstants.ArgDatabase]   = StringParam(McpConstants.DatabaseTargetDescription),
                 [McpConstants.ArgParameters] = new() { Type = "object", Description = "Optional dictionary of typed SQL parameters (e.g. {\"CustomerId\": 42} or {\"val\": {\"value\": \"123\", \"dbType\": \"AnsiString\"}})." }
             },

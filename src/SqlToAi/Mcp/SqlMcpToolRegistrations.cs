@@ -11,7 +11,7 @@ namespace SqlToAi.Mcp;
 public static class SqlMcpToolRegistrations
 {
     /// <summary>
-    /// Builds and returns the collection of all 21 SQL tools, wired to the provided <paramref name="dispatcher"/>.
+    /// Builds and returns the collection of all 22 SQL tools, wired to the provided <paramref name="dispatcher"/>.
     /// </summary>
     public static McpServerPrimitiveCollection<McpServerTool> BuildToolCollection(IToolDispatcher dispatcher)
     {
@@ -210,6 +210,26 @@ public static class SqlMcpToolRegistrations
             {
                 Name = McpConstants.ToolValidateQuery,
                 Description = ExecutionToolDescriptions.ValidateQuery
+            }));
+
+        tools.Add(McpServerTool.Create(
+            ([Description("The SQL query to inspect the estimated execution plan for.")] string query,
+             [Description(McpConstants.DatabaseTargetDescription)] JsonElement? database = null,
+             [Description("Optional dictionary of typed SQL parameters.")] object? parameters = null,
+             CancellationToken ct = default) =>
+            {
+                var args = new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    [McpConstants.ArgQuery] = query,
+                    [McpConstants.ArgDatabase] = database
+                };
+                if (parameters != null) args[McpConstants.ArgParameters] = parameters;
+                return ExecuteAsync(dispatcher, McpConstants.ToolExplainQuery, args, ct);
+            },
+            new McpServerToolCreateOptions
+            {
+                Name = McpConstants.ToolExplainQuery,
+                Description = ExecutionToolDescriptions.ExplainQuery
             }));
 
         tools.Add(McpServerTool.Create(

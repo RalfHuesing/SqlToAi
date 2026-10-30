@@ -1,6 +1,6 @@
 # SQL tool reference
 
-The server registers 21 SQL tools. Required arguments are listed below; `database` is an explicit qualified target (`alias/database`) wherever shown. Failed tool results set MCP `isError=true`; catalog errors appear as `[SQL-AI-...] message` in text content or structured `error` objects in JSON envelopes. Successful content can be Markdown or JSON, depending on the tool.
+The server registers 22 SQL tools. Required arguments are listed below; `database` is an explicit qualified target (`alias/database`) wherever shown. Failed tool results set MCP `isError=true`; catalog errors appear as `[SQL-AI-...] message` in text content or structured `error` objects in JSON envelopes. Successful content can be Markdown or JSON, depending on the tool.
 
 Discover aliases with `sql_list_servers` and permitted qualified targets with
 `sql_list_databases`. Both discovery schemas and CLI help describe the required
@@ -143,6 +143,7 @@ There is no automatic cleanup or staging.
 | `sql_execute_query` | `query`, `database` | `requested_row_limit`, `parameters` |
 | `sql_export_data` | `database`, `query`, `output_path` | `format` (auto), `overwrite` (false), `requested_row_limit`, `parameters` |
 | `sql_execute_file` | `file_path`, `database` | `use_transaction` (true), `requested_row_limit`, `parameters` |
+| `sql_explain_query` | `database`, `query` | `parameters` |
 
 `sql_execute_query` accepts one main statement with supported leading declarations. The `database` argument is resolved as a qualified `alias/database` target: malformed, unqualified or unknown targets fail with `SQL-AI-0001` before any database work. Returned rows are capped by `QueryExecution` limits. It returns separate text blocks: a masking notice when applicable, an execution header, JSON rows, and a schema hint when the parsed query references a supported SQL Server catalog view or `OBJECT_DEFINITION`. The hint directs agents to `sql_get_schema`, `sql_get_trigger_definition` or `sql_search_objects`; it does not make another tool call. Catalog query string results may be anonymized. The header has this format:
 
@@ -205,6 +206,70 @@ The tool returns a compact JSON metadata response:
   "anonymized_columns": []
 }
 ```
+
+### Estimated query plan
+
+`sql_explain_query` inspects how SQL Server's optimizer plans to execute a read-only `SELECT` query without executing it or returning table rows, returning a compact operator hierarchy, estimated rows, subtree costs, and allowlisted compiler warnings rather than an XML dump or a tuning verdict.
+
+The required `database` argument is resolved once as a qualified `alias/database` target. Malformed, unqualified or unknown targets fail with `SQL-AI-0001` before any database work; targets denied by static configuration or assigned `AccessLevel.None` fail with `SQL-AI-0104` before any connection is opened. It is permitted on all other access levels, including `SchemaOnly`, `ReadOnlyAnonymized`, `ReadOnly`, `ReadWriteAnonymized`, and `ReadWrite`.
+
+The accepted statement shape is closed: optional leading `DECLARE` statements followed by exactly one `SELECT` statement without `INTO`. Nothing may follow the `SELECT`. Statements are checked before any database connection:
+- Mutating statements (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `SELECT INTO`, `EXEC`, DDL) fail with `SQL-AI-0107` across all access levels, including `ReadWrite` and `ReadWriteAnonymized`.
+- Caller execution, session, transaction, plan, or database controls (`SET` of any kind including `SHOWPLAN_*`, `NOEXEC`, `PARSEONLY`, `FMTONLY`, `STATISTICS`; `BEGIN`/`COMMIT`/`ROLLBACK TRAN`; `USE`) anywhere in the batch fail with `SQL-AI-0104`.
+- Multiple main statements or batches fail with `SQL-AI-0101`.
+- Unparseable SQL syntax fails closed with `SQL-AI-0102`.
+- Missing or empty `database` or `query` arguments fail with `SQL-AI-0001`.
+
+Execution opens a dedicated non-pooled connection (`Pooling=false`) and runs `SET SHOWPLAN_XML ON`, the query, and best-effort `SET SHOWPLAN_XML OFF` as distinct batches without a transaction. If the batch does not produce an estimated showplan result (for example if data rows are returned), execution aborts immediately, discards the connection, and fails with `SQL-AI-0102`. Missing `SHOWPLAN` or object `SELECT` permissions return `SQL-AI-0104` with a fixed message naming only the missing permission class without echoing raw database messages. Command timeouts return `SQL-AI-0106`; connection failures return `SQL-AI-0105`.
+
+`DECLARE` assignments are not executed during compilation, so variables are `NULL` while the plan is built. Estimates, especially with `OPTION (RECOMPILE)`, can differ from runtime; `docs/tools.md` states this.
+
+Bounds are governed by `ExplainQuery` configuration options:
+- `MaxShowplanXmlBytes` (default 2 MiB): reading stops once the raw showplan XML exceeds this limit and fails with `SQL-AI-0102`.
+- `MaxOperators` (default 100): limits the total number of operator nodes returned.
+- `MaxDepth` (default 16): limits the maximum depth of the operator tree.
+- `MaxResponseBytes` (default 64 KiB): caps the serialized JSON response text.
+
+Nodes beyond the operator and depth limits are dropped in breadth-first order, keeping their visible parent and reporting `omitted_children`. If the serialized result still exceeds `MaxResponseBytes`, further nodes are dropped in reverse breadth-first order until it fits, and `truncated` is set to `true`.
+
+Result shape:
+
+```json
+{
+  "target": "primary/DemoDB",
+  "plan_kind": "estimated",
+  "truncated": false,
+  "nodes": [
+    {
+      "node_id": 0,
+      "parent_id": null,
+      "physical_op": "Clustered Index Scan",
+      "logical_op": "Clustered Index Scan",
+      "estimated_rows": 100.0,
+      "subtree_cost": 0.003125,
+      "object": {
+        "schema": "dbo",
+        "table": "Orders",
+        "index": "PK_Orders"
+      }
+    }
+  ],
+  "warnings": [
+    {
+      "kind": "missing_index",
+      "impact": 54.2,
+      "object": {
+        "schema": "dbo",
+        "table": "Orders"
+      },
+      "columns": ["CustomerID"],
+      "included_columns": ["OrderDate"]
+    }
+  ]
+}
+```
+
+Allowlisted warnings include `missing_index` (table identity, key columns, include columns, estimated impact) and `plan_affecting_convert` (conversion kind and column identity). Scans are visible through `physical_op` on nodes and are not reported as warnings. Sensitive literals, raw XML, `StatementText`, parameter values, `ScalarString`, expression text, and generated `CREATE INDEX` DDL are never returned.
 
 ## Parameters
 

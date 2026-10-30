@@ -38,6 +38,7 @@ internal static class McpConstants
     internal const string ToolSearchDatabases = "sql_search_databases";
     internal const string ToolGetEnvironment = "sql_get_environment";
     internal const string ToolValidateQuery = "sql_validate_query";
+    internal const string ToolExplainQuery = "sql_explain_query";
     internal const string ToolSearchObjects = "sql_search_objects";
     internal const string ToolGetSchema = "sql_get_schema";
     internal const string ToolExportSchema = "sql_export_schema";

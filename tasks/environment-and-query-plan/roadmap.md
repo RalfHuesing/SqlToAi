@@ -114,7 +114,7 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
     - [x] Literal exclusion tests pass
     - [x] Atomic commit: `feat: Implementiere sicheren Showplan-XML-Parser mit Baum-Begrenzung`
 
-- [ ] **M2.4 — `ExplainQueryService` and Exposure in MCP, CLI, and Documentation**
+- [x] **M2.4 — `ExplainQueryService` and Exposure in MCP, CLI, and Documentation**
   - **Intention**: Orchestrate target resolution, access check, guard, showplan execution and parsing, and expose the tool.
   - **Scope**:
     - `ExplainQueryService`: resolve target once, access check, guard (M2.1), execution (M2.2), parser (M2.3), result mapping.
@@ -127,12 +127,12 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
     - Service-level tests confirm no connection is opened for rejected targets or statements.
     - Documentation matches implemented arguments, result fields, limits and error codes.
   - **Checklist**:
-    - [ ] `ExplainQueryService` implemented
-    - [ ] Registry, dispatcher, MCP registration and DI wired
-    - [ ] Tool-count assertions and smoke check updated to 22
-    - [ ] Documentation updated
-    - [ ] Integration tests pass
-    - [ ] Atomic commit: `feat: Binde sql_explain_query in MCP, CLI und Dokumentation ein`
+    - [x] `ExplainQueryService` implemented
+    - [x] Registry, dispatcher, MCP registration and DI wired
+    - [x] Tool-count assertions and smoke check updated to 22
+    - [x] Documentation updated
+    - [x] Integration tests pass
+    - [x] Atomic commit: `feat: Binde sql_explain_query in MCP, CLI und Dokumentation ein`
 
 - [ ] **M2.5 — Milestone 2 Audit and Verification**
   - **Intention**: Verify Milestone 2 against the concept.
