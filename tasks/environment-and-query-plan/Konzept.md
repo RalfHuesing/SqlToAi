@@ -1,5 +1,5 @@
 ---
-status: draft
+status: ready
 ---
 
 # SQL Server Environment Context and Estimated Query-Plan Diagnosis

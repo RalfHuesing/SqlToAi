@@ -19,6 +19,7 @@ namespace SqlToAi.Mcp;
 [JsonSerializable(typeof(ToolContent))]
 [JsonSerializable(typeof(SchemaExportToolResponse))]
 [JsonSerializable(typeof(DataExportResult))]
+[JsonSerializable(typeof(Domain.DatabaseEnvironmentResult))]
 [JsonSerializable(typeof(ExportColumnInfo))]
 [JsonSerializable(typeof(IReadOnlyList<ExportColumnInfo>))]
 [JsonSerializable(typeof(ExportColumnInfo[]))]

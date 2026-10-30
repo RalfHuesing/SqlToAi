@@ -10,6 +10,7 @@ namespace SqlToAi.Mcp;
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
 )]
 [JsonSerializable(typeof(Domain.QueryComparisonResult))]
+[JsonSerializable(typeof(Domain.DatabaseEnvironmentResult))]
 [JsonSerializable(typeof(Domain.QueryComparisonArgs))]
 [JsonSerializable(typeof(Domain.PerformanceMetrics))]
 [JsonSerializable(typeof(Domain.PerformancePlanWarning))]

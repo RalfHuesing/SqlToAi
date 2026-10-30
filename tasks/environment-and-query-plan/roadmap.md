@@ -12,7 +12,7 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
 
 ## Milestone 1: Environment Context (`sql_get_environment`)
 
-- [ ] **M1.1 — Implement EnvironmentService and Result Models**
+- [x] **M1.1 — Implement EnvironmentService and Result Models**
   - **Intention**: Query server and database environment metadata through a dedicated service with typed DTOs.
   - **Scope**:
     - Create the environment result DTO with the allowlisted fields and `unavailable_fields`, registered in the existing source-generated JSON contexts.
@@ -23,10 +23,10 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
     - Unit tests verify metadata mapping, `unavailable_fields`, and serialization.
     - Fixture/integration tests on a real database return valid product version, edition, engine edition, compatibility level, collation, state and read-only flag.
   - **Checklist**:
-    - [ ] DTOs and serializer context configured
-    - [ ] `EnvironmentService` implemented
-    - [ ] Unit and fixture tests pass
-    - [ ] Atomic commit: `feat: Implementiere EnvironmentService und Metadaten-Modelle`
+    - [x] DTOs and serializer context configured
+    - [x] `EnvironmentService` implemented
+    - [x] Unit and fixture tests pass
+    - [x] Atomic commit: `feat: Implementiere EnvironmentService und Metadaten-Modelle`
 
 - [ ] **M1.2 — Expose `sql_get_environment` in MCP, CLI, and Documentation**
   - **Intention**: Expose the tool with qualified target resolution and `SchemaOnly` minimum access.
