@@ -198,7 +198,7 @@ public sealed class ComposedTargetBindingTests
     {
         var fixture = new ComposedTargetFixture();
         var tools = SqlMcpToolRegistrations.BuildToolCollection(fixture.Dispatcher);
-        Assert.Equal(20, tools.Count);
+        Assert.Equal(21, tools.Count);
         foreach (var tool in tools)
         {
             var definition = Definitions.Single(item => item.Name == tool.ProtocolTool.Name);

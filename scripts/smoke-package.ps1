@@ -213,7 +213,7 @@ try {
         $discovery = Read-McpResponse $process 2
         $expected = @(
             'sql_list_servers',
-            'sql_list_databases', 'sql_search_databases', 'sql_validate_query', 'sql_search_objects',
+            'sql_list_databases', 'sql_search_databases', 'sql_get_environment', 'sql_validate_query', 'sql_search_objects',
             'sql_get_schema', 'sql_export_schema', 'sql_get_schema_foreign_keys', 'sql_get_schema_indexes', 'sql_get_schema_constraints',
             'sql_get_trigger_definition', 'sql_get_object_references', 'sql_get_routine_parameters',
             'sql_execute_query', 'sql_export_data', 'sql_execute_file', 'sql_compare_queries', 'sql_measure_performance',
@@ -221,7 +221,7 @@ try {
         )
         if ($discovery.nextCursor -or @($discovery.tools).Count -ne $expected.Count -or
             (Compare-Object ($expected | Sort-Object) (@($discovery.tools.name) | Sort-Object) -CaseSensitive)) {
-            throw 'Packaged tools/list does not match the expected 20 SQL tools.'
+            throw 'Packaged tools/list does not match the expected 21 SQL tools.'
         }
         $process.StandardInput.Close()
         $tail = $process.StandardOutput.ReadToEndAsync()

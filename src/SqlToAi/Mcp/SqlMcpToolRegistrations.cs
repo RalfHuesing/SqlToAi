@@ -11,7 +11,7 @@ namespace SqlToAi.Mcp;
 public static class SqlMcpToolRegistrations
 {
     /// <summary>
-    /// Builds and returns the collection of all 20 SQL tools, wired to the provided <paramref name="dispatcher"/>.
+    /// Builds and returns the collection of all 21 SQL tools, wired to the provided <paramref name="dispatcher"/>.
     /// </summary>
     public static McpServerPrimitiveCollection<McpServerTool> BuildToolCollection(IToolDispatcher dispatcher)
     {
@@ -69,6 +69,20 @@ public static class SqlMcpToolRegistrations
             {
                 Name = McpConstants.ToolSearchDatabases,
                 Description = "Filters the list of allowed databases on the specified server alias by a partial search term."
+            }));
+
+        ToolDefinition envDef = new ToolRegistry().GetAll().Single(tool => tool.Name == McpConstants.ToolGetEnvironment);
+        tools.Add(McpServerTool.Create(
+            ([Description(McpConstants.DatabaseTargetDescription)] JsonElement? database = null,
+             CancellationToken ct = default) =>
+                ExecuteAsync(dispatcher, McpConstants.ToolGetEnvironment, new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    [McpConstants.ArgDatabase] = database
+                }, ct),
+            new McpServerToolCreateOptions
+            {
+                Name = envDef.Name,
+                Description = envDef.Description
             }));
 
         tools.Add(McpServerTool.Create(

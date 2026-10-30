@@ -3,7 +3,7 @@ using SqlToAi.Mcp;
 namespace SqlToAi.Tests.Mcp;
 
 /// <summary>
-/// Unit tests for <see cref="ToolRegistry"/> — validates that all 20 tools are correctly registered
+/// Unit tests for <see cref="ToolRegistry"/> — validates that all 21 tools are correctly registered
 /// and that their schema definitions are consistent with <see cref="McpConstants"/>.
 /// </summary>
 public sealed class ToolRegistryTests
@@ -11,9 +11,9 @@ public sealed class ToolRegistryTests
     private readonly ToolRegistry _registry = new();
 
     [Fact]
-    public void GetAll_ShouldReturn_TwentyTools()
+    public void GetAll_ShouldReturn_TwentyOneTools()
     {
-        Assert.Equal(20, _registry.GetAll().Count);
+        Assert.Equal(21, _registry.GetAll().Count);
     }
 
     [Fact]
@@ -24,6 +24,7 @@ public sealed class ToolRegistryTests
         Assert.Contains(McpConstants.ToolListServers, names);
         Assert.Contains(McpConstants.ToolListDatabases, names);
         Assert.Contains(McpConstants.ToolSearchDatabases, names);
+        Assert.Contains(McpConstants.ToolGetEnvironment, names);
         Assert.Contains(McpConstants.ToolValidateQuery, names);
         Assert.Contains(McpConstants.ToolSearchObjects, names);
         Assert.Contains(McpConstants.ToolGetSchema, names);
@@ -72,6 +73,7 @@ public sealed class ToolRegistryTests
     [InlineData(McpConstants.ToolExportData, McpConstants.ArgQuery)]
     [InlineData(McpConstants.ToolExportData, McpConstants.ArgOutputPath)]
     [InlineData(McpConstants.ToolExecuteFile, McpConstants.ArgFilePath)]
+    [InlineData(McpConstants.ToolGetEnvironment, McpConstants.ArgDatabase)]
     public void Tool_ShouldHaveRequiredArgument(string toolName, string expectedRequired)
     {
         var tool = _registry.GetAll().Single(t => t.Name == toolName);
@@ -98,6 +100,16 @@ public sealed class ToolRegistryTests
     {
         var tool = _registry.GetAll().Single(t => t.Name == McpConstants.ToolListDatabases);
         Assert.Contains(McpConstants.ArgServer, tool.InputSchema.Required);
+    }
+
+    [Fact]
+    public void GetEnvironment_ShouldExposeExpectedArgumentSchema()
+    {
+        var tool = _registry.GetAll().Single(t => t.Name == McpConstants.ToolGetEnvironment);
+        Assert.Contains(McpConstants.ArgDatabase, tool.InputSchema.Required);
+        Assert.Single(tool.InputSchema.Required);
+        Assert.Equal("string", tool.InputSchema.Properties[McpConstants.ArgDatabase].Type);
+        Assert.Equal(McpConstants.DatabaseTargetDescription, tool.InputSchema.Properties[McpConstants.ArgDatabase].Description);
     }
 
     [Fact]

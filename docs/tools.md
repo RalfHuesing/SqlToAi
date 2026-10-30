@@ -1,6 +1,6 @@
 # SQL tool reference
 
-The server registers 20 SQL tools. Required arguments are listed below; `database` is an explicit qualified target (`alias/database`) wherever shown. Failed tool results set MCP `isError=true`; catalog errors appear as `[SQL-AI-...] message` in text content or structured `error` objects in JSON envelopes. Successful content can be Markdown or JSON, depending on the tool.
+The server registers 21 SQL tools. Required arguments are listed below; `database` is an explicit qualified target (`alias/database`) wherever shown. Failed tool results set MCP `isError=true`; catalog errors appear as `[SQL-AI-...] message` in text content or structured `error` objects in JSON envelopes. Successful content can be Markdown or JSON, depending on the tool.
 
 Discover aliases with `sql_list_servers` and permitted qualified targets with
 `sql_list_databases`. Both discovery schemas and CLI help describe the required
@@ -20,6 +20,7 @@ error through the dispatcher.
 | `sql_list_servers` | None | None | List of configured named server aliases |
 | `sql_list_databases` | `server` | None | Permitted databases on the specified server alias |
 | `sql_search_databases` | `server`, `search_term` | None | Permitted databases on the specified server matching a substring |
+| `sql_get_environment` | `database` | None | Server version, edition, engine edition, compatibility level, collation, state, and read-only status in a compact JSON result |
 | `sql_validate_query` | `query`, `database` | `parameters` | Validation message; SQL Server `NOEXEC` compilation without executing the query |
 | `sql_search_objects` | `search_term`, `database` | `max_results`, `object_type` | Object matches; `object_type` matches SQL Server `type_desc`, supporting LIKE patterns such as `SQL_%` |
 | `sql_get_schema` | `database` | `object_name`, `object_names` | Scalar primary-schema Markdown, or an ordered JSON batch envelope |
@@ -32,6 +33,31 @@ error through the dispatcher.
 | `sql_get_routine_parameters` | `object_name`, `database` | None | Procedure/function parameter names, types and directions |
 
 Schema details are separate calls so clients can request only relevant metadata. Validation is not a guarantee that all objects exist or that later execution will succeed: `NOEXEC` can defer name resolution. Caller `SET NOEXEC`, `SET PARSEONLY` and `SET FMTONLY` are rejected before opening the validation connection, even inside nested blocks (`SQL-AI-0104`); unparseable SQL returns `SQL-AI-0102`. Schema definitions are raw text; [security.md](security.md) describes exposure limits.
+
+### Environment context
+
+`sql_get_environment` retrieves SQL Server version, edition, engine edition, database compatibility level, collation, state, and read-only status in a single compact call without executing workload queries or accessing table data. The required `database` argument is resolved as a qualified `alias/database` target (`SQL-AI-0001` for malformed, unqualified or unknown targets; `SQL-AI-0104` for denied or excluded targets, before any connection). It requires `SchemaOnly` minimum access.
+
+Example result:
+
+```json
+{
+  "target": "primary/DemoDB",
+  "product_version": "16.0.4180.1",
+  "product_major_version": 16,
+  "edition": "Developer Edition (64-bit)",
+  "engine_edition": 3,
+  "compatibility_level": 160,
+  "collation": "Latin1_General_CI_AS",
+  "state_desc": "ONLINE",
+  "is_read_only": false,
+  "unavailable_fields": []
+}
+```
+
+Allowlisted fields that the database server does not provide (such as `product_major_version` on older versions where `SERVERPROPERTY('ProductMajorVersion')` returns `NULL`) are omitted from the JSON output and listed by name in `unavailable_fields`; they are never returned as `0` or `false`.
+
+`compatibility_level` and `engine_edition` indicate server capabilities, but SQL-AI parses submitted SQL with the T-SQL 150 grammar, so newer syntax can be rejected with `SQL-AI-0102` regardless of the reported level.
 
 ### Primary schema selection
 

@@ -103,6 +103,37 @@ public sealed class ToolDispatcherTests : IDisposable
     }
 
     [Fact]
+    public async Task GetEnvironment_ShouldRouteToEnvironmentService()
+    {
+        var environment = new FakeEnvironmentService();
+        var dispatcher = BuildDispatcher(environment: environment);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolGetEnvironment, (McpConstants.ArgDatabase, TestConstants.DatabaseName)),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(environment.GetEnvironmentCalled);
+        Assert.Equal(TestConstants.DatabaseName, environment.LastDatabase);
+        Assert.False(result.IsError);
+        Assert.Single(result.Content);
+        Assert.Contains("product_version", result.Content[0].Text);
+    }
+
+    [Fact]
+    public async Task GetEnvironment_MissingDatabase_ReturnsInvalidParameters()
+    {
+        var environment = new FakeEnvironmentService();
+        var dispatcher = BuildDispatcher(environment: environment);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolGetEnvironment),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsError);
+        Assert.Contains(SqlToAiError.InvalidParametersCode, result.Content[0].Text);
+    }
+
+    [Fact]
     public async Task ValidateQuery_ShouldRouteToValidationService()
     {
         var validation = new FakeQueryValidationService();

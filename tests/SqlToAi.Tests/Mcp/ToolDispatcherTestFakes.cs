@@ -13,6 +13,7 @@ internal static class ToolDispatcherTestHelper
 {
     public static ToolDispatcher BuildDispatcher(
         ISchemaService? schema = null,
+        IEnvironmentService? environment = null,
         IQueryExecutionService? exec = null,
         FakeScriptExecutionService? script = null,
         FakeQueryValidationService? validation = null,
@@ -23,6 +24,7 @@ internal static class ToolDispatcherTestHelper
         var options = new SqlToAiOptions();
         return new ToolDispatcher(
             schema ?? new FakeSchemaService(),
+            environment ?? new FakeEnvironmentService(),
             exec   ?? new FakeQueryExecutionService(),
             script ?? new FakeScriptExecutionService(),
             validation ?? new FakeQueryValidationService(),
@@ -69,6 +71,53 @@ internal sealed class FakeDataExportService : IDataExportService
             LogicalReads: 2,
             WasAnonymized: false,
             AnonymizedColumns: []));
+    }
+}
+
+internal sealed class FakeEnvironmentService : IEnvironmentService
+{
+    public bool GetEnvironmentCalled { get; private set; }
+    public string? LastDatabase { get; private set; }
+    public DatabaseTargetContext? LastTarget { get; private set; }
+    public Result<DatabaseEnvironmentResult>? NextResult { get; set; }
+
+    public Task<Result<DatabaseEnvironmentResult>> GetEnvironmentAsync(
+        string databaseName,
+        CancellationToken cancellationToken = default)
+    {
+        GetEnvironmentCalled = true;
+        LastDatabase = databaseName;
+        return Task.FromResult(NextResult ?? (Result<DatabaseEnvironmentResult>)new DatabaseEnvironmentResult(
+            Target: databaseName,
+            ProductVersion: "16.0.4180.1",
+            ProductMajorVersion: 16,
+            Edition: "Developer Edition (64-bit)",
+            EngineEdition: 3,
+            CompatibilityLevel: 160,
+            Collation: "Latin1_General_CI_AS",
+            StateDesc: "ONLINE",
+            IsReadOnly: false,
+            UnavailableFields: []));
+    }
+
+    public Task<Result<DatabaseEnvironmentResult>> GetEnvironmentAsync(
+        DatabaseTargetContext target,
+        CancellationToken cancellationToken = default)
+    {
+        GetEnvironmentCalled = true;
+        LastTarget = target;
+        LastDatabase = target.QualifiedName;
+        return Task.FromResult(NextResult ?? (Result<DatabaseEnvironmentResult>)new DatabaseEnvironmentResult(
+            Target: target.QualifiedName,
+            ProductVersion: "16.0.4180.1",
+            ProductMajorVersion: 16,
+            Edition: "Developer Edition (64-bit)",
+            EngineEdition: 3,
+            CompatibilityLevel: 160,
+            Collation: "Latin1_General_CI_AS",
+            StateDesc: "ONLINE",
+            IsReadOnly: false,
+            UnavailableFields: []));
     }
 }
 

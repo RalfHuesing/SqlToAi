@@ -14,7 +14,7 @@ Access lists use qualified target names (`<alias>/<database>`), compared case-in
 
 | Level | Behavior |
 | --- | --- |
-| `SchemaOnly` | Schema discovery and query validation; data execution, comparison and performance measurement blocked |
+| `SchemaOnly` | Schema discovery, environment context and query validation; data execution, comparison and performance measurement blocked |
 | `ReadOnlyAnonymized` | Read queries with string masking when the anonymizer is enabled |
 | `ReadOnly` | Read queries with raw results |
 | `ReadWriteAnonymized` | Read/write query and script execution with string masking when the anonymizer is enabled |
@@ -27,7 +27,7 @@ a conflict between `ReadOnly` and `ReadWriteAnonymized`), then `ReadOnly`, then
 `ReadWriteAnonymized`, then `ReadWrite`. This preserves read-only and masking
 restrictions from overlapping grants.
 
-The shipped main template has empty access lists, so every database, including `DemoDB`, is denied until an administrator configures a level deliberately. The separate fictional DemoDB example explicitly grants `ReadWrite` to `test/DemoDB` for a local test database and is never loaded by the host automatically. Database discovery returns permitted databases only. Index suggestions also accept `SchemaOnly`, since they read metadata.
+The shipped main template has empty access lists, so every database, including `DemoDB`, is denied until an administrator configures a level deliberately. The separate fictional DemoDB example explicitly grants `ReadWrite` to `test/DemoDB` for a local test database and is never loaded by the host automatically. Database discovery returns permitted databases only. Index suggestions and environment context (`sql_get_environment`) also accept `SchemaOnly`, since they read metadata.
 
 ## Query guards and transactions
 

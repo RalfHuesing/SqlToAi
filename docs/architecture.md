@@ -37,6 +37,9 @@ section. Direct string-based schema APIs resolve and delegate to those same
 implementations. Policy checks remain in the context-based operations before SQL.
 Optimization benchmarks likewise resolve once and pass the identical context to
 comparison and both measurements; their direct string APIs share the same cores.
+Environment context (`IEnvironmentService`) resolves its target once, verifies
+`SchemaOnly` minimum access, and retrieves server and database properties via a
+fixed diagnostic query without caller input.
 The safety validator accepts resolved contexts only and does not parse targets.
 
 All tools, CLI commands, and internal services operate exclusively on qualified targets;
@@ -49,7 +52,7 @@ obsolete single-server contracts and fallback behaviors have been completely rem
 | [Configuration](../src/SqlToAi/Configuration/) | Required user configuration, options, environment expansion and metadata-query file loading |
 | [Mcp](../src/SqlToAi/Mcp/) | Registry, dispatcher, SDK registrations and MCP content |
 | [Security](../src/SqlToAi/Security/) | Database exclusions/access levels and ScriptDom read-only guard |
-| [Database](../src/SqlToAi/Database/) | Connections, schema, metadata, queries, scripts, data export, comparison, measurements and indexes |
+| [Database](../src/SqlToAi/Database/) | Connections, environment, schema, metadata, queries, scripts, data export, comparison, measurements and indexes |
 | [Anonymization](../src/SqlToAi/Anonymization/) | String transformations, central policy resolution and process-local token vault |
 | [Domain](../src/SqlToAi/Domain/) | Arguments, results, access levels and error catalog |
 | [Cli](../src/SqlToAi/Cli/) | Registry-generated query commands and schema export composition/files |

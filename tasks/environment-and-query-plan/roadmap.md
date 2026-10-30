@@ -28,7 +28,7 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
     - [x] Unit and fixture tests pass
     - [x] Atomic commit: `feat: Implementiere EnvironmentService und Metadaten-Modelle`
 
-- [ ] **M1.2 — Expose `sql_get_environment` in MCP, CLI, and Documentation**
+- [x] **M1.2 — Expose `sql_get_environment` in MCP, CLI, and Documentation**
   - **Intention**: Expose the tool with qualified target resolution and `SchemaOnly` minimum access.
   - **Scope**:
     - `McpConstants`, `ToolRegistry` (schema; CLI is derived), `ToolDispatcher`, `SqlMcpToolRegistrations`, DI in `Program.cs`.
@@ -40,11 +40,11 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
     - Denied/excluded/malformed targets fail before any connection with the cataloged codes.
     - `SchemaOnly` access permits execution; same-name databases on different aliases do not collide.
   - **Checklist**:
-    - [ ] Registry, dispatcher, MCP registration and DI wired
-    - [ ] Tool-count assertions and smoke check updated to 21
-    - [ ] Documentation updated
-    - [ ] Integration tests pass
-    - [ ] Atomic commit: `feat: Binde sql_get_environment in MCP, CLI und Dokumentation ein`
+    - [x] Registry, dispatcher, MCP registration and DI wired
+    - [x] Tool-count assertions and smoke check updated to 21
+    - [x] Documentation updated
+    - [x] Integration tests pass
+    - [x] Atomic commit: `feat: Binde sql_get_environment in MCP, CLI und Dokumentation ein`
 
 - [ ] **M1.3 — Milestone 1 Audit and Verification**
   - **Intention**: Verify Milestone 1 against the concept.

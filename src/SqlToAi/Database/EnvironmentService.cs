@@ -38,9 +38,6 @@ public sealed class EnvironmentService : IEnvironmentService
     private readonly DatabaseTargetResolver _targets;
     private readonly ILogger<EnvironmentService> _logger;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="EnvironmentService"/> class.
-    /// </summary>
     public EnvironmentService(
         IDatabaseConnectionFactory connectionFactory,
         ISecurityGuard securityGuard,

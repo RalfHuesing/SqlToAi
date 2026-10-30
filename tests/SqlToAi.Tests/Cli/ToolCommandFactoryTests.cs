@@ -35,6 +35,29 @@ public sealed class ToolCommandFactoryTests
     }
 
     [Fact]
+    public async Task GetEnvironment_ShouldPassParsedDatabaseArgument_ToExecuteCallback()
+    {
+        string? capturedTool = null;
+        Dictionary<string, object?>? capturedArgs = null;
+
+        Command queryCommand = BuildQueryCommand((toolName, args, _) =>
+        {
+            capturedTool = toolName;
+            capturedArgs = args;
+            return Task.FromResult(0);
+        });
+
+        RootCommand root = WrapInRoot(queryCommand);
+        int exitCode = await root
+            .Parse(["query", McpConstants.ToolGetEnvironment, "--database", "test/AppDb"])
+            .InvokeAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(McpConstants.ToolGetEnvironment, capturedTool);
+        Assert.Equal("test/AppDb", capturedArgs?[McpConstants.ArgDatabase]);
+    }
+
+    [Fact]
     public async Task ExecuteQuery_ShouldPassParsedStringArguments_ToExecuteCallback()
     {
         string? capturedTool = null;

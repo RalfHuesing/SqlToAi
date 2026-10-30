@@ -30,6 +30,7 @@ public sealed class ToolRegistry
         BuildListServers(),
         BuildListDatabases(),
         BuildSearchDatabases(),
+        BuildGetEnvironment(),
         BuildValidateQuery(),
         BuildSearchObjects(),
         BuildGetSchema(),
@@ -82,6 +83,20 @@ public sealed class ToolRegistry
                 [McpConstants.ArgSearchTerm] = StringParam("Substring to filter database names by.")
             },
             Required = [McpConstants.ArgServer, McpConstants.ArgSearchTerm]
+        }
+    };
+
+    private static ToolDefinition BuildGetEnvironment() => new()
+    {
+        Name = McpConstants.ToolGetEnvironment,
+        Description = "Retrieves SQL Server version, edition, compatibility level, collation, state, and read-only status for the target database.",
+        InputSchema = new ToolInputSchema
+        {
+            Properties = new Dictionary<string, ToolParameterDefinition>
+            {
+                [McpConstants.ArgDatabase] = StringParam(McpConstants.DatabaseTargetDescription)
+            },
+            Required = [McpConstants.ArgDatabase]
         }
     };
 

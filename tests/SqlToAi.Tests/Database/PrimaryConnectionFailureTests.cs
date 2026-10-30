@@ -58,6 +58,7 @@ public sealed class PrimaryConnectionFailureTests
     [InlineData(McpConstants.ToolCompareQueries)]
     [InlineData(McpConstants.ToolMeasurePerformance)]
     [InlineData(McpConstants.ToolSuggestIndexes)]
+    [InlineData(McpConstants.ToolGetEnvironment)]
     public async Task Dispatch_ActualOpenTimeout_RetainsTimeoutAndSafeLogs(string tool)
     {
         using var harness = new FailureHarness(SqlExceptionFactory.Create(-2, "Timeout during TLS handshake. " + RawMarker));
@@ -195,7 +196,8 @@ public sealed class PrimaryConnectionFailureTests
             var exportData = new DataExportService(Factory, safety, new ReadOnlyGuard(),
                 new AnonymizationDependencies(new Anonymizer(options, new TokenVault())),
                 options, _loggers.CreateLogger<DataExportService>());
-            _dispatcher = new ToolDispatcher(Schema, query, Script,
+            var environment = new EnvironmentService(Factory, security, access, options, _loggers.CreateLogger<EnvironmentService>());
+            _dispatcher = new ToolDispatcher(Schema, environment, query, Script,
                 new QueryValidationService(Factory, safety, options, _loggers.CreateLogger<QueryValidationService>()),
                 analysis, options, _loggers.CreateLogger<ToolDispatcher>(),
                 new SchemaExportService(Schema, options, _loggers.CreateLogger<SchemaExportService>()),

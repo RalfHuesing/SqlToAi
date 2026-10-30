@@ -29,6 +29,7 @@ internal sealed class ToolDispatcher : IToolDispatcher
             "Unknown tool requested: {ToolName}.");
 
     private readonly ISchemaService _schemaService;
+    private readonly IEnvironmentService _environmentService;
     private readonly SchemaExportService _schemaExport;
     private readonly IQueryExecutionService _queryExecutionService;
     private readonly IScriptExecutionService _scriptExecutionService;
@@ -45,6 +46,7 @@ internal sealed class ToolDispatcher : IToolDispatcher
     /// <summary>Initializes a new instance of <see cref="ToolDispatcher"/>.</summary>
     public ToolDispatcher(
         ISchemaService schemaService,
+        IEnvironmentService environmentService,
         IQueryExecutionService queryExecutionService,
         IScriptExecutionService scriptExecutionService,
         IQueryValidationService queryValidationService,
@@ -55,6 +57,7 @@ internal sealed class ToolDispatcher : IToolDispatcher
         IDataExportService dataExportService)
     {
         _schemaService = schemaService;
+        _environmentService = environmentService;
         _schemaExport = schemaExport;
         _dataExportService = dataExportService;
         _queryExecutionService = queryExecutionService;
@@ -83,6 +86,10 @@ internal sealed class ToolDispatcher : IToolDispatcher
                     Require(paramsObj, McpConstants.ArgServer),
                     Require(paramsObj, McpConstants.ArgSearchTerm), ct),
                     list => JsonSerializer.Serialize(list, typeof(IReadOnlyList<string>), McpJsonContext.Default)),
+
+            [McpConstants.ToolGetEnvironment] = (paramsObj, ct) =>
+                CallAsync(() => _environmentService.GetEnvironmentAsync(GetDb(paramsObj), ct),
+                    res => JsonSerializer.Serialize(res, McpJsonContext.Default.DatabaseEnvironmentResult)),
 
             [McpConstants.ToolValidateQuery] = (paramsObj, ct) =>
                 CallAsync(() => _queryValidationService.ValidateQueryAsync(

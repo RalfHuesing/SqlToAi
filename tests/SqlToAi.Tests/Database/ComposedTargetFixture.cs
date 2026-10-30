@@ -48,7 +48,8 @@ internal sealed class ComposedTargetFixture
         var exportData = new DataExportService(Factory, safety, new ReadOnlyGuard(),
             new AnonymizationDependencies(anonymizer, rules, new QueryTokenResolver(Vault, options)),
             options, NullLogger<DataExportService>.Instance);
-        Dispatcher = new ToolDispatcher(schema, Query, script, validation, analysis, options,
+        var environment = new EnvironmentService(Factory, security, access, options, NullLogger<EnvironmentService>.Instance);
+        Dispatcher = new ToolDispatcher(schema, environment, Query, script, validation, analysis, options,
             NullLogger<ToolDispatcher>.Instance, new SchemaExportService(schema, options, NullLogger<SchemaExportService>.Instance),
             exportData);
     }
@@ -159,6 +160,12 @@ internal sealed class ComposedTargetFixture
                 Queries.Enqueue(new(target.QualifiedName, sql, ct));
                 return new FakeDbDataReader(["Value", "Secret"], [[Values.GetValueOrDefault(target.QualifiedName, target.QualifiedName + "-value"), SharedSecret]],
                     new FakeSchemaTableOrigin("T", "Value", "dbo"));
+            }
+            if (sql.Contains("FROM sys.databases AS d", StringComparison.Ordinal) && sql.Contains("WHERE d.database_id = DB_ID()", StringComparison.Ordinal))
+            {
+                return new FakeDbDataReader(
+                    ["ProductVersion", "ProductMajorVersion", "Edition", "EngineEdition", "CompatibilityLevel", "Collation", "StateDesc", "IsReadOnly"],
+                    [["16.0.4180.1", 16, "Developer Edition (64-bit)", 3, (byte)160, "Latin1_General_CI_AS", "ONLINE", false]]);
             }
             throw new InvalidOperationException("Unexpected reader command in composed fixture.");
         }

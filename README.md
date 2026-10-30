@@ -6,6 +6,7 @@ results and performance. The server runs over stdio and is built with .NET 10.
 
 ## Capabilities
 
+- Retrieve SQL Server and database environment metadata (version, edition, compatibility level, collation, state, read-only status).
 - Inspect tables, views, routines, triggers, keys, indexes, and object references.
 - Export database schema as linked Markdown files for offline reading.
 - Execute parameterized queries and local `.sql` scripts, including `GO` batches.

@@ -123,6 +123,7 @@ public sealed class McpModelsTests
             McpConstants.ToolListServers,
             McpConstants.ToolListDatabases,
             McpConstants.ToolSearchDatabases,
+            McpConstants.ToolGetEnvironment,
             McpConstants.ToolValidateQuery,
             McpConstants.ToolSearchObjects,
             McpConstants.ToolGetSchema,
@@ -142,7 +143,7 @@ public sealed class McpModelsTests
             McpConstants.ToolSuggestIndexes
         };
 
-        Assert.Equal(20, tools.Distinct().Count());
+        Assert.Equal(21, tools.Distinct().Count());
         Assert.All(tools, t => Assert.StartsWith("sql_", t));
     }
 }
