@@ -147,7 +147,7 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
 
 ## Milestone 3: Integrated Verification and Final Audit
 
-- [ ] **M3.1 — Full System Regression and Final Audit**
+- [x] **M3.1 — Full System Regression and Final Audit**
   - **Intention**: End-to-end audit of both tools across all access levels, CLI commands and test suites.
   - **Scope**:
     - Run `dotnet test SqlToAi.slnx` and `dotnet build SqlToAi.slnx --warnaserror`.
@@ -158,7 +158,25 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
     - All tests pass (except baseline unconfigured TLS integration tests).
     - Clean `git diff --check`.
   - **Checklist**:
-    - [ ] Full build and test suite verified
-    - [ ] Documentation consistency verified
-    - [ ] Final audit recorded
-    - [ ] Atomic commit: `docs: Schließe Audit für Diagnose-Tools und Abfragepläne ab`
+    - [x] Full build and test suite verified
+    - [x] Documentation consistency verified
+    - [x] Final audit recorded
+    - [x] Atomic commit: `docs: Schließe Audit für Diagnose-Tools und Abfragepläne ab`
+
+---
+
+## Completion and Audit Evidence
+
+- **Delegated subagent model**: `flash` (Gemini Flash) across all implementation and independent audit assignments.
+- **Milestone 1 (`sql_get_environment`)**:
+  - `M1.1`: `4ab1609` (`feat: Implementiere EnvironmentService und Metadaten-Modelle`)
+  - `M1.2`: `3f59d44` (`feat: Binde sql_get_environment in MCP, CLI und Dokumentation ein`)
+  - `M1.3` (Independent Audit): Passed with 0 findings (`c333009`).
+- **Milestone 2 (`sql_explain_query`)**:
+  - `M2.1`: `a9c422a` (`feat: Erstelle Statement-Guard, Optionen und DTOs für sql_explain_query`)
+  - `M2.2`: `60bb77e` (`feat: Implementiere Showplan-Ausführung über nicht gepoolte Verbindung`)
+  - `M2.3`: `a99fe0d` (`feat: Implementiere sicheren Showplan-XML-Parser mit Baum-Begrenzung`)
+  - `M2.4`: `b97ce0c` (`feat: Binde sql_explain_query in MCP, CLI und Dokumentation ein`)
+  - `M2.5` (Independent Audit + Correction): `39f2c20` (`fix: Korrigiere Warning-Dokumentation und ergänze Missing-Index-Integrationstest für Milestone 2`).
+- **Milestone 3 (Final End-to-End Audit)**:
+  - `M3.1`: Passed with 0 findings. `dotnet build SqlToAi.slnx --warnaserror` (0 warnings, 0 errors), `dotnet test SqlToAi.slnx` (2,386 passed, 0 failed, 19 skipped baseline unconfigured TLS tests), `git diff --check` clean.
