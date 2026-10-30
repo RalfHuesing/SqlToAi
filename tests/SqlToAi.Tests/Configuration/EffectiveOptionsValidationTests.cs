@@ -19,7 +19,9 @@ public sealed class EffectiveOptionsValidationTests
         { "schema-count", "SqlToAi.SchemaBatch.MaxInputCount" },
         { "schema-bytes", "SqlToAi.SchemaBatch.MaxResponseBytes" },
         { "app-retention", "SqlToAi.Logging.AppLog.RetainedFileCount" },
-        { "error-retention", "SqlToAi.Logging.ErrorLog.RetainedFileCount" }
+        { "error-retention", "SqlToAi.Logging.ErrorLog.RetainedFileCount" },
+        { "export-default-limit", "SqlToAi.QueryExecution.Export.DefaultRowLimit" },
+        { "export-max-limit", "SqlToAi.QueryExecution.Export.MaxRowLimit" }
     };
 
     [Theory]
@@ -130,6 +132,8 @@ public sealed class EffectiveOptionsValidationTests
             case "schema-bytes": settings["SqlToAi:SchemaBatch:MaxResponseBytes"] = "-1"; break;
             case "app-retention": settings["SqlToAi:Logging:AppLog:RetainedFileCount"] = "0"; break;
             case "error-retention": settings["SqlToAi:Logging:ErrorLog:RetainedFileCount"] = "-1"; break;
+            case "export-default-limit": settings["SqlToAi:QueryExecution:Export:DefaultRowLimit"] = "0"; break;
+            case "export-max-limit": settings["SqlToAi:QueryExecution:Export:MaxRowLimit"] = "-1"; break;
         }
         return new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
     }

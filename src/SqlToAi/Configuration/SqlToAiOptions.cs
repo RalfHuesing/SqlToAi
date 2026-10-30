@@ -196,4 +196,18 @@ public sealed class QueryExecutionOptions
 
     /// <summary>Maximum number of bytes accepted from a local SQL script file.</summary>
     public long MaxScriptFileSizeBytes { get; set; } = 10_485_760L;
+
+    /// <summary>Settings governing file-based data exports via sql_export_data.</summary>
+    public DataExportOptions Export { get; set; } = new();
+}
+
+/// <summary>
+/// Options for file-based data exports via <c>sql_export_data</c>.
+/// </summary>
+public sealed class DataExportOptions
+{
+    public int DefaultRowLimit { get; set; } = 10_000;
+    public int MaxRowLimit { get; set; } = 50_000;
+    public int CommandTimeoutSeconds { get; set; } = 120;
+    public string DefaultFormat { get; set; } = "csv";
 }

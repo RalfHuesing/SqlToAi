@@ -42,7 +42,14 @@ internal static class TransactionIntegrityGuard
     /// underlying transaction is often already gone by this point), and returns the rejection
     /// result the caller must return instead of the query's own (untrustworthy) result.
     /// </summary>
-    public static async Task<Result<QueryExecutionResult>> RejectViolationAsync(
+    public static Task<Result<QueryExecutionResult>> RejectViolationAsync(
+        ILogger logger, string databaseName, DbTransaction transaction, int commandTimeout) =>
+        RejectViolationAsync<QueryExecutionResult>(logger, databaseName, transaction, commandTimeout);
+
+    /// <summary>
+    /// Generic overload of <see cref="RejectViolationAsync"/> allowing custom result types.
+    /// </summary>
+    public static async Task<Result<T>> RejectViolationAsync<T>(
         ILogger logger, string databaseName, DbTransaction transaction, int commandTimeout)
     {
         LogViolation(logger, databaseName, null);

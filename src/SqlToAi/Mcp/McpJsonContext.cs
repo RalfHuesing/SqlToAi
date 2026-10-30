@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using SqlToAi.Database;
 
 namespace SqlToAi.Mcp;
 
@@ -17,6 +18,10 @@ namespace SqlToAi.Mcp;
 [JsonSerializable(typeof(ToolCallResult))]
 [JsonSerializable(typeof(ToolContent))]
 [JsonSerializable(typeof(SchemaExportToolResponse))]
+[JsonSerializable(typeof(DataExportResult))]
+[JsonSerializable(typeof(ExportColumnInfo))]
+[JsonSerializable(typeof(IReadOnlyList<ExportColumnInfo>))]
+[JsonSerializable(typeof(ExportColumnInfo[]))]
 
 
 [JsonSerializable(typeof(Dictionary<string, object?>))]

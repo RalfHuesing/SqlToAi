@@ -164,6 +164,7 @@ internal static class Program
         services.AddSingleton<IQueryBatchExecutor>(sp => sp.GetRequiredService<QueryExecutionService>());
         services.AddSingleton<IScriptExecutionService, ScriptExecutionService>();
         services.AddSingleton<IQueryValidationService, QueryValidationService>();
+        services.AddSingleton<IDataExportService, DataExportService>();
         services.AddSingleton<QueryExecutionDependencies>(sp => new QueryExecutionDependencies(
             sp.GetRequiredService<IDatabaseConnectionFactory>(),
             sp.GetRequiredService<IQuerySafetyValidator>(),

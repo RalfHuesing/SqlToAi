@@ -16,7 +16,7 @@ namespace SqlToAi.Database;
 public sealed partial class QueryExecutionService
 {
     /// <summary>Accumulates per-row anonymization outcomes while serializing a result set.</summary>
-    private sealed class RowAnonymizationTracker
+    internal sealed class RowAnonymizationTracker
     {
         public bool WasAnonymized { get; set; }
         public List<string> AnonymizedColumns { get; } = [];
@@ -42,26 +42,28 @@ public sealed partial class QueryExecutionService
     /// output alias. Any part is null when the provider can't resolve it (e.g. unsupported
     /// provider, or a computed/literal/aggregate expression with no traceable source column).
     /// </summary>
-    private sealed record ColumnOrigin(string? TableName, string? ColumnName, string? SchemaName);
+    internal sealed record ColumnOrigin(string? TableName, string? ColumnName, string? SchemaName);
 
-    private sealed record ResultColumn(int Ordinal, string Name);
+    internal sealed record ResultColumn(int Ordinal, string Name);
 
     /// <summary>
     /// Bundles per-query anonymization context for passing between internal helpers.
     /// <see cref="Target"/> is the resolved execution target carried by every batch execution.
     /// </summary>
-    private sealed record AnonymizationContext(
+    internal sealed record AnonymizationContext(
         bool Anonymize,
         ColumnOrigin?[]? ColumnOrigins,
         bool[]? CentralExclusions,
         bool UseTokenization,
         DatabaseTargetContext Target);
 
-    private async Task<AnonymizationContext> ResolveAnonymizationContextAsync(
+    internal static async Task<AnonymizationContext> ResolveAnonymizationContextAsync(
         DbDataReader reader,
         ResultColumn[] columns,
         bool anonymize,
         DatabaseTargetContext target,
+        IAnonymizationRuleProvider? ruleProvider,
+        bool useTokenization,
         CancellationToken cancellationToken)
     {
         if (!anonymize)
@@ -70,12 +72,20 @@ public sealed partial class QueryExecutionService
         }
 
         var columnOrigins = GetColumnOrigins(reader);
-        bool[]? centralExclusions = _anonymizationRuleProvider != null
-            ? await ResolveCentralExclusionsAsync(target, columns, columnOrigins, cancellationToken)
+        bool[]? centralExclusions = ruleProvider != null
+            ? await ResolveCentralExclusionsAsync(ruleProvider, target, columns, columnOrigins, cancellationToken).ConfigureAwait(false)
             : null;
 
-        return new AnonymizationContext(true, columnOrigins, centralExclusions, _tokenizationOptions.IsUsable, target);
+        return new AnonymizationContext(true, columnOrigins, centralExclusions, useTokenization, target);
     }
+
+    private Task<AnonymizationContext> ResolveAnonymizationContextAsync(
+        DbDataReader reader,
+        ResultColumn[] columns,
+        bool anonymize,
+        DatabaseTargetContext target,
+        CancellationToken cancellationToken) =>
+        ResolveAnonymizationContextAsync(reader, columns, anonymize, target, _anonymizationRuleProvider, _tokenizationOptions.IsUsable, cancellationToken);
 
     /// <summary>
     /// Resolves the central rule provider's exclusion decision once per column ordinal (not per
@@ -83,7 +93,8 @@ public sealed partial class QueryExecutionService
     /// resolved base schema alongside the base table, so a same-named table in a different schema
     /// never inherits a rule scoped to another schema.
     /// </summary>
-    private async Task<bool[]> ResolveCentralExclusionsAsync(
+    private static async Task<bool[]> ResolveCentralExclusionsAsync(
+        IAnonymizationRuleProvider ruleProvider,
         DatabaseTargetContext target, ResultColumn[] columns, ColumnOrigin?[] columnOrigins, CancellationToken cancellationToken)
     {
         var result = new bool[columnOrigins.Length];
@@ -98,8 +109,8 @@ public sealed partial class QueryExecutionService
                 continue;
             }
 
-            result[column.Ordinal] = await _anonymizationRuleProvider!.IsExcludedAsync(
-                target, origin.SchemaName, origin.TableName, origin.ColumnName, cancellationToken);
+            result[column.Ordinal] = await ruleProvider.IsExcludedAsync(
+                target, origin.SchemaName, origin.TableName, origin.ColumnName, cancellationToken).ConfigureAwait(false);
         }
         return result;
     }
@@ -123,7 +134,8 @@ public sealed partial class QueryExecutionService
         sb.AppendLine(JsonSerializer.Serialize(rowDict, typeof(Dictionary<string, object?>), McpJsonContext.Default));
     }
 
-    private object? AnonymizeCell(
+    internal static object? AnonymizeCell(
+        IAnonymizer anonymizer,
         string columnName,
         object? raw,
         AnonymizationContext anonCtx,
@@ -144,8 +156,8 @@ public sealed partial class QueryExecutionService
         string? tableName = origin?.TableName;
         var columnContext = new AnonymizationColumnContext(tableName, origin?.ColumnName, origin?.SchemaName);
         string anonymizedValue = anonCtx.UseTokenization
-            ? _anonymizer.Tokenize(strVal, columnContext, anonCtx.Target)
-            : _anonymizer.Anonymize(strVal, columnContext);
+            ? anonymizer.Tokenize(strVal, columnContext, anonCtx.Target)
+            : anonymizer.Anonymize(strVal, columnContext);
 
         if (anonymizedValue != strVal)
         {
@@ -161,6 +173,14 @@ public sealed partial class QueryExecutionService
         return anonymizedValue;
     }
 
+    private object? AnonymizeCell(
+        string columnName,
+        object? raw,
+        AnonymizationContext anonCtx,
+        int columnIndex,
+        RowAnonymizationTracker tracker) =>
+        AnonymizeCell(_anonymizer, columnName, raw, anonCtx, columnIndex, tracker);
+
     private static bool IsFlagSet(bool[]? flags, int index) =>
         flags != null && index < flags.Length && flags[index];
 
@@ -175,7 +195,7 @@ public sealed partial class QueryExecutionService
     /// <see cref="ColumnOrigin"/>, which the anonymizer then treats fail-safe (never excluded via
     /// the plain pattern list).
     /// </summary>
-    private static ColumnOrigin?[] GetColumnOrigins(DbDataReader reader)
+    internal static ColumnOrigin?[] GetColumnOrigins(DbDataReader reader)
     {
         var origins = new ColumnOrigin?[reader.FieldCount];
         try
@@ -227,7 +247,7 @@ public sealed partial class QueryExecutionService
         return string.IsNullOrEmpty(value) ? null : value;
     }
 
-    private static ResultColumn[] GetColumnNames(DbDataReader reader)
+    internal static ResultColumn[] GetColumnNames(DbDataReader reader)
     {
         var hiddenOrdinals = new HashSet<int>();
         try

@@ -32,6 +32,11 @@ public sealed class SqlToAiOptionsTests
         Assert.True(options.Anonymizer.Enabled);
         Assert.Equal("ScramblePattern", options.Anonymizer.DefaultMode);
         Assert.Equal(10_485_760L, options.QueryExecution.MaxScriptFileSizeBytes);
+        Assert.NotNull(options.QueryExecution.Export);
+        Assert.Equal(10_000, options.QueryExecution.Export.DefaultRowLimit);
+        Assert.Equal(50_000, options.QueryExecution.Export.MaxRowLimit);
+        Assert.Equal(120, options.QueryExecution.Export.CommandTimeoutSeconds);
+        Assert.Equal("csv", options.QueryExecution.Export.DefaultFormat);
         Assert.Equal(10, options.SchemaBatch.MaxInputCount);
         Assert.Equal(65_536, options.SchemaBatch.MaxResponseBytes);
         Assert.Equal("log", options.Logging.Directory);
@@ -130,7 +135,13 @@ public sealed class SqlToAiOptionsTests
             "DefaultMode": "Hash"
           },
           "QueryExecution": {
-            "MaxScriptFileSizeBytes": 2048
+            "MaxScriptFileSizeBytes": 2048,
+            "Export": {
+              "DefaultRowLimit": 5000,
+              "MaxRowLimit": 20000,
+              "CommandTimeoutSeconds": 60,
+              "DefaultFormat": "jsonl"
+            }
           },
           "SchemaBatch": {
             "MaxInputCount": 3,
@@ -167,6 +178,10 @@ public sealed class SqlToAiOptionsTests
         Assert.True(options.Anonymizer.Enabled);
         Assert.Equal("Hash", options.Anonymizer.DefaultMode);
         Assert.Equal(2048L, options.QueryExecution.MaxScriptFileSizeBytes);
+        Assert.Equal(5000, options.QueryExecution.Export.DefaultRowLimit);
+        Assert.Equal(20000, options.QueryExecution.Export.MaxRowLimit);
+        Assert.Equal(60, options.QueryExecution.Export.CommandTimeoutSeconds);
+        Assert.Equal("jsonl", options.QueryExecution.Export.DefaultFormat);
         Assert.Equal(3, options.SchemaBatch.MaxInputCount);
         Assert.Equal(4096, options.SchemaBatch.MaxResponseBytes);
     }

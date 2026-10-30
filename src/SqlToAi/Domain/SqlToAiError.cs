@@ -20,6 +20,7 @@ public sealed record SqlToAiError(string Code, string Message)
     internal const string FileNotFoundCode = "SQL-AI-0111";
     internal const string FileTooLargeCode = "SQL-AI-0112";
     internal const string InvalidFileExtensionCode = "SQL-AI-0113";
+    internal const string FileAlreadyExistsCode = "SQL-AI-0114";
 
     public static SqlToAiError InvalidParameters(string details) =>
         new(InvalidParametersCode, $"Invalid parameters: {details}");
@@ -65,4 +66,7 @@ public sealed record SqlToAiError(string Code, string Message)
 
     internal static SqlToAiError InvalidFileExtension(string filePath) =>
         new(InvalidFileExtensionCode, $"Invalid SQL script file extension: '{filePath}' must use the .sql extension.");
+
+    public static SqlToAiError FileAlreadyExists(string filePath) =>
+        new(FileAlreadyExistsCode, $"Output file already exists: '{filePath}'. Specify overwrite=true to replace it.");
 }
