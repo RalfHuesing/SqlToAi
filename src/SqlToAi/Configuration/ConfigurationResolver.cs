@@ -160,6 +160,15 @@ public static class ConfigurationResolver
             throw new ConfigurationStartupException(
                 $"SqlToAi.QueryExecution.Export.DefaultRowLimit and SqlToAi.QueryExecution.Export.MaxRowLimit must be greater than zero.{pathSuffix}");
         }
+
+        if (options.ExplainQuery.MaxShowplanXmlBytes <= 0
+            || options.ExplainQuery.MaxOperators <= 0
+            || options.ExplainQuery.MaxDepth <= 0
+            || options.ExplainQuery.MaxResponseBytes <= 0)
+        {
+            throw new ConfigurationStartupException(
+                $"SqlToAi.ExplainQuery limits must be greater than zero.{pathSuffix}");
+        }
     }
 
     private static void ValidateSinkRetention(FileLogSinkOptions sink, string settingName, string pathSuffix)

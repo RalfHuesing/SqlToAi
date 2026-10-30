@@ -39,6 +39,10 @@ public sealed class SqlToAiOptionsTests
         Assert.Equal("csv", options.QueryExecution.Export.DefaultFormat);
         Assert.Equal(10, options.SchemaBatch.MaxInputCount);
         Assert.Equal(65_536, options.SchemaBatch.MaxResponseBytes);
+        Assert.Equal(2 * 1024 * 1024, options.ExplainQuery.MaxShowplanXmlBytes);
+        Assert.Equal(100, options.ExplainQuery.MaxOperators);
+        Assert.Equal(16, options.ExplainQuery.MaxDepth);
+        Assert.Equal(64 * 1024, options.ExplainQuery.MaxResponseBytes);
         Assert.Equal("log", options.Logging.Directory);
         Assert.True(options.Logging.AppLog.Enabled);
         Assert.True(options.Logging.ErrorLog.Enabled);
@@ -79,6 +83,10 @@ public sealed class SqlToAiOptionsTests
         Assert.Equal(defaults.Logging.ErrorLog.Enabled, templateOptions.Logging.ErrorLog.Enabled);
         Assert.Equal(defaults.SchemaBatch.MaxInputCount, templateOptions.SchemaBatch.MaxInputCount);
         Assert.Equal(defaults.SchemaBatch.MaxResponseBytes, templateOptions.SchemaBatch.MaxResponseBytes);
+        Assert.Equal(defaults.ExplainQuery.MaxShowplanXmlBytes, templateOptions.ExplainQuery.MaxShowplanXmlBytes);
+        Assert.Equal(defaults.ExplainQuery.MaxOperators, templateOptions.ExplainQuery.MaxOperators);
+        Assert.Equal(defaults.ExplainQuery.MaxDepth, templateOptions.ExplainQuery.MaxDepth);
+        Assert.Equal(defaults.ExplainQuery.MaxResponseBytes, templateOptions.ExplainQuery.MaxResponseBytes);
 
         var safeAccess = new AccessLevelProvider(Options.Create(templateOptions));
         Assert.Equal(AccessLevel.None,

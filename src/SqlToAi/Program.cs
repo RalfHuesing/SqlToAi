@@ -153,6 +153,7 @@ internal static class Program
         services.AddSingleton<IAccessLevelProvider, AccessLevelProvider>();
         services.AddSingleton<IReadOnlyGuard, ReadOnlyGuard>();
         services.AddSingleton<IQuerySafetyValidator, QuerySafetyValidator>();
+        services.AddSingleton<IExplainQueryStatementGuard, ExplainQueryStatementGuard>();
 
         // Database
         services.AddSingleton<IDatabaseConnectionFactory, SqlConnectionFactory>();

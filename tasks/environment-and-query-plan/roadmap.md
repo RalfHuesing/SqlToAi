@@ -59,7 +59,7 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
 
 ## Milestone 2: Estimated Query Plan (`sql_explain_query`)
 
-- [ ] **M2.1 — Statement Guard, Options and Plan Models**
+- [x] **M2.1 — Statement Guard, Options and Plan Models**
   - **Intention**: Enforce the closed statement allowlist before any connection and define options and DTOs.
   - **Scope**:
     - Allowlist guard: optional leading `DECLARE`, exactly one `SELECT` without `INTO`, nothing after it; unparseable → `SQL-AI-0102`, multiple statements → `SQL-AI-0101`, controls (any `SET`, `SHOWPLAN`/`NOEXEC`/`PARSEONLY`/`FMTONLY`/`STATISTICS`, transaction statements, `USE`) → `SQL-AI-0104`, mutations → `SQL-AI-0107`. The existing `ReadOnlyGuard` is called explicitly for all access levels. Reuse existing guards where they fit; do not rely on the preamble detection, which accepts `SET`/`DECLARE` at any position.
@@ -71,11 +71,11 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
     - Unit tests cover accepted shapes (`SELECT`, `DECLARE` + `SELECT`) and every rejection class above across all access levels, including trailing controls after the `SELECT` and mutations at `ReadWrite`/`ReadWriteAnonymized`.
     - Options binding test; DTOs serialize.
   - **Checklist**:
-    - [ ] Guard rules implemented
-    - [ ] Options, defaults and configuration docs added
-    - [ ] DTOs registered
-    - [ ] Guard and options tests pass
-    - [ ] Atomic commit: `feat: Erstelle Statement-Guard, Optionen und DTOs für sql_explain_query`
+    - [x] Guard rules implemented
+    - [x] Options, defaults and configuration docs added
+    - [x] DTOs registered
+    - [x] Guard and options tests pass
+    - [x] Atomic commit: `feat: Erstelle Statement-Guard, Optionen und DTOs für sql_explain_query`
 
 - [ ] **M2.2 — Showplan Execution on a Non-Pooled Connection**
   - **Intention**: Obtain showplan XML without executing the query and without any chance of leaking session state into the pool.

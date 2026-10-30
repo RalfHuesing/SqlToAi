@@ -37,6 +37,7 @@ The general local integration-test fixture has a separate, checked-in test-only 
 | `Anonymizer` | `Enabled` (true), `DefaultMode` (`ScramblePattern` or `Hash`), `Tokenization.Enabled` (false), `Tokenization.Prefix` / `Suffix` (both `§§§`) |
 | `QueryExecution` | `DefaultRowLimit` (100), `MaxRowLimit` (1000), `CommandTimeoutSeconds` (30), `MaxScriptFileSizeBytes` (10485760 = 10 MiB), `Export.DefaultRowLimit` (10000), `Export.MaxRowLimit` (50000), `Export.CommandTimeoutSeconds` (120), `Export.DefaultFormat` (csv) |
 | `SchemaBatch` | `MaxInputCount` (10), `MaxResponseBytes` (65536 UTF-8 bytes); both must be greater than zero |
+| `ExplainQuery` | `MaxShowplanXmlBytes` (2097152 = 2 MiB), `MaxOperators` (100), `MaxDepth` (16), `MaxResponseBytes` (65536 = 64 KiB); all limits must be greater than zero |
 | `Logging` | `Directory` (`log`), `AppLog`, and `ErrorLog` settings; see below |
 
 `QueryExecution.CommandTimeoutSeconds` applies to query and script execution, query validation, query comparison (schema, counts and differences), and performance warmup/measured runs; data export execution uses dedicated `QueryExecution.Export.CommandTimeoutSeconds` (120 seconds default). Their session `SET` and transaction-integrity commands use the same timeout. The value is per command; `0` leaves ordinary commands unlimited. Metadata and anonymization-rule queries retain their separate provider timeout settings.
@@ -64,6 +65,18 @@ These options apply only to batch composition; scalar schema responses and
 filesystem exports retain their existing limits and behavior. Batch mode is selected
 by a supplied `object_names` array through MCP or the [CLI](development.md#manual-tool-calls);
 absent/null arrays preserve scalar lookup.
+
+### Explain query limits
+
+The `sql_explain_query` diagnostic tool bounds memory and response volume:
+`ExplainQuery.MaxShowplanXmlBytes` limits the raw showplan XML text size read
+from SQL Server before parsing; exceeding this limit aborts reading with
+`SQL-AI-0102`. `MaxOperators` bounds the maximum number of operator nodes,
+`MaxDepth` bounds operator tree depth, and `MaxResponseBytes` caps the serialized
+JSON response text. Nodes beyond the operator and depth limits are dropped in
+breadth-first order with omitted child counts on visible parents, and further
+nodes are dropped in reverse breadth-first order if serialized output still
+exceeds the response byte limit. All limits must be greater than zero.
 
 ## Manual setup and updates
 

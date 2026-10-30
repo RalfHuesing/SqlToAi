@@ -21,7 +21,11 @@ public sealed class EffectiveOptionsValidationTests
         { "app-retention", "SqlToAi.Logging.AppLog.RetainedFileCount" },
         { "error-retention", "SqlToAi.Logging.ErrorLog.RetainedFileCount" },
         { "export-default-limit", "SqlToAi.QueryExecution.Export.DefaultRowLimit" },
-        { "export-max-limit", "SqlToAi.QueryExecution.Export.MaxRowLimit" }
+        { "export-max-limit", "SqlToAi.QueryExecution.Export.MaxRowLimit" },
+        { "explain-xml-bytes", "SqlToAi.ExplainQuery" },
+        { "explain-operators", "SqlToAi.ExplainQuery" },
+        { "explain-depth", "SqlToAi.ExplainQuery" },
+        { "explain-response-bytes", "SqlToAi.ExplainQuery" }
     };
 
     [Theory]
@@ -134,6 +138,10 @@ public sealed class EffectiveOptionsValidationTests
             case "error-retention": settings["SqlToAi:Logging:ErrorLog:RetainedFileCount"] = "-1"; break;
             case "export-default-limit": settings["SqlToAi:QueryExecution:Export:DefaultRowLimit"] = "0"; break;
             case "export-max-limit": settings["SqlToAi:QueryExecution:Export:MaxRowLimit"] = "-1"; break;
+            case "explain-xml-bytes": settings["SqlToAi:ExplainQuery:MaxShowplanXmlBytes"] = "0"; break;
+            case "explain-operators": settings["SqlToAi:ExplainQuery:MaxOperators"] = "-1"; break;
+            case "explain-depth": settings["SqlToAi:ExplainQuery:MaxDepth"] = "0"; break;
+            case "explain-response-bytes": settings["SqlToAi:ExplainQuery:MaxResponseBytes"] = "-5"; break;
         }
         return new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
     }

@@ -11,6 +11,7 @@ public sealed class SqlToAiOptions
     public AnonymizerOptions Anonymizer { get; set; } = new();
     public QueryExecutionOptions QueryExecution { get; set; } = new();
     public SchemaBatchOptions SchemaBatch { get; set; } = new();
+    public ExplainQueryOptions ExplainQuery { get; set; } = new();
     public LoggingOptions Logging { get; set; } = new();
 }
 
@@ -32,6 +33,17 @@ public sealed class SchemaBatchOptions
 {
     public int MaxInputCount { get; set; } = 10;
     public int MaxResponseBytes { get; set; } = 65_536;
+}
+
+/// <summary>
+/// Options for estimated query plan diagnosis via <c>sql_explain_query</c>.
+/// </summary>
+public sealed class ExplainQueryOptions
+{
+    public long MaxShowplanXmlBytes { get; set; } = 2 * 1024 * 1024;
+    public int MaxOperators { get; set; } = 100;
+    public int MaxDepth { get; set; } = 16;
+    public int MaxResponseBytes { get; set; } = 64 * 1024;
 }
 
 /// <summary>
