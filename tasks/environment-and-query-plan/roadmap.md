@@ -158,3 +158,4 @@ Each slice must be executed atomically: code changes, unit/integration tests, do
     - [ ] Documentation consistency verified
     - [ ] Final audit recorded
     - [ ] Atomic commit: `docs: Schließe Audit für Diagnose-Tools und Abfragepläne ab`
+

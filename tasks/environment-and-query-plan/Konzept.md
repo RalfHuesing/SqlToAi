@@ -102,3 +102,4 @@ The user approved combining both draft diagnostic concepts (`database-environmen
 3. **Build & regression**:
    - `dotnet build SqlToAi.slnx --warnaserror` succeeds with 0 warnings and 0 errors.
    - `dotnet test SqlToAi.slnx` passes with no regressions (only baseline unconfigured TLS integration tests skipped).
+
