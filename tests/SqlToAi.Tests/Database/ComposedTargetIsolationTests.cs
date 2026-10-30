@@ -300,12 +300,12 @@ public sealed class ComposedTargetIsolationTests
     // =========================================================================
 
     [Fact]
-    public void SdkToolRegistrations_ExposesExactNineteenTools()
+    public void SdkToolRegistrations_ExposesExactTwentyTools()
     {
         var dispatcher = ToolDispatcherTestHelper.BuildDispatcher();
         var toolCollection = SqlMcpToolRegistrations.BuildToolCollection(dispatcher);
 
-        Assert.Equal(19, toolCollection.Count);
+        Assert.Equal(20, toolCollection.Count);
 
         var toolNames = toolCollection.Select(t => t.ProtocolTool.Name).ToHashSet(StringComparer.Ordinal);
         Assert.Contains(McpConstants.ToolListServers, toolNames);
@@ -322,6 +322,7 @@ public sealed class ComposedTargetIsolationTests
         Assert.Contains(McpConstants.ToolGetObjectReferences, toolNames);
         Assert.Contains(McpConstants.ToolGetRoutineParameters, toolNames);
         Assert.Contains(McpConstants.ToolExecuteQuery, toolNames);
+        Assert.Contains(McpConstants.ToolExportData, toolNames);
         Assert.Contains(McpConstants.ToolExecuteFile, toolNames);
         Assert.Contains(McpConstants.ToolCompareQueries, toolNames);
         Assert.Contains(McpConstants.ToolMeasurePerformance, toolNames);

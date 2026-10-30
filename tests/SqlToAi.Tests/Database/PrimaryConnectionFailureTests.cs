@@ -11,6 +11,7 @@ using SqlToAi.Database;
 using SqlToAi.Domain;
 using SqlToAi.Mcp;
 using SqlToAi.Metadata;
+using SqlToAi.Security;
 using SqlToAi.Tests.TestSupport;
 
 namespace SqlToAi.Tests.Database;
@@ -28,6 +29,7 @@ public sealed class PrimaryConnectionFailureTests
     [InlineData(McpConstants.ToolGetSchemaForeignKeys)]
     [InlineData(McpConstants.ToolValidateQuery)]
     [InlineData(McpConstants.ToolExecuteQuery)]
+    [InlineData(McpConstants.ToolExportData)]
     [InlineData(McpConstants.ToolCompareQueries)]
     [InlineData(McpConstants.ToolMeasurePerformance)]
     [InlineData(McpConstants.ToolBenchmarkOptimization)]
@@ -52,6 +54,7 @@ public sealed class PrimaryConnectionFailureTests
     [InlineData(McpConstants.ToolGetSchemaForeignKeys)]
     [InlineData(McpConstants.ToolValidateQuery)]
     [InlineData(McpConstants.ToolExecuteQuery)]
+    [InlineData(McpConstants.ToolExportData)]
     [InlineData(McpConstants.ToolCompareQueries)]
     [InlineData(McpConstants.ToolMeasurePerformance)]
     [InlineData(McpConstants.ToolSuggestIndexes)]
@@ -189,10 +192,14 @@ public sealed class PrimaryConnectionFailureTests
             var analysis = new DatabaseAnalysisServices(performance, comparison,
                 new OptimizationBenchmarkService(comparison, performance, options),
                 new IndexSuggestionService(Factory, security, access, options, _loggers.CreateLogger<IndexSuggestionService>()));
+            var exportData = new DataExportService(Factory, safety, new ReadOnlyGuard(),
+                new AnonymizationDependencies(new Anonymizer(options, new TokenVault())),
+                options, _loggers.CreateLogger<DataExportService>());
             _dispatcher = new ToolDispatcher(Schema, query, Script,
                 new QueryValidationService(Factory, safety, options, _loggers.CreateLogger<QueryValidationService>()),
                 analysis, options, _loggers.CreateLogger<ToolDispatcher>(),
-                new SchemaExportService(Schema, options, _loggers.CreateLogger<SchemaExportService>()));
+                new SchemaExportService(Schema, options, _loggers.CreateLogger<SchemaExportService>()),
+                exportData);
         }
 
         internal FailingOpenFactory Factory { get; }
@@ -210,7 +217,8 @@ public sealed class PrimaryConnectionFailureTests
                 [McpConstants.ArgQueryA] = "SELECT 1",
                 [McpConstants.ArgQueryB] = "SELECT 1",
                 [McpConstants.ArgObjectName] = "dbo.Table",
-                [McpConstants.ArgSearchTerm] = "Table"
+                [McpConstants.ArgSearchTerm] = "Table",
+                [McpConstants.ArgOutputPath] = Path.Combine(Path.GetTempPath(), "test_export.csv")
             }
         }, TestContext.Current.CancellationToken);
         public void Dispose() => _loggers.Dispose();

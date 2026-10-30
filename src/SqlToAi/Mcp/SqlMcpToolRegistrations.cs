@@ -11,7 +11,7 @@ namespace SqlToAi.Mcp;
 public static class SqlMcpToolRegistrations
 {
     /// <summary>
-    /// Builds and returns the collection of all 19 SQL tools, wired to the provided <paramref name="dispatcher"/>.
+    /// Builds and returns the collection of all 20 SQL tools, wired to the provided <paramref name="dispatcher"/>.
     /// </summary>
     public static McpServerPrimitiveCollection<McpServerTool> BuildToolCollection(IToolDispatcher dispatcher)
     {
@@ -222,7 +222,41 @@ public static class SqlMcpToolRegistrations
                     "String columns are anonymized when required by access level."
             }));
 
+        RegisterExportDataTool(tools, dispatcher);
         RegisterExecuteFileTool(tools, dispatcher);
+    }
+
+    private static void RegisterExportDataTool(
+        McpServerPrimitiveCollection<McpServerTool> tools,
+        IToolDispatcher dispatcher)
+    {
+        tools.Add(McpServerTool.Create(
+            ([Description("The read-only SQL query to execute and export.")] string query,
+             [Description("Required absolute Windows drive-rooted or UNC file path for the exported file.")] string output_path,
+             [Description(McpConstants.DatabaseTargetDescription)] JsonElement? database = null,
+             [Description("Optional export format ('csv' or 'jsonl'). Defaults to auto-detection from the output_path extension (fallback 'csv').")] string? format = null,
+             [Description("Whether to overwrite an existing file at output_path. Default is false.")] bool? overwrite = null,
+             [Description("Maximum rows to export. Capped by the server's configured export maximum. Optional.")] int? requested_row_limit = null,
+             [Description("Optional dictionary of typed SQL parameters (e.g. {\"CustomerId\": 42} or {\"val\": {\"value\": \"123\", \"dbType\": \"AnsiString\"}}).")] object? parameters = null,
+             CancellationToken ct = default) =>
+            {
+                var args = new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    [McpConstants.ArgQuery] = query,
+                    [McpConstants.ArgOutputPath] = output_path,
+                    [McpConstants.ArgDatabase] = database
+                };
+                if (format != null) args[McpConstants.ArgFormat] = format;
+                if (overwrite.HasValue) args[McpConstants.ArgOverwrite] = overwrite.Value;
+                if (requested_row_limit.HasValue) args[McpConstants.ArgRequestedRowLimit] = requested_row_limit.Value;
+                if (parameters != null) args[McpConstants.ArgParameters] = parameters;
+                return ExecuteAsync(dispatcher, McpConstants.ToolExportData, args, ct);
+            },
+            new McpServerToolCreateOptions
+            {
+                Name = McpConstants.ToolExportData,
+                Description = ExecutionToolDescriptions.ExportData
+            }));
     }
 
     private static void RegisterExecuteFileTool(

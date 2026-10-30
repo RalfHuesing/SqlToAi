@@ -18,7 +18,7 @@ The selected user root follows configuration through direct options, DI post-con
 
 [SqlToAi.Exploration](exploration.md) reuses the executable's configuration and service-provider factories to invoke `IToolDispatcher` directly. It retains all inputs, content blocks and failures for manual inspection without starting MCP transport; scenarios do not run as automated tests.
 
-Query services share `QuerySafetyValidator`. It combines database policy, access-level selection, read-only parsing and statement-count restrictions. Execution and script services control transactions and result serialization. The protection limits are in [security.md](security.md); argument/result contracts are in [tools.md](tools.md).
+Query services share `QuerySafetyValidator`. It combines database policy, access-level selection, read-only parsing and statement-count restrictions. Execution, script, and data export services control transactions and result serialization. The protection limits are in [security.md](security.md); argument/result contracts are in [tools.md](tools.md).
 
 The named-server architecture resolves `alias/database` through
 `DatabaseTargetResolver` into an immutable `DatabaseTargetContext`. The factory's
@@ -49,7 +49,7 @@ obsolete single-server contracts and fallback behaviors have been completely rem
 | [Configuration](../src/SqlToAi/Configuration/) | Required user configuration, options, environment expansion and metadata-query file loading |
 | [Mcp](../src/SqlToAi/Mcp/) | Registry, dispatcher, SDK registrations and MCP content |
 | [Security](../src/SqlToAi/Security/) | Database exclusions/access levels and ScriptDom read-only guard |
-| [Database](../src/SqlToAi/Database/) | Connections, schema, metadata, queries, scripts, comparison, measurements and indexes |
+| [Database](../src/SqlToAi/Database/) | Connections, schema, metadata, queries, scripts, data export, comparison, measurements and indexes |
 | [Anonymization](../src/SqlToAi/Anonymization/) | String transformations, central policy resolution and process-local token vault |
 | [Domain](../src/SqlToAi/Domain/) | Arguments, results, access levels and error catalog |
 | [Cli](../src/SqlToAi/Cli/) | Registry-generated query commands and schema export composition/files |

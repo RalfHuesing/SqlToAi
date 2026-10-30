@@ -47,6 +47,7 @@ internal static class McpConstants
     internal const string ToolGetObjectReferences = "sql_get_object_references";
     internal const string ToolGetRoutineParameters = "sql_get_routine_parameters";
     internal const string ToolExecuteQuery = "sql_execute_query";
+    internal const string ToolExportData = "sql_export_data";
     internal const string ToolExecuteFile = "sql_execute_file";
     internal const string ToolCompareQueries = "sql_compare_queries";
     internal const string ToolMeasurePerformance = "sql_measure_performance";
@@ -63,6 +64,8 @@ internal static class McpConstants
     internal const string ArgDatabase = "database";
     internal const string ArgScope = "scope";
     internal const string ArgOutputPath = "output_path";
+    internal const string ArgFormat = "format";
+    internal const string ArgOverwrite = "overwrite";
     internal const string ArgFilePath = "file_path";
     internal const string ArgUseTransaction = "use_transaction";
     internal const string ArgSearchTerm = "search_term";

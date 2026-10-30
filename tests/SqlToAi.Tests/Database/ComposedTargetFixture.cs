@@ -45,8 +45,12 @@ internal sealed class ComposedTargetFixture
         var analysis = new DatabaseAnalysisServices(performance, comparison,
             new OptimizationBenchmarkService(comparison, performance, options),
             new IndexSuggestionService(Factory, security, access, options, NullLogger<IndexSuggestionService>.Instance));
+        var exportData = new DataExportService(Factory, safety, new ReadOnlyGuard(),
+            new AnonymizationDependencies(anonymizer, rules, new QueryTokenResolver(Vault, options)),
+            options, NullLogger<DataExportService>.Instance);
         Dispatcher = new ToolDispatcher(schema, Query, script, validation, analysis, options,
-            NullLogger<ToolDispatcher>.Instance, new SchemaExportService(schema, options, NullLogger<SchemaExportService>.Instance));
+            NullLogger<ToolDispatcher>.Instance, new SchemaExportService(schema, options, NullLogger<SchemaExportService>.Instance),
+            exportData);
     }
 
     internal SqlToAiOptions Configuration { get; }

@@ -107,6 +107,38 @@ public sealed class ToolCommandFactoryTests
     }
 
     [Fact]
+    public async Task ExportData_ShouldParseTypedOptions()
+    {
+        string? capturedTool = null;
+        Dictionary<string, object?>? capturedArgs = null;
+        const string parameters = "{\"id\":1}";
+
+        Command queryCommand = BuildQueryCommand((toolName, args, _) =>
+        {
+            capturedTool = toolName;
+            capturedArgs = args;
+            return Task.FromResult(0);
+        });
+
+        RootCommand root = WrapInRoot(queryCommand);
+        int exitCode = await root
+            .Parse(["query", McpConstants.ToolExportData, "--database", "DemoDB", "--query", "SELECT 1",
+                "--output_path", @"C:\data\out.csv", "--format", "csv", "--overwrite", "true",
+                "--requested_row_limit", "100", "--parameters", parameters])
+            .InvokeAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(McpConstants.ToolExportData, capturedTool);
+        Assert.Equal("DemoDB", capturedArgs?[McpConstants.ArgDatabase]);
+        Assert.Equal("SELECT 1", capturedArgs?[McpConstants.ArgQuery]);
+        Assert.Equal(@"C:\data\out.csv", capturedArgs?[McpConstants.ArgOutputPath]);
+        Assert.Equal("csv", capturedArgs?[McpConstants.ArgFormat]);
+        Assert.Equal(true, capturedArgs?[McpConstants.ArgOverwrite]);
+        Assert.Equal(100, capturedArgs?[McpConstants.ArgRequestedRowLimit]);
+        Assert.Equal(parameters, capturedArgs?[McpConstants.ArgParameters]);
+    }
+
+    [Fact]
     public async Task ExecuteQuery_ShouldFailParsing_WhenRequiredOptionMissing()
     {
         bool executed = false;

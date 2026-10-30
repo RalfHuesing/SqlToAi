@@ -17,7 +17,8 @@ internal static class ToolDispatcherTestHelper
         FakeScriptExecutionService? script = null,
         FakeQueryValidationService? validation = null,
         DatabaseAnalysisServices? analysis = null,
-        SchemaExportService? export = null)
+        SchemaExportService? export = null,
+        IDataExportService? dataExport = null)
     {
         var options = new SqlToAiOptions();
         return new ToolDispatcher(
@@ -32,7 +33,8 @@ internal static class ToolDispatcherTestHelper
                 new FakeIndexSuggestionService()),
             Options.Create(options),
             NullLogger<ToolDispatcher>.Instance,
-            export ?? new SchemaExportService(schema ?? new FakeSchemaService(), TestTargets.BoundOptions, NullLogger<SchemaExportService>.Instance));
+            export ?? new SchemaExportService(schema ?? new FakeSchemaService(), TestTargets.BoundOptions, NullLogger<SchemaExportService>.Instance),
+            dataExport ?? new FakeDataExportService());
     }
 
     public static ToolCallParams Call(string toolName, params (string key, object value)[] args)
@@ -41,6 +43,33 @@ internal static class ToolDispatcherTestHelper
             Name = toolName,
             Arguments = args.ToDictionary(a => a.key, a => (object?)a.value)
         };
+}
+
+internal sealed class FakeDataExportService : IDataExportService
+{
+    public bool ExportCalled { get; private set; }
+    public DataExportRequest? LastRequest { get; private set; }
+    public Result<DataExportResult>? NextResult { get; set; }
+
+    public Task<Result<DataExportResult>> ExportDataAsync(
+        DataExportRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ExportCalled = true;
+        LastRequest = request;
+        return Task.FromResult(NextResult ?? (Result<DataExportResult>)new DataExportResult(
+            Status: "completed",
+            FilePath: request.OutputPath,
+            Format: request.Format ?? "csv",
+            RowCount: 1,
+            FileSizeBytes: 100,
+            Columns: [new ExportColumnInfo("Col1", "int")],
+            ElapsedMs: 10,
+            CpuMs: 5,
+            LogicalReads: 2,
+            WasAnonymized: false,
+            AnonymizedColumns: []));
+    }
 }
 
 internal sealed class FakeScriptExecutionService : IScriptExecutionService

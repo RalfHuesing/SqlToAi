@@ -41,6 +41,7 @@ public sealed class ToolRegistry
         BuildGetObjectReferences(),
         BuildGetRoutineParameters(),
         BuildExecuteQuery(),
+        BuildExportData(),
         BuildExecuteFile(),
         BuildCompareQueries(),
         BuildMeasurePerformance(),
@@ -226,6 +227,26 @@ public sealed class ToolRegistry
                 [McpConstants.ArgParameters]        = new() { Type = "object", Description = "Optional dictionary of typed SQL parameters (e.g. {\"CustomerId\": 42} or {\"val\": {\"value\": \"123\", \"dbType\": \"AnsiString\"}})." }
             },
             Required = [McpConstants.ArgQuery, McpConstants.ArgDatabase]
+        }
+    };
+
+    private static ToolDefinition BuildExportData() => new()
+    {
+        Name = McpConstants.ToolExportData,
+        Description = ExecutionToolDescriptions.ExportData,
+        InputSchema = new ToolInputSchema
+        {
+            Properties = new Dictionary<string, ToolParameterDefinition>
+            {
+                [McpConstants.ArgDatabase]          = StringParam(McpConstants.DatabaseTargetDescription),
+                [McpConstants.ArgQuery]             = StringParam("The read-only SQL query to execute and export."),
+                [McpConstants.ArgOutputPath]        = StringParam("Required absolute Windows drive-rooted or UNC file path for the exported file."),
+                [McpConstants.ArgFormat]            = StringParam("Optional export format ('csv' or 'jsonl'). Defaults to auto-detection from the output_path extension (fallback 'csv')."),
+                [McpConstants.ArgOverwrite]         = new() { Type = "boolean", Description = "Whether to overwrite an existing file at output_path. Default is false." },
+                [McpConstants.ArgRequestedRowLimit] = new() { Type = "integer", Description = "Maximum rows to export. Capped by the server's configured export maximum. Optional." },
+                [McpConstants.ArgParameters]        = new() { Type = "object", Description = "Optional dictionary of typed SQL parameters (e.g. {\"CustomerId\": 42} or {\"val\": {\"value\": \"123\", \"dbType\": \"AnsiString\"}})." }
+            },
+            Required = [McpConstants.ArgDatabase, McpConstants.ArgQuery, McpConstants.ArgOutputPath]
         }
     };
 

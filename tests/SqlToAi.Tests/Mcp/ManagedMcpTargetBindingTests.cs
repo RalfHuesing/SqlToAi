@@ -32,7 +32,7 @@ public sealed class ManagedMcpTargetBindingTests
         Assert.Equal(McpConstants.ServerInstructions, client.ServerInstructions);
         Assert.Contains("exact raw database name, compared ordinally", client.ServerInstructions, StringComparison.Ordinal);
         Assert.Contains("can match actual stored text", client.ServerInstructions, StringComparison.Ordinal);
-        Assert.Equal(19, (await client.ListToolsAsync(cancellationToken: deadline.Token)).Count);
+        Assert.Equal(20, (await client.ListToolsAsync(cancellationToken: deadline.Token)).Count);
         var servers = await client.CallToolAsync(McpConstants.ToolListServers, cancellationToken: deadline.Token);
         Assert.False(servers.IsError);
         Assert.Equal(["alpha"], JsonSerializer.Deserialize<string[]>(Text(servers))!);

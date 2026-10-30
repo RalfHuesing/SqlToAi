@@ -1,6 +1,6 @@
 # SQL tool reference
 
-The server registers 19 SQL tools. Required arguments are listed below; `database` is an explicit qualified target (`alias/database`) wherever shown. Failed tool results set MCP `isError=true`; catalog errors appear as `[SQL-AI-...] message` in text content or structured `error` objects in JSON envelopes. Successful content can be Markdown or JSON, depending on the tool.
+The server registers 20 SQL tools. Required arguments are listed below; `database` is an explicit qualified target (`alias/database`) wherever shown. Failed tool results set MCP `isError=true`; catalog errors appear as `[SQL-AI-...] message` in text content or structured `error` objects in JSON envelopes. Successful content can be Markdown or JSON, depending on the tool.
 
 Discover aliases with `sql_list_servers` and permitted qualified targets with
 `sql_list_databases`. Both discovery schemas and CLI help describe the required
@@ -115,6 +115,7 @@ There is no automatic cleanup or staging.
 | Tool | Required arguments | Optional arguments |
 | --- | --- | --- |
 | `sql_execute_query` | `query`, `database` | `requested_row_limit`, `parameters` |
+| `sql_export_data` | `database`, `query`, `output_path` | `format` (auto), `overwrite` (false), `requested_row_limit`, `parameters` |
 | `sql_execute_file` | `file_path`, `database` | `use_transaction` (true), `requested_row_limit`, `parameters` |
 
 `sql_execute_query` accepts one main statement with supported leading declarations. The `database` argument is resolved as a qualified `alias/database` target: malformed, unqualified or unknown targets fail with `SQL-AI-0001` before any database work. Returned rows are capped by `QueryExecution` limits. It returns separate text blocks: a masking notice when applicable, an execution header, JSON rows, and a schema hint when the parsed query references a supported SQL Server catalog view or `OBJECT_DEFINITION`. The hint directs agents to `sql_get_schema`, `sql_get_trigger_definition` or `sql_search_objects`; it does not make another tool call. Catalog query string results may be anonymized. The header has this format:
@@ -136,6 +137,48 @@ all reader fields are serialized. Explicitly selected binary values, including
 `rowversion`, retain JSON base64 encoding.
 
 `sql_execute_file` accepts local `.sql` files, absolute or relative to the server working directory, with `GO` batch separators. URLs and UNC paths are rejected. Its `database` argument is resolved exactly once as a qualified `alias/database` target (`SQL-AI-0001` for malformed, unqualified or unknown targets before any database work, `SQL-AI-0104` for denied or excluded targets); the report's database field carries the canonical qualified target, and all batches run against that one immutable context. Size is checked against `MaxScriptFileSizeBytes` (10 MiB default). Parameters are shared across batches; row limits apply per SELECT batch. Results are a Markdown report with file metadata, transaction mode, batch results, metrics and diagnostics. Executed batches that reference a supported catalog view or `OBJECT_DEFINITION` include the same schema hint. Server-managed transactions reject explicit transaction control and `SET IMPLICIT_TRANSACTIONS` anywhere in the script before the first batch runs (`SQL-AI-0104`). Unparseable batches fail with `SQL-AI-0102`. Procedures, dynamic SQL and triggers remain supported in write-capable modes but can change transaction state outside that analysis; atomicity is not guaranteed for such code. See [transaction behavior](security.md#query-guards-and-transactions) before enabling writes or disabling the server-managed transaction.
+
+### Data export
+
+`sql_export_data` executes a single read-only SQL query (SELECT, read-only CTEs, table-valued functions, or read-only stored procedures returning a result set) and streams rows directly into a local file on the server filesystem. Unlike `sql_execute_query`, data rows are never returned in the MCP response payload, preventing context window exhaustion on large datasets.
+
+`output_path` must be an absolute Windows drive-rooted (e.g. `C:\Data\export.csv`) or UNC (`\\server\share\export.csv`) file path. Relative paths, directory paths, and missing parent directories are rejected with `SQL-AI-0001`. If `overwrite` is `false` (default) and the file already exists, execution is blocked with `SQL-AI-0114` before any database connection.
+
+Writing is atomic: the stream writes to a temporary file (`<targetDir>\<fileName>.<guid>.tmp`) using a 64 KB buffer. On successful completion, it is atomically moved (`File.Move`) to `output_path`. On any error, timeout, or cancellation, the stream is closed, the temporary file is deleted immediately, the transaction is rolled back, and no partial or corrupted file remains.
+
+Supported formats:
+- `csv` (RFC 4180): UTF-8 without BOM. Comma `,` delimiter. Quotes fields containing commas, newlines (`\r`, `\n`), or double quotes (`"`). Internal quotes are escaped as `""`. `NULL` values serialize as empty unquoted fields (`val1,,val3`); empty strings serialize as quoted empty strings (`val1,"",val3`). First row contains column names.
+- `jsonl`: Newline-delimited JSON. Each line is an independent JSON object mapping column names to typed values (numbers, booleans, strings, nulls) via Native AOT-compatible serialization.
+- Auto-detection: When `format` is omitted, it is inferred from the `output_path` file extension (`.csv` -> `csv`, `.jsonl` -> `jsonl`), falling back to `QueryExecution.Export.DefaultFormat` (default `csv`). Unsupported formats return `SQL-AI-0001`.
+
+Safety and read-only enforcement:
+- Strictly read-only across all access levels, including `ReadWrite` and `ReadWriteAnonymized`. Mutating statements (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, DDL) are blocked with `SQL-AI-0107`.
+- `SchemaOnly` targets and queries returning no result set are rejected with `SQL-AI-0107`.
+- The database transaction is always rolled back; changes are never committed.
+- Export row limits default to `QueryExecution.Export.DefaultRowLimit` (10,000) and are capped by `QueryExecution.Export.MaxRowLimit` (50,000). Non-positive requested limits return `SQL-AI-0001`.
+
+Anonymization:
+- For `ReadOnlyAnonymized` and `ReadWriteAnonymized` databases, string column values are masked or tokenized according to central rules and policy. Column-independent queries (e.g. `SELECT 'literal' AS Val` containing no column references) are exempt from masking. Searchable tokens in the query are resolved before execution.
+
+The tool returns a compact JSON metadata response:
+```json
+{
+  "status": "completed",
+  "file_path": "C:\\Data\\export.csv",
+  "format": "csv",
+  "row_count": 10000,
+  "file_size_bytes": 524288,
+  "columns": [
+    { "name": "CustomerId", "type": "int" },
+    { "name": "CompanyName", "type": "string" }
+  ],
+  "elapsed_ms": 142,
+  "cpu_ms": 45,
+  "logical_reads": 1200,
+  "was_anonymized": false,
+  "anonymized_columns": []
+}
+```
 
 ## Parameters
 
@@ -203,5 +246,6 @@ The implementation source is [SqlToAiError.cs](../src/SqlToAi/Domain/SqlToAiErro
 | `SQL-AI-0111` | Script file not found |
 | `SQL-AI-0112` | Script exceeds configured size limit |
 | `SQL-AI-0113` | Script extension is not `.sql` |
+| `SQL-AI-0114` | Output file already exists when overwrite is false |
 
 Primary connection-open failures use safe diagnostics identifying the `SqlToAi:Servers:<alias>` configuration section. TLS/certificate failures return `SQL-AI-0105`, including database discovery, schema/export operations and index suggestions; database discovery does not conceal these failures behind its configured-list fallback. Actual connection timeouts return `SQL-AI-0106`, even when the timeout occurs during a TLS handshake. The diagnostics discard raw provider messages and inner exception payloads before service logging, so authentication secrets and full connection strings from those exceptions cannot reach the response or connection-failure logs. Ordinary SQL execution errors retain their existing handling. No connection failure triggers a retry with weaker encryption or certificate checks.

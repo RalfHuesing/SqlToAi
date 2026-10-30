@@ -155,10 +155,11 @@ public sealed class DataExportService : IDataExportService
         string effectiveQuery = anonymize && _queryTokenResolver != null
             ? _queryTokenResolver.ResolveTokens(request.Query, target)
             : request.Query;
+        bool anonymizeResult = anonymize && !SqlColumnReferenceDetector.IsColumnIndependent(effectiveQuery);
 
         // 9-10. Open connection, stream and atomically finalize file
         return await ExecuteExportAsync(
-            target, effectiveQuery, fullPath, targetDir, fileName, format, effectiveLimit, anonymize, request.Parameters, request.Overwrite, cancellationToken)
+            target, effectiveQuery, fullPath, targetDir, fileName, format, effectiveLimit, anonymize, anonymizeResult, request.Parameters, request.Overwrite, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -171,6 +172,7 @@ public sealed class DataExportService : IDataExportService
         string format,
         int effectiveLimit,
         bool anonymize,
+        bool anonymizeResult,
         object? parameters,
         bool overwrite,
         CancellationToken cancellationToken)
@@ -220,7 +222,7 @@ public sealed class DataExportService : IDataExportService
                 command.CommandTimeout = _options.Export.CommandTimeoutSeconds;
                 SqlParameterBinder.BindParameters(command, parameters);
 
-                CommandBehavior behavior = anonymize
+                CommandBehavior behavior = anonymizeResult
                     ? CommandBehavior.SequentialAccess | CommandBehavior.KeyInfo
                     : CommandBehavior.SequentialAccess;
 
@@ -229,40 +231,56 @@ public sealed class DataExportService : IDataExportService
                 var tracker = new QueryExecutionService.RowAnonymizationTracker();
                 List<ExportColumnInfo> exportColumns = [];
 
-                var reader = await command.ExecuteReaderAsync(behavior, cancellationToken).ConfigureAwait(false);
-                await using (reader.ConfigureAwait(false))
+                try
                 {
-                    if (reader.FieldCount > 0)
+                    var reader = await command.ExecuteReaderAsync(behavior, cancellationToken).ConfigureAwait(false);
+                    await using (reader.ConfigureAwait(false))
                     {
-                        hasResultSet = true;
-                        var visibleColumns = QueryExecutionService.GetColumnNames(reader);
-                        exportColumns = new List<ExportColumnInfo>(visibleColumns.Length);
-                        for (int i = 0; i < visibleColumns.Length; i++)
+                        while (reader.FieldCount == 0 && await reader.NextResultAsync(cancellationToken).ConfigureAwait(false))
                         {
-                            Type fieldType = reader.GetFieldType(visibleColumns[i].Ordinal);
-                            exportColumns.Add(new ExportColumnInfo(visibleColumns[i].Name, MapToColumnType(fieldType)));
                         }
 
-                        await writer.WriteHeaderAsync(exportColumns, cancellationToken).ConfigureAwait(false);
-
-                        var anonCtx = await QueryExecutionService.ResolveAnonymizationContextAsync(
-                            reader, visibleColumns, anonymize, target, _anonymizationRuleProvider, _tokenizationOptions.IsUsable, cancellationToken).ConfigureAwait(false);
-
-                        var values = new object?[visibleColumns.Length];
-                        while (rowCount < effectiveLimit && await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                        if (reader.FieldCount > 0)
                         {
+                            hasResultSet = true;
+                            var visibleColumns = QueryExecutionService.GetColumnNames(reader);
+                            exportColumns = new List<ExportColumnInfo>(visibleColumns.Length);
                             for (int i = 0; i < visibleColumns.Length; i++)
                             {
-                                int ordinal = visibleColumns[i].Ordinal;
-                                object? raw = await reader.IsDBNullAsync(ordinal, cancellationToken).ConfigureAwait(false)
-                                    ? null
-                                    : reader.GetValue(ordinal);
-                                values[i] = QueryExecutionService.AnonymizeCell(_anonymizer, visibleColumns[i].Name, raw, anonCtx, ordinal, tracker);
+                                Type fieldType = reader.GetFieldType(visibleColumns[i].Ordinal);
+                                exportColumns.Add(new ExportColumnInfo(visibleColumns[i].Name, MapToColumnType(fieldType)));
                             }
-                            await writer.WriteRowAsync(exportColumns, values, cancellationToken).ConfigureAwait(false);
-                            rowCount++;
+
+                            await writer.WriteHeaderAsync(exportColumns, cancellationToken).ConfigureAwait(false);
+
+                            var anonCtx = await QueryExecutionService.ResolveAnonymizationContextAsync(
+                                reader, visibleColumns, anonymizeResult, target, _anonymizationRuleProvider, _tokenizationOptions.IsUsable, cancellationToken).ConfigureAwait(false);
+
+                            var values = new object?[visibleColumns.Length];
+                            while (rowCount < effectiveLimit && await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                            {
+                                for (int i = 0; i < visibleColumns.Length; i++)
+                                {
+                                    int ordinal = visibleColumns[i].Ordinal;
+                                    object? raw = await reader.IsDBNullAsync(ordinal, cancellationToken).ConfigureAwait(false)
+                                        ? null
+                                        : reader.GetValue(ordinal);
+                                    values[i] = QueryExecutionService.AnonymizeCell(_anonymizer, visibleColumns[i].Name, raw, anonCtx, ordinal, tracker);
+                                }
+                                await writer.WriteRowAsync(exportColumns, values, cancellationToken).ConfigureAwait(false);
+                                rowCount++;
+                            }
                         }
                     }
+                }
+                catch
+                {
+                    executionFailed = true;
+                    throw;
+                }
+                finally
+                {
+                    await DatabaseCleanup.ResetRowCountAsync(connection, transaction, _options.Export.CommandTimeoutSeconds, _logger, executionFailed).ConfigureAwait(false);
                 }
 
                 if (!hasResultSet)
@@ -283,8 +301,6 @@ public sealed class DataExportService : IDataExportService
                 await fileStream.FlushAsync(cancellationToken).ConfigureAwait(false);
                 await fileStream.DisposeAsync().ConfigureAwait(false);
                 fileStream = null;
-
-                await DatabaseCleanup.ResetRowCountAsync(connection, transaction, _options.Export.CommandTimeoutSeconds, _logger, executionFailed).ConfigureAwait(false);
 
                 int tranCountAfterExecution = await TransactionIntegrityGuard.GetTranCountAsync(
                     connection, transaction, _options.Export.CommandTimeoutSeconds, cancellationToken).ConfigureAwait(false);

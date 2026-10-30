@@ -134,6 +134,7 @@ public sealed class McpModelsTests
             McpConstants.ToolGetObjectReferences,
             McpConstants.ToolGetRoutineParameters,
             McpConstants.ToolExecuteQuery,
+            McpConstants.ToolExportData,
             McpConstants.ToolExecuteFile,
             McpConstants.ToolCompareQueries,
             McpConstants.ToolMeasurePerformance,
@@ -141,7 +142,7 @@ public sealed class McpModelsTests
             McpConstants.ToolSuggestIndexes
         };
 
-        Assert.Equal(19, tools.Distinct().Count());
+        Assert.Equal(20, tools.Distinct().Count());
         Assert.All(tools, t => Assert.StartsWith("sql_", t));
     }
 }

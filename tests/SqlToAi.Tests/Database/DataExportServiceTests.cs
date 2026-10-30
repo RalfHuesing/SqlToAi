@@ -276,6 +276,79 @@ public sealed class DataExportServiceTests
         Assert.False(File.Exists(outputPath));
     }
 
+    [Fact]
+    public async Task ExportDataAsync_ColumnIndependentQuery_DoesNotAnonymizeLiteralValues()
+    {
+        using var temp = TestTempDirectory.Create();
+        string outputPath = Path.Combine(temp.DirectoryPath, "literal.csv");
+
+        var rows = new List<object?[]> { new object?[] { "literal_secret" } };
+        var factory = new DelegateConnectionFactory(_ =>
+            new FakeDbDataReader(["Val"], rows));
+
+        var (service, _) = CreateService(
+            accessLevel: AccessLevel.ReadOnlyAnonymized,
+            customFactory: factory);
+
+        // Query with only literals has no column references, so SqlColumnReferenceDetector.IsColumnIndependent is true
+        var request = new DataExportRequest("test/DemoDB", "SELECT 'literal_secret' AS Val", outputPath);
+
+        var result = await service.ExportDataAsync(request, TestCt);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value.WasAnonymized);
+        Assert.Empty(result.Value.AnonymizedColumns);
+
+        string content = await File.ReadAllTextAsync(outputPath, TestCt);
+        Assert.Contains("literal_secret", content);
+    }
+
+    [Fact]
+    public async Task ExportDataAsync_ResetsRowCountOnFailure()
+    {
+        using var temp = TestTempDirectory.Create();
+        string outputPath = Path.Combine(temp.DirectoryPath, "fail.csv");
+
+        var factory = new DelegateConnectionFactory(_ =>
+            new FaultingDbDataReader(["Id"], [[1]], throwAfterRow: 0));
+
+        var (service, _) = CreateService(customFactory: factory);
+        var request = new DataExportRequest("test/DemoDB", "SELECT Id FROM FaultingTable", outputPath);
+
+        var result = await service.ExportDataAsync(request, TestCt);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SET ROWCOUNT 0", factory.ExecutedCommands);
+        Assert.False(File.Exists(outputPath));
+    }
+
+    [Fact]
+    public async Task ExportDataAsync_AdvancesPastLeadingEmptyResultSets()
+    {
+        using var temp = TestTempDirectory.Create();
+        string outputPath = Path.Combine(temp.DirectoryPath, "multi_result.csv");
+
+        var emptyResultSet = new FakeDbResultSet([], []);
+        var dataResultSet = new FakeDbResultSet(["Id", "Name"], [[101, "Alice"], [102, "Bob"]]);
+
+        var factory = new DelegateConnectionFactory(_ =>
+            new FakeDbDataReader(resultSets: [emptyResultSet, dataResultSet]));
+
+        var (service, _) = CreateService(customFactory: factory);
+        var request = new DataExportRequest("test/DemoDB", "SELECT Id, Name FROM Users", outputPath);
+
+        var result = await service.ExportDataAsync(request, TestCt);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.RowCount);
+        Assert.Equal("completed", result.Value.Status);
+
+        string content = await File.ReadAllTextAsync(outputPath, TestCt);
+        Assert.Contains("Id,Name", content);
+        Assert.Contains("101,Alice", content);
+        Assert.Contains("102,Bob", content);
+    }
+
     private static (DataExportService Service, MockQueryConnectionFactory? Factory) CreateService(
         AccessLevel accessLevel = AccessLevel.ReadOnly,
         MockQueryRowConfig? rowConfig = null,
@@ -327,14 +400,23 @@ public sealed class DataExportServiceTests
     private sealed class DelegateConnectionFactory(Func<DatabaseTargetContext, DbDataReader> readerFactory) : IDatabaseConnectionFactory
     {
         public FakeDbConnection? LastConnection { get; private set; }
+        public List<string> ExecutedCommands { get; } = [];
 
         public DbConnection CreateTargetConnection(DatabaseTargetContext target)
         {
             LastConnection = new FakeDbConnection(
                 conn => new FakeDbCommand(conn, new FakeDbCommandHandlers(
                     ExecuteScalar: _ => 1,
-                    ExecuteReader: _ => readerFactory(target),
-                    ExecuteNonQuery: _ => 0)),
+                    ExecuteReader: cmd =>
+                    {
+                        ExecutedCommands.Add(cmd.CommandText);
+                        return readerFactory(target);
+                    },
+                    ExecuteNonQuery: cmd =>
+                    {
+                        ExecutedCommands.Add(cmd.CommandText);
+                        return 0;
+                    })),
                 new FakeDbConnectionOptions(
                     Database: target.DatabaseName,
                     DataSource: "mock",

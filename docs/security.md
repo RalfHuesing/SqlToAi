@@ -50,6 +50,8 @@ followed by one main query; multiple main statements fail with `SQL-AI-0101`.
 Both write-capable levels bypass mutation checks but retain `USE` and single-query
 restrictions.
 
+`sql_export_data` enforces strict read-only queries across all access levels, including `ReadWrite` and `ReadWriteAnonymized`. Mutating statements (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, DDL) are rejected with `SQL-AI-0107`. `SchemaOnly` databases and queries that return no result set are rejected with `SQL-AI-0107`. The executed transaction is always rolled back; changes are never committed. Results are streamed row-by-row into a temporary file (`.<guid>.tmp`) in the destination directory and atomically renamed on completion; on error, timeout, or cancellation, the temporary file is deleted immediately and no partial file is retained.
+
 `sql_execute_file` supports multiple statements and `GO` batches. Protected read-only
 modes always roll back. In `ReadWrite` and `ReadWriteAnonymized`,
 `use_transaction=true` selects one server-managed transaction; `false` permits
@@ -74,7 +76,7 @@ Query and script execution, validation, comparison, performance measurement, and
 
 ## String masking and tokenization
 
-Query and script result masking applies to `ReadOnlyAnonymized` and
+Query, script, and data export result masking applies to `ReadOnlyAnonymized` and
 `ReadWriteAnonymized` with `Anonymizer.Enabled=true`, except columns excluded by a
 matching central rule. Exclusion matching uses the reader's resolved base schema,
 table and column; output aliases do not change the source-column decision. An
@@ -130,6 +132,7 @@ The primary connection-open boundary discards raw provider messages and inner ex
 ## Boundaries and data exposure
 
 - `sql_export_schema` deliberately persists raw schema/DDL documentation on the server filesystem, potentially in many large files. Database policy applies, including `SchemaOnly`; the process also needs filesystem write permission. Fully qualified Windows drive/UNC paths are accepted without an export-root sandbox. The caller needs access to the output filesystem. Paths must be absent/empty and writes use exclusive creation. Failed/cancelled output is retained, including incomplete files; use a new or manually emptied destination unless only an empty root remains. No data export, automatic cleanup or additional sanitization is performed. See [export parameters and outcomes](tools.md#schema-export).
+- `sql_export_data` streams query results directly to the server filesystem in CSV or JSONL format. It requires an absolute Windows drive-rooted or UNC file path. Unlike `sql_execute_query`, raw rows do not enter the MCP context window; only compact metadata is returned. It enforces strict read-only execution even on write-capable access levels, rolls back all transactions, rejects `SchemaOnly`, respects overwrite protection (`SQL-AI-0114`), applies string masking or token resolution on anonymized targets, and cleans up its temporary write file immediately on failure or cancellation.
 - Numeric identifiers, dates, binary values and other non-string columns are not masked.
 - Schema/DDL text is raw. Comparison returns raw difference samples; benchmark results embed them. Plan warnings, SQL literals, errors, logs and metadata can contain sensitive information.
 - Deterministic masks and tokens reveal repeated values. Cleartext exposed elsewhere can be correlated with protected values. These mechanisms do not guarantee anonymity or PII removal.

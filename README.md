@@ -9,6 +9,7 @@ results and performance. The server runs over stdio and is built with .NET 10.
 - Inspect tables, views, routines, triggers, keys, indexes, and object references.
 - Export database schema as linked Markdown files for offline reading.
 - Execute parameterized queries and local `.sql` scripts, including `GO` batches.
+- Stream query results directly into local CSV or JSONL files with compact metadata responses.
 - Measure CPU time, elapsed time, reads, and execution plan warnings; compare a
   baseline query with a candidate and inspect missing-index suggestions.
 - Configure database access levels, from schema-only access to read/write access.
@@ -131,7 +132,7 @@ changes while applying the configured string masking or tokenization to query an
 script results. These application checks complement SQL Server permissions; they
 do not replace them.
 
-String masking applies to query and script results for `ReadOnlyAnonymized` and
+String masking applies to query, script, and data export results for `ReadOnlyAnonymized` and
 `ReadWriteAnonymized` databases. Numeric values, dates, schema definitions,
 query-comparison difference
 samples, and execution plan content can remain visible. Tokens are reversible

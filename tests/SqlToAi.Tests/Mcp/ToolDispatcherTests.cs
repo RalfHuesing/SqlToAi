@@ -330,6 +330,108 @@ public sealed class ToolDispatcherTests : IDisposable
         Assert.False(script.ExecuteCalled);
     }
 
+    [Fact]
+    public async Task ExportData_ShouldRouteToDataExportService()
+    {
+        var dataExport = new FakeDataExportService();
+        var dispatcher = BuildDispatcher(dataExport: dataExport);
+        var parameters = new Dictionary<string, object?> { ["id"] = 42 };
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExportData,
+                (McpConstants.ArgDatabase, TestConstants.DatabaseName),
+                (McpConstants.ArgQuery, "SELECT 1"),
+                (McpConstants.ArgOutputPath, @"C:\data\export.csv"),
+                (McpConstants.ArgFormat, "csv"),
+                (McpConstants.ArgOverwrite, true),
+                (McpConstants.ArgRequestedRowLimit, (object)500),
+                (McpConstants.ArgParameters, parameters)),
+            TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsError);
+        Assert.Single(result.Content);
+        Assert.True(dataExport.ExportCalled);
+        Assert.Equal(TestConstants.DatabaseName, dataExport.LastRequest?.Database);
+        Assert.Equal("SELECT 1", dataExport.LastRequest?.Query);
+        Assert.Equal(@"C:\data\export.csv", dataExport.LastRequest?.OutputPath);
+        Assert.Equal("csv", dataExport.LastRequest?.Format);
+        Assert.True(dataExport.LastRequest?.Overwrite);
+        Assert.Equal(500, dataExport.LastRequest?.RequestedRowLimit);
+        Assert.Same(parameters, dataExport.LastRequest?.Parameters);
+
+        using var doc = System.Text.Json.JsonDocument.Parse(result.Content[0].Text!);
+        Assert.Equal("completed", doc.RootElement.GetProperty("status").GetString());
+        Assert.Equal(@"C:\data\export.csv", doc.RootElement.GetProperty("file_path").GetString());
+        Assert.Equal("csv", doc.RootElement.GetProperty("format").GetString());
+        Assert.Equal(1, doc.RootElement.GetProperty("row_count").GetInt32());
+    }
+
+    [Theory]
+    [InlineData(McpConstants.ArgQuery)]
+    [InlineData(McpConstants.ArgOutputPath)]
+    public async Task ExportData_MissingRequiredArguments_ReturnsInvalidParameters(string missingArg)
+    {
+        var dataExport = new FakeDataExportService();
+        var dispatcher = BuildDispatcher(dataExport: dataExport);
+
+        var args = new Dictionary<string, object>
+        {
+            [McpConstants.ArgDatabase] = TestConstants.DatabaseName,
+            [McpConstants.ArgQuery] = "SELECT 1",
+            [McpConstants.ArgOutputPath] = @"C:\data\export.csv"
+        };
+        args.Remove(missingArg);
+
+        var callParams = new ToolCallParams
+        {
+            Name = McpConstants.ToolExportData,
+            Arguments = args.ToDictionary(a => a.Key, a => (object?)a.Value)
+        };
+
+        var result = await dispatcher.DispatchAsync(callParams, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsError);
+        Assert.Contains(SqlToAiError.InvalidParametersCode, result.Content[0].Text);
+        Assert.False(dataExport.ExportCalled);
+    }
+
+    [Fact]
+    public async Task ExportData_MissingDatabase_ReturnsInvalidParameters()
+    {
+        var dataExport = new FakeDataExportService();
+        var dispatcher = BuildDispatcher(dataExport: dataExport);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExportData,
+                (McpConstants.ArgQuery, "SELECT 1"),
+                (McpConstants.ArgOutputPath, @"C:\data\export.csv")),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsError);
+        Assert.Contains(SqlToAiError.InvalidParametersCode, result.Content[0].Text);
+        Assert.False(dataExport.ExportCalled);
+    }
+
+    [Fact]
+    public async Task ExportData_PropagatesServiceError()
+    {
+        var dataExport = new FakeDataExportService
+        {
+            NextResult = SqlToAiError.FileAlreadyExists(@"C:\data\export.csv")
+        };
+        var dispatcher = BuildDispatcher(dataExport: dataExport);
+
+        var result = await dispatcher.DispatchAsync(
+            Call(McpConstants.ToolExportData,
+                (McpConstants.ArgDatabase, TestConstants.DatabaseName),
+                (McpConstants.ArgQuery, "SELECT 1"),
+                (McpConstants.ArgOutputPath, @"C:\data\export.csv")),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsError);
+        Assert.Contains(SqlToAiError.FileAlreadyExistsCode, result.Content[0].Text);
+    }
+
     private string WriteScript(string content)
     {
         string filePath = Path.Combine(_tempDirectory, Guid.NewGuid().ToString("N") + ".sql");

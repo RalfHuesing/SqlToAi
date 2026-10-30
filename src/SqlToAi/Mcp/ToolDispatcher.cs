@@ -37,6 +37,7 @@ internal sealed class ToolDispatcher : IToolDispatcher
     private readonly IPerformanceMeasurementService _performanceMeasurementService;
     private readonly IOptimizationBenchmarkService _benchmarkService;
     private readonly IIndexSuggestionService _indexSuggestionService;
+    private readonly IDataExportService _dataExportService;
     private readonly QueryExecutionOptions _queryExecutionOptions;
     private readonly ILogger<ToolDispatcher> _logger;
     private readonly Dictionary<string, Func<ToolCallParams, CancellationToken, Task<ToolCallResult>>> _handlers;
@@ -50,10 +51,12 @@ internal sealed class ToolDispatcher : IToolDispatcher
         DatabaseAnalysisServices analysisServices,
         IOptions<SqlToAiOptions> options,
         ILogger<ToolDispatcher> logger,
-        SchemaExportService schemaExport)
+        SchemaExportService schemaExport,
+        IDataExportService dataExportService)
     {
         _schemaService = schemaService;
         _schemaExport = schemaExport;
+        _dataExportService = dataExportService;
         _queryExecutionService = queryExecutionService;
         _scriptExecutionService = scriptExecutionService;
         _queryValidationService = queryValidationService;
@@ -177,6 +180,19 @@ internal sealed class ToolDispatcher : IToolDispatcher
                     IsError = false
                 };
             },
+
+            [McpConstants.ToolExportData] = (paramsObj, ct) =>
+                CallAsync(() => _dataExportService.ExportDataAsync(
+                    new DataExportRequest(
+                        GetDb(paramsObj),
+                        Require(paramsObj, McpConstants.ArgQuery),
+                        Require(paramsObj, McpConstants.ArgOutputPath),
+                        GetString(paramsObj, McpConstants.ArgFormat),
+                        GetBool(paramsObj, McpConstants.ArgOverwrite) ?? false,
+                        GetInt(paramsObj, McpConstants.ArgRequestedRowLimit),
+                        GetObject(paramsObj, McpConstants.ArgParameters)),
+                    ct),
+                    res => JsonSerializer.Serialize(res, McpJsonContext.Default.DataExportResult)),
 
             [McpConstants.ToolExecuteFile] = ExecuteFileAsync,
 
