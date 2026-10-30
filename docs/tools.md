@@ -257,19 +257,17 @@ Result shape:
   "warnings": [
     {
       "kind": "missing_index",
+      "schema": "dbo",
+      "table": "Orders",
       "impact": 54.2,
-      "object": {
-        "schema": "dbo",
-        "table": "Orders"
-      },
-      "columns": ["CustomerID"],
-      "included_columns": ["OrderDate"]
+      "key_columns": ["CustomerID"],
+      "include_columns": ["OrderDate"]
     }
   ]
 }
 ```
 
-Allowlisted warnings include `missing_index` (table identity, key columns, include columns, estimated impact) and `plan_affecting_convert` (conversion kind and column identity). Scans are visible through `physical_op` on nodes and are not reported as warnings. Sensitive literals, raw XML, `StatementText`, parameter values, `ScalarString`, expression text, and generated `CREATE INDEX` DDL are never returned.
+Allowlisted warnings include `missing_index` (table identity via `schema` and `table`, `key_columns`, `include_columns`, and estimated `impact`) and `plan_affecting_convert` (`conversion_kind` and `column` identity). Scans are visible through `physical_op` on nodes and are not reported as warnings. Sensitive literals, raw XML, `StatementText`, parameter values, `ScalarString`, expression text, and generated `CREATE INDEX` DDL are never returned.
 
 ## Parameters
 

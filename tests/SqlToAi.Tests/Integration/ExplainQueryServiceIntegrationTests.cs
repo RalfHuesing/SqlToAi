@@ -202,4 +202,54 @@ public sealed class ExplainQueryServiceIntegrationTests
         Assert.Single(plan.Nodes);
         Assert.True(plan.Nodes[0].OmittedChildren > 0);
     }
+
+    [Fact]
+    public async Task ExplainQueryAsync_QueryWithMissingIndex_ReturnsMissingIndexWarning()
+    {
+        var resolver = new DatabaseTargetResolver(_fx.Options);
+        var targetContext = resolver.Resolve(_target).Value;
+        await using (var setupConn = _fx.ConnectionFactory.CreateTargetConnection(targetContext))
+        {
+            await setupConn.OpenAsync(TestContext.Current.CancellationToken);
+            await using var cmd = setupConn.CreateCommand();
+            cmd.CommandText = "UPDATE STATISTICS dbo.FakeProjects WITH ROWCOUNT = 500000, PAGECOUNT = 50000;";
+            await cmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        try
+        {
+            const string query = "SELECT Description FROM dbo.FakeProjects WHERE Status = 'Active' AND Mandant = 1";
+            var result = await _fx.ExplainQueryService.ExplainQueryAsync(
+                _target,
+                query,
+                null,
+                TestContext.Current.CancellationToken);
+
+            Assert.True(result.IsSuccess, IntegrationAssertions.FormatFailure(result));
+            var plan = result.Value;
+            var warning = Assert.Single(plan.Warnings, w => w.Kind == "missing_index");
+            Assert.Equal("dbo", warning.Schema);
+            Assert.Equal("FakeProjects", warning.Table);
+            Assert.NotNull(warning.Impact);
+            Assert.True(warning.Impact.Value > 0);
+            Assert.NotNull(warning.KeyColumns);
+            Assert.Contains("Mandant", warning.KeyColumns);
+            Assert.Contains("Status", warning.KeyColumns);
+            Assert.NotNull(warning.IncludeColumns);
+            Assert.Contains("Description", warning.IncludeColumns);
+
+            string json = JsonSerializer.Serialize(plan, McpJsonContext.Default.ExplainQueryResult);
+            Assert.Contains("\"kind\":\"missing_index\"", json, StringComparison.Ordinal);
+            Assert.Contains("\"schema\":\"dbo\"", json, StringComparison.Ordinal);
+            Assert.Contains("\"table\":\"FakeProjects\"", json, StringComparison.Ordinal);
+        }
+        finally
+        {
+            await using var cleanupConn = _fx.ConnectionFactory.CreateTargetConnection(targetContext);
+            await cleanupConn.OpenAsync(CancellationToken.None);
+            await using var cmd = cleanupConn.CreateCommand();
+            cmd.CommandText = "UPDATE STATISTICS dbo.FakeProjects;";
+            await cmd.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+    }
 }

@@ -134,14 +134,14 @@ Tool count: the server registers 20 tools today; it registers 21 after M1.2 and 
     - [x] Integration tests pass
     - [x] Atomic commit: `feat: Binde sql_explain_query in MCP, CLI und Dokumentation ein`
 
-- [ ] **M2.5 — Milestone 2 Audit and Verification**
+- [x] **M2.5 — Milestone 2 Audit and Verification**
   - **Intention**: Verify Milestone 2 against the concept.
   - **Acceptance criteria**:
     - Build with `--warnaserror` and full tests pass with 0 failures.
     - `sql_explain_query` verified against a real SQL Server fixture with several query shapes (joins, scans, missing index, parameters, truncation).
   - **Checklist**:
-    - [ ] Audit executed
-    - [ ] Milestone 2 closed
+    - [x] Audit executed
+    - [x] Milestone 2 closed
 
 ---
 
