@@ -41,7 +41,7 @@ internal sealed class SchemaPresentationFixture : IDatabaseConnectionFactory, IM
     public SchemaService CreateService(bool allowed = true, string databaseName = TestConstants.QualifiedDatabaseName)
     {
         var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
-        if (allowed) options.Databases.SchemaOnly = [databaseName];
+        if (allowed) options.Databases.ReadOnlyAnonymized = [databaseName];
         options.Anonymizer.Enabled = true;
         options.Servers[TestTargets.ServerAlias].AnonymizationRules.Enabled = true;
         var bound = Options.Create(options);

@@ -44,7 +44,7 @@ public sealed class SchemaService : ISchemaService
         _options = options.Value;
         _targets = new DatabaseTargetResolver(_options);
         _logger = logger;
-        _tableSchemaRenderer = new TableSchemaRenderer(metadataProvider, policyResolver);
+        _tableSchemaRenderer = new TableSchemaRenderer(metadataProvider, policyResolver, accessLevelProvider);
     }
 
     /// <summary>

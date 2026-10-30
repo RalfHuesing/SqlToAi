@@ -20,7 +20,7 @@ public sealed class SchemaServiceAnonymizationTests
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
-        options.Databases.SchemaOnly = [TestConstants.QualifiedDatabaseName];
+        options.Databases.ReadOnlyAnonymized = [TestConstants.QualifiedDatabaseName];
         options.Servers[TestTargets.ServerAlias].MetadataProvider.Enabled = false;
         options.Anonymizer.Enabled = true;
         options.Servers[TestTargets.ServerAlias].AnonymizationRules.Enabled = true;
@@ -52,14 +52,27 @@ public sealed class SchemaServiceAnonymizationTests
     [Theory]
     [InlineData(AccessLevel.ReadWrite)]
     [InlineData(AccessLevel.ReadWriteAnonymized)]
+    [InlineData(AccessLevel.ReadOnly)]
+    [InlineData(AccessLevel.ReadOnlyAnonymized)]
     public async Task GetSchemaAsync_ShouldAnnotateAnonymizedColumn_UsingPolicyResolver(AccessLevel accessLevel)
     {
         // Arrange — mock schema returns CustomerId (int, PK/Identity) and Email (varchar, nullable).
         var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
-        if (accessLevel == AccessLevel.ReadWriteAnonymized)
-            options.Databases.ReadWriteAnonymized = [TestConstants.QualifiedDatabaseName];
-        else
-            options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
+        switch (accessLevel)
+        {
+            case AccessLevel.ReadWriteAnonymized:
+                options.Databases.ReadWriteAnonymized = [TestConstants.QualifiedDatabaseName];
+                break;
+            case AccessLevel.ReadOnlyAnonymized:
+                options.Databases.ReadOnlyAnonymized = [TestConstants.QualifiedDatabaseName];
+                break;
+            case AccessLevel.ReadOnly:
+                options.Databases.ReadOnly = [TestConstants.QualifiedDatabaseName];
+                break;
+            default:
+                options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
+                break;
+        }
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -75,8 +88,14 @@ public sealed class SchemaServiceAnonymizationTests
         // Assert
         Assert.True(result.IsSuccess);
         Assert.Contains("Anonymized", result.Value);
-        // Email is a string column the resolver flags -> "Yes".
-        Assert.Contains("| Email | varchar(100) | Yes |  | Yes |  |", result.Value);
+        if (accessLevel.RequiresAnonymization())
+        {
+            Assert.Contains("| Email | varchar(100) | Yes |  | Yes |  |", result.Value);
+        }
+        else
+        {
+            Assert.Contains("| Email | varchar(100) | Yes |  | No |  |", result.Value);
+        }
         // CustomerId is an int column -> never anonymized regardless of the resolver ("No"),
         // because Anonymizer only ever touches string values.
         Assert.Contains("| CustomerId | int | No | PK, Identity | No |  |", result.Value);
@@ -85,15 +104,28 @@ public sealed class SchemaServiceAnonymizationTests
     [Theory]
     [InlineData(AccessLevel.ReadWrite)]
     [InlineData(AccessLevel.ReadWriteAnonymized)]
+    [InlineData(AccessLevel.ReadOnly)]
+    [InlineData(AccessLevel.ReadOnlyAnonymized)]
     public async Task GetSchemaAsync_ShouldAnnotateSearchableColumn_AsYesSearchable(AccessLevel accessLevel)
     {
         // Arrange — same mock schema (CustomerId int, Email varchar), but the resolver now flags
         // Email as both anonymized AND searchable-token (reversible), not just masked.
         var options = new SqlToAiOptions().WithNamedServers(TestTargets.ServerAlias);
-        if (accessLevel == AccessLevel.ReadWriteAnonymized)
-            options.Databases.ReadWriteAnonymized = [TestConstants.QualifiedDatabaseName];
-        else
-            options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
+        switch (accessLevel)
+        {
+            case AccessLevel.ReadWriteAnonymized:
+                options.Databases.ReadWriteAnonymized = [TestConstants.QualifiedDatabaseName];
+                break;
+            case AccessLevel.ReadOnlyAnonymized:
+                options.Databases.ReadOnlyAnonymized = [TestConstants.QualifiedDatabaseName];
+                break;
+            case AccessLevel.ReadOnly:
+                options.Databases.ReadOnly = [TestConstants.QualifiedDatabaseName];
+                break;
+            default:
+                options.Databases.ReadWrite = [TestConstants.QualifiedDatabaseName];
+                break;
+        }
 
         var mockFactory = new DummyConnectionFactory();
         var securityGuard = new SecurityGuard(Options.Create(options));
@@ -108,7 +140,14 @@ public sealed class SchemaServiceAnonymizationTests
 
         // Assert
         Assert.True(result.IsSuccess);
-        Assert.Contains("| Email | varchar(100) | Yes |  | Yes (searchable) |  |", result.Value);
+        if (accessLevel.RequiresAnonymization())
+        {
+            Assert.Contains("| Email | varchar(100) | Yes |  | Yes (searchable) |  |", result.Value);
+        }
+        else
+        {
+            Assert.Contains("| Email | varchar(100) | Yes |  | No |  |", result.Value);
+        }
         Assert.Contains("| CustomerId | int | No | PK, Identity | No |  |", result.Value);
     }
 }

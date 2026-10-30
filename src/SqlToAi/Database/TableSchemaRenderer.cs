@@ -4,6 +4,7 @@ using System.Text;
 using SqlToAi.Anonymization;
 using SqlToAi.Domain;
 using SqlToAi.Metadata;
+using SqlToAi.Security;
 
 namespace SqlToAi.Database;
 
@@ -17,11 +18,16 @@ internal sealed class TableSchemaRenderer
 
     private readonly IMetadataProvider _metadataProvider;
     private readonly IAnonymizationPolicyResolver _policyResolver;
+    private readonly IAccessLevelProvider? _accessLevelProvider;
 
-    public TableSchemaRenderer(IMetadataProvider metadataProvider, IAnonymizationPolicyResolver policyResolver)
+    public TableSchemaRenderer(
+        IMetadataProvider metadataProvider,
+        IAnonymizationPolicyResolver policyResolver,
+        IAccessLevelProvider? accessLevelProvider = null)
     {
         _metadataProvider = metadataProvider;
         _policyResolver = policyResolver;
+        _accessLevelProvider = accessLevelProvider;
     }
 
     public async Task<string> GetTableSchemaMarkdownAsync(
@@ -119,6 +125,15 @@ internal sealed class TableSchemaRenderer
     private async Task<ColumnAnonymizationState> ResolveColumnStateAsync(
         DatabaseTargetContext target, string tableName, ColumnRow col, CancellationToken cancellationToken, SchemaObjectIdentity? identity)
     {
+        if (_accessLevelProvider is not null)
+        {
+            var accessLevel = await _accessLevelProvider.GetTargetAccessLevelAsync(target, cancellationToken);
+            if (!accessLevel.RequiresAnonymization())
+            {
+                return ColumnAnonymizationState.None;
+            }
+        }
+
         bool willAnonymize = AnonymizableSqlTypes.Contains(col.DataType)
             && (identity is null
                 ? await _policyResolver.WillAnonymizeAsync(target, tableName, col.ColumnName, cancellationToken)

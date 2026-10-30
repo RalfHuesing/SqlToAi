@@ -15,6 +15,8 @@ public sealed class SchemaServiceBatchTests
     public async Task Batch_NormalizesInputsRetainsOrderAndReusesResolvedAliasesWithInteractiveEnrichment()
     {
         var factory = new SchemaBatchTestFactory();
+        factory.Options.Databases.ReadOnlyAnonymized = [TestConstants.QualifiedDatabaseName];
+        factory.Options.Databases.SchemaOnly.Clear();
         var response = await factory.Service().GetSchemaBatchAsync(TestConstants.QualifiedDatabaseName, Json("\" Orders \""),
             Json("[null,\"\",\"  \",\"[dbo].[Orders]\",\"dbo.Orders\",\"Orders\"]"), TestContext.Current.CancellationToken);
         Assert.True(response.Value.Complete);
@@ -185,6 +187,8 @@ public sealed class SchemaServiceBatchTests
             factory.Options.Servers[TestTargets.ServerAlias].MetadataProvider.ColumnMetadataQuery = "CUSTOM_COLUMN_DESCRIPTION";
         }
         factory.Options.Anonymizer.Tokenization.Enabled = true;
+        factory.Options.Databases.ReadOnlyAnonymized = [TestConstants.QualifiedDatabaseName];
+        factory.Options.Databases.SchemaOnly.Clear();
         var bound = Options.Create(factory.Options);
         var identity = new SchemaObjectIdentity(1, schema, name, SchemaObjectKind.Table);
         var rule = new ExactUnmaskedRule(schema, name);

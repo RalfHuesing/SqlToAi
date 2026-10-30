@@ -33,4 +33,11 @@ public sealed class SqlMetadataQueryDetectorTests
     {
         Assert.False(SqlMetadataQueryDetector.ContainsSchemaMetadataReference("SELECT FROM"));
     }
+
+    [Fact]
+    public void GetResponseHint_WhenCatalogQuery_ReturnsStandardHint()
+    {
+        string? hint = SqlMetadataQueryDetector.GetResponseHint("SELECT * FROM sys.tables");
+        Assert.Equal("Schema hint: Direct catalog results may be anonymized. Use sql_get_schema for columns and view/routine definitions, sql_get_trigger_definition for triggers, or sql_search_objects to find object names.", hint);
+    }
 }
